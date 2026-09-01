@@ -17,8 +17,8 @@ harness — is written once, in the workshop:
 [`hausfold/workshop` → `.agents/README.md`](https://github.com/hausfold/workshop/blob/main/.agents/README.md).
 The table below is only what's wired in *this* repo.
 
-**This layer is for hacking on the rice.** Don't confuse it with the agent
-config the rice *ships*: `haus.ai.instructions`, `haus.ai.skill`,
+**This layer is for hacking on haus.** Don't confuse it with the agent
+config haus *ships*: `haus.ai.instructions`, `haus.ai.skill`,
 `modules/ai/agents/`, and the per-client agent-state hooks. Those write into
 a **user's** home directory and are a product feature; these files configure the
 agent working on this repo. They follow the same rule the table below does —
@@ -37,7 +37,7 @@ one body, one copy per client, at the path that client actually reads.
 | `.opencode/plugins/nix-bootstrap.js` | OpenCode | Plugin load *is* session start; runs the same script, swallowing every error. |
 
 No repo-local flows live here yet: the cross-repo ones (`/ship`, `/docs-sync`)
-belong to the workshop. When the rice grows one of its own it goes in
+belong to the workshop. When haus grows one of its own it goes in
 `.agents/skills/<name>/SKILL.md`, symlinked into `.claude/skills/<name>/` and
 `.opencode/skills/`, never copied.
 

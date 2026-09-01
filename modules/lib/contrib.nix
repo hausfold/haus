@@ -9,7 +9,7 @@
 # feature set untouched.
 #
 # The seam is `haus._contrib.<receiving room>.<feature>`. Leading underscore on
-# the top-level segment because that is the rice's convention for an internal
+# the top-level segment because that is haus's convention for an internal
 # tree (modules/options-doc.nix prunes them before anything is rendered) — these
 # are wiring between rooms, not settings a host or a desktop may write. Setting
 # one by hand is a config error, not a supported address.

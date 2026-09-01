@@ -4,7 +4,7 @@
 # CALLER's entitlement, so any process that dlopens the framework itself is
 # refused. That is exactly what SketchyBar's own `media_change` event does, which
 # is why the media pill has been permanently dark on 15.4+ (FelixKratz/SketchyBar
-# #708, still open) and why this rice has to bring its own reader. There is no
+# #708, still open) and why haus has to bring its own reader. There is no
 # public API to fall back on and never was: MPNowPlayingInfoCenter only ever let
 # an app publish its OWN state, it cannot read the system's.
 #
@@ -23,7 +23,7 @@
 #     dl_load_file()s <name>.framework/<name> — no Info.plist and no Versions
 #     symlink farm is ever read. So it is compiled here the way barpop and
 #     modules/displays compile theirs, with one `xcrun clang` against the CLT
-#     that is already a prerequisite of this rice, which keeps cmake out of the
+#     that is already a prerequisite of haus, which keeps cmake out of the
 #     closure for what is really just a dylib in a directory.
 #
 # The upstream repo vendors the adapter as a git submodule; both halves are

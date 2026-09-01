@@ -110,7 +110,7 @@ let
 
   # What feeds the media pill now that SketchyBar's own media_change event is
   # dead on macOS 15.4+. Reached by absolute store path from media_config.sh
-  # rather than put on PATH, and only when the pill is actually on, so a rice
+  # rather than put on PATH, and only when the pill is actually on, so a desktop
   # with `bar.items.media = false` doesn't carry it in its closure.
   mediaControl = pkgs.callPackage ./media-control.nix { };
 
@@ -239,13 +239,13 @@ let
   # ---- the bar's type FAMILY, from the same option as the terminal's ----------
   # Everything in the bar except the workspace logos is drawn in this. It used to
   # be the literal "Hack Nerd Font", written into the rc, four plugins and six
-  # generated blocks — so a rice that changed haus.fonts.mono.name got a
+  # generated blocks — so a desktop that changed haus.fonts.mono.name got a
   # machine with two type families and no way to say otherwise, which is a
   # promise the option never made and a limit nothing wrote down.
   #
   # It is the MONO family on purpose: the bar draws Nerd Font icon glyphs
   # (nf-md-*) in the same runs as its labels, so it needs the same patched font
-  # the terminal does, and `fonts.mono` is where a rice names one (with the
+  # the terminal does, and `fonts.mono` is where a desktop names one (with the
   # package, and the warning when the two disagree). Taken verbatim rather than
   # transformed — a "Nerd Font Mono" family name is what the option holds, and
   # deriving the propositional variant by trimming " Mono" would silently
@@ -539,7 +539,7 @@ let
 
   mkPluginBlocks = sb: side: {
     focus = focusBlock sb side;
-    # The clock can opt out of the rice's mono face when its dotted zero reads
+    # The clock can opt out of haus's mono face when its dotted zero reads
     # as an 8 at a glance. Its Nerd Font icon remains in the bar default either
     # way; only the dense date/time label follows clock.monoFont.
     clock = frameworkBlock sb side "clock" {
@@ -907,7 +907,7 @@ let
               click_script="$HOME/.config/sketchybar/plugins/calendar.sh click" \
           --subscribe calendar mouse.entered mouse.exited mouse.exited.global system_woke
     '';
-    # Keep-awake controller. The rice-level `awake` CLI + launchd job own the
+    # Keep-awake controller. The haus-level `awake` CLI + launchd job own the
     # assertion; this popup only chooses a duration and renders state. A bar
     # reload therefore cannot accidentally release an active assertion.
     caffeinate = ''
@@ -986,7 +986,7 @@ let
     # runtime. What is left here is the STATIC look, which is the only part
     # that interpolates options a header cannot see.
     #
-    # `iconWide` rather than `icon` because this is the rice's one SQUARE glyph
+    # `iconWide` rather than `icon` because this is haus's one SQUARE glyph
     # — see lib/bar.nix: Nerd Font Mono fits by width, so a square mark comes
     # out ~12% shorter than the tall glyphs beside it at the same point size.
     # The symmetric padding that used to sit here is gone: this is also the
@@ -1064,7 +1064,7 @@ let
   # `bar.bottom.items` are two closed submodules that write into it. The bundled
   # sixteen are PRE-DECLARED below, so nothing about the old surface changes
   # meaning — every leaf keeps its default, its description and its effect — and
-  # a rice that isn't this one can finally add a seventeenth pill.
+  # a desktop that isn't this one can finally add a seventeenth pill.
   #
   # The direction of the sugar is deliberate: the tables write into `widgets`
   # rather than `widgets` being read back out of them. That is what makes the
@@ -1078,7 +1078,7 @@ let
   aliasOf = name: widgetTable.${name}.alias or null;
   drawnBundled = builtins.filter (name: aliasOf name == null) bundledNames;
   widgets = cfg.widgets;
-  # A pill this repo ships, as opposed to one a rice declared. The distinction
+  # A pill this repo ships, as opposed to one a desktop declared. The distinction
   # is only ever used to REFUSE something (a `command` on a bundled pill, a
   # stranger's widget claiming a bundled name), never to give the bundled ones a
   # capability — see the assertions below.
@@ -1206,7 +1206,7 @@ let
     ) liveWidgets
   );
 
-  # A widget a rice declared, rendered as a SketchyBar block. Deliberately
+  # A widget a desktop declared, rendered as a SketchyBar block. Deliberately
   # small: one item, one script, one interval, and the same background and
   # padding every bundled pill wears, so a stranger's widget looks like it
   # belongs on this bar rather than like a patch on it. Anything richer — a
@@ -1240,7 +1240,7 @@ let
   # the blocks are hand-written SketchyBar runs, several of them interpolating
   # their rate from an older option (`haus.bar.calendar.refresh`), and a `--set`
   # that lands after the `--add` wins with no ambiguity about which. Nothing at
-  # all is emitted when the rice said nothing, so a bar that never mentions
+  # all is emitted when haus said nothing, so a bar that never mentions
   # `interval` renders byte-identically to before this existed.
   intervalOverride =
     sb: name:
@@ -1307,7 +1307,7 @@ let
   # on the bottom one would be the same dead pill, one edge down.
   # `aiUsage` is deliberately NOT here, though it sits beside `agents` in the
   # extras and reads the same client list: it renders usage numbers a client
-  # wrote to disk, and a client this rice never installed still writes them. The
+  # wrote to disk, and a client haus never installed still writes them. The
   # `agents` pill is different — its writer is `agent-state`, which the AI room
   # ships or does not.
   # `focus` is the second, and it is the one that was gated by NAME before the
@@ -1372,7 +1372,7 @@ let
   ) barMarks;
 
   # The order pills are emitted in: the bundled ones in the fixed left-to-right
-  # order above, then whatever a rice declared, alphabetically. A stranger's
+  # order above, then whatever a desktop declared, alphabetically. A stranger's
   # widget lands outboard of haus's own rather than interleaved, which is the
   # only stable answer available — `itemOrder` is an editorial sequence, and
   # there is no field on a widget that could name a position in it without
@@ -1613,7 +1613,7 @@ let
     "$HOME/.config/sketchybar/plugins/tour.sh" init
   '';
   # The resolved keymap (../lib/keys.nix). The tour's prompts must name the keys
-  # THIS machine is bound to — a tutor telling you to tap Caps Lock on a rice where
+  # THIS machine is bound to — a tutor telling you to tap Caps Lock on a desktop where
   # keys.leader = "alt-space" teaches a chord that does nothing.
   k = import ../lib/keys.nix {
     inherit lib;
@@ -1652,7 +1652,7 @@ let
         # modules/bar/default.nix — do not edit. TOUR_CUSTOM switches from the
         # built-in four-move lap to the authored list below. TOUR_HAS_PALETTE decides
         # whether the built-in lap has a step 4 (it needs pounce); the glyphs name the
-        # leader and palette chords this rice actually binds.
+        # leader and palette chords haus actually binds.
         TOUR_CUSTOM=${if customTour then "1" else "0"}
         TOUR_CUSTOM_COUNT=${toString (if customTour then builtins.length customTourSteps else 0)}
         TOUR_HAS_PALETTE=${if config.haus.launcher.enable && k.palette != null then "1" else "0"}
@@ -1728,7 +1728,7 @@ lib.mkIf config.haus.bar.enable {
         "haus.tour.steps uses the palette detector while Pounce or its palette binding is disabled; that step can only be skipped."
     ++
       # A misspelled placeholder renders literally — `{palete}` sits in the bar
-      # of whoever IMPORTED the rice, and the author, whose own hints they never
+      # of whoever IMPORTED haus, and the author, whose own hints they never
       # re-read, is the last person to find out. Same asymmetry as a pack's
       # leader key: check the thing the author can't see.
       lib.optional (customTour && badPlaceholders != [ ]) (
@@ -1992,7 +1992,7 @@ lib.mkIf config.haus.bar.enable {
   # and each is a different kind of answer:
   #
   #   enable      what `bar.items` says, or — for `focus`, which has no switch in
-  #               that table — what the Focus room says. mkDefault, so a rice
+  #               that table — what the Focus room says. mkDefault, so a desktop
   #               that reaches for the open form directly
   #               (`widgets.cpu.enable = true`) wins over the sugar's default
   #               without having to know the sugar exists.
@@ -2118,7 +2118,7 @@ lib.mkIf config.haus.bar.enable {
   # sketchybar-app-font draws the workspace-pill logos, and nothing else does —
   # so this is the one font bar still installs for itself. Everything else in
   # the bar is drawn in `barFont`, i.e. haus.fonts.mono.name, whose package
-  # core installs (and warns about when a rice names a family it wasn't given).
+  # core installs (and warns about when a desktop names a family it wasn't given).
   #
   # The rule that keeps this honest is the one that put Hack here in the first
   # place: DECLARE WHAT WE NAME. The bar used to name "Hack Nerd Font" while
@@ -2136,7 +2136,7 @@ lib.mkIf config.haus.bar.enable {
   # the only way to poke the bottom bar by hand or from a script.
   #
   # barvitals rides along only when one of the two readouts it feeds is
-  # actually drawn — a rice with neither pill on shouldn't carry a Swift build
+  # actually drawn — a desktop with neither pill on shouldn't carry a Swift build
   # in its closure for a sampler nothing calls. Both plugins reach it by its
   # /run/current-system/sw/bin path — an absolute one because a plugin's PATH is
   # whatever the agent was given (`userPath` above, not a login shell's), and
@@ -2357,7 +2357,7 @@ lib.mkIf config.haus.bar.enable {
       # says mauve is today, and a palette change reaches the logo without this
       # file knowing a single hex. `haus.bar.logo.color` left null follows
       # haus.theme.accent, which is the case worth optimising for: the pill is
-      # the rice's own mark, so it wears the rice's own accent.
+      # haus's own mark, so it wears haus's accent.
       #
       # BAR_LOGO_SWEEP_COLORS is the six hausfold accents in the order the
       # conic gradient on hausfold.co runs them (nebelung → scruff → perch →
@@ -2382,7 +2382,7 @@ lib.mkIf config.haus.bar.enable {
         # is plainly not a button.
         BAR_LOGO_GESTURES="${if cfg.logo.gestures && config.haus.launcher.enable then "1" else "0"}"
         BAR_LOGO_SWEEP_COLORS="$MAUVE $TEAL $GREEN $YELLOW $PEACH $PINK"
-        # This rice's pounce commands, so the menu's rows can RUN rebuild.sh and
+        # haus's pounce commands, so the menu's rows can RUN rebuild.sh and
         # reload-bar.sh rather than carry a second implementation of either.
         # Empty when haus.launcher.enable is off, which is also when the pill's
         # click gestures have nothing to open — haus_menu.sh checks for that.
@@ -2416,7 +2416,7 @@ lib.mkIf config.haus.bar.enable {
           BAR_CLOCK_MODE="${config.haus.bar.clock.mode}"
         '';
         # Empty when the pill is off, which is what keeps media-control out of a
-        # rice that doesn't draw it — plugins/media.sh, media_stream.sh and
+        # desktop that doesn't draw it — plugins/media.sh, media_stream.sh and
         # media_art.sh all exit 0 on an empty value rather than assuming the
         # binary is there.
         #
@@ -2442,7 +2442,7 @@ lib.mkIf config.haus.bar.enable {
           }"
         '';
         # Empty by default: plugins/elgato.sh then discovers the light over
-        # mDNS rather than the rice shipping somebody's device hostname.
+        # mDNS rather than haus shipping somebody's device hostname.
         ".config/sketchybar/elgato_config.sh".text = ''
           #!/bin/bash
           # GENERATED from haus.bar.elgato.* by modules/bar/default.nix — do not edit.
@@ -2476,7 +2476,7 @@ lib.mkIf config.haus.bar.enable {
       }
       // lib.optionalAttrs cfg.bottom.enable {
         # The second bar's rc + its item list. Deployed only when the bar is on,
-        # so a rice without it carries neither file and `bar-bottomrc` can't be
+        # so a desktop without it carries neither file and `bar-bottomrc` can't be
         # run by hand against a `bar-bottom` that isn't installed.
         ".config/sketchybar/bar-bottomrc".source = ./sketchybar/bar-bottomrc;
         ".config/sketchybar/bottom_items.sh".text = bottomItemsSh;

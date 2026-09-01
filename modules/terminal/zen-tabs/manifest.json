@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "haus tab bridge",
   "version": "1.0.0",
-  "description": "Publishes Zen's open tabs to the rice, so the bar can find and focus the tab that is making noise.",
+  "description": "Publishes Zen's open tabs to haus, so the bar can find and focus the tab that is making noise.",
   "browser_specific_settings": {
     "gecko": {
       "id": "zen-tabs@hausfold.co",

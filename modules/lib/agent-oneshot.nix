@@ -8,8 +8,8 @@
 # modules/lib/agent-packages.nix (what installs a client) and the AI room's
 # `agentHomes` (where a client keeps its files). This one answers the question
 # neither of those can: how do you hand this client one prompt, get one answer,
-# and never draw a TUI — which is what `haus-fix` needs and what nothing in the
-# rice needed before it. scruff's own specs are the INTERACTIVE shape (a lane,
+# and never draw a TUI — which is what `haus-fix` needs and what nothing in
+# haus needed before it. scruff's own specs are the INTERACTIVE shape (a lane,
 # a window, a person), so they are not this and cannot be reused for it.
 #
 # Unlike its two siblings, this table CHECKS ITSELF: it reads agents.nix and
@@ -29,7 +29,7 @@
 #    undo is `git -C ~/.config/nix revert HEAD` — see modules/ai/fix.sh's
 #    header for why that is the boundary rather than a permission prompt.
 #    pi carries no flag here because pi has no permission gate to bypass; its
-#    tools run (which is why the rice wires a desktop guard extension into it),
+#    tools run (which is why haus wires a desktop guard extension into it),
 #    and `haus-fix` sets HAUS_DESKTOP_OK=1 for every client instead.
 #
 # 3. `--` LAST. End-of-options, so a prompt that ever begins with a dash is a

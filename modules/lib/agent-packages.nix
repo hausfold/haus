@@ -1,6 +1,6 @@
 # One coding-agent client id → the one derivation that installs it.
 #
-# Nothing else in the rice may name these derivations: a host that wants a
+# Nothing else in haus may name these derivations: a host that wants a
 # patched build overlays `claude-code` (or `codex`, or `opencode`) so this
 # reference picks the patched one up. Adding a second derivation of the same
 # client beside this one puts two `bin/claude` in one profile, which is a

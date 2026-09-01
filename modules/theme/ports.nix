@@ -1,9 +1,9 @@
 # Nebelung ports for roster apps — the other half of theming.
 #
-# terminal themes the tools the rice INSTALLS: it knows those tools intimately, owns
+# terminal themes the tools haus INSTALLS: it knows those tools intimately, owns
 # their config files, and wires each rendered theme by hand. That covers the shell,
 # the terminal, the git stack, Zen, Obsidian. It cannot cover an app YOU added to
-# `haus.roster`, because the rice has never heard of it.
+# `haus.roster`, because haus has never heard of it.
 #
 # This room closes that gap from the other side. nebelung publishes, per port,
 # where its rendered theme has to land and what makes it active (its `ports`
@@ -14,7 +14,7 @@
 # What it deliberately does NOT do is pretend the job is finished when it isn't.
 # Dropping a file only makes a theme ACTIVE for ports whose select is "path"
 # (the destination is the activation). Everything else needs one more move that
-# belongs to the app or to you: a config key in a file the rice doesn't own, a
+# belongs to the app or to you: a config key in a file haus doesn't own, a
 # click in a Settings pane with no file interface at all. Those are placed and
 # then REPORTED, via a small file `haus doctor` reads — the difference between
 # "themed" and "waiting on one click" stays visible instead of turning into a
@@ -115,7 +115,7 @@
         # nebelung's answer to "what makes this the active theme":
         #   path     nothing — being there is the activation
         #   gui      a click we have no file interface to make
-        #   *        a setting in a config file the rice doesn't own for this app
+        #   *        a setting in a config file haus doesn't own for this app
         remaining =
           p:
           let
@@ -175,7 +175,7 @@
             # Three remedies, because they belong to three different people.
             # The desktop AUTHOR bumps the pin; a CONSUMER of a desktop can't —
             # they hold the flake input transitively — so name the two levers
-            # that are theirs. The rice#249 question: who can this check fail on?
+            # that are theirs. The haus#249 question: who can this check fail on?
             remedies = [
               "drop haus.roster.${id}, if you don't need the app themed"
               "haus.theme.ports.enable = false, to turn the whole pass off"
@@ -209,11 +209,10 @@
             id: p: lib.nameValuePair (target p) { source = "${checked}/${id}/${basename p.path}"; }
           ) placed
           # Read by `haus doctor`. Written even when empty so doctor can tell
-          # "nothing in your roster has a port" apart from "this rice predates the
+          # "nothing in your roster has a port" apart from "this machine's haus predates the
           # feature" and say the right thing for each.
           // {
-            ".config/haus/nebelung-ports.tsv".text =
-              lib.optionalString (report != "") (report + "\n");
+            ".config/haus/nebelung-ports.tsv".text = lib.optionalString (report != "") (report + "\n");
           };
       };
   };

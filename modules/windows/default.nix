@@ -5,7 +5,7 @@
 # The KEYMAP is haus.keys.* (resolved by ../lib/keys.nix), not baked in:
 # `leader` picks what enters launch mode (or removes it), `windowNav` picks the
 # modifier every window chord hangs off (or removes them). Both can be "none",
-# which is what makes a mouse-first rice — or a non-US-layout one, where ⌥+letter
+# which is what makes a mouse-first desktop — or a non-US-layout one, where ⌥+letter
 # belongs to the keyboard rather than to a window manager — expressible at all.
 #
 # The launcher (which app lives on which workspace, its leader key + window
@@ -223,7 +223,7 @@ let
   # NOT the command inlined. AeroSpace's toml array elements are single-quoted
   # literal strings with no escape, so a command carrying a `'` (an
   # `osascript -e '…'`, say) would close the string early and corrupt the config.
-  # Bouncing through a script sidesteps the quoting, and it's the pattern the rice
+  # Bouncing through a script sidesteps the quoting, and it's the pattern haus
   # already uses for reopen-last-app.sh / resort-windows.sh. Same
   # [mode.launch.binding] slot as the letters: drop the indicator, run, return to
   # main. homeDir is baked literally (like launchInvocation), so no subTokens pass.
@@ -775,7 +775,7 @@ lib.mkMerge [
     # Caps Lock → F18, feeding AeroSpace's `launch` leader mode: AeroSpace can't
     # bind Caps Lock itself. Decimal values are the hidutil HID usage codes (caps
     # lock → F18). Only for keys.leader = "caps" — every other value leaves the
-    # keyboard alone, which is the difference between a rice you can hand to
+    # keyboard alone, which is the difference between a desktop you can hand to
     # someone else and one that takes their Caps Lock. hidutil mappings are
     # re-applied at each activation and don't survive a reboot, so dropping this
     # ends the remap rather than stranding it.

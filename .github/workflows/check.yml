@@ -41,7 +41,7 @@ jobs:
       #                            pounce's ItemSettings.swift, so a prefix that
       #                            app learns can't spend a day being refused
       #                            here as a typo
-      #   pounce-command-keys      every `# pounce:` header key this rice's
+      #   pounce-command-keys      every `# pounce:` header key haus's
       #                            command scripts use vs the LOCKED pounce's
       #                            CommandRegistry.swift — the parser the DAEMON
       #                            builds ⌘Space from, which silently ignores a

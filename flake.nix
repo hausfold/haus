@@ -28,7 +28,7 @@
     # The command palette. Its overlay puts `pounce`, `pounce-commands` and
     # `pounce-skill` in pkgs.
     # pounce compiles its DEFAULT nebelung palette in at build time (variants
-    # load at runtime from ~/.config/pounce/themes/); point it at the rice's own
+    # load at runtime from ~/.config/pounce/themes/); point it at haus's own
     # nebelung so that default can't drift from the rest of the theme.
     pounce = {
       url = "github:hausfold/pounce";
@@ -69,9 +69,9 @@
     };
 
     # The agent-worktree substrate — a standalone Go binary, the rewrite of
-    # the rice's old bash `wt.sh` (now retired entirely). Its overlay puts
+    # haus's old bash `wt.sh` (now retired entirely). Its overlay puts
     # `scruff` in pkgs, and core ships it on PATH as the only worktree-lifecycle
-    # CLI the rice knows.
+    # CLI haus knows.
     scruff = {
       url = "github:hausfold/scruff";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -376,7 +376,7 @@
       #
       # Darwin is aarch64 only: nixpkgs 26.11 dropped x86_64-darwin (Apple's own
       # Intel sunset), so instantiating a package set or a darwin system for it now
-      # throws at eval. The rice targets Apple Silicon anyway; the Intel eval that
+      # throws at eval. haus targets Apple Silicon anyway; the Intel eval that
       # used to live here (example-intel) went with it.
       allSystems = [
         "aarch64-darwin"
@@ -467,7 +467,7 @@
 
       # ---- presets: retired, aliased ------------------------------------------
       # `haus.presets.<name>` still resolves, warns, and produces the machine it
-      # always did. It is no longer a format: a preset was a data-only rice you
+      # always did. It is no longer a format: a preset was a data-only desktop you
       # STACKED beside another one, and the rooms model has exactly one desktop
       # per host, because two whole selections that disagree about an option
       # stop the build with nothing able to arbitrate them.
@@ -568,7 +568,7 @@
           # single thing a data file cannot have, `pkgs`.
           #
           # That limit was found twice, weeks apart, from two unrelated families:
-          # `fonts.mono.package` (a shared rice could make the terminal font bigger
+          # `fonts.mono.package` (a shared desktop could make the terminal font bigger
           # but not change its family) and `roster.*.package` (an app pack could
           # install from Homebrew and the App Store but never from Nixpkgs). Both
           # are answered by naming the package instead. The third one will be added
@@ -595,7 +595,7 @@
           leafType = builtins.listToAttrs (map (o: nixpkgs.lib.nameValuePair o.name o.type) surfaceLeaves);
           # "package", "null or package", "list of package" — the whole family,
           # plus derivations and store paths, which are unreachable for the same
-          # reason. `path` is deliberately NOT here: a rice may ship a script
+          # reason. `path` is deliberately NOT here: a desktop may ship a script
           # beside itself and refer to it as ./thing, which stays data.
           packageTyped = builtins.filter (
             o:
@@ -1515,7 +1515,7 @@
           # it exists is that a chord and its caption must not drift. So the table
           # is pinned: change a chord and this check shows you the caption that
           # moved with it (or didn't). It also pins the two collapses that make a
-          # mouse-first rice possible, where "none" must yield NO chord rather than
+          # mouse-first desktop possible, where "none" must yield NO chord rather than
           # a default one.
           keymapRow =
             leader: palette: windowNav:
@@ -1802,7 +1802,7 @@
           '';
           # ---- accent-reach ---------------------------------------------------
           # haus.theme.accent does NOT recolour everything, and the option
-          # says so — it moves the handful of tools the rice injects an accent
+          # says so — it moves the handful of tools haus injects an accent
           # hex into, and leaves the single-file dotfiles on their built-in
           # colour. Both halves of that sentence are a promise, and both fail
           # SILENTLY: drop the accent wire from lazygit in a terminal refactor and
@@ -1839,7 +1839,7 @@
                       # shipped PNGs by design; `bold` follows the accent too,
                       # through one interpolation that predates this check.
                       haus.wallpaper.style = "minimal";
-                      # Not in the default rice — added here so the roster-port
+                      # Not in the default desktop — added here so the roster-port
                       # accent path has a subject at all.
                       haus.roster.zed = {
                         name = "Zed";
@@ -1899,7 +1899,7 @@
               # (docs/bar-framework.md) landed: colors.sh is the whole nebelung
               # palette, which is accent-independent, but the tone ladder
               # underneath it now ends `export TONE_ACCENT=$<ACCENT>` so that a
-              # widget naming the `accent` tone gets the rice's own accent
+              # widget naming the `accent` tone gets haus's own accent
               # without knowing a palette key. That is one variable REFERENCE,
               # not a recoloured palette, and it is the accent reaching a bar
               # file deliberately — so the row moved half rather than the wire
@@ -2056,7 +2056,7 @@
                 "opt fonts.mono.size" = toString cfg.haus.fonts.mono.size;
                 "opt launcher.scale" = toString cfg.haus.launcher.scale;
                 # Deliberately unset at 1.0: a Dock sized by hand is left alone
-                # unless the rice was actually asked to scale (core/default.nix).
+                # unless haus was actually asked to scale (core/default.nix).
                 "sys dock.tilesize" =
                   if cfg.system.defaults.dock.tilesize == null then
                     "unset"
@@ -2177,14 +2177,14 @@
           # The third "this option reaches exactly these things" table, and the
           # one with a story: `haus.fonts.mono.name` used to reach ONE
           # surface. The bar named "Hack Nerd Font" in its rc, four plugins and
-          # six generated blocks, so a rice that changed the family got a machine
+          # six generated blocks, so a desktop that changed the family got a machine
           # with two of them — and nothing said so, because a font option's reach
           # is invisible until you change it and look at the result.
           #
           # Two families rather than accent-reach's three: there is no ceiling
           # here and no partial-arrival case that a third value would catch. The
           # rows that matter most are the PINNED one — the workspace-logo glyphs
-          # are sketchybar-app-font, bar's own, and must not follow the rice —
+          # are sketchybar-app-font, bar's own, and must not follow haus —
           # and the two halves of that sentence coming from the same generated
           # file.
           #
@@ -2286,8 +2286,8 @@
           # The generated half of the bar can only be measured by evaluating it.
           # The STATIC half — the rc and the plugins, copied to the machine and
           # read at runtime — is where the two-fonts bug actually lived, and no
-          # amount of evaluating two rices can see it: those files are identical
-          # whatever family the rice names. So one more row, read straight off
+          # amount of evaluating two desktops can see it: those files are identical
+          # whatever family haus names. So one more row, read straight off
           # the source: how many lines still name a font family literally. It is
           # 0, and the next hardcoded "Whatever Nerd Font:" makes it 1.
           barStaticHardcodedFonts =
@@ -2418,7 +2418,7 @@
               cards = yn (nixpkgs.lib.hasInfix "Agent Worktrees" (fileText ".config/pounce/cheatsheet.json"));
             };
           aiRoomFixtures = {
-            # The rice as shipped: every receiver present, so every contribution
+            # haus as shipped: every receiver present, so every contribution
             # should be drawn.
             hacker = [ ];
             # The room ALONE. No bar, no launcher — the clients and `scruff` must
@@ -2465,8 +2465,8 @@
                 haus.bar.bottom.items.agents = "left";
               }
             ];
-            # The room on with NO client installed by the rice. `ai.clients`
-            # empty means the rice installs none, not that no agent runs here —
+            # The room on with NO client installed by haus. `ai.clients`
+            # empty means haus installs none, not that no agent runs here —
             # a Claude Code from npm still reports panes through `agent-state`,
             # which follows the room's switch. So the pill stays and the chords
             # go: nothing would spawn from a chord, but something can report.
@@ -2486,7 +2486,7 @@
               "${name} scruff=${r.scruff} client=${r.client} alias=${r.alias} pill=${r.pill} cards=${r.cards}"
             ) (builtins.attrNames aiRoomFixtures)
           );
-          # `hacker pill=no` is not a miss: the rice ships the agents pill OFF
+          # `hacker pill=no` is not a miss: haus ships the agents pill OFF
           # (it is an extra, like every personal readout), and a host turns it on.
           # The fixtures that exercise the seam ask for it explicitly.
           expectedAiRoomTable = ''
@@ -3334,7 +3334,7 @@
               touch $out
             '';
 
-          # Every `# pounce: <key> =` this rice's own command scripts use, checked
+          # Every `# pounce: <key> =` haus's own command scripts use, checked
           # against the parser the DAEMON builds the launcher from. That is
           # CommandRegistry.swift and not the bash `pounce-palette`, which is the
           # distinction this check exists to hold: ⌘Space has been in-process
@@ -3697,7 +3697,7 @@
 
           # ---- site-data-current ----------------------------------------------
           # `docs/site-data/` is a COMMITTED copy of the `site-data` derivation —
-          # the rice's option surface and binding table as plain JSON, so the
+          # haus's option surface and binding table as plain JSON, so the
           # docs site can read them out of a checkout instead of running Nix.
           # A committed copy of generated data is a lie waiting to happen, so
           # this is the pin: the same shape as the golden tables above, and the
@@ -4426,7 +4426,7 @@
           # revision a machine has actually pinned, it can only ever describe
           # the options that exist there. terminal installs it into every client's
           # own skills directory (haus.ai.skill), so `haus update` updates
-          # the agent's knowledge along with the rice.
+          # the agent's knowledge along with the revision it describes.
           #
           # Was `.#claude-skill` until 2026-08-11, when the skill stopped being
           # Claude Code's alone. Not aliased: a flake output is named in a
@@ -4469,7 +4469,7 @@
           # `nix build .#wallpaper` — the generated `minimal` desktop at the
           # shipped defaults, as a PNG you can open.
           #
-          # A wallpaper is the one rice surface you cannot review by reading a
+          # A wallpaper is the one haus surface you cannot review by reading a
           # diff, and until this existed the only way to see one was to rebuild a
           # Mac and look at it. Now the same ./modules/wallpaper/render.nix a
           # real machine uses is handed the option DEFAULTS instead of a host's

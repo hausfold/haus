@@ -44,7 +44,7 @@ source "$HOME/.config/sketchybar/bar.sh"
 # pidfile, media.sh's watchdog matched it (a stranger's command line carries the
 # script's name too), certified the stream as healthy, and so never restarted the
 # real one — for as long as the stranger lived. The uid buys the same separation
-# between two users' rices on one machine.
+# between two users' desktops on one machine.
 #
 # The directory is this script's own as INVOKED, deliberately NOT resolved.
 # ~/.config/sketchybar/plugins is a symlink into the store, so `pwd -P` would
@@ -61,7 +61,7 @@ command -v jq >/dev/null 2>&1 || exit 0
 
 mkdir -p "$BAR_MEDIA_STATE_DIR" 2>/dev/null
 
-# ── one streamer per installed rice ───────────────────────────────────────────
+# ── one streamer per installed desktop ────────────────────────────────────────
 # A reload runs the bar's config again without killing what the last one spawned,
 # so the previous stream (and the perl adapter under it) has to go first, or every
 # track change repaints once per stream that survived.

@@ -63,7 +63,7 @@ DIR=/tmp/haus-agents
 export USER="${USER:-$(id -un)}"
 export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:$PATH"
 
-# Only track agents the rice can actually take you to. Two shapes qualify: a zmx
+# Only track agents haus can actually take you to. Two shapes qualify: a zmx
 # session — for a lane, $ZMX_SESSION is its window title and its scruff lane all at
 # once — and a DESKTOP-APP session, which has no session but does have a window.
 # A bare-terminal agent is neither — nothing to peek, no window to raise — so it

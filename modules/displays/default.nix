@@ -1,6 +1,6 @@
 # displays — the size of everything, from macOS's side.
 #
-# `haus.ui.scale` and `haus.fonts` make the RICE bigger: the terminal,
+# `haus.ui.scale` and `haus.fonts` make HAUS bigger: the terminal,
 # the bar, the Dock, the gaps. They can't touch Mail, Safari, or an app nobody
 # here has heard of. macOS's own text-size setting writes a value that running
 # apps never re-read (System Settings then renders a desynced view of its own
@@ -10,7 +10,7 @@
 # Display scaling is what's left, and it works: public CoreGraphics, no Homebrew
 # dependency, effective for every app on the machine because it changes what a
 # point means. That makes this room the missing half of
-# `haus.appearance.largePrint` — the rest of that profile says how the rice
+# `haus.appearance.largePrint` — the rest of that profile says how haus
 # looks, and only this line says how big the Mac is.
 #
 # Two deliberate choices:

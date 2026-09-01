@@ -29,7 +29,7 @@
 // lever on macOS 26 — its text-size setting writes a value no running app
 // re-reads, while the working accessibility scalars affect contrast or motion,
 // not system-wide size (see `docs/macos-settings.md`). It is
-// public CoreGraphics, so the rice ships ~150 lines of Swift instead of taking a
+// public CoreGraphics, so haus ships ~150 lines of Swift instead of taking a
 // Homebrew dependency on displayplacer (which isn't in nixpkgs anyway).
 //
 // The one interesting part is picking the mode. A 14" MacBook Pro panel reports
@@ -266,7 +266,7 @@ guard let intent = Intent(rawValue: args[2]) else {
     die("unknown intent '\(args[2])' (want: \(Intent.allCases.map(\.rawValue).joined(separator: " | ")))", code: 64)
 }
 
-// Exit 2 = "that display isn't attached". Callers (the rice's activation script)
+// Exit 2 = "that display isn't attached". Callers (haus's activation script)
 // treat it as a skip, not a failure: a `displays.<uuid>` entry for a monitor at
 // the office must not break a rebuild on the train.
 guard let id = resolveDisplay(selector) else {
@@ -290,7 +290,7 @@ if target.mode.width == current?.width && target.mode.height == current?.height 
 }
 
 // A configuration transaction, completed `.permanently`, is what makes this
-// survive a reboot — a bare CGDisplaySetDisplayMode is session-only, so the rice
+// survive a reboot — a bare CGDisplaySetDisplayMode is session-only, so haus
 // would silently forget its own setting every restart.
 var config: CGDisplayConfigRef?
 guard CGBeginDisplayConfiguration(&config) == .success, let config else {

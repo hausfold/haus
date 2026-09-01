@@ -1,6 +1,6 @@
 # Security — who this machine lets in. Identity & auth done the sane way.
 #
-# Small on purpose, and still its own room: it's the only place the rice decides
+# Small on purpose, and still its own room: it's the only place haus decides
 # *authentication policy*, which is the one thing here a cautious host — a work
 # laptop, a machine someone else administers — will want to refuse wholesale
 # while keeping every other room. That's exactly what a room is for, so its two
@@ -15,8 +15,8 @@
 # the GUI session and fixes the hang. Falls back to the password prompt if Touch
 # ID is cancelled.
 #
-# Passwordless activation — activating a build is the one privileged thing this
-# rice does constantly, and a Touch-ID prompt per rebuild is friction with no
+# Passwordless activation — activating a build is the one privileged thing
+# haus does constantly, and a Touch-ID prompt per rebuild is friction with no
 # security win (you already authed to *build* it). The NOPASSWD rules below
 # exempt the two commands that activate:
 #
@@ -43,7 +43,7 @@
 #      sudoers files, not merely readable ones (nix-darwin's own extra-config is
 #      0444 too). `visudo -c` may cosmetically warn "should be 0440"; harmless.
 #
-# YubiKey / GPG: this rice signs git commits with a GPG key (yours), but the key
+# YubiKey / GPG: haus signs git commits with a GPG key (yours), but the key
 # material and smartcard/YubiKey setup live outside Nix — see the README's
 # "Identity" section for the one-time gpg-agent + pinentry-mac steps.
 {

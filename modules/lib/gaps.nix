@@ -53,7 +53,7 @@ let
   #   most visibly under haus.bar.bottom.enable, where it was the strip between
   #   the tiled windows and the second bar.
   # - It must NOT scale. `gap 40` multiplies by haus.ui.scale, but the bar's
-  #   height is the one rice surface that can't grow (../lib/bar.nix: the height
+  #   height is the one haus surface that can't grow (../lib/bar.nix: the height
   #   belongs to the macOS menu-bar band, only the TYPE inside it scales). At
   #   ui.scale = 1.25 the old form reserved 60pt for a bar still drawing 36.
   #
@@ -86,11 +86,11 @@ let
 
   # No bar, no reservation — `noBar` short-circuits both edge tables
   # below to the tuned gaps. This used to be a `barPos` fallback of `"top"`,
-  # which made a rice with `haus.bar.enable = false` reserve `barEdge` at an
+  # which made a desktop with `haus.bar.enable = false` reserve `barEdge` at an
   # EXTERNAL's top edge for a bar nobody draws: 36pt of dead wallpaper along the
   # top of every external display. The built-in never showed it — a top bar
   # reserves `barGap 10` there, which is the tuned gap plus `metrics.room`, and
-  # `room` is 0 on an unscaled rice — so it only ever bit the display that
+  # `room` is 0 on an unscaled desktop — so it only ever bit the display that
   # can't be tested without plugging one in.
   noBar = !bar.enable;
   barPos = bar.position;

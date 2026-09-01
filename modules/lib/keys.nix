@@ -12,8 +12,8 @@
 # read this: windows (aerospace.toml), pounce (the cheatsheet + its hotkey), bar
 # (the tour's prompts), and the assertions that catch a chord claimed twice.
 #
-# `null` means "this rice doesn't have that key at all" — a mouse-first or
-# one-handed rice, or one that refuses to give up Caps Lock. Callers must handle
+# `null` means "this desktop doesn't have that key at all" — a mouse-first or
+# one-handed desktop, or one that refuses to give up Caps Lock. Callers must handle
 # null rather than assume a default; that's the whole point of the option.
 {
   lib,
@@ -23,7 +23,7 @@
 let
   # AeroSpace modifier prefix + the glyph that names it. The alternatives exist
   # for a real reason rather than for choice's sake: on many non-US layouts ⌥ is
-  # how you type accented characters, so a rice that owns ⌥+letter is unusable
+  # how you type accented characters, so a desktop that owns ⌥+letter is unusable
   # there. ⌃⌥ and ⌘⌥ are the escapes.
   navVocab = {
     alt = {
@@ -41,8 +41,8 @@ let
   };
 
   # The chord that ENTERS launch mode. "caps" is the house default and the only
-  # one needing a hidutil remap — AeroSpace can't bind Caps Lock itself, so the
-  # rice maps it to F18 and binds that. "alt-space" is for people who want the
+  # one needing a hidutil remap — AeroSpace can't bind Caps Lock itself, so
+  # haus maps it to F18 and binds that. "alt-space" is for people who want the
   # leader without losing Caps Lock.
   leaderVocab = {
     caps = {

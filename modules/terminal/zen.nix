@@ -35,7 +35,7 @@
 # names sit at the TOP level of that plist beside `EnterprisePoliciesEnabled`,
 # as real nested dicts (the parser also accepts `__`-flattened keys; we don't
 # need them). The visible cost is that Zen then says "managed by your
-# organization" in its menu, which is the honest description of what a rice
+# organization" in its menu, which is the honest description of what a desktop
 # doing this actually is.
 #
 # Root ownership is why this room is a nix-darwin activation script and not a
@@ -71,14 +71,14 @@ let
   cfg = config.haus.zen;
   wanted = lib.filterAttrs (_: e: e.enable) cfg.extensions;
 
-  # An extension the rice BUILT — the tab bridge — installs from a store path,
+  # An extension haus BUILT — the tab bridge — installs from a store path,
   # and nothing in /nix/store has ever been near Mozilla's signing service. An
   # `install_url` starting `file://` is exactly that case and the only case,
   # which is why the signing escape below is keyed on it rather than on any
   # particular extension: an AMO `https://` url is signed by definition.
   localInstall = lib.any (e: lib.hasPrefix "file://" e.url) (lib.attrValues wanted);
 
-  # The rice owns this file. `extraPolicies` last so a host can set the rest of
+  # haus owns this file. `extraPolicies` last so a host can set the rest of
   # the policy surface — or override ExtensionSettings wholesale — without
   # taking the file back by hand.
   policies =
@@ -104,7 +104,7 @@ let
       #   Policies: Download failed - ERROR_SIGNEDSTATE_REQUIRED - file:///nix/store/…
       #
       # while an AMO-signed add-on installs beside it. So the browser
-      # ends up refusing precisely the add-on the rice is in a position to build.
+      # ends up refusing precisely the add-on haus is in a position to build.
       #
       # What makes this fixable rather than an AMO account is that Zen is built
       # with `MOZ_REQUIRE_SIGNING = false` (read out of its AppConstants). That
@@ -116,7 +116,7 @@ let
       # doesn't install — which is the honest outcome, since on such a build
       # nothing could have made it install.
       #
-      # Locked, because a rice that installs an unsigned add-on and leaves the
+      # Locked, because a desktop that installs an unsigned add-on and leaves the
       # switch flippable is telling the user a story about a state it does not
       # maintain. The narrowing is at the other end: it appears only when
       # something is actually being installed from a local file. Today that is
@@ -154,7 +154,7 @@ let
   policyPath = "/Library/Preferences/app.zen-browser.zen.plist";
 
   # Records that the plist at that path is OURS, so turning every policy off can
-  # remove it again without a rice ever deleting a file it didn't write. Under
+  # remove it again without a desktop ever deleting a file it didn't write. Under
   # the held `haus` state dir, like perch's install marker beside it.
   policyMarker = "/Library/Application Support/haus/zen-policies.source";
 in

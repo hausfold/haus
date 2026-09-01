@@ -7,15 +7,15 @@
 # shared desktop is DATA (an attrset, no arguments, so `haus.lib.checkDesktop`
 # can read it at a glance), and a data file cannot
 # reach `pkgs`. So every `types.package` option in the surface is invisible to
-# the format the whole rice-sharing story is built on: a shared rice could make
-# the terminal font bigger but not change its family, and a pack could install
+# the format the whole desktop-sharing story is built on: a shared desktop
+# could make the terminal font bigger but not change its family, and a pack could install
 # from Homebrew and the App Store but never from Nixpkgs. Naming the attribute
 # is the one move that stays data.
 #
 # WHAT THIS DOES AND DOESN'T GUARANTEE. It walks `pkgs` by attribute path and
 # nothing else — no `import`, no `builtins.eval`, no string that becomes code.
-# That's the property that matters: reading a rice still tells you everything it
-# can do. It is NOT a claim that the software is safe; a data-only rice could
+# That's the property that matters: reading a desktop still tells you everything it
+# can do. It is NOT a claim that the software is safe; a data-only desktop could
 # already install anything Homebrew ships via `cask`, and naming a nixpkgs
 # attribute is the same kind of trust, not a new one.
 #

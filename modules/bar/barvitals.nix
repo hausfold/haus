@@ -4,7 +4,7 @@
 # reading.
 #
 # Compiled with the system Swift via xcrun, exactly like barpop next door: the
-# CLT is already a prerequisite of this rice, and this is one file against
+# CLT is already a prerequisite of haus, and this is one file against
 # Darwin with no package to fetch. Kept out of the room's default.nix so a
 # comment there doesn't recompile the binary — `src` is the one .swift file.
 {

@@ -161,7 +161,7 @@ fetch() {
     # The artwork tint, when it's on and a track has one: a colour sampled from
     # the cover and then SNAPPED to the nearest nebelung member (see
     # media_art.sh). So the pill picks up the record's mood without ever drawing
-    # a colour that isn't in the rice's palette.
+    # a colour that isn't in haus's palette.
     #
     # It is the one hex a framework widget in this repo names, and it is the
     # case the rule is not about: a mark is a colour chosen from a set the bar

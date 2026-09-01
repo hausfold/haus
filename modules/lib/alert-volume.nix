@@ -13,7 +13,7 @@
 # which is `stored = e^(slider − 1)`, with everything at or below e⁻¹ ≈ 0.3679
 # collapsing to silence. nix-darwin's own docstring lists the 75/50/25 constants
 # and never names the curve, so a host writing the obvious `0.5` gets 31% and a
-# bug report about the rice.
+# bug report about haus.
 #
 # Nix has no `exp`, hence the series. `exp` is only ever called with x in
 # [−1, 0) here, where the Taylor series about 0 converges fast: the n = 18 term

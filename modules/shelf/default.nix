@@ -163,8 +163,8 @@ lib.mkIf config.haus.shelf.enable {
       # perch is app-sandboxed and reaches ~/.config/perch through a read-only
       # home-relative temporary exception. The sandbox resolves a symlink before
       # it checks the path, so a link into /nix/store reads as a store access and
-      # is denied — the shelf would silently sit on compiled-in nebelung and the
-      # rice's theme would never show. A few KB of copies keeps perch's sandbox
+      # is denied — the shelf would silently sit on compiled-in nebelung and
+      # haus's theme would never show. A few KB of copies keeps perch's sandbox
       # exception at exactly one directory, which is the point of the exception.
       home.activation.perchTheme = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
         run /bin/mkdir -p "$HOME/.config/perch/themes"

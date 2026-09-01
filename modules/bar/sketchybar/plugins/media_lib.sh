@@ -33,7 +33,7 @@
 # So the classification below is honest about what it knows: it splits VIDEO from
 # MUSIC (an album is published by every music service and by no video site) and
 # draws a neutral glyph for each, rather than guessing a brand and being wrong on
-# Netflix. A rice that knows better overrides the glyph through
+# Netflix. A desktop that knows better overrides the glyph through
 # haus.bar.media.icons — that option is this limitation's escape hatch.
 #
 # None of that stops ⌘-click from reaching the right TAB, which is a different
@@ -42,7 +42,7 @@
 # media_focus_source below.
 #
 # And on a machine running haus.zen.tabBridge the URL is, in fact, right there —
-# the rice's own extension publishes it beside the title. The classification
+# haus's own extension publishes it beside the title. The classification
 # above deliberately does NOT use it yet: it would be a Zen-only glyph rule, so
 # the pill would name the site on one browser and shrug on the others, and this
 # file's whole argument is that a guess you can't make everywhere is a guess you
@@ -145,8 +145,8 @@ media_kind() {
 }
 
 # kind bundle -> glyph. haus.bar.media.icons wins over both, keyed by bundle id
-# first (most specific) and then by kind, so a rice can say "YouTube, actually"
-# for its own browser without the rice guessing that for everyone.
+# first (most specific) and then by kind, so a desktop can say "YouTube, actually"
+# for its own browser without haus guessing that for everyone.
 media_icon() {
     local kind="$1" bundle="$2" override=""
 
@@ -183,7 +183,7 @@ media_icon_override() {
 # The MARK a kind earns — barlib's identity axis (modules/bar/marks.nix), not a
 # palette key and not a hex. Brand colours are deliberately not used either:
 # the bar is one palette (nebelung), and a Spotify green sampled from Spotify's
-# own brand sheet is the one pill on the strip that doesn't belong to the rice.
+# own brand sheet is the one pill on the strip that doesn't belong to haus.
 #
 # ⚠️ FOUR OF THESE MOVED when the pill converted, and the reason is the one
 # thing marks exist to enforce: identity and status never share a hue. This
@@ -194,9 +194,9 @@ media_icon_override() {
 # ladder and kept their colour exactly (`plum`, `violet`), as did `pink`.
 #
 # The kinds are still coarse on purpose — see this file's header for why the
-# payload cannot support more — so the marks are too. A rice that wants
+# payload cannot support more — so the marks are too. A desktop that wants
 # YouTube to look like YouTube overrides the GLYPH through
-# haus.bar.media.icons; the hue stays the rice's.
+# haus.bar.media.icons; the hue stays haus's.
 media_mark() {
     case "$1" in
     music) printf '%s' pink ;;
@@ -343,7 +343,7 @@ media_badge_measure() {
 #     Zen: the tab strip is absent from the AX tree even after forcing Firefox's
 #     a11y engine on with AXEnhancedUserInterface, which leaves only the window
 #     title, which is only ever the FOREGROUND tab. Two routes, in order:
-#       1. the rice's own extension, if haus.zen.tabBridge deployed it — an
+#       1. haus's own extension, if haus.zen.tabBridge deployed it — an
 #          exact tab id from inside the browser, which is the honest answer;
 #       2. failing that, the one piece of switch-to-tab machinery Firefox does
 #          ship: the address bar's `%` restriction token, which searches OPEN
@@ -429,7 +429,7 @@ end run
 EOF
 }
 
-# The good Firefox-family route: ask the browser, through the rice's own
+# The good Firefox-family route: ask the browser, through haus's own
 # extension (haus.zen.tabBridge — modules/terminal/zen-tabs). When it's there this
 # is the whole job: an exact tab id, no keystrokes, no Accessibility permission,
 # and it works on a tab in another window, another Zen workspace or another

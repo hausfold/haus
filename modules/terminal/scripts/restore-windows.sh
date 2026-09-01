@@ -214,7 +214,7 @@ while IFS= read -r sess; do
     *)
       # Defensive only — the ordering pass above emits nothing else. A session
       # you made yourself with `zmx attach` is not ours to reopen: it was never
-      # a window of this rice's, and guessing would put a window on someone's
+      # a window of haus's, and guessing would put a window on someone's
       # long-running build.
       continue
       ;;

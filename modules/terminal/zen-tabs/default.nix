@@ -17,7 +17,7 @@
 # What the pill did instead was drive Firefox's own address-bar `%` open-tab
 # search with synthetic keystrokes. It works, and it is exactly as pleasant as it
 # sounds. The only thing that can answer the question honestly is code running
-# INSIDE the browser, so the rice ships some.
+# INSIDE the browser, so haus ships some.
 #
 # ---- why this can be unsigned, which is the whole reason it's cheap ----------
 #
@@ -90,13 +90,14 @@ in
       # other add-on asking for this host by name is refused by the browser
       # before a single byte reaches the binary.
       home.file."Library/Application Support/Mozilla/NativeMessagingHosts/${hostName}.json".text =
-        builtins.toJSON {
-          name = hostName;
-          description = "haus — publishes Zen's tabs to the bar";
-          path = lib.getExe pkg.haustabs;
-          type = "stdio";
-          allowed_extensions = [ extensionId ];
-        };
+        builtins.toJSON
+          {
+            name = hostName;
+            description = "haus — publishes Zen's tabs to the bar";
+            path = lib.getExe pkg.haustabs;
+            type = "stdio";
+            allowed_extensions = [ extensionId ];
+          };
     };
   };
 }

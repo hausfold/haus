@@ -4,7 +4,7 @@
 #   haus.apps.packs.writing.enable = true;
 #
 # A COLLECTION is a data-only file that touches ONE option family,
-# `haus.roster`. It used to be a top-level concept stacked beside a whole rice;
+# `haus.roster`. It used to be a top-level concept stacked beside a whole desktop;
 # it is something the Apps room OFFERS now (`docs/model.md`, "What a desktop
 # is"), because "what's on this machine" is the
 # question that room already answers, and a saved collection is not a peer of a
@@ -81,11 +81,11 @@
     # "l" for library. Both better letters were already taken, which is the
     # honest experience of writing a collection and worth recording rather than
     # hiding:
-    #   "z" — a BUILT-IN leader action (reopen the last closed app). The rice used
+    #   "z" — a BUILT-IN leader action (reopen the last closed app). haus used
     #         to accept this collision and emit two `z =` bindings into one
     #         AeroSpace table, keeping whichever it parsed last; it refuses at
     #         eval now, which is the assertion this collection paid for.
-    #   "b" — Zen, a roster entry the rice already ships. That one always failed
+    #   "b" — Zen, a roster entry haus already ships. That one always failed
     #         loudly (roster keys must be unique), which is how it should feel.
     zotero = {
       key = "l";

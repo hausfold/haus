@@ -121,7 +121,7 @@
 # Drafts are ⌥↵ for exactly the same reason, and not rows in this step.
 #
 # Why drafts exist at all: the palette dismisses on any click into another app,
-# and this is the one step in the whole rice that asks you to type a paragraph.
+# and this is the one step in the whole of haus that asks you to type a paragraph.
 # Losing it to a stray click is unrecoverable — the text existed nowhere else.
 # `--draft` files it on every dismissal; ⌥↵ hands it back through `--query`, in
 # the box, editable, rather than just re-running it.
@@ -298,7 +298,7 @@ fi
 #
 # Belt to the assertion's braces. `haus.ai.clients` makes the default client
 # present at BUILD time, but this script runs long after that — the client can
-# still be missing on a machine driving `scruff` without the rice, or with a
+# still be missing on a machine driving `scruff` without haus, or with a
 # hand-managed install that moved. Checking here, before anything is created, is
 # the difference between a toast and the old failure: `scruff spawn` succeeds,
 # the pane opens, and only `scruff agent start` inside it finds nothing — leaving

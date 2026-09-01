@@ -1,4 +1,4 @@
-# The hot-corner actions the rice offers, as ONE table.
+# The hot-corner actions haus offers, as ONE table.
 #
 # macOS stores a corner as a bare integer in com.apple.dock (wvous-tl-corner and
 # friends). Three things have to agree about that integer — the option's enum,

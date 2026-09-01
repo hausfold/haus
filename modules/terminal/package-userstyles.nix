@@ -1,4 +1,4 @@
-# The Nebelung userstyles, compiled — the sheet that puts the rice's palette on
+# The Nebelung userstyles, compiled — the sheet that puts haus's palette on
 # github.com without an extension and without a click.
 #
 # ---- why this can exist at all, which is a Gecko-only fact ------------------

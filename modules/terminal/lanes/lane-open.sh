@@ -9,7 +9,7 @@
 #   Ghostty       --title=<same>       a window looking at that PTY
 #   AeroSpace     workspace T/<repo>   a tile on that repo's own page
 #
-# One name across all three is the whole point. Everything the rice does to a
+# One name across all three is the whole point. Everything haus does to a
 # lane from outside — the bar's go-to, a peek, "which window is this branch" —
 # used to be a join across a zellij session id, a pane id, a checkout path and
 # an AeroSpace window title, with a /tmp file per pane to glue them (see
@@ -60,7 +60,7 @@ set -u
 
 # A hook is exec'd by scruff, which may itself have been started by launchd (the
 # palette's Spawn Agent) with a bare PATH. Resolve our tools the way every
-# other rice script run from outside a shell does.
+# other haus script run from outside a shell does.
 export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/bin:/bin${PATH:+:$PATH}"
 
 # ── snug's bash painter, resolved as a PATH not as a palette ─────────────────

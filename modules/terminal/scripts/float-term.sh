@@ -619,7 +619,7 @@ recenter() {
 # straight back: a pounce command runs while the picker window is still tearing
 # down, and macOS restores whatever was frontmost before it. So claim focus
 # explicitly once the window exists, and re-claim it over the next fraction of a
-# second in case that teardown lands after us. `aerospace focus` is the rice's
+# second in case that teardown lands after us. `aerospace focus` is haus's
 # own path (what bar's agents plugin uses); System Events is the fallback for a
 # machine where aerospace isn't running.
 raise() {

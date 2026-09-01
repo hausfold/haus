@@ -21,7 +21,7 @@ let
   #
   # `bar.items` and `bar.bottom.items` are unchanged as a SURFACE — same leaves,
   # same types, same defaults, same prose — but they are now sugar over
-  # `haus.bar.widgets.<name>`, the open form a rice that isn't this one can add
+  # `haus.bar.widgets.<name>`, the open form a desktop that isn't this one can add
   # a seventeenth pill to. Anything a bundled pill needs to say about itself is
   # said in widgets.nix; nothing about a pill is written twice.
   widgets = import ./widgets.nix;
@@ -31,7 +31,7 @@ let
   # of its own — so it is in neither table's ON/OFF surface, and is filtered out here
   # by that null rather than by name.
   switchable = lib.filterAttrs (_: w: w.default != null) widgets;
-  # The five that draw on a rice which says nothing, and the rest. Split only to
+  # The five that draw on a desktop which says nothing, and the rest. Split only to
   # keep the parent option's prose able to name them; both halves are the same
   # table's `default` field.
   coreNames = lib.attrNames (lib.filterAttrs (_: w: w.default == true) switchable);
@@ -62,7 +62,7 @@ let
 
   # ---- one widget ------------------------------------------------------------
   # The open form. Everything a pill IS, for the bundled sixteen and a
-  # stranger's seventeenth alike — which is the point: a rice that adds a pill
+  # stranger's seventeenth alike — which is the point: a desktop that adds a pill
   # writes the same fields haus's own pills carry, so there is no second-class
   # widget and no private field a bundled pill gets and a new one doesn't.
   #
@@ -213,7 +213,7 @@ let
   # A pill on the SECOND bar. Same table as `bar.items`, but each value also
   # answers WHERE: `false` keeps it off this bar, a side name puts it in that
   # group, and `true` means `right` — which is what this option shipped as
-  # while it was bool-only, so a rice written against that keeps working
+  # while it was bool-only, so a desktop written against that keeps working
   # unchanged rather than being renamed out from under it.
   #
   # No per-item `example`: the type line already reads
@@ -498,8 +498,8 @@ in
     bar.logo.icon = lib.mkOption {
       type = lib.types.str;
       # The glyph, not a name: `haus.workspaces.<id>.icon` and
-      # `haus.bar.media.icons` already take one, so this is the surface the
-      # rice has. Write it as the character itself — paste the glyph.
+      # `haus.bar.media.icons` already take one, so this is the surface
+      # haus has. Write it as the character itself — paste the glyph.
       #
       # The DEFAULT is spelled as a codepoint rather than pasted here on
       # purpose. nf-fa-home lives in the Private Use Area, and PUA characters
@@ -817,7 +817,7 @@ in
 
     # The pill's only motion, and its own switch so
     # haus.appearance.reduceMotion has a leaf to set rather than reaching into
-    # the plugin. Default true: this is what the pill does today, and a rice
+    # the plugin. Default true: this is what the pill does today, and a desktop
     # that never asked for quiet keeps it byte for byte.
     bar.media.marquee = lib.mkOption {
       type = lib.types.bool;

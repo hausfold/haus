@@ -104,7 +104,7 @@ launch_used_letters() {
 # a cask, a formula, a Nixpkgs package and an App Store app all land in the
 # same roster instead of half here and half in `homebrew.casks`. (Before the
 # roster grew the brew/package/appStoreId fields this had to emit two
-# different module shapes, which is exactly the split-brain the rice's
+# different module shapes, which is exactly the split-brain haus's
 # modules/roster removed. Which WORKSPACE an app owns is a similar split now:
 # the roster entry only ever names ITSELF, haus.workspaces.<id>.apps is
 # what claims it.)
@@ -172,7 +172,7 @@ write_app_module() {
 }
 
 # ── source ────────────────────────────────────────────────────────────────
-# Popular is a rice-curated shelf, not another package-manager label. The
+# Popular is a haus-curated shelf, not another package-manager label. The
 # backing casks stay private payload so this first step describes intent rather
 # than exposing where an app happens to come from.
 source_menu="$(printf '%s\t%s\t%s\t\t%s\n%s\t%s\t%s\t\t%s\n%s\t%s\t%s\t\t%s\n%s\t%s\t%s\t\t%s' \

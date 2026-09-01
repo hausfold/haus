@@ -6,7 +6,7 @@
 #
 # It exists because `haus.bar.items` was a CLOSED submodule of bools that grew
 # by one every time a pill shipped: sixteen leaves, sixteen more in
-# `bar.bottom.items`, and no way at all for a rice that isn't this one to add a
+# `bar.bottom.items`, and no way at all for a desktop that isn't this one to add a
 # seventeenth. `haus.bar.widgets.<name>` is the open form, and the rule that
 # keeps the old surface
 # meaning exactly what it meant is here: EVERY bundled pill is pre-declared as a
@@ -20,7 +20,7 @@
 #   description  the single source for BOTH options' reference entries. Written
 #                once; `bar.items.<name>`, `bar.bottom.items.<name>` and
 #                `bar.widgets.<name>.enable` all render it.
-#   default      whether the pill is drawn on a rice that says nothing. The five
+#   default      whether the pill is drawn on a desktop that says nothing. The five
 #                core pills are true, the extras false — the same split the
 #                closed submodule shipped with, preserved leaf for leaf.
 #   movable      whether the pill may be moved to the second bar. `claudeUsage`

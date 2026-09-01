@@ -116,7 +116,7 @@ vitals_focus() { # vitals_focus <name> — bring the app a row names to the fron
   #
   # No window, no action. A row for a background process is not a broken button
   # — `open -a` on it would either launch a second copy or bounce a Dock icon
-  # for something that has no UI at all. Same for a rice running bar WITHOUT
+  # for something that has no UI at all. Same for a desktop running bar WITHOUT
   # windows: no aerospace, so no window lookup, so the row is inert rather than
   # noisy — `haus.bar.enable` doesn't imply `haus.windows.enable`.
   local wid

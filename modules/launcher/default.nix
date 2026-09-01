@@ -45,7 +45,7 @@ let
     keys = config.haus.keys;
   };
 
-  # Rice-owned discovery shelf for Install App. This is deliberately not a
+  # haus-owned discovery shelf for Install App. This is deliberately not a
   # host option: it is the distro's editorial shortlist, while a host only owns
   # the apps it actually chooses. Keep the backing source invisible in the UI;
   # all current picks are Homebrew casks so they stay declarative and avoid the
@@ -324,7 +324,7 @@ let
   # macOS's own and the clipboard is pbcopy, so the helper is the whole feature.
   hausocr = pkgs.callPackage ./hausocr.nix { };
 
-  # This rice's palette commands (see ./commands — one self-describing script
+  # haus's palette commands (see ./commands — one self-describing script
   # each, metadata in a `# pounce:` header). The generated app-font lookup is
   # private command data, not self-describing, so pounce ignores it.
   riceCommands = pkgs.runCommand "haus-pounce-commands" { } ''
@@ -536,12 +536,12 @@ let
   };
   termPages = termBindings.pages;
 
-  # The rice's palette commands, read from the `# pounce: name/description`
+  # haus's palette commands, read from the `# pounce: name/description`
   # headers of ./commands — the same files riceCommands installs, so renaming a
   # command renames its row and deleting one deletes it. focus.sh is dropped from
   # that derivation on a host without focus, so drop its row with it.
   #
-  # The RICE's commands only. pounce's own built-ins (Force Quit, Find Files, …)
+  # haus's commands only. pounce's own built-ins (Force Quit, Find Files, …)
   # live in a derivation, and reading their headers here would be IFD on every
   # eval — the palette lists those itself the moment you open it.
   # The grammar itself is ./header-grammar.nix — pounce's, mirrored, and pinned
@@ -674,7 +674,7 @@ let
   #
   # pounce owns the schema (its ItemSettings.swift): one map keyed by an item's
   # stable address, each entry carrying `enabled` / `alias` / `hotkey`. This is the
-  # generator for it, so a rice can hide a command, alias one, or bind one without
+  # generator for it, so a desktop can hide a command, alias one, or bind one without
   # anybody hand-editing JSON that lives in /nix/store anyway.
   #
   # Only the differences are written. An entry that says nothing is omitted
@@ -902,7 +902,7 @@ let
     ) b.steps
   ) itemBindings;
 
-  # The rice's own GLOBAL chords, in the same normalized shape. keys.nix already
+  # haus's own GLOBAL chords, in the same normalized shape. keys.nix already
   # asserts leader-vs-palette (haus#108); item hotkeys are the third
   # claimant, and the failure mode is identical: whoever registers first wins,
   # silently. Terminal chords count too: pounce registers item hotkeys GLOBALLY,
@@ -941,7 +941,7 @@ let
       chord = (normalizeStep chord).chord;
     }) termBindings.chords;
 
-  # Only the FIRST step can clash with a rice chord: a later step is grabbed for
+  # Only the FIRST step can clash with a haus chord: a later step is grabbed for
   # ~2s after the leader fires, and pounce disarms it again.
   firstStepClashes = lib.concatMap (
     b:
@@ -982,7 +982,7 @@ let
   # ---- the cheatsheet page for those bindings ---------------------------------
   #
   # Rendered from `itemBindings` — the SAME list the assertions above read, which is
-  # the whole point. Every other key on this rice already comes from one table with
+  # the whole point. Every other key in haus already comes from one table with
   # its caption (that was #108's lesson: the modifier was the last thing still typed
   # twice, once as a chord and once as a caption, in a document whose only job is
   # that those can't drift). An item hotkey is a working key that appears on no
@@ -1019,7 +1019,7 @@ let
 
   # The default caption. `mode:` names are display text mirrored from pounce, so a
   # wrong one is visible rather than silent; `cmd:` is a guess (the command's real
-  # name lives in a `# pounce: name` header the rice can't read at eval), which is
+  # name lives in a `# pounce: name` header haus can't read at eval), which is
   # why `items.<key>.caption` exists.
   modeCaptions = {
     launcher = "The palette itself";
@@ -1325,7 +1325,7 @@ lib.mkIf config.haus.launcher.enable {
         ];
         # The daemon owns ⌘Space in-process and builds the launcher itself, so it
         # discovers commands from its OWN environment — the same dirs pounce-palette
-        # uses. Built-ins + this rice's commands; ~/.config/pounce/commands is
+        # uses. Built-ins + haus's commands; ~/.config/pounce/commands is
         # always searched last by the daemon. (AeroSpace no longer spawns
         # pounce-palette on ⌘Space — see modules/windows/aerospace.toml.)
         POUNCE_BUILTIN_DIR = builtinCommandsDir;
@@ -1360,9 +1360,9 @@ lib.mkIf config.haus.launcher.enable {
   # Attribute the launch agent to Pounce.app in Login Items & Extensions.
   # Without an AssociatedBundleIdentifiers key, macOS Background Task Management
   # falls back to the signing certificate's owner: the agent execs /bin/bash and
-  # the daemon copy is signed with an *individual* Developer ID, so a rice
+  # the daemon copy is signed with an *individual* Developer ID, so a desktop
   # install showed the maintainer's legal name instead of "Pounce". This is the
-  # rice-side counterpart to the standalone Homebrew fix (hausfold/homebrew-tap#7);
+  # haus-side counterpart to the standalone Homebrew fix (hausfold/homebrew-tap#7);
   # the daemon self-registers the bundle via LSRegisterURL (hausfold/pounce#29)
   # so Launch Services can resolve com.hausfold.pounce → the running signed copy.
   #
@@ -1434,7 +1434,7 @@ lib.mkIf config.haus.launcher.enable {
     {
       home.packages = [
         pkgs.pounce
-        # The generic command library, plus this rice's own commands layered on
+        # The generic command library, plus haus's own commands layered on
         # via runtime discovery. Same-filename scripts shadow pounce built-ins.
         (pkgs.pounce-commands.override { extraCommandDirs = [ riceCommands ]; })
       ]
@@ -1514,7 +1514,7 @@ lib.mkIf config.haus.launcher.enable {
           # ignores it rather than failing on it — the same lenient parse as
           # `themeLight`.
           fnKey = config.haus.launcher.fnKey;
-          # ⌘Tab → the MRU window switcher (the last stock macOS keybinding the rice
+          # ⌘Tab → the MRU window switcher (the last stock macOS keybinding haus
           # retires). Gated on Accessibility inside the daemon: unsigned/ungranted
           # installs keep stock ⌘Tab, so shipping this on is safe. The option exists
           # for hosts that want the native app switcher back.
@@ -1726,7 +1726,7 @@ lib.mkIf config.haus.launcher.enable {
         }
         # haus.launcher.items — hidden rows, aliases and per-item hotkeys (see the
         # generator in the let-block). Omitted entirely when nothing is configured:
-        # this file is a /nix/store symlink, so the rice is its only writer, and an
+        # this file is a /nix/store symlink, so haus is its only writer, and an
         # empty `items: {}` would just be a key nobody set.
         // lib.optionalAttrs (itemsJSON != { }) { items = itemsJSON; }
       );
@@ -1799,10 +1799,10 @@ lib.mkIf config.haus.launcher.enable {
         # for agents and a folder picker that had long since folded into Peek.
         # What's left below is workflow: the things a key list can't say.
         #
-        # The agent worktree loop. `scruff` is shipped BY the rice (a flake input on
+        # The agent worktree loop. `scruff` is shipped BY haus (a flake input on
         # PATH), unlike the family's `bench`, which the old card taught to every
         # install that had never seen the workshop — so these rows are true on any
-        # machine running this rice. Off when no agent client is installed, same
+        # machine running haus. Off when no agent client is installed, same
         # gate as the ⌘A card on the Keys page.
         ++ lib.optionals agentContrib.enable [
           {
@@ -1872,11 +1872,11 @@ lib.mkIf config.haus.launcher.enable {
               ]
             );
           }
-          # Generated from the `# pounce: name/description` headers of the rice's
+          # Generated from the `# pounce: name/description` headers of haus's
           # own ./commands (riceCommandRows in the let-block) — type any part of
           # the name, the palette fuzzy-matches it. Hand-typed queries lived here
-          # before, which is how the card kept a "force" row for a command the
-          # rice doesn't own and lost every command added since.
+          # before, which is how the card kept a "force" row for a command haus
+          # doesn't own and lost every command added since.
           {
             title = "Palette Commands [${if k.palette != null then k.palette.glyph else "haus"}]";
             page = "Tips";

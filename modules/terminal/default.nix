@@ -312,7 +312,7 @@ in
       #
       # nbFlavor is not decoration. whiskers names its output after the flavor it
       # rendered, so every path below that used to say "mocha" is now built from
-      # nbFlavor and a latte rice resolves to catppuccin-latte.conf under the latte
+      # nbFlavor and a latte desktop resolves to catppuccin-latte.conf under the latte
       # root. Getting one wrong is invisible: the path just doesn't exist.
       nb = import ../lib/nebelung.nix {
         inherit lib nebelung;
@@ -710,7 +710,7 @@ in
 
       # A lean terminal/dev toolbelt, gated by the developer pack. Personal
       # choices (AI CLIs, orbstack, your language toolchains) belong in your
-      # host file, not the public rice.
+      # host file, not the public desktop.
       home.packages =
         with pkgs;
         # duti is a roster entry (below, at the darwin level) rather than a
@@ -723,7 +723,7 @@ in
           glow # markdown renderer; yazi's glow previewer shells out to it
           fd # fast finder; used by yazi/zoxide navigation
         ]
-        # Editing the rice's own Nix is a developer activity; `haus edit` still
+        # Editing haus's own Nix is a developer activity; `haus edit` still
         # works without a formatter. `nixfmt`, not `nixfmt-rfc-style`: nixpkgs
         # aliased the latter to the former and now warns on every eval.
         ++ lib.optional devCfg.enable nixfmt
@@ -814,12 +814,12 @@ in
             # Homebrew (Apple Silicon)
             eval "$(/opt/homebrew/bin/brew shellenv)"
 
-            # Secrets: prefer secretspec (ships with the rice) — a project
+            # Secrets: prefer secretspec (ships with haus) — a project
             # declares its secrets in a committed secretspec.toml and
             # `secretspec run -- cmd` injects the values from your provider
             # (haus.secrets.provider) into just that process, nothing
             # plaintext on disk. Anything you truly need in EVERY shell,
-            # export in your HOST file's initContent (this is the public rice).
+            # export in your HOST file's initContent (this is the public desktop).
 
             # Custom completions: a dir you drop (or symlink) a `_foo` into,
             # for a CLI whose completion lives beside it in a checkout rather
@@ -915,7 +915,7 @@ in
             # peek was rooted at the main checkout to begin with.
             # Both fire once at shell birth, so unset HAUS_STAY afterward to
             # keep it out of child processes and later cd's.
-            # Gated to the surface this rice spawns — a Ghostty window — because
+            # Gated to the surface haus spawns — a Ghostty window — because
             # the hop is about ITS cwd inheritance. A third-party terminal (an
             # editor's integrated one, ssh) opened deliberately inside a
             # worktree must not be teleported out of it.
@@ -1642,9 +1642,9 @@ in
 
         # Opencode's half of the agent status the bar's `agents` pill draws.
         # Claude Code's equivalent is four hooks in ~/.claude/settings.json,
-        # which the USER wires (Claude owns that file and rewrites it, so the rice
+        # which the USER wires (Claude owns that file and rewrites it, so haus
         # never has); opencode instead auto-loads every file under this directory,
-        # so the rice can own the whole wiring and a fresh machine gets a working
+        # so haus can own the whole wiring and a fresh machine gets a working
         # pill for opencode panes with nothing to configure.
         # @AGENT_STATE@ → core's `agent-state` by absolute path: a plugin runs
         # inside opencode's server process, which is given no PATH guarantees.
@@ -1857,7 +1857,7 @@ in
         # ── ~/.config/haus/term — the scripts that outlived the multiplexer ──
         # This whole block lived under ~/.config/zellij until zellij was
         # removed. The directory moved with the scripts rather than being kept
-        # for compatibility: nothing but this rice ever wrote to it, and a
+        # for compatibility: nothing but haus ever wrote to it, and a
         # path named for a tool the machine no longer has is a lie that costs
         # nothing to stop telling. What survived is below; the plugin wasm, the
         # two layouts, config.kdl, the theme and copy-clean.pl went with it.
@@ -2030,7 +2030,7 @@ in
       # File-association hijack — opt-in (haus.terminal.hijackFileAssociations).
       # Off by default: silently making EditorOpen.app the handler for a dozen
       # extensions is a jarring, hard-to-undo surprise on someone else's machine.
-      # It opens files in the rice editor (haus.terminal.editor) via the same
+      # It opens files in haus's editor (haus.terminal.editor) via the same
       # window launcher the palette/bar use.
       home.activation.editorOpenApp = lib.mkIf terminalCfg.hijackFileAssociations (
         lib.hm.dag.entryAfter [ "writeBoundary" ] (
@@ -2043,7 +2043,7 @@ in
             #
             # This is the ONLY list of file types haus claims, and it has to
             # stay the only one — that is a rule, not a coincidence. Two
-            # rice-owned apps claiming one type never settles: both claims
+            # haus-owned apps claiming one type never settles: both claims
             # re-run on every activation and macOS stops to ask the user which
             # app wins, every rebuild, forever. Measured, not theoretical — a
             # video player pick once claimed `mts` alongside this list, and
@@ -2218,7 +2218,7 @@ in
       #     "← for agents" toolbar hint that advertises it. Undocumented key,
       #     equivalent to CLAUDE_CODE_DISABLE_AGENT_VIEW=1. Parallel Claude
       #     sessions here go through `scruff` + zmx windows (core/terminal), not the
-      #     in-app view, so the hint is pure noise — kill it at the rice level.
+      #     in-app view, so the hint is pure noise — kill it at the haus level.
       #   statusLine  — point Claude Code's status bar at `claude-statusline`
       #     (core ships it on PATH). It renders THIS session's `scruff` worktree +
       #     the sister worktrees in flight across every repo — the agent-worktree
@@ -2260,8 +2260,8 @@ in
       # re-asserts them, so the worst case is one `haus rebuild` rather than
       # silent data loss.
       #
-      # Set as whole arrays, not merged into: these two events are rice plumbing
-      # pointing at a rice-controlled /run/current-system path, and there is no
+      # Set as whole arrays, not merged into: these two events are haus plumbing
+      # pointing at a haus-controlled /run/current-system path, and there is no
       # sensible second handler for "make me a worktree". Every other hook
       # ENTRY in the file survives: the four agent-state hooks stay yours (see
       # modules/bar/options.nix) — on Notification and Stop haus appends its own
@@ -2375,7 +2375,7 @@ in
       #
       # First launch after this lands, Codex will ask you to REVIEW the hooks
       # ("Hooks need review") and won't run them until you trust them. That gate
-      # is Codex's, it is a good one, and the rice does not try to defeat it —
+      # is Codex's, it is a good one, and haus does not try to defeat it —
       # `--dangerously-bypass-hook-trust` exists but appears nowhere here.
       #
       # Merged with jq rather than owned outright: hooks.json is a user-editable
@@ -2415,7 +2415,7 @@ in
       #
       # Seeded once, because they are taste and pi lets you change them from
       # `/settings` mid-session — a rebuild that reverted what you just chose
-      # would be the rice arguing with you:
+      # would be haus arguing with you:
       #   hideThinkingBlock       — thinking folded away by default.
       #   modelThinkingLevels     — think hard on the Anthropic models by
       #     default.

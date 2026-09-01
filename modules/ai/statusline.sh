@@ -7,7 +7,7 @@
 #          the child-PR cluster (bare clickable numbers for every worktree this
 #          session spawned in ANOTHER repo — there so they survive the row-2+
 #          list being capped or clipped in a short pane) ·
-#          rice-nag (⇡N — commits your pinned haus is behind, `haus update`)
+#          haus-nag (⇡N — commits your pinned haus is behind, `haus update`)
 #          · ctx% (green <100k tokens, yellow <200k, red beyond — banded on
 #          absolute tokens, not the percentage) · cost · permission-mode icon
 #          (blank auto, ⏵ default, ⏵⏵ accept,
@@ -47,7 +47,7 @@ PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/etc/profiles
 
 CACHE_DIR="${CLAUDE_STATUSLINE_CACHE:-$HOME/.cache/claude-statusline}"
 PANEL="$CACHE_DIR/panel.tsv"
-# Refresher: the rice ships it on PATH as `claude-statusline-refresh`; fall back
+# Refresher: haus ships it on PATH as `claude-statusline-refresh`; fall back
 # to the sibling script when running straight out of ~/.claude (pre-rebuild).
 #
 # `CLAUDE_STATUSLINE_REFRESHER` overrides both, and exists for the same reason
@@ -143,7 +143,7 @@ UI_TTY=1
 #
 #   * PURGE (was orange 173) and WARN (was yellow 179) both land on `warn`.
 #     Every PURGE use carries its own glyph — ⏏, ◇, N^ — while WARN's two (the
-#     rice nag, the ctx% band) carry none, so the distinction survives in the
+#     haus nag, the ctx% band) carry none, so the distinction survives in the
 #     channel the standard says holds it: the glyph is load-bearing and the
 #     colour is not.
 #   * ADD and PR_OPEN both land on `ok`, DEL and PR_CLOSED both on `err`. They
@@ -185,7 +185,7 @@ R="$R0"         # in-row reset; re-armed to keep the tint when one is set (below
 # legibility fast, because yellows carry far more luminance per unit of colour
 # than the plum this started as. Truecolor rather than a 256 index because the
 # cube has nothing simultaneously this dark and this saturated; every terminal
-# this rice targets does 24-bit. Tune it here, it's the one knob.
+# haus targets does 24-bit. Tune it here, it's the one knob.
 #
 # It does collide semantically with the bar's own warm slots — `warn`, which is
 # both "this branch needs you" on ⏏/N^ and the stale-haus nag / ctx% 100–200k
@@ -652,7 +652,7 @@ if [ -f "$PANEL" ]; then
 fi
 
 # Mode icon: Claude Code's own glyph language (⏸ plan, ⏵ armed), our palette.
-# AUTO is the blank one — it's the rice's `permissions.defaultMode` (terminal sets
+# AUTO is the blank one — it's haus's `permissions.defaultMode` (terminal sets
 # it) and where you live, so no news is good news and the slot stays quiet all
 # day. Everything else is a positive mark, and each is told apart by GLYPH COUNT,
 # not colour: one ⏵ gated, two armed, three ungated. Colour only reinforces.
@@ -665,8 +665,8 @@ fi
 # the mode you're in 95% of the time, rather than crying wolf.
 #
 # Worth knowing: this line is the ONLY mode signal in the pane. The stock
-# "⏵⏵ auto mode on (shift+tab to cycle)" footer row is patched out — NOT by this
-# rice, which ships stock `pkgs.claude-code` (terminal/default.nix), but by a host
+# "⏵⏵ auto mode on (shift+tab to cycle)" footer row is patched out — NOT by
+# haus, which ships stock `pkgs.claude-code` (terminal/default.nix), but by a host
 # that overlays a patched build (mbp does, via declutter-claude-footer.py). A
 # host running the unpatched client keeps both.
 mseg=""
@@ -679,7 +679,7 @@ case "$mode" in
   bypassPermissions) mseg="${DEL}⏵⏵⏵${R}";;    # red    — no gates at all
 esac
 
-# Stale-rice nag: "⇡6" = your pinned haus is 6 commits behind upstream, i.e.
+# Stale-haus nag: "⇡6" = your pinned haus is 6 commits behind upstream, i.e.
 # what `haus update` would bring in. Nix has no "latest" — an input is whatever
 # flake.lock pinned — so this chip is the only place the drift is visible without
 # running a command. The count is computed DETACHED by the refresher (one cached
@@ -688,7 +688,7 @@ esac
 #
 # Yellow at first (haus's own `warn` colour), red once the PIN itself is older
 # than NAG_ALERT_DAYS — being a few commits behind for an afternoon is normal;
-# running a rice nobody has rebuilt in a fortnight is the thing worth seeing.
+# running a pin nobody has rebuilt in a fortnight is the thing worth seeing.
 # ⌘-click opens the GitHub compare of exactly the commits you haven't taken.
 NAG_ALERT_DAYS=14
 nagseg=""
@@ -708,7 +708,7 @@ if [ -s "$CACHE_DIR/lock-nag.tsv" ]; then
   fi
 fi
 
-# Tail group (child-PR cluster · rice-nag · ctx% · cost · mode icon · model) sits
+# Tail group (child-PR cluster · haus-nag · ctx% · cost · mode icon · model) sits
 # flush RIGHT, next to Claude Code's own right-edge chips (/rc); RESERVE leaves
 # them room. Narrow pane → fall back to the old inline append. wc -m under a
 # UTF-8 locale counts the wide glyphs as characters (≈ columns), not bytes. The
@@ -756,9 +756,9 @@ emit() {
 # a real 0/0 (the payload builder defaults them, it never omits them), so it
 # renders a green 0%, which is what it should.
 #
-# The bands share their colours with the chips either side — the ⇡ rice-nag is
+# The bands share their colours with the chips either side — the ⇡ haus-nag is
 # yellow at the same 179 and red at the same 167, and the child-PR cluster's open
-# PRs are green at the same 71 — so at ≥200k a stale-rice pane shows two red
+# PRs are green at the same 71 — so at ≥200k a stale-haus pane shows two red
 # numbers side by side meaning unrelated things. Accepted: each chip carries its
 # own glyph (⇡, %, $) and the tail-group order is fixed, so the position tells
 # you which is which before the colour does. Same trade the tint paragraph makes
@@ -846,7 +846,7 @@ while IFS=$'\t' read -r pslug pname pahead pfiles pins pdel ppr pparent; do
   # An orphan has no recorded parent — a raw `git worktree add` that skipped
   # `scruff child`, so nothing in the registry knows who owns it. It rides in
   # front of the repo name because the bullet slot is the STATUS token now
-  # (rice#…, "Prioritize active Claude statusline rows"), which is what took
+  # (haus#…, "Prioritize active Claude statusline rows"), which is what took
   # the old leading ◇ away and left orphans rendering identically to real
   # children — invisible, in the one pane that surfaces them at all.
   mark=""; [ "$orphan" = 1 ] && mark="${PURGE}◇${R}"

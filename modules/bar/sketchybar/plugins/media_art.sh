@@ -13,7 +13,7 @@
 #   * the image itself, for the dropdown's thumbnail
 #   * a TINT — the cover's average colour, snapped to the nearest member of the
 #     nebelung palette. Snapping is the whole idea: the pill picks up the mood of
-#     the record without ever drawing a colour that isn't in the rice's palette,
+#     the record without ever drawing a colour that isn't in haus's palette,
 #     so an album cover can't smuggle a brand green onto a bar that is one theme.
 #     Only read when haus.bar.media.artworkTint is on (see media_lib.sh).
 #

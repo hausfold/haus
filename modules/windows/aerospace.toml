@@ -9,7 +9,7 @@
 # below instead. Omitting this line means v1.
 config-version = 2
 
-# Every workspace the rice can reach, declared rather than inferred: the
+# Every workspace haus can reach, declared rather than inferred: the
 # numbered ones (how many is haus.windows.numberedWorkspaces) plus each roster
 # app's workspace (Ghostty's T included), generated
 # from haus._apps. Same members v1 inferred from the chords, so the set no
@@ -112,7 +112,7 @@ outer.right = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTER
 # Leader: enters `launch` mode -> letter -> open app (the launcher letters live in
 # [mode.launch.binding] below, generated from haus._apps). Generated from
 # haus.keys.leader: "caps" binds f18, because AeroSpace can't bind Caps Lock
-# itself and the rice hidutil-remaps it (see modules/windows/default.nix);
+# itself and haus hidutil-remaps it (see modules/windows/default.nix);
 # "alt-space" binds that instead and leaves Caps Lock alone; "none" emits nothing.
 @LEADER_ENTRY@
 # The palette, <mod>f, <mod>⇥ and <mod>⇧⇥ are part of the generated static block

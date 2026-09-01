@@ -4,7 +4,7 @@
 # reason, as hot-corners.nix.
 #
 # These are the basenames in /System/Library/Sounds (macOS 26.6, 14 of them).
-# The rice writes `/System/Library/Sounds/<name>.aiff`, and checks the file
+# haus writes `/System/Library/Sounds/<name>.aiff`, and checks the file
 # exists before writing it: `com.apple.sound.beep.sound` takes an absolute path,
 # validates nothing, and a path that doesn't resolve makes the alert SILENT
 # rather than falling back to the default beep (measured by ear 2026-08-08 —

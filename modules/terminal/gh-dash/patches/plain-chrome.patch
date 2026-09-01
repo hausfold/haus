@@ -115,7 +115,7 @@ index b1f66cf..095941d 100644
 +// haus: the header's right slot used to hold the gh-dash logo and the
 +// version string. Neither earns its width in a full-window overlay, so the
 +// slot carries the "? help" hint instead — the one thing worth keeping from
-+// the footer bar, which this rice blanks out (see footer.go).
++// the footer bar, which haus blanks out (see footer.go).
 +func (m *Model) viewHelpHint() string {
 +	hint := lipgloss.NewStyle().
 +		Background(m.ctx.Theme.FaintText).

@@ -1,8 +1,8 @@
 #!/bin/zsh
 
-# Open a file OR a directory in the rice editor, in a new tiled Ghostty window.
+# Open a file OR a directory in haus's editor, in a new tiled Ghostty window.
 # @editor@ is baked from haus.terminal.editor at build time (the one editor the
-# whole rice uses — same value as $EDITOR). Called by the EditorOpen.app
+# whole of haus uses — same value as $EDITOR). Called by the EditorOpen.app
 # file-association handler (a file), and by nix-config-open.sh (a file plus a
 # cwd override, so the window sits at the flake root rather than the file's own
 # directory). The third argument — a line number — was the zellij link-handler

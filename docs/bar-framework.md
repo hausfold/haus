@@ -426,7 +426,7 @@ numbers filed off. It still matches the agents pill and snug's role system:
 | `warn` | wants a human here |
 | `bad` | the load-bearing thing is broken |
 | `action` | a thing you press — an affordance, not a status |
-| `accent` | the rice's own mark — identity, never status |
+| `accent` | haus's own mark — identity, never status |
 
 The ladder is `modules/bar/tones.nix`, and that file is the argument as well
 as the list: each rung names the pills that earned it, because **what earns a
