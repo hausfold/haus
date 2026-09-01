@@ -403,25 +403,37 @@ case "${1:-status}" in
     do_refresh >/dev/null 2>&1
     printf 'hooks\n'
     if [ -s "$HAUS_GH_REPORT" ]; then
-      # A fix stays its own ROW under the scope it belongs to, as it was — not a
-      # third column, because a remedy is a sentence and a column would cut it
-      # at the first width that pinched. `%-28s` reserved 28 cells for a slug of
-      # nine; the budget hands them back and still keeps the two aligned.
+      # The verdicts are a table; the FIXES are not, and that split is the whole
+      # point. A fix is a `gh api -X POST …` line that runs to 250-odd
+      # characters, and any column holding it is a column that cuts it — the one
+      # thing in this report a reader is meant to copy would lose its tail at
+      # the first width that pinched. So the table carries the two short fields
+      # and every fix is printed whole under it, where the terminal wraps it
+      # instead. `%-28s` reserved 28 cells for a slug of nine; the budget hands
+      # them back.
       if [ -n "$UI_READY" ]; then
         ui_table_clear
         ui_col scope   8 2 subject right
         ui_col verdict 8 5 body    right
       fi
+      HOOK_FIXES=()
       while IFS=$'\t' read -r scope verdict fix; do
         if [ -n "$UI_READY" ]; then
           ui_trow "$scope" "$verdict"
-          [ -n "$fix" ] && ui_trow "" "fix: $fix"
+          [ -n "$fix" ] && HOOK_FIXES+=("$scope"$'\t'"$fix")
         else
           printf '  %-28s %s\n' "$scope" "$verdict"
           [ -n "$fix" ] && printf '  %-28s   fix: %s\n' "" "$fix"
         fi
       done <"$HAUS_GH_REPORT"
-      if [ -n "$UI_READY" ]; then ui_table_data 2; fi
+      if [ -n "$UI_READY" ]; then
+        ui_table_data 2
+        # `${a[@]+…}` because `set -u` is on and an empty array is the normal
+        # case: every hook fine is every hook with no fix.
+        for hookfix in ${HOOK_FIXES[@]+"${HOOK_FIXES[@]}"}; do
+          printf '  fix %s: %s\n' "${hookfix%%$'\t'*}" "${hookfix#*$'\t'}"
+        done
+      fi
     else
       printf '  none declared (haus.github.hooks)\n'
     fi

@@ -396,7 +396,7 @@ mechanism, say so in one line.
   `ui_trow` + `ui_table_data` measure the real window and hand each column what
   it needs; a `%-44s` reserves its width whatever is in the cell and wraps the
   row in anything narrower, which is `docs/cli-presentation.md`'s founding
-  defect. The five painters that draw a table — `haus.sh`, `haus-show.sh`,
+  defect. The four painters that draw a table — `haus.sh`, `haus-show.sh`,
   `modules/focus/focus.sh` and `modules/github/signal.sh` — carry NO fixed
   width outside a `UI_READY`-empty fallback, and `test/phase-painter.bats`
   counts them so a new one cannot land quietly. Two `%-Ns` are exceptions and
@@ -410,8 +410,15 @@ mechanism, say so in one line.
   two verbs that draw a table, because the bar drives that script on a timer;
   `github-signal` takes it prepended by its derivation and sources it past the
   sourced-half guard, so the surfaces that source the file pay nothing. Both
-  check `BASH_VERSINFO` first and both moved to `#!/usr/bin/env bash` for it —
-  they were `#!/bin/bash`, which is macOS's 3.2, where ui.sh half-loads.
+  check `BASH_VERSINFO` before sourcing, because ui.sh half-loads under macOS's
+  /bin/bash 3.2 with three `bad substitution` errors and leaves a painter that
+  answers `type` and then draws nothing. For `focus` that check is what the
+  `#!/usr/bin/env bash` shebang is FOR — its launchd caller sets no PATH, so
+  `env` still resolves 3.2 there and the listing keeps its plain columns.
+  `github-signal` is built by `writeShellScriptBin` and so already runs
+  nixpkgs' bash; its own shebang only matters to somebody exec'ing the
+  `~/.config/haus/github/signal.sh` copy by hand, which nothing on the machine
+  does — every consumer SOURCES it, and a sourced file's shebang never runs.
 
   **Three more scripts draw through it too**, and they reach it a second way.
   `modules/ai/statusline.sh`, `modules/terminal/scripts/image-preview.sh` and

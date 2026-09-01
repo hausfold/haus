@@ -178,6 +178,22 @@ jobs:
       # about this command that can be answered inside a derivation, and this
       # covers the part a publisher's CI actually depends on, which is the
       # number the process exits with.
+      # `haus show`'s report draws through snug's bash painter now — five
+      # budgeted tables — and a runner has no `snug` on PATH and no
+      # /run/current-system, so without this the suite exercises only the
+      # no-painter fallback and the tables ship untested. Same fetch as the
+      # shell-scripts job's "snug's painter, at the pinned rev", duplicated
+      # rather than shared because the two jobs do not share an environment.
+      - name: snug's painter, at the pinned rev
+        run: |
+          rev="$(jq -r '.nodes.snug.locked.rev' flake.lock)"
+          [ -n "$rev" ] && [ "$rev" != null ] || { echo "no snug rev in flake.lock"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/snug"
+          curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 \
+            "https://raw.githubusercontent.com/hausfold/snug/$rev/share/ui.sh" \
+            -o "$RUNNER_TEMP/snug/ui.sh"
+          echo "HAUS_UI_SH=$RUNNER_TEMP/snug/ui.sh" >> "$GITHUB_ENV"
+
       - name: haus show tests
         run: bash test/haus-show.sh
 

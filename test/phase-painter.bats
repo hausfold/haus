@@ -880,3 +880,31 @@ print(max([0]+[sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in 
       || { echo "$f never paints a table"; false; }
   done
 }
+
+@test "the two table-drawing binaries source ui.sh safely" {
+  # `focus` and `github-signal` are the callers outside the `haus` wrapper that
+  # SOURCE ui.sh in their own shell — the other three either only alias roles or
+  # hand the snippet to somebody else's. Three properties, and each has a way of
+  # going wrong silently:
+  #
+  #  - a bash-version guard, because ui.sh is bash 4+ and macOS's /bin/bash 3.2
+  #    half-loads it: three `bad substitution` errors and a painter that answers
+  #    `type` and then draws nothing.
+  #  - `env bash` on `focus`, which is exec'd by the bar, by pounce and by a
+  #    person. `github-signal` is deliberately NOT asserted here: it is built by
+  #    `writeShellScriptBin`, so its interpreter is nixpkgs' bash whatever its
+  #    own first line says, and asserting it would pass for the wrong reason.
+  #  - neither may hold the path in `UI_SH`, which is ui.sh's own source-twice
+  #    sentinel — that name makes the file return before defining anything.
+  local f
+  for f in "$BATS_TEST_DIRNAME/../modules/focus/focus.sh" \
+           "$BATS_TEST_DIRNAME/../modules/github/signal.sh"; do
+    grep -q 'BASH_VERSINFO' "$f" \
+      || { echo "$f sources ui.sh with no bash-version guard"; false; }
+    if grep -qE '^[[:space:]]*UI_SH=' "$f"; then
+      echo "$f assigns UI_SH, which is ui.sh's own source-twice guard"; false
+    fi
+  done
+  head -1 "$BATS_TEST_DIRNAME/../modules/focus/focus.sh" | grep -q 'env bash' \
+    || { echo "focus.sh has a /bin/bash shebang and sources a bash-4 painter"; false; }
+}

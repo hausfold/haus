@@ -895,23 +895,24 @@ render_machine() {
   if [ "$n" -gt 0 ]; then
     printf '\n'
     field "changes" "$n $(leaves "$n")"
-    # The list warning is a column of its own rather than a suffix on the value,
-    # so it lines up down the block instead of starting wherever that row's value
-    # happened to end — and it is DECLARED only when some row has one, because a
-    # column's minimum is reserved out of the window whether or not anything in
-    # it is ever drawn.
+    # The list rule marks its rows with ONE cell and says itself once, under the
+    # table. A sentence in a column is a sentence that gets cut — `⚠ a list:
+    # repla…` at eighty columns — and this is the one merge rule a reader cannot
+    # infer from either file, so it is the last thing that may lose its tail.
+    # The mark column is declared only when a row has one: a column's minimum is
+    # taken out of the window whether or not anything is ever drawn in it.
     local lists; lists="$(jq -r '[.leaves[] | select(.verdict == "changes" and .type == "listOf")] | length' <<<"$becomes")"
     if [ -n "$UI_READY" ]; then
       ui_col option 20 3 path   left
       ui_col now     8 2 accent right
       ui_col becomes 8 2 accent right
-      if [ "$lists" -gt 0 ]; then ui_col note 10 2 warn right; fi
+      if [ "$lists" -gt 0 ]; then ui_col list 1 1 warn never; fi
     fi
     while IFS=$'\t' read -r path cur prop type inside; do
       if [ -n "$UI_READY" ]; then
-        local listnote=""
-        case "$type" in listOf) listnote="⚠ a list: replaced whole, not merged" ;; esac
-        if [ "$lists" -gt 0 ]; then ui_trow "$path" "$cur" "$prop" "$listnote"
+        local listmark=""
+        case "$type" in listOf) listmark="$G_WARN" ;; esac
+        if [ "$lists" -gt 0 ]; then ui_trow "$path" "$cur" "$prop" "$listmark"
         else ui_trow "$path" "$cur" "$prop"; fi
       else
         printf '      %-44s %s%s → %s%s' "$path" "$C_FOG" "$cur" "$prop" "$C_OFF"
@@ -919,7 +920,14 @@ render_machine() {
         printf '\n'
       fi
     done < <(emit changes)
-    if [ -n "$UI_READY" ]; then ui_table_data 6 1; fi
+    if [ -n "$UI_READY" ]; then
+      ui_table_data 6 1
+      if [ "$lists" -gt 0 ]; then
+        dim "$G_WARN marks a list: replaced whole, not merged. A list your"
+        dim "machine already ranks above the desktop is REPLACED by it, so a"
+        dim "desktop's entries do not add to yours."
+      fi
+    fi
   fi
 
   # 3. The container leaves, where the values compare and the winner cannot be
