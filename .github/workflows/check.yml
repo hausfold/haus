@@ -301,7 +301,7 @@ jobs:
           # button that visibly does nothing. It is a @placeholder@ template and
           # lints anyway, for haus-notify.sh's reason: both substitutions are
           # assignment right-hand sides, so an unsubstituted copy still parses.
-          shellcheck --severity=warning bootstrap.sh modules/ai/fix.sh modules/ai/fix-github.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/lidawake.sh test/lidawake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh modules/ai/statusline.sh modules/terminal/scripts/image-preview.sh modules/terminal/lanes/lane-open.sh modules/bar/sketchybar/barlib.sh
+          shellcheck --severity=warning bootstrap.sh modules/ai/fix.sh modules/ai/fix-github.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/lidawake.sh test/lidawake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh modules/ai/statusline.sh modules/github/signal.sh modules/terminal/scripts/image-preview.sh modules/terminal/lanes/lane-open.sh modules/bar/sketchybar/barlib.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
       # lidawake's three failsafes, over a fake pmset and a fake clock. Every
@@ -498,3 +498,30 @@ jobs:
       # catch. Needs bats, git and jq.
       - name: github pill fix rows
         run: bats test/fix-github.bats
+      # The GitHub bridge's consumer contract — `haus_gh_covers` and the
+      # statusline gate it feeds. Every failure in this seam is silent AND
+      # expensive in one direction: a coverage answer of "yes" when it should be
+      # "no" turns a 15-second readout into a 30-minute one and the pill just
+      # starts quietly lying about a merge that already happened. There is no
+      # error path to notice it, so the suite IS the guard, and it has to fail
+      # closed on all of: no scopes file, an empty one, a stale one, one repo
+      # out of two, an unparsable mtime.
+      #
+      # It runs statusline.sh, so it sits below the painter step on principle —
+      # but it is NOT one of the suites that step is load-bearing for, and the
+      # difference is worth stating: it asserts on a BEHAVIOUR (did the render
+      # decide to refresh?) and owns no colour cases, so a painter-less run has
+      # nothing in it to skip and go quietly green. Measured: 29/29 with
+      # HAUS_UI_SH unset and with it pointed at a path that does not exist.
+      #
+      # Two flags mean something else on this runner than on the Mac these
+      # scripts ship to, which is why signal.sh and the suite both carry the
+      # same try-BSD-then-GNU shape statusline.sh has always had. `date -v` does
+      # not exist here at all. `stat -f` is --file-system and takes NO argument,
+      # so `%m` becomes a second FILE operand: a filesystem block on stdout and
+      # exit 1 (measured, coreutils 9.11 — not the "/ and exit 0" three comments
+      # in this repo used to claim). Honouring that status answers 0 for every
+      # file, which is why every coverage question came back "not covered" here
+      # before this. Needs bash + bats.
+      - name: github bridge signal tests
+        run: bats test/github-signal.bats

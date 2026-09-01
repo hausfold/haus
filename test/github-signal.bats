@@ -44,6 +44,33 @@ EOF
   cp "$SIGNAL" "$CONFIG/signal.sh"
 }
 
+# ---- the two things this suite has to ask the OS for ------------------------
+# The scripts under test run on macOS; this suite also runs on the GNU box in
+# CI, and both of these flags mean something different there. `date -v` does
+# not exist. `stat -f` is --file-system and takes NO argument, so `%m` is read
+# as a second FILE operand: a filesystem block on stdout, an error on stderr,
+# exit 1 (measured on coreutils 9.11). Neither answer can be picked by exit
+# status — honouring it hands you 0 for every file — so both helpers judge the
+# TEXT. Same shape as statusline.sh's own `mtime` and statusline-refresh.sh's
+# `at_utc`: try BSD, accept it only if the answer looks right, else GNU.
+#
+# `touch_stamp` round-trips through LOCAL time in both branches, because
+# `touch -t` parses local. CI runs UTC so it cannot bite there; a macOS run
+# inside the repeated hour of a DST fall-back could see cases 24-29 flip.
+
+mtime_of() { # mtime_of <file> — epoch seconds, 0 when unknown
+  local m
+  m=$(stat -f %m "$1" 2>/dev/null || true)
+  case "$m" in '' | *[!0-9]*) m=$(stat -c %Y "$1" 2>/dev/null || echo 0) ;; esac
+  case "$m" in '' | *[!0-9]*) m=0 ;; esac
+  printf '%s' "$m"
+}
+
+touch_stamp() { # touch_stamp <seconds ago> — a `touch -t` argument
+  date -v-"$1"S +%Y%m%d%H%M.%S 2>/dev/null \
+    || date -d "@$(( $(date +%s) - $1 ))" +%Y%m%d%H%M.%S
+}
+
 # covers <slug>... — the sourced contract, in a subshell so each case is clean.
 covers() {
   bash -c '. "$1"; shift; haus_gh_covers "$@"' _ "$CONFIG/signal.sh" "$@"
@@ -213,11 +240,11 @@ signal_check() {
 @test "check: reads only — it must not call out or rewrite coverage" {
   printf 'org:hausfold\tok\t\n' >"$STATE/coverage.tsv"
   printf 'hausfold\n' >"$STATE/scopes"
-  before=$(stat -f %m "$STATE/scopes")
+  before=$(mtime_of "$STATE/scopes")
   sleep 1
   # No `gh` on PATH at all: a check that reached the network would fail here.
   PATH=/usr/bin:/bin signal_check
-  [ "$(stat -f %m "$STATE/scopes")" = "$before" ]
+  [ "$(mtime_of "$STATE/scopes")" = "$before" ]
 }
 
 # ---- the statusline's gate --------------------------------------------------
@@ -246,7 +273,7 @@ EOF
 
   printf 'hausfold/haus\tx\t1\t0\t0\t0\t#1 open\t%s\n' "$TMP" \
     >"$CLAUDE_STATUSLINE_CACHE/panel.tsv"
-  touch -t "$(date -v-"$age"S +%Y%m%d%H%M.%S)" "$CLAUDE_STATUSLINE_CACHE/panel.tsv"
+  touch -t "$(touch_stamp "$age")" "$CLAUDE_STATUSLINE_CACHE/panel.tsv"
 
   bash -c \
     'printf "{\"model\":{\"id\":\"claude-opus-5\"},\"workspace\":{\"current_dir\":\"$2\"}}" | bash "$1"' \

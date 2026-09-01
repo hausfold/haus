@@ -270,10 +270,14 @@ plain() { printf '%s' "$1" | sed 's/\x1b]8;;[^\\]*\x1b\\//g; s/\x1b\[[0-9;]*m//g
 mtime() { # mtime <file> — modification time in epoch seconds, 0 when unknown
   # The same helper the refresher carries, and for the same reason: `stat -f %m`
   # is BSD/macOS, which is where this runs — but the test suite runs on a GNU
-  # box in CI, where -f means --file-system and %m is the MOUNT POINT, so it
-  # prints "/" and exits 0. The fallback cannot be selected by exit status
-  # alone. Accept the BSD result only when it is numeric, then try GNU stat,
-  # then insist on digits so the caller's arithmetic can't blow up.
+  # box in CI, where -f is --file-system and takes NO argument, so `%m` becomes
+  # a second FILE operand: stdout is a filesystem block for the real file and
+  # the exit status is 1. (Measured on coreutils 9.11. This comment used to say
+  # it printed "/" and exited 0; it does not.) Honouring that status would give
+  # you 0 — fail-closed, but wrong, and it never reaches the GNU branch — so
+  # swallow it and judge the TEXT. Accept the BSD result only when it is
+  # numeric, then try GNU stat, then insist on digits so the caller's
+  # arithmetic can't blow up.
   local m
   m=$(stat -f %m "$1" 2>/dev/null || true)
   case "$m" in '' | *[!0-9]*) m=$(stat -c %Y "$1" 2>/dev/null || echo 0) ;; esac
