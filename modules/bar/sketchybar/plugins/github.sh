@@ -84,10 +84,18 @@
 # only when the AI room contributed `_contrib.bar.fix-agent`, i.e. when
 # `haus-fix-github` is actually installed), which spawns a background agent
 # lane on that repo briefed with the failure. The plugin knows nothing about
-# how the fix happens — it passes the row's fix target (cache field 6), the
-# verdict word and the URL, and the button is absent whenever any of those is
-# missing. A pill that offers to fix and then runs a binary that isn't there
-# is worse than a pill that never offered.
+# how the fix happens — it passes the verdict word, its target and the URL,
+# and the button is absent whenever any of those is missing. A pill that
+# offers to fix and then runs a binary that isn't there is worse than a pill
+# that never offered.
+#
+# WHICH rows get one is decided by the fetch, not by the popup: each fetch
+# writes `<verdict>:<target>` into cache field 6 (`ci:main`,
+# `checks-red:597`, `conflicts:12`) beside the glyph it already chose, and the
+# popup only splits it (`fix_split`). Deciding it twice is what the first draft
+# did — reading the verdict back off the row's GLYPH and its severity word —
+# and both couplings were silent: edit a glyph in the ladder and the button
+# disappears with nothing in any log.
 #
 # ── how it stays off the bar's critical path ──────────────────────────────────
 # Every other pill here reads something local. This one is the first that has to
@@ -108,9 +116,13 @@
 #                 a cache written by an older generation parses under the
 #                 current reader with them empty, and empty is exactly the
 #                 "no verdict" / "nothing to fix" case both already handle.
-#                 The third one is the FIX TARGET — what a "Fix with AI" row
-#                 would hand the fixer: the PR number for a search row, the
-#                 branch name for a ci row, empty for anything else.
+#                 The third is the FIX HANDOFF, `<verdict>:<target>` — what a
+#                 "Fix with AI" row hands the fixer. `ci:<branch>` for a ci
+#                 row, `checks-red:<n>` / `conflicts:<n>` for a PR, empty for
+#                 every row an agent lane has no business picking up. The
+#                 verdict travels WITH the target because the fetch is the
+#                 only place that still knows it: the popup would otherwise
+#                 have to guess it back out of the glyph.
 #                 NOT a tab: tab is an IFS *whitespace* character, so
 #                 `IFS=$'\t' read` folds a run of them into one delimiter and an
 #                 empty field simply vanishes — a source with no title would
@@ -323,6 +335,33 @@ G_NONE="󰝦"      # md-circle_outline — no checks, or no verdict yet
 # source file survives neither the copy nor the C locale cleanly.
 BOT=$(printf '\xF3\xB0\x9A\xA9')  # nf-md-robot (U+F06A9)
 
+# A row's fix field (cache field 6), split into the two words haus-fix-github
+# takes. `<verdict>:<target>` — `ci:main`, `checks-red:597`, `conflicts:12` —
+# or empty for every row that has nothing an agent lane can pick up.
+#
+# The verdict list is closed HERE as well as in the fixer's own argv check, and
+# that is the point of the pair: a cache written by a NEWER generation than the
+# binary on PATH (a rebuild lands the plugin and the CLI together, but the
+# cache outlives both across a rollback) would otherwise draw a button whose
+# first act is `usage`, exit 64, and no banner. An unknown word is no button.
+#
+# Two globals rather than a stdout pair, because the caller wants both and this
+# runs inside the popup's own loop — a command substitution per row is a fork
+# per row on the one path that has to stay under the popup's redraw budget.
+FIX_VERDICT=""
+FIX_TARGET=""
+fix_split() { # fix_split <field6> → 0 and sets FIX_VERDICT/FIX_TARGET, or 1
+  FIX_VERDICT=""
+  FIX_TARGET=""
+  case "${1:-}" in
+    ci:?* | checks-red:?* | conflicts:?*) ;;
+    *) return 1 ;;
+  esac
+  FIX_VERDICT="${1%%:*}"
+  FIX_TARGET="${1#*:}"
+  return 0
+}
+
 # ASCII 0x1f, the field separator the cache is written in (see the header).
 US=$'\037'
 
@@ -422,22 +461,22 @@ fetch_search() { # fetch_search <index> <query> <limit>
     | select(.url != null)
     | . as $n
     | (.commits.nodes[0].commit.statusCheckRollup.state // "NONE") as $ci
-    | (if $n.__typename != "PullRequest"                        then ["mute", $none,     ""]
-       elif $n.isDraft                                          then ["mute", $draft,    "draft"]
-       elif $n.mergeable == "CONFLICTING"                       then ["warn", $conflict, "conflicts"]
-       elif $ci == "FAILURE" or $ci == "ERROR"                  then ["warn", $failed,   "checks red"]
-       elif $ci == "PENDING" or $ci == "EXPECTED"               then ["busy", $running,  "checks running"]
-       elif $n.reviewDecision == "CHANGES_REQUESTED"            then ["warn", $changes,  "changes requested"]
-       elif $n.mergeable == "UNKNOWN"                           then ["mute", $none,     ""]
-       elif $n.reviewDecision == "APPROVED" and $ci == "SUCCESS" then ["ok",  $ready,    "ready to merge"]
-       elif $ci == "SUCCESS"                                    then ["ok",   $green,    ""]
-       else ["mute", $none, ""] end) as [$state, $glyph, $note]
+    | (if $n.__typename != "PullRequest"                        then ["mute", $none,     "",                  ""]
+       elif $n.isDraft                                          then ["mute", $draft,    "draft",             ""]
+       elif $n.mergeable == "CONFLICTING"                       then ["warn", $conflict, "conflicts",         "conflicts"]
+       elif $ci == "FAILURE" or $ci == "ERROR"                  then ["warn", $failed,   "checks red",        "checks-red"]
+       elif $ci == "PENDING" or $ci == "EXPECTED"               then ["busy", $running,  "checks running",    ""]
+       elif $n.reviewDecision == "CHANGES_REQUESTED"            then ["warn", $changes,  "changes requested", ""]
+       elif $n.mergeable == "UNKNOWN"                           then ["mute", $none,     "",                  ""]
+       elif $n.reviewDecision == "APPROVED" and $ci == "SUCCESS" then ["ok",  $ready,    "ready to merge",    ""]
+       elif $ci == "SUCCESS"                                    then ["ok",   $green,    "",                  ""]
+       else ["mute", $none, "", ""] end) as [$state, $glyph, $note, $fix]
     | "row\u001f" + $state
       + "\u001f" + (.repository.name + " #" + (.number|tostring) + "  " + .title
                      + (if $note == "" then "" else "  · " + $note end))
       + "\u001f" + .url
       + "\u001f" + $glyph
-      + "\u001f" + (if .__typename == "PullRequest" then (.number|tostring) else "" end)')
+      + "\u001f" + (if $fix == "" then "" else $fix + ":" + (.number|tostring) end)')
   worst=$(rows_worst "$rows")
   {
     printf 'meta\037%s\037%s\037%s\037%s\n' \
@@ -493,7 +532,7 @@ fetch_ci() { # fetch_ci <index> <org> <limit>
     | select(.st == "FAILURE" or .st == "ERROR")
     | "row\u001fbad\u001f" + .name + "  " + .br + "\u001f" + .url
       + "\u001f" + $failed
-      + "\u001f" + .br')
+      + "\u001fci:" + .br')
   count=$(printf '%s' "$rows" | grep -c '^row' 2>/dev/null || true)
   count=${count:-0}
   {
@@ -912,7 +951,7 @@ popup_rows() {
     popup_action --icon "" --tone mute --label "gh auth login" --copy "gh auth login"
     popup_note --label "copied to the clipboard when you click it"
   else
-    local s kind sev count title worst text url glyph
+    local s kind sev count title worst text url glyph fix
     for ((s = 0; s < n_sources; s++)); do
       [ -f "$STATE/src-$s.tsv" ] || continue
       IFS=$'\037' read -r kind sev count title worst < "$STATE/src-$s.tsv"
@@ -954,27 +993,24 @@ popup_rows() {
         # ── the "Fix with AI" rows ───────────────────────────────────────────
         # Drawn under exactly the rows a fix lane can take on, and nothing
         # else — a button on a green row is a button nobody learns to trust.
-        # The cache's fix target must be non-empty (a PR number, or a ci
-        # row's branch), the fixer must exist (BAR_GITHUB_FIX is empty when
-        # the AI room contributed nothing), and the verdict must be one of
-        # the two kinds of broken an agent lane can actually pick up: red
-        # checks (a PR's own, or a ci row's default branch) or merge
-        # conflicts. "Changes requested" is a human's turn, not an agent's.
-        # The command backgrounds inside haus-fix-github itself (a bar click
-        # must never wait on a spawn), so the click is dismiss-and-done.
-        local fix_verdict=""
-        if [ -n "${fix:-}" ] && [ -n "${BAR_GITHUB_FIX:-}" ]; then
-          if [ "$sev" = bad ]; then
-            fix_verdict="ci"
-          elif [ "$glyph" = "$G_CONFLICT" ]; then
-            fix_verdict="conflicts"
-          elif [ "$glyph" = "$G_FAILED" ]; then
-            fix_verdict="checks-red"
-          fi
-        fi
-        if [ -n "$fix_verdict" ]; then
+        # Which rows those are is decided ONCE, by the fetch that wrote the
+        # cache (the jq if-chain above names its own verdict), and read back
+        # here rather than re-derived: `fix_split` is the whole test. The
+        # earlier draft classified HERE, off the row's glyph and severity, and
+        # both couplings failed silently — a glyph edited in the ladder above
+        # made the button vanish with no error anywhere, and "sev is bad means
+        # ci" held only because search rows are capped at `warn` and a command
+        # source happens to write field 6 empty. A verdict is not a thing to
+        # infer from a font codepoint.
+        #
+        # Two more conditions, both cheap: the fixer must exist
+        # (BAR_GITHUB_FIX is empty when the AI room contributed nothing), and
+        # the target must be non-empty. The command backgrounds inside
+        # haus-fix-github itself (a bar click must never wait on a spawn), so
+        # the click is dismiss-and-done.
+        if [ -n "${BAR_GITHUB_FIX:-}" ] && fix_split "$fix"; then
           popup_action --icon "$BOT" --tone action --label "Fix with AI" \
-            --run "$BAR_GITHUB_FIX $(_barlib_shq "$fix") $(_barlib_shq "$fix_verdict") $(_barlib_shq "$url")"
+            --run "$BAR_GITHUB_FIX $(popup_quote "$FIX_TARGET") $(popup_quote "$FIX_VERDICT") $(popup_quote "$url")"
         fi
       done < "$STATE/src-$s.tsv"
 

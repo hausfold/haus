@@ -33,11 +33,32 @@
 # fork's own checkout when there is no shared remote). No match is a banner,
 # not a silent nothing.
 #
-# ── one spawn per failure ───────────────────────────────────────────────────
-# A click runs this detached from sketchybar's click_script (a bar must never
-# wait on a spawn), which means a double-click is two spawns — so there is a
-# lock, age-swept like the pill's own fetch lock. One fix lane per repo at a
-# time; a second click inside the window is a no-op.
+# The walk starts from the BASENAME, which is the known gap: a repo cloned as
+# `haus-fork` is not found even with the right origin, and the answer is the
+# same banner as no checkout at all. That is the safe direction — the
+# alternative is running `git remote` on every directory under every root on
+# the click path — and the banner names the option (clone it where it belongs,
+# or add its parent to `haus.ai.repoRoots`).
+#
+# ── which client ────────────────────────────────────────────────────────────
+# `scruff agent default`, then the first of claude/codex/opencode/pi that is
+# actually on PATH. The Nix side gates this binary on the default client being
+# installed, but that is a BUILD-time fact and scruff's default is read from a
+# file a person edits, so the two can disagree — and this spawn is a background
+# one, where "codex: command not found" lands in a pane nobody is watching.
+#
+# ── one spawn per failure, and no waiting ───────────────────────────────────
+# SketchyBar runs a popup row's click_script and only THEN closes the popup —
+# barlib puts the two in one string — so every millisecond this process spends
+# in the foreground is a dropdown left open under a finger that has moved on.
+# Argv validation is all that happens before the fork; the resolve walk and the
+# spawn are both behind it.
+#
+# Which makes a double-click two spawns, so there is a lock, age-swept like the
+# pill's own fetch lock. It is keyed on the LANE NAME and taken before the
+# resolve, because the name comes from argv alone and the resolve is the
+# expensive half. One fix lane per failure at a time; a second click inside the
+# window is a banner, not a second lane.
 #
 # ── contract ────────────────────────────────────────────────────────────────
 #   haus-fix-github <selector> <verdict> <url>
@@ -47,15 +68,22 @@
 #   verdict    one of  ci | checks-red | conflicts  — which selector means.
 #   url        the row's URL; owner/repo is parsed out of it.
 #
-# Every path ends on a banner (haus-notify, --source haus.github.fix — that
-# string is what rules.json matches on to silence this button).
+# Every path a PERSON can reach ends on a banner (haus-notify, --source
+# haus.github.fix — that string is what rules.json matches on to silence this
+# button). Bad argv is the exception and stays `usage` on stderr with exit 64:
+# the only way to reach it is a bug in the caller, and the caller is the bar.
 PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/etc/profiles/per-user/$(id -un 2>/dev/null)/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 export PATH
 
 set -u
 
 ROOTS=@repoRoots@
-LOG="${XDG_CACHE_HOME:-$HOME/.cache}/haus/github-fix.log"
+# Both under ~/.local/state/haus, beside haus-fix's own fix.log: this is a
+# transcript of something that happened to the machine, not a cache anything
+# can rebuild, and `haus doctor`'s reader should only ever have one directory
+# to look in. NOT in modules/lib/state-files.nix — that registry is for state
+# ONE room writes and ANOTHER reads, and both of these are this script's alone.
+LOG="${XDG_STATE_HOME:-$HOME/.local/state}/haus/github-fix.log"
 LOCK="${XDG_STATE_HOME:-$HOME/.local/state}/haus/github-fix"
 LOCK_TTL=120
 banner() { # banner <kind> <title> [body]
@@ -82,15 +110,23 @@ owner_repo_from_url() { # owner_repo_from_url <url> → "owner/repo" or ""
     https://github.com/*) ;;
     *) return 1 ;;
   esac
-  local rest
+  local rest owner repo
   rest="${1#https://github.com/}"
   rest="${rest%%\?*}"
   rest="${rest%%#*}"
   rest="${rest%/}"
+  # Both segments have to be non-empty: `github.com//haus` and `github.com/x/`
+  # are each a half-answer that would otherwise reach the brief as an owner or
+  # a repo named "", and the lane would be briefed on a repo nobody has.
   case "$rest" in
-    */*) printf '%s' "${rest%%/*}/${rest#*/}" | cut -d/ -f1-2 ;;
+    ?*/?*) ;;
     *) return 1 ;;
   esac
+  owner="${rest%%/*}"
+  rest="${rest#*/}"
+  repo="${rest%%/*}"
+  [ -n "$owner" ] && [ -n "$repo" ] || return 1
+  printf '%s/%s' "$owner" "$repo"
 }
 
 # ── the brief ───────────────────────────────────────────────────────────────
@@ -217,58 +253,158 @@ resolve_repo() { # resolve_repo <owner/repo> → checkout path on stdout, or exi
   return 1
 }
 
-# ── the spawn, detached ─────────────────────────────────────────────────────
-# `scruff spawn` itself is what takes seconds (checkout, branch, registry row,
-# then the open seam boots a client); the click must not wait for any of it.
-# The lock is taken HERE, in the detached child, after resolution — so a
-# double-click costs at most one resolve walk, never two lanes.
+# ── which client ────────────────────────────────────────────────────────────
+# `scruff agent default` names a client; it does not promise one is installed.
+# The Nix side gates this binary on `lib.elem cfg.default clients`, but that is
+# a BUILD-time fact about what the room installs and scruff's default is read
+# from ~/.config/scruff/config.toml, which a person edits — so the two can name
+# different clients on a machine that only ever installed one. Falling to the
+# first client that is actually here is spawn-agent.sh's answer to the same
+# question ("Belt to the assertion's braces"), and it is the difference between
+# a working lane and a lane whose pane says "codex: command not found" with
+# nobody watching it, because this spawn is a BACKGROUND one.
+#
+# The four ids are scruff's own (`internal/registry`'s validAgent) — `scruff
+# spawn --agent` refuses anything else — so a fifth client is a scruff change
+# first and a line here second.
+resolve_agent() { # resolve_agent → a client id on stdout, or exit 1
+  local want client
+  want="$(scruff agent default 2>/dev/null)"
+  for client in "$want" claude codex opencode pi; do
+    [ -n "$client" ] || continue
+    command -v "$client" >/dev/null 2>&1 || continue
+    printf '%s' "$client"
+    return 0
+  done
+  return 1
+}
+
+# ── the spawn ───────────────────────────────────────────────────────────────
+# `scruff spawn` takes seconds (checkout, branch, registry row, then the open
+# seam boots a client). The whole of `run` is already detached from the click
+# by the dispatch below; this is just the part that creates something.
 do_spawn() { # do_spawn <checkout> <prompt> <name>
-  local repo="$1" prompt="$2" name="$3"
-  mkdir -p "$(dirname "$LOG")" 2>/dev/null || LOG=/dev/null
+  local repo="$1" prompt="$2" name="$3" agent dir rc
 
-  agent="$(scruff agent default 2>/dev/null)"
-  [ -n "$agent" ] || agent="claude"
+  agent="$(resolve_agent)" || {
+    banner fault "No coding agent to hand this to" "Nothing in haus.ai.clients is on PATH"
+    return 1
+  }
 
-  # Per-lane lock, not global: a fix click on repo B must not be swallowed
-  # because repo A's lane spawned a minute ago.
-  local lock="$LOCK/$name"
-  mkdir -p "$LOCK" 2>/dev/null
-  if ! mkdir "$lock" 2>/dev/null; then
-    local age
-    age=$(( $(date +%s) - $(stat -f %m "$lock" 2>/dev/null || echo 0) ))
-    if [ "$age" -lt "$LOCK_TTL" ]; then
-      banner pulse "Fix lane already running" "$name is already on it"
-      exit 0
-    fi
-    rmdir "$lock" 2>/dev/null
-    mkdir "$lock" 2>/dev/null || exit 0
-  fi
-
-  local argv=(spawn "$repo" "$name" --agent "$agent" --prompt-file -)
-
-  dir="$(printf '%s' "$prompt" | HAUS_LANE_BACKGROUND=1 scruff "${argv[@]}" 2>>"$LOG")"
+  # scruff prints the lane's path on stdout BEFORE it drives the open seam, so
+  # this captures it whether the seam got as far as a session or not — which is
+  # exactly what the cleanup below needs.
+  dir="$(printf '%s' "$prompt" |
+    HAUS_LANE_BACKGROUND=1 scruff spawn "$repo" "$name" --agent "$agent" --prompt-file - 2>>"$LOG")"
   rc=$?
-  rmdir "$lock" 2>/dev/null
 
-  if [ "$rc" -ne 0 ] || [ -z "$dir" ] || [ ! -d "$dir" ]; then
+  if [ -z "$dir" ] || [ ! -d "$dir" ]; then
     banner fault "Could not spawn the fix lane" "Why, in $LOG"
-    exit 1
+    return 1
   fi
+
+  # rc 0 is a lane that started; anything else is a lane that EXISTS with
+  # nothing on it — the worktree, the branch and the registry row are all
+  # there, and the seam refused. spawn-agent.sh's answer, for the same reason:
+  # `scruff drop` rather than `git worktree remove`, because the raw remove
+  # leaves the registry row behind and the lane goes on being listed by
+  # `scruff`, `bench status` and the agents pill as a checkout that isn't
+  # there. Nobody is watching this spawn, so litter here is litter forever.
+  if [ "$rc" -ne 0 ]; then
+    if scruff drop "$(basename "$dir")" >>"$LOG" 2>&1; then
+      banner fault "Could not open the fix lane" "The lane was dropped; nothing changed"
+    else
+      banner fault "Could not open the fix lane" "Lane '$name' is still here — run scruff"
+    fi
+    return 1
+  fi
+
   banner pulse "haus · fix lane" "$name is working on ${repo##*/}"
 }
 
+# ── the work, behind the lock ───────────────────────────────────────────────
+# Everything past argv validation. The LOCK is taken before the resolve walk,
+# not after it: the walk is a `find` over every configured root plus a `git
+# remote` per candidate, so locking after it means a double-click pays for it
+# twice. The name is computable from argv alone, which is what makes that
+# possible — it depends on the verdict, the selector and the URL, none of which
+# touch the disk.
+#
+# ⚠️ Released EXPLICITLY, in the one place that took it — never from an EXIT
+# trap. Two reasons, and the first is measured: bash 3.2 does not run an EXIT
+# trap set inside a function when that function is the body of a BACKGROUND
+# job, which is precisely the shape below. `writeShellScriptBin` gives this
+# bash 5, where it does fire, so a trap here is a release that works in
+# production and silently doesn't when a person runs the file under /bin/bash
+# to see what it does — the worst of the two directions. The second: a trap
+# body is expanded when it FIRES, by which time `run` has returned and every
+# `local` in it is out of scope, so the obvious `trap 'rmdir "$lock"' EXIT`
+# is an `rmdir ""` under a redirect that hides it.
+run() { # run <verdict> <selector> <url> <owner/repo> <name>
+  local verdict="$1" selector="$2" url="$3" orp="$4" name="$5" lock age rc
+
+  # Per-lane, not global: a fix click on repo B must not be swallowed because
+  # repo A's lane spawned a minute ago. Age-swept like the pill's own fetch
+  # lock, so a killed spawn cannot wedge the button forever.
+  lock="$LOCK/$name"
+  mkdir -p "$LOCK" 2>/dev/null
+  if ! mkdir "$lock" 2>/dev/null; then
+    age=$(($(date +%s) - $(stat -f %m "$lock" 2>/dev/null || echo 0)))
+    if [ "$age" -lt "$LOCK_TTL" ]; then
+      banner pulse "Fix lane already running" "$name is already on it"
+      return 0
+    fi
+    rmdir "$lock" 2>/dev/null
+    mkdir "$lock" 2>/dev/null || return 0
+  fi
+
+  # Everything that can fail is in `work`, so this is the only release and it
+  # cannot be skipped by a `return` someone adds later — including the resolve
+  # that finds nothing, which held the lock for its full TTL in the first draft
+  # and so made "fix a repo you haven't cloned" a button that then ignored you
+  # for two minutes after you cloned it.
+  work "$verdict" "$selector" "$url" "$orp" "$name"
+  rc=$?
+  rmdir "$lock" 2>/dev/null
+  return "$rc"
+}
+
+work() { # work <verdict> <selector> <url> <owner/repo> <name> — inside the lock
+  local verdict="$1" selector="$2" url="$3" orp="$4" name="$5" checkout prompt
+  checkout="$(resolve_repo "$orp")" || {
+    banner pulse "No local checkout of $orp" "Clone it, or add its parent to haus.ai.repoRoots"
+    return 2
+  }
+  prompt="$(build_prompt "$verdict" "$selector" "$orp" "$url")"
+  do_spawn "$checkout" "$prompt" "$name"
+}
+
 # ── dispatch ────────────────────────────────────────────────────────────────
+# The click path ends HERE, in milliseconds. barlib appends the popup's own
+# `--set <pill> popup.drawing=off` AFTER this command in one click_script
+# (modules/bar/sketchybar/barlib.sh's `_barlib_pop_add`), so anything this
+# process still has to do is time the dropdown stays on screen under a finger
+# that has already moved on. The first draft resolved the checkout before
+# forking — a `find -maxdepth 3` over every root — and paid for it in exactly
+# that visible place.
+#
+# Only the two failures that are about THE ARGUMENTS stay in front of the fork,
+# because both are bugs in the caller rather than news for the person: a bad
+# verdict is `usage` on stderr, and a URL that is not github.com's is a banner.
 orp="$(owner_repo_from_url "$url")" || {
   banner fault "Fix with AI" "Not a github.com URL: $url"
   exit 2
 }
-prompt="$(build_prompt "$verdict" "$selector" "$orp" "$url")"
 name="$(lane_name "$verdict" "$selector" "$orp")"
 
-checkout="$(resolve_repo "$orp")" || {
-  banner pulse "No local checkout of $orp" "Clone it, or add its parent to haus.ai.repoRoots"
-  exit 2
-}
+# The log is append-only across spawns (two repos can be spawning at once, so
+# fix.sh's rotate-on-entry would have them clobbering each other), which makes
+# it the one file here that grows without a ceiling. Rolled at 256 KiB rather
+# than truncated, so the failure you are reading about survives the roll.
+mkdir -p "$(dirname "$LOG")" 2>/dev/null || LOG=/dev/null
+if [ "$(stat -f %z "$LOG" 2>/dev/null || echo 0)" -gt 262144 ]; then
+  mv -f "$LOG" "$LOG.prev" 2>/dev/null || true
+fi
 
-do_spawn "$checkout" "$prompt" "$name" &
+run "$verdict" "$selector" "$url" "$orp" "$name" >/dev/null 2>&1 &
 exit 0

@@ -221,6 +221,15 @@ running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
   up, so the fifth kind someone needs is a kind to **add**, not a `--font` to
   add to the signature.
 
+  **`--open` and `--copy` quote their argument; `--run` does not.** A URL or a
+  copy string is data and the runtime single-quotes it, so a PR title with an
+  apostrophe in it cannot end the quote and hand the rest to the shell. A
+  `--run` is a whole command, and quoting it would break it — which makes the
+  quoting the widget's job on exactly the rows that build one out of fetched
+  data. `popup_quote <value>` is that, lent rather than reimplemented: github's
+  "Fix with AI" rows pass a branch name and a URL through it, both GitHub's to
+  choose and neither the widget's to trust.
+
   **`--value` makes a row two columns** rather than one sentence: a name on
   the left and a number that lands on the same x as every number above it.
   The arithmetic is the runtime's for the same reason the fonts are — getting

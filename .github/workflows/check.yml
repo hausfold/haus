@@ -474,12 +474,18 @@ jobs:
       # bats, and perl for the one SIGHUP case (skipped without it).
       - name: rebuild fix CTA
         run: bats test/rebuild-fix-cta.bats
-      # The github pill's "Fix with AI" runner: the pure halves of
-      # modules/ai/fix-github.sh — the URL→owner/repo parse, the per-verdict
-      # brief, the lane name — plus resolve_repo over a throwaway filesystem,
-      # because the failure modes are LANE SPAWNED ON THE WRONG BRIEF (an
-      # owner/repo from the wrong path segments, a branch selector read as a
-      # PR number, a colon-joined root list walked line-wise and so silent)
-      # and all of them produce a working lane a feel-test cannot catch.
-      - name: github pill fix runner
+      # The github pill's "Fix with AI" rows, BOTH halves — the fetch that
+      # writes `<verdict>:<target>` into the cache (github.sh's own jq, lifted
+      # and run) and the runner that is handed it (modules/ai/fix-github.sh:
+      # the URL→owner/repo parse, the per-verdict brief, the lane name, the
+      # client pick, and resolve_repo over a throwaway filesystem). One suite
+      # because the cache field is a contract between two files and nothing
+      # else joins them: a verdict word spelled one way in the jq and another
+      # in the split is a button that never draws, with no error on either
+      # side. Everything else here fails the same way — LANE SPAWNED ON THE
+      # WRONG BRIEF (an owner/repo from the wrong path segments, a branch
+      # selector read as a PR number, a colon-joined root list walked
+      # line-wise) — and all of it produces a working lane a feel-test cannot
+      # catch. Needs bats, git and jq.
+      - name: github pill fix rows
         run: bats test/fix-github.bats
