@@ -278,6 +278,45 @@ vis() {
   [[ "$output" != *"◇"* ]] || fail "a parented child was marked as an orphan"
 }
 
+@test "a lane in this pane's OWN repo is a sibling — no row, no cluster number" {
+  # scruff records `parent` as the cwd that made the lane, so a lane opened with
+  # ⌘↵ from this pane is parented to it exactly as a `scruff child` is (scruff
+  # SPEC.md §2.2). Only the cross-repo one is a child: it has no window of its
+  # own and nothing else surfaces its PR. A same-repo peer listed here buries it
+  # under whichever pane pressed the key and spends the MAX_ROWS budget that
+  # exists for real children.
+  {
+    printf 'hausfold/pounce\tsome-child\t2\t0\t0\t0\t#41 open\t%s\n' "$REPO"
+    printf 'hausfold/demo\tpeer-lane\t3\t0\t0\t0\t#58 open\t%s\n'   "$REPO"
+  } >"$CLAUDE_STATUSLINE_CACHE/panel.tsv"
+
+  run -0 render claude-opus-5
+  [[ "$output" != *"peer-lane"* ]] || fail "a same-repo peer took a child row: $output"
+  [[ "$output" != *"/pull/58"* ]] || fail "a same-repo peer took a cluster number: $output"
+  # The genuine cross-repo child is untouched by the filter.
+  [[ "$output" == *"some-child"* ]] || fail "the cross-repo child lost its row: $output"
+  [[ "$output" == *"/pull/41"* ]] || fail "the cross-repo child lost its cluster number: $output"
+}
+
+@test "a main-checkout pane still lists its own repo's lanes" {
+  # The filter is scoped to panes that are THEMSELVES a lane. A repo's main
+  # checkout parents every lane `scruff spawn` opens there, and that pane is the
+  # one place a human looks for them — dropping same-repo rows there would hide
+  # every top-level lane in the repo you are sitting in.
+  local mainco out
+  mainco="$TMP/main-demo"
+  mkdir -p "$mainco"
+  git -C "$mainco" init -q -b main
+  git -C "$mainco" remote add origin https://github.com/hausfold/demo.git
+  git -C "$mainco" commit -q --allow-empty -m init
+  printf 'hausfold/demo\tspawned-lane\t3\t0\t0\t0\t#58 open\t%s\n' \
+    "$mainco" >"$CLAUDE_STATUSLINE_CACHE/panel.tsv"
+
+  out=$(printf '{"model":{"id":"claude-opus-5"},"workspace":{"current_dir":"%s"},"cost":{"total_cost_usd":1.23},"context_window":{"used_percentage":42}}' \
+    "$mainco" | bash "$SL")
+  [[ "$out" == *"spawned-lane"* ]] || fail "a main-checkout pane lost its own repo's lane: $out"
+}
+
 # --- ctx% colour banding ----------------------------------------------------
 # The band is keyed to the ABSOLUTE token count, never the percentage: the same
 # 42% is 84k tokens on a 200k model and 420k on a 1M one, so a percentage-keyed
