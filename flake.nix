@@ -527,7 +527,8 @@
       # options-json build on Linux CI — which matters most for the two colour
       # ones, since the drift they catch is otherwise invisible on any machine
       # (a widget paints the fallback and the reason goes to sketchybar's log).
-      # `catalogue` stays darwin-only — it evaluates real systems.
+      # `catalogue` and `bar-third-party-widget` stay darwin-only — they
+      # evaluate real systems.
       checks = nixpkgs.lib.genAttrs allSystems (
         system:
         let
@@ -2818,6 +2819,129 @@
                 "windows"
               ];
 
+          # ---- bar-third-party-widget ------------------------------------------
+          # The framework's open half, pinned end to end — third-party framework
+          # widgets, in docs/bar-framework.md's migration order.
+          # `haus.bar.widgets.<name>.script` is a barlib widget somebody else
+          # wrote, and the whole promise is that it reaches
+          # the bar down the same path a bundled pill does — so what this
+          # fixture host declares is one of each TIER, and what the golden below
+          # holds is the two blocks the bar's item file comes out with.
+          #
+          # It exists for one failure that is invisible everywhere else. A
+          # widget's script is two paths: the store path its `# widget:` header
+          # is READ from at eval, and the `$HOME` path the bar RUNS every tick.
+          # For a bundled pill they are both derived from its name, which is why
+          # `frameworkBlock` derived them for four conversions and nobody
+          # noticed; for a declared one they are unrelated. Re-deriving the
+          # second from the name — the obvious simplification, and the shape the
+          # emitter had until this shipped — leaves every bundled pill working
+          # and points a declared one at a `plugins/<name>.sh` that does not
+          # exist. SketchyBar runs a missing `script=` by doing nothing, without
+          # a log line, so the symptom is a pill that draws its background and
+          # never says anything.
+          #
+          # The `command` tier is in the same golden because the two are one
+          # option and the emission picks between them: a dispatch that sent a
+          # `script` widget down `userWidgetBlock` would put a barlib file in a
+          # block that has no popup, no events and an `icon=` — which draws, and
+          # is wrong.
+          thirdPartyWidgetConfig =
+            (self.darwinConfigurations.example.extendModules {
+              modules = [
+                {
+                  # The framework tier. `style` carries the one property that is
+                  # this widget's IDENTITY, which is the only thing its own file
+                  # cannot say.
+                  haus.bar.widgets.pomodoro = {
+                    script = ./test/bar-widget.sh;
+                    style."icon.color" = "$TEAL";
+                  };
+                  # The simple tier, unchanged since the open form shipped — in
+                  # here so a regression in the dispatch shows up as a diff
+                  # rather than as the other block silently taking its place.
+                  haus.bar.widgets.backup = {
+                    command = "/etc/haus/backup-status.sh";
+                    interval = 300;
+                    icon = "💾";
+                  };
+                }
+              ];
+            }).config;
+
+          # The example host's user (`mkHaus { username = "you"; }` below), which
+          # is where its home-manager files hang.
+          thirdPartyWidgetFiles = thirdPartyWidgetConfig.home-manager.users.you.home.file;
+
+          # The two blocks, cut out of the generated item file by name. The rest
+          # of that file is every bundled pill and is pinned by nothing here on
+          # purpose — this check is about the open form, and a golden holding
+          # sixteen other pills would go red every time one of them is retuned.
+          thirdPartyWidgetBlocks =
+            let
+              lib = nixpkgs.lib;
+              lines = lib.splitString "\n" (thirdPartyWidgetFiles.".config/sketchybar/top_items.sh".text);
+              # Grouped into STATEMENTS first, because the generator writes one
+              # sketchybar call across several backslash-continued lines and a
+              # filter over LINES would keep `--add item pomodoro right \` and
+              # drop the `--set` under it — which is the half this check exists
+              # to read.
+              step =
+                acc: line:
+                let
+                  cur = acc.cur ++ [ line ];
+                in
+                if lib.hasSuffix "\\" line then
+                  acc // { inherit cur; }
+                else
+                  {
+                    done = acc.done ++ [ cur ];
+                    cur = [ ];
+                  };
+              grouped = builtins.foldl' step {
+                done = [ ];
+                cur = [ ];
+              } lines;
+              statements = grouped.done ++ lib.optional (grouped.cur != [ ]) grouped.cur;
+              # The event name is in the list on purpose: `--add event` is a
+              # statement of its own, naming neither widget, and a header
+              # subscription that never gets declared is silent — the pill just
+              # never hears its own signal.
+              wanted = lib.any (
+                line:
+                lib.any (n: lib.hasInfix n line) [
+                  "pomodoro"
+                  "backup"
+                  "haus.example.tick"
+                ]
+              );
+            in
+            # Trailing newline so the golden below can be an ordinary `''`
+            # block rather than one that has to end mid-line.
+            lib.concatStringsSep "\n" (lib.concatLists (builtins.filter wanted statements)) + "\n";
+
+          # The golden. Two blocks, and every line of each is load-bearing: the
+          # custom event declared before anything subscribes to it, the popup
+          # frame the header's `popup = true` buys, the `style` property merged
+          # in beside the framework's own two, and — the point of the whole
+          # check — a `script=` under `widgets/` rather than `plugins/`.
+          expectedThirdPartyWidget = ''
+            /run/current-system/sw/bin/sketchybar --add item backup right \
+                --set backup \
+                    update_freq=300 \
+                    icon='💾' \
+                    icon.drawing=on \
+                    icon.color=$TEAL \
+                    background.color=$SURFACE0 \
+                    label.font="JetBrainsMono Nerd Font Mono:Bold:14.0" \
+                    script=/etc/haus/backup-status.sh \
+                --subscribe backup system_woke
+            /run/current-system/sw/bin/sketchybar --add event haus.example.tick
+            /run/current-system/sw/bin/sketchybar --add item pomodoro right \
+                --set pomodoro update_freq=30 background.color=$SURFACE0 icon.color=$TEAL label.font="JetBrainsMono Nerd Font Mono:Bold:14.0" popup.align=right popup.background.border_color=$SURFACE0 popup.background.border_width=2 popup.background.color=$MANTLE popup.background.corner_radius=10 script="$HOME/.config/sketchybar/widgets/pomodoro.sh" \
+                --subscribe pomodoro system_woke haus.example.tick mouse.clicked
+          '';
+
           desktopProjection = import ./test/desktop-projection.nix {
             inherit pkgs;
             lib = nixpkgs.lib;
@@ -2970,6 +3094,8 @@
             test/desktops/host-only-secret.nix: haus.secrets.provider is host-only, so a shared desktop may not set it. It points at a secret, or at the store this machine keeps its secrets in, so it belongs to one person on one Mac.
             test/desktops/host-only-signing.nix: haus.launcher.signingIdentity is host-only, so a shared desktop may not set it. It names a code-signing identity in one login keychain, which exists on exactly one Mac and cannot be meaningfully published.
             test/desktops/host-only-widget-command.nix: haus.bar.widgets.<name>.command is host-only, so a shared desktop may not set it. It is a shell command this machine runs, and a desktop is a file you can read to know what it does. A leaf carrying a command is exactly what stops that being true.
+            test/desktops/host-only-widget-script.nix: haus.bar.widgets.<name>.script is host-only, so a shared desktop may not set it. It is a shell command this machine runs, and a desktop is a file you can read to know what it does. A leaf carrying a command is exactly what stops that being true.
+            test/desktops/host-only-widget-script.nix: haus.bar.widgets.<name>.style is host-only, so a shared desktop may not set it. It is a shell command this machine runs, and a desktop is a file you can read to know what it does. A leaf carrying a command is exactly what stops that being true.
             test/desktops/imports.nix: may not import modules — a desktop is one file's worth of values, and what it can reach has to be readable from that file alone
             test/desktops/internal-wiring.nix: haus._contrib is internal wiring between rooms, not a setting a desktop may write
             test/desktops/launcher-item-key.nix: haus.launcher.items.filesearch is not an item key (expected cmd:<id>, app:<path>, setting:<pane>[?<anchor>] or mode:<name>)
@@ -3032,6 +3158,7 @@
             host-only-secret.nix class=desktop ok=false sets=2 rooms=focus+security silent=11
             host-only-signing.nix class=desktop ok=false sets=1 rooms=launcher silent=12
             host-only-widget-command.nix class=desktop ok=false sets=2 rooms=bar silent=12
+            host-only-widget-script.nix class=desktop ok=false sets=2 rooms=bar silent=12
             imports.nix class=desktop ok=false sets=1 rooms=haus silent=13
             internal-wiring.nix class=desktop ok=false sets=1 rooms=- silent=13
             launcher-item-key.nix class=desktop ok=false sets=1 rooms=launcher silent=12
@@ -3956,6 +4083,56 @@
           '';
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-darwin" system) {
+          # ---- bar-third-party-widget ------------------------------------------
+          # The open form's end of `bar-plugins-executable`'s fact, and then
+          # some. See `thirdPartyWidgetBlocks` in the `let` above for what the
+          # golden pins and why a bundled pill can never catch it.
+          #
+          # Darwin-only for `catalogue`'s reason, stated at the top of `checks`:
+          # it evaluates a real system. `bar-tones` and `bar-marks` are beside
+          # it in this room and run everywhere because they are pure lib over
+          # pure text; this one extends `darwinConfigurations.example`, so it
+          # goes behind the gate with the rest of that kind.
+          #
+          # Three assertions past the diff, and the SECOND is the one
+          # `bar-plugins-executable` exists for one directory over: the script
+          # has to land on disk EXECUTABLE, because `script=` runs a path
+          # rather than sourcing it, and a store file's mode is whatever git
+          # recorded in somebody else's flake. The third is the negative — a
+          # `command` widget must install no script file at all.
+          bar-third-party-widget = pkgs.runCommand "haus-bar-third-party-widget-ok" { } ''
+            diff -u ${pkgs.writeText "expected" expectedThirdPartyWidget} \
+                    ${pkgs.writeText "actual" thirdPartyWidgetBlocks} || {
+              cat >&2 <<'DRIFT'
+
+            The bar's emission for a widget somebody else wrote has changed.
+
+            docs/bar-framework.md's third-party framework widgets are what this
+            is about: a declared framework widget reaches the bar down the same
+            path a bundled pill does. If the diff shows `script=` pointing into
+            `plugins/` for `pomodoro`, that is the regression — a declared
+            widget is installed to `~/.config/sketchybar/widgets/`, and the
+            path it is READ from at eval is not the path the bar RUNS.
+
+            DRIFT
+              exit 1
+            }
+
+            ${
+              if thirdPartyWidgetFiles.".config/sketchybar/widgets/pomodoro.sh".executable then
+                ""
+              else
+                "echo 'a declared widget landed non-executable; SketchyBar exits 126 in silence' >&2; exit 1"
+            }
+            ${
+              if thirdPartyWidgetFiles ? ".config/sketchybar/widgets/backup.sh" then
+                "echo 'a `command` widget installed a script file; only the framework tier has one' >&2; exit 1"
+              else
+                ""
+            }
+            touch $out
+          '';
+
           app-collections = pkgs.runCommand "haus-app-collections-ok" { } ''
             ${nixpkgs.lib.optionalString (collectionFailures != [ ]) ''
               cat >&2 <<'FAILURES'

@@ -2099,7 +2099,7 @@
       "_type": "literalExpression",
       "text": "null"
     },
-    "description": "The script whose output is this pill's label, run every\n`interval` seconds. One line on stdout is the label; nothing at all\nhides the pill for that tick, which is how a widget says \"no news\"\nwithout drawing an empty box.\n\nIt runs as you, with SketchyBar's own variables in the\nenvironment (`$NAME` is this widget's item id, `$BUTTON` and\n`$SENDER` on a click). Reach the bar back through `$SB` after\nsourcing `~/.config/sketchybar/bar.sh` rather than by naming\n`sketchybar`, so a widget moved to the bottom bar keeps talking to\nthe bar it is actually on — see AGENTS.md, it is the single most\ncommon way a pill silently stops updating.\n\nnull on a bundled pill, whose behaviour is haus's own plugin, and\nsetting one there is an error rather than an override.\n",
+    "description": "The script whose output is this pill's label, run every\n`interval` seconds. One line on stdout is the label; nothing at all\nhides the pill for that tick, which is how a widget says \"no news\"\nwithout drawing an empty box.\n\nIt runs as you, with SketchyBar's own variables in the\nenvironment (`$NAME` is this widget's item id, `$BUTTON` and\n`$SENDER` on a click). Reach the bar back through `$SB` after\nsourcing `~/.config/sketchybar/bar.sh` rather than by naming\n`sketchybar`, so a widget moved to the bottom bar keeps talking to\nthe bar it is actually on — see AGENTS.md, it is the single most\ncommon way a pill silently stops updating.\n\nnull on a bundled pill, whose behaviour is haus's own plugin, and\nsetting one there is an error rather than an override.\n\nThe other tier is `script`, and a widget is one or the other:\nsetting both is an error, since only one of them can be what the\nbar runs.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"/etc/haus/backup-status.sh\""
@@ -2141,7 +2141,7 @@
       "_type": "literalExpression",
       "text": "\"\""
     },
-    "description": "The glyph drawn to the left of the label, in the bar's own font\n(`haus.fonts.mono.name`), so any Nerd Font glyph works. Empty\ndraws no icon and gives the label the whole pill.\n\nIgnored on a bundled pill: those set their own, and several change\nit to say something (the memory pill's pressure colour, the\ngithub pill's two-tone logo).\n",
+    "description": "The glyph drawn to the left of the label, in the bar's own font\n(`haus.fonts.mono.name`), so any Nerd Font glyph works. Empty\ndraws no icon and gives the label the whole pill.\n\nIgnored on a bundled pill: those set their own, and several change\nit to say something (the memory pill's pressure colour, the\ngithub pill's two-tone logo). Ignored on a `script` widget for the\nsame reason — it draws its own — and setting it on one is an error\nrather than a glyph that never appears.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"󰁯\""
@@ -2164,7 +2164,7 @@
       "_type": "literalExpression",
       "text": "null"
     },
-    "description": "How often to run `command`, in seconds. Works on the bundled pills\ntoo, where it retunes what that pill already polls at:\n\n  haus.bar.widgets.weather.interval = 1800;\n\nnull keeps the widget's own default — for a bundled pill the rate\nit ships with, for yours a 60-second tick. A few pills are\npush-driven rather than polled (`agents`) and a couple own\ntheir rate through an older option of their own\n(`haus.bar.calendar.refresh`); setting this on one of those is\naccepted and changes only the backstop tick, which is exactly what\nupdate_freq is on a pill that repaints on an event.\n",
+    "description": "How often to run `command`, in seconds. Works on the bundled pills\ntoo, where it retunes what that pill already polls at:\n\n  haus.bar.widgets.weather.interval = 1800;\n\nnull keeps the widget's own default — for a bundled pill the rate\nit ships with, for a `script` widget the `interval` in its own\nheader, and for a `command` widget a 60-second tick. A few pills are\npush-driven rather than polled (`agents`) and a couple own\ntheir rate through an older option of their own\n(`haus.bar.calendar.refresh`); setting this on one of those is\naccepted and changes only the backstop tick, which is exactly what\nupdate_freq is on a pill that repaints on an event.\n",
     "example": {
       "_type": "literalExpression",
       "text": "300"
@@ -2224,6 +2224,52 @@
     ],
     "readOnly": false,
     "type": "null or one of \"menu-bar\", \"bottom-left\", \"bottom-center\", \"bottom-right\", \"left\", \"center\", \"right\""
+  },
+  "haus.bar.widgets.<name>.script": {
+    "declarations": [
+      "modules/bar/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "A barlib FRAMEWORK widget — the richer tier, and the one haus's own\npills are written in. Where `command` is a script whose stdout is a\nlabel, this is a file that sources\n`~/.config/sketchybar/barlib.sh`, defines `fetch`/`render` and\nwhatever `on_*` handlers it wants, and ends with\n`barlib_main \"$@\"`. It gets everything a bundled pill gets: the\nstate diff (a quiet tick costs zero traffic), the tone ladder, the\nidentity marks, graphs, the dropdown row kinds, and one\nbatched call per repaint. `docs/bar-framework.md` in the haus\nrepository is the whole contract, and\n`modules/bar/sketchybar/plugins/clock.sh` is the smallest working\nexample of it.\n\nThe file's own `# widget:` header is the WIRING — how often it\nticks, what events it hears, whether it has a dropdown, whether it\ndraws a graph — and it is read at build time, so a header key that\ndoes not exist fails the build naming your file rather than\nwiring nothing. The header is the reason this is a path and not a\nstring: the file has to be readable while the configuration is\nbeing evaluated, and it is installed to\n`~/.config/sketchybar/widgets/<name>.sh`, which is where you go to\nrun it by hand when it misbehaves — just the path, since the file\nnames its own `BAR_ITEM` and the bar's own `$NAME` is what wins\nwhen the bar is the caller.\n\n`icon` is not read for one of these — a framework widget draws its\nown icon in `render`, which is the point of the tier — and the\nstatic half of its look is `style`.\n\nnull on a bundled pill, whose script is haus's own, and setting one\nthere is an error rather than an override.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "./my-widget.sh"
+    },
+    "loc": [
+      "haus",
+      "bar",
+      "widgets",
+      "<name>",
+      "script"
+    ],
+    "readOnly": false,
+    "type": "null or absolute path"
+  },
+  "haus.bar.widgets.<name>.style": {
+    "declarations": [
+      "modules/bar/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "{ }"
+    },
+    "description": "The static half of a `script` widget's look: SketchyBar item\nproperties, set once when the pill is created, as a plain\n`property = value` set.\n\nIt is the one thing a framework widget cannot say in its own file,\nand the reason is worth knowing before you reach for it: everything\na pill draws that MEANS something — its label, its colour, whether\nit is showing at all — is the widget's `render`, which names a tone\nfrom the ladder and never a colour. What is left over is IDENTITY,\nwhich the ladder deliberately has no rung for: this widget's own\nhue, its padding, a font that is not the bar's. That is what\nbelongs here, and a `style` doing more than that is usually a\n`render` that should have been doing it.\n\nOne property is not optional: a widget whose header declares\n`graph` must name a `graph.color` here, because the line's colour\nis which readout it is and nothing else on the machine can answer\nthat.\n\nValues are written into the bar's generated item file as they\nstand, so a palette name from `colors.sh` (`$TEAL`, `$SURFACE0`)\nreaches the theme, and anything with a space in it needs its own\nquotes — `\"${config.haus.fonts.mono.name}:Bold:13\"`. Host-only for\nexactly that reason: it is a shell fragment rather than data.\n\nIgnored on a `command` widget, and setting it on one is an error:\nthe simple tier draws the same pill every other pill wears, and\nwanting to change that is what the framework tier is for.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "{\n  \"background.padding_left\" = \"8\";\n  \"icon.color\" = \"$TEAL\";\n}"
+    },
+    "loc": [
+      "haus",
+      "bar",
+      "widgets",
+      "<name>",
+      "style"
+    ],
+    "readOnly": false,
+    "type": "attribute set of string"
   },
   "haus.developer.enable": {
     "declarations": [

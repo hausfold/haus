@@ -446,10 +446,26 @@ let
   # handler is a bash fact the eval can't read, and a spawned no-op on the
   # rare click of an inert pill costs nothing anyone can feel.
   widgetManifest = import ./manifest.nix { inherit lib; };
-  frameworkBlock =
-    sb: side: name: style:
+  # The emitter proper. It takes the widget's script TWICE, because they are
+  # two different facts about it and only one of them is a store path:
+  #
+  #   `read`  the file the `# widget:` header is parsed out of, at eval. A
+  #           bundled plugin is read out of this repo; a third party's is read
+  #           out of whatever store path `haus.bar.widgets.<n>.script` names,
+  #           and `builtins.readFile` cannot tell the two apart — which is the
+  #           whole reason third-party framework widgets were a small change.
+  #   `run`   the `$HOME` path the bar EXECUTES each tick. NOT `read`, though a
+  #           store path there would work: every other `script=` this room
+  #           emits is a `~/.config/sketchybar` path, and the generated item
+  #           file is something people read, so one pill pointing into
+  #           /nix/store would be the odd one out for no gain. The reason that
+  #           matters more is the debugging story barlib's docs promise —
+  #           `BAR_ITEM=<name> ~/.config/sketchybar/widgets/<name>.sh` only
+  #           works if the file is actually installed there.
+  frameworkItem =
+    sb: side: name: read: run: style:
     let
-      m = widgetManifest.parse (./sketchybar/plugins + "/${name}.sh");
+      m = widgetManifest.parse read;
       # Anything that is not one of SketchyBar's own events is a custom one,
       # and has to be declared before anything can subscribe to it —
       # subscribing to an event that does not exist is silent, and the pill
@@ -514,7 +530,7 @@ let
           // graphArgs
           // style
         )
-        ++ [ ''script="$HOME/.config/sketchybar/plugins/${name}.sh"'' ]
+        ++ [ ''script="${run}"'' ]
       );
       # `--add graph <name> <side> <width>` rather than `--add item`. Every
       # other property behaves identically — icon, label, popup, click_script
@@ -536,6 +552,15 @@ let
           --set ${name} ${lib.concatStringsSep " " setArgs} \
           --subscribe ${name} ${lib.concatStringsSep " " m.subscribes} mouse.clicked
     '';
+
+  # A pill haus ships, converted. The script is this repo's own, so both paths
+  # are derived from the name and the call sites in `mkPluginBlocks` below say
+  # nothing but the name and the pill's identity.
+  frameworkBlock =
+    sb: side: name:
+    frameworkItem sb side name (
+      ./sketchybar/plugins + "/${name}.sh"
+    ) "$HOME/.config/sketchybar/plugins/${name}.sh";
 
   mkPluginBlocks = sb: side: {
     focus = focusBlock sb side;
@@ -1109,6 +1134,14 @@ let
     lib.unique (itemOrder ++ userWidgetNames)
   );
 
+  # The declared FRAMEWORK widgets that are actually drawn. Off `liveWidgets`
+  # rather than off `widgets` because it is what decides which scripts land in
+  # `~/.config/sketchybar/widgets/`, and a pill switched off promises to cost
+  # nothing at all — including a file in your home.
+  userFrameworkNames = builtins.filter (
+    name: !(isBundled name) && widgets.${name}.script != null
+  ) liveWidgets;
+
   # ---- the bar's cards in core's manual-click deck ---------------------------
   # `widgets.<n>.permissions` has always declared what a pill will ask macOS
   # for; until now it was a declaration nobody read, which is how the calendar
@@ -1246,19 +1279,56 @@ let
     sb: name:
     let
       chosen = widgets.${name}.interval or null;
-      shipped = widgetTable.${name}.interval or null;
+      # What the pill already ticks at, so that setting the option to the rate
+      # it was already running emits nothing at all. For a bundled pill that is
+      # its `widgets.nix` entry; for a declared framework widget it is the
+      # `interval` in the script's own header, which is the same fact one file
+      # over.
+      shipped =
+        if isBundled name then
+          widgetTable.${name}.interval or null
+        else
+          (widgetManifest.parse widgets.${name}.script).interval;
     in
     lib.optionalString (chosen != null && chosen != shipped) ''
       ${sb} --set ${itemId name} update_freq=${toString chosen}
     '';
 
+  # A widget a rice declared as a barlib FRAMEWORK widget — the other tier, and
+  # the one that makes barlib a framework rather than an internal refactor
+  # (docs/bar-framework.md's migration order). There is deliberately nothing
+  # here but the two paths: a stranger's script reaches `frameworkItem` down
+  # exactly the route clock.sh does, gets the same header read by the same
+  # parser, the same custom events declared, the same popup frame and graph
+  # derivation, and the same batched emission. The only asymmetry left is WHERE
+  # the file lives, and that is a packaging fact rather than a capability —
+  # haus's plugins are a directory in this repo, yours is a store path the
+  # option names.
+  #
+  # `style` comes off the option rather than being written in Nix here, which is
+  # the second half of the same statement: for a bundled pill the identity
+  # colours are a literal in `mkPluginBlocks`, for yours they are the leaf you
+  # set. Both land in the same `--set`.
+  userFrameworkBlock =
+    sb: side: name:
+    frameworkItem sb side name widgets.${name}.script "$HOME/.config/sketchybar/widgets/${name}.sh"
+      widgets.${name}.style;
+
   # One pill's block, whichever kind it is. This is the whole reason the open
   # form is worth having: past this point the emission never asks again whether
   # a pill is haus's or yours.
+  #
+  # The interval override rides BOTH declared tiers, and means the same thing on
+  # each: a trailing `--set update_freq` after the block that already wrote one.
+  # For a framework widget the rate it overrides is the `interval` in the
+  # script's own header, which is exactly the relationship a bundled pill's
+  # `widgets.nix` entry has to its hand-written block.
   widgetBlock =
     sb: side: name:
     if isBundled name then
       (mkPluginBlocks sb side).${name} + intervalOverride sb name
+    else if widgets.${name}.script != null then
+      userFrameworkBlock sb side name + intervalOverride sb name
     else
       userWidgetBlock sb side name;
 
@@ -1806,36 +1876,110 @@ lib.mkIf config.haus.bar.enable {
       }
     ]
     # ---- what a widget may not do ------------------------------------------
-    # The open form's three refusals. All assertions rather than warnings,
-    # because each names a configuration whose only two readings are "you meant
+    # The open form's refusals. All assertions rather than warnings, because
+    # each names a configuration whose only two readings are "you meant
     # something we can't do" and "you meant something we would do WRONG" — and
     # the wrong half is silent in every case: a bundled pill quietly keeping
     # haus's script, a stranger's widget quietly inheriting a bundled pill's
-    # gestures, a pill quietly drawn on a bar that isn't there.
+    # gestures, a leaf belonging to the other tier quietly doing nothing, a
+    # pill quietly drawn on a bar that isn't there.
+    #
+    # The tier pairs below (`command` vs `script`, and the two leaves that
+    # belong to one tier each) are the newest of them and the reason is the
+    # same one the manifest parser refuses an unknown header key for: a leaf
+    # that parses green and wires nothing is the failure this room keeps
+    # deciding not to ship.
     ++
+      lib.concatMap
+        (
+          field:
+          map
+            (name: {
+              assertion = false;
+              message = "haus.bar.widgets.${name}.${field} is set, but `${name}` is a pill haus ships: its behaviour is haus's own plugin, and its dropdown, click gestures and colour rules are written against that script. Setting a ${field} here would replace only half of it. Declare your own widget under a different name instead — `haus.bar.widgets.my${
+                lib.toUpper (builtins.substring 0 1 name)
+              }${
+                builtins.substring 1 (builtins.stringLength name) name
+              }`, say — and turn this one off with `haus.bar.items.${name} = false`.";
+            })
+            (
+              builtins.filter (name: isBundled name && widgets.${name}.${field} != null) (
+                builtins.attrNames widgets
+              )
+            )
+        )
+        [
+          "command"
+          "script"
+        ]
+    ++
+      # `style` on a bundled pill, which is the same refusal one leaf over and
+      # needs its own arm for a shape reason: it defaults to `{ }` rather than
+      # null, so the `!= null` filter above can never see it and every bundled
+      # pill would read as having set one. A bundled pill's static look is a
+      # Nix literal in `mkPluginBlocks`, and this is dropped on the floor —
+      # exactly the parses-green-and-wires-nothing failure the paragraph above
+      # says this room keeps deciding not to ship, on the leaf that introduced
+      # it.
       map
         (name: {
           assertion = false;
-          message = "haus.bar.widgets.${name}.command is set, but `${name}` is a pill haus ships: its behaviour is haus's own plugin, and its dropdown, click gestures and colour rules are written against that script. Setting a command here would replace only half of it. Declare your own widget under a different name instead — `haus.bar.widgets.my${
-            lib.toUpper (builtins.substring 0 1 name)
-          }${
-            builtins.substring 1 (builtins.stringLength name) name
-          }`, say — and turn this one off with `haus.bar.items.${name} = false`.";
+          message = "haus.bar.widgets.${name}.style is set, but `${name}` is a pill haus ships: its static look is written in haus's own block, beside the dropdown and click gestures that were designed with it, and nothing here is read. Retuning a bundled pill is `haus.bar.widgets.${name}.placement` and `.interval`; anything past those is your own widget under a different name, with `haus.bar.items.${name} = false` turning this one off.";
         })
         (
-          builtins.filter (name: isBundled name && (widgets.${name}.command or null) != null) (
-            builtins.attrNames widgets
-          )
+          builtins.filter (name: isBundled name && widgets.${name}.style != { }) (builtins.attrNames widgets)
+        )
+    ++
+      # Both tiers at once. Not a merge and not a precedence: `command` is a
+      # timer whose stdout is the label and `script` is a barlib widget that
+      # owns its whole repaint, and the emission has to pick ONE to put in
+      # `script=`. Choosing quietly would leave half the configuration
+      # written down and doing nothing.
+      map
+        (name: {
+          assertion = false;
+          message = "haus.bar.widgets.${name} sets both `command` and `script`, and a widget is one tier or the other: `command` is a script whose stdout is this pill's label, `script` is a barlib framework widget that draws the pill itself (docs/bar-framework.md). Only one of them can be what the bar runs. Keep the framework widget and delete the command, or the other way round.";
+        })
+        (
+          builtins.filter (
+            name: widgets.${name}.command != null && widgets.${name}.script != null
+          ) userWidgetNames
         )
     ++
       map
         (name: {
           assertion = false;
-          message = "haus.bar.widgets.${name} is enabled but sets no command, and `${name}` is not a pill haus ships — so there is nothing for the bar to run and the pill would draw an empty box forever. Give it a `command`, or drop the widget.";
+          message = "haus.bar.widgets.${name} is enabled but sets neither `command` nor `script`, and `${name}` is not a pill haus ships — so there is nothing for the bar to run and the pill would draw an empty box forever. Give it a `command` (a script whose stdout is the label, on a timer) or a `script` (a barlib framework widget — docs/bar-framework.md), or drop the widget.";
         })
         (
           builtins.filter (
-            name: widgets.${name}.enable && (widgets.${name}.command or null) == null
+            name: widgets.${name}.enable && widgets.${name}.command == null && widgets.${name}.script == null
+          ) userWidgetNames
+        )
+    ++
+      # The two leaves that belong to one tier each, set on the other. Both are
+      # silent no-ops otherwise, and both look exactly like the thing that
+      # would have worked: an `icon` on a framework widget is a glyph that
+      # never appears (the widget draws its own in `render`), and a `style` on
+      # a command widget is a colour that never lands (the simple tier wears
+      # the bar's own look, which is what makes it simple).
+      map
+        (name: {
+          assertion = false;
+          message = "haus.bar.widgets.${name} sets an `icon`, but it is a `script` widget — a barlib framework widget draws its own icon in `render`, where it can change with what the pill is saying, so nothing here would ever be read. Draw it in the widget; the static half of its look is `style`.";
+        })
+        (
+          builtins.filter (name: widgets.${name}.script != null && widgets.${name}.icon != "") userWidgetNames
+        )
+    ++
+      map
+        (name: {
+          assertion = false;
+          message = "haus.bar.widgets.${name} sets a `style`, but it is a `command` widget — the simple tier draws the one pill every widget on this bar wears, and nothing here would be read. Wanting a look of its own is what the framework tier is for: write it as a barlib widget (docs/bar-framework.md) and name it in `script`.";
+        })
+        (
+          builtins.filter (
+            name: widgets.${name}.script == null && widgets.${name}.style != { }
           ) userWidgetNames
         )
     ++
@@ -2489,7 +2633,37 @@ lib.mkIf config.haus.bar.enable {
         # the hover sweep, leader mode — was unreachable while it was a picture.
         ".config/sketchybar/aerospace-notify.sh".source = ./sketchybar/aerospace-notify.sh;
         ".config/sketchybar/plugins".source = ./sketchybar/plugins;
-      };
+      }
+      # ---- a rice's own framework widgets --------------------------------------
+      # One file per declared `script` widget, beside haus's plugins rather than
+      # among them. `plugins` is a DIRECTORY home.file entry — one symlink into
+      # the store — so there is no way to add a file inside it without copying
+      # the whole thing, and copying it would put a stranger's `<name>.sh` in the
+      # same namespace as the LIBRARIES that live in that directory beside the
+      # plugins (`aerospace_lib.sh`, `media_lib.sh`, `vitals_lib.sh`,
+      # `ai-provider.sh` — the four `bar-plugins-executable` names): a widget
+      # innocently called `media_lib` would silently replace one three pills
+      # source. A second directory costs one more path in the item file and
+      # answers "who wrote this" by where it sits.
+      #
+      # Executable because that is what SketchyBar's `script=` needs — it runs
+      # the path, it does not source it — and a store file's mode follows
+      # whatever produced it, which for a plain `./my-widget.sh` in someone's
+      # flake is whatever git recorded. Setting it here means a widget that
+      # works is not a question of a mode bit somebody remembered.
+      #
+      # These are barFiles entries like every other, so the `.haus-stamp` hash
+      # below covers them: editing your widget reloads both bars on the next
+      # rebuild, exactly as editing one of haus's does.
+      // lib.listToAttrs (
+        map (name: {
+          name = ".config/sketchybar/widgets/${name}.sh";
+          value = {
+            source = widgets.${name}.script;
+            executable = true;
+          };
+        }) userFrameworkNames
+      );
     in
     {
       # A rebuild rewrites every file above, but SketchyBar is a KeepAlive
