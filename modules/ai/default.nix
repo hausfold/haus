@@ -988,7 +988,7 @@ in
       # with taste in it for the morning. On PATH beside `scruff` because the
       # two agent skills this room installs (`factory`, `nightshift`) are
       # instructions for driving it, and an instruction whose binary is not
-      # there is worse than no instruction — the same argument `tart` above
+      # there is worse than no instruction — the same argument `tart` below
       # rides on.
       #
       # Nothing here configures it, and that is deliberate rather than an

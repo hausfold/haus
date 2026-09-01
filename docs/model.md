@@ -86,7 +86,7 @@ unknown dynamic children.**
 | **Launcher** | Pounce installation, daemon, commands, every Pounce setting haus exposes |
 | **Shelf** | Perch installation and every declarative Perch setting haus exposes |
 | **Focus** | Do Not Disturb, status, hooks |
-| **AI** | agent clients, scruff, lifecycle/state wiring, instructions, the haus skill |
+| **AI** | agent clients, scruff, factory, lifecycle/state wiring, instructions, the haus skill and every other tool's |
 | **Text expansion** | snippets and their expansion engine |
 | **Security** | Touch ID, lock behaviour, firewall, secret-provider policy |
 
