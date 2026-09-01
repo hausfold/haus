@@ -73,10 +73,18 @@ HAUS_GH_REPORT="$HAUS_GH_STATE/coverage.tsv"
 
 # ---- the sourced half -------------------------------------------------------
 
-# mtime in epoch seconds, 0 when the file isn't there. BSD stat: this is macOS.
+# mtime in epoch seconds, 0 when the file isn't there. `stat -f %m` is BSD,
+# which is where this runs — but the same two lines as `statusline.sh`'s
+# `mtime` and `statusline-refresh.sh`'s, because test/github-signal.bats runs
+# this on a GNU box in CI and the three readers of this seam have to agree.
+# The exit status cannot pick the fallback on its own: on GNU coreutils -f is
+# --file-system and %m is the MOUNT POINT, so it prints "/" and exits 0. Accept
+# the BSD answer only when it is numeric, then try GNU, then insist on digits
+# so the caller's arithmetic cannot blow up.
 haus_gh_mtime() {
   local m
-  m=$(stat -f %m "$1" 2>/dev/null) || m=0
+  m=$(stat -f %m "$1" 2>/dev/null || true)
+  case "$m" in '' | *[!0-9]*) m=$(stat -c %Y "$1" 2>/dev/null || echo 0) ;; esac
   case "$m" in '' | *[!0-9]*) m=0 ;; esac
   printf '%s' "$m"
 }

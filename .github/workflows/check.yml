@@ -498,3 +498,26 @@ jobs:
       # catch. Needs bats, git and jq.
       - name: github pill fix rows
         run: bats test/fix-github.bats
+      # The GitHub bridge's consumer contract — `haus_gh_covers` and the
+      # statusline gate it feeds. Every failure in this seam is silent AND
+      # expensive in one direction: a coverage answer of "yes" when it should be
+      # "no" turns a 15-second readout into a 30-minute one and the pill just
+      # starts quietly lying about a merge that already happened. There is no
+      # error path to notice it, so the suite IS the guard, and it has to fail
+      # closed on all of: no scopes file, an empty one, a stale one, one repo
+      # out of two, an unparsable mtime.
+      #
+      # It runs statusline.sh, so it sits below the painter step on principle —
+      # but it is NOT one of the suites that step is load-bearing for, and the
+      # difference is worth stating: it asserts on a BEHAVIOUR (did the render
+      # decide to refresh?) and owns no colour cases, so a painter-less run has
+      # nothing in it to skip and go quietly green. Measured: 29/29 with
+      # HAUS_UI_SH unset and with it pointed at a path that does not exist.
+      #
+      # Two flags mean something else on this runner than on the Mac these
+      # scripts ship to — `stat -f` is --file-system here (it prints the mount
+      # point and EXITS 0, so no `||` can catch it) and `date -v` does not exist
+      # — which is why signal.sh and the suite both carry the same
+      # try-BSD-then-GNU shape statusline.sh has always had. Needs bash + bats.
+      - name: github bridge signal tests
+        run: bats test/github-signal.bats
