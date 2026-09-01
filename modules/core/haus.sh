@@ -72,7 +72,8 @@ fi
 # gate below would have licensed it.
 UI_READY=""
 type ui_say ui_warn ui_hint ui_fail ui_glyph_bare \
-     ui_row ui_clear ui_paint ui_live_close >/dev/null 2>&1 && UI_READY=1
+     ui_row ui_clear ui_paint ui_live_close \
+     ui_col ui_trow ui_table_data ui_table_clear >/dev/null 2>&1 && UI_READY=1
 
 # ---- palette ----------------------------------------------------------------
 # Role names, not colours. C_* alias snug's GENERATED roles — one source of
@@ -1048,8 +1049,16 @@ classify_key() {
 # for `diff`, a freshly built one for `plan`) but this never writes anything.
 settings_diff() {
   local script="$1" domain key declared_raw declared kind live
-  local changed=0 matched=0 flagged=0
+  local changed=0 matched=0 flagged=0 byeye=0
   local ax_json; ax_json="$(hausax 2>/dev/null || true)"
+  # The differing keys are collected and drawn as ONE table after the loop
+  # rather than printed as they are found. Two reasons, and the second is the
+  # one that matters: four columns budgeted against the window instead of
+  # `%-28s %-26s %-14s`, which reserves 68 cells plus gutters whatever is in
+  # them and wraps every row in anything narrower; and the `info`/`warn` lines
+  # this loop also emits are the tool talking about the check, so they belong
+  # above the report rather than shuffled through it.
+  if [ -n "$UI_READY" ]; then ui_table_clear; fi
 
   while IFS=$'\t' read -r domain key declared_raw; do
     [ -n "$domain" ] || continue
@@ -1109,6 +1118,9 @@ settings_diff() {
           if [ "$kind" = unconfirmed ]; then
             warn "$domain $key: declared $declared, plist shows ${live:-unset} (persists only — effect unconfirmed on this macOS)"
             flagged=$((flagged + 1))
+          elif [ -n "$UI_READY" ]; then
+            if [ "$kind" = by-eye ]; then byeye=1; ui_trow "$domain" "$key" "${live:-unset}" "$declared" "plist-only check"
+            else ui_trow "$domain" "$key" "${live:-unset}" "$declared" ""; fi
           elif [ "$kind" = by-eye ]; then
             printf '  %-28s %-26s %-14s -> %s  (plist-only check)\n' "$domain" "$key" "${live:-unset}" "$declared"
           else
@@ -1119,6 +1131,19 @@ settings_diff() {
         ;;
     esac
   done < <(declared_defaults "$script"; declared_a11y_calls "$script"; declared_alert_sound "$script")
+
+  # Declared after the rows, which `ui_col` allows and which is what lets the
+  # `plist-only check` column exist only on a run that has one: a column's
+  # minimum is taken out of the window whether or not anything is ever drawn in
+  # it. A row carries five cells either way; a table of four ignores the fifth.
+  if [ -n "$UI_READY" ] && [ "$changed" -gt 0 ]; then
+    ui_col domain   16 3 path    left
+    ui_col key      12 3 subject right
+    ui_col live      6 2 muted   right
+    ui_col declared  6 2 accent  right
+    if [ "$byeye" = 1 ]; then ui_col note 10 2 muted right; fi
+    ui_table_data 2 1
+  fi
 
   echo
   if [ "$changed" = 0 ]; then
@@ -3051,6 +3076,13 @@ settings_pick() {
 
   # Path AND prose in the row, because the filter matches the whole line: you
   # can search for `flavor` or for `light mode` and land on the same option.
+  #
+  # The `%-38s` here is NOT one of the fixed widths snug's table replaced, and a
+  # sweep that converts it breaks the picker. This is gum's INPUT, not a report:
+  # `gum filter` owns the window, does its own truncation, and hands the chosen
+  # LINE back — which is parsed three lines down by taking everything before the
+  # first space. The padding is what guarantees that split, and a `…` from a
+  # width budget would be parsed as part of the path.
   sel="$(
     jq -r 'to_entries[] | "\(.key[5:])\t\(.value.summary)"' "$HAUS_CATALOGUE" \
       | awk -F'\t' '{ printf "%-38s %s\n", $1, $2 }' \
@@ -3234,14 +3266,28 @@ cmd_get() {
 
   dir="$(settings_host_dir)"
   [ -d "$dir" ] || { info "no machine-writable settings; use: haus set <path> <value>"; return; }
+  # No header and no indent: this is a listing, and `haus get` with no path is
+  # read by eye and by pipe alike. A redirected stdout has no window to fit, so
+  # snug folds nothing there — the pipe keeps whole values, exactly as the
+  # `%-38s` pad did, without charging a terminal 38 cells for a path of nine.
+  if [ -n "$UI_READY" ]; then
+    ui_table_clear
+    ui_col option 12 3 path   left
+    ui_col value   6 2 accent right
+  fi
   for f in "$dir"/*.nix; do
     [ -e "$f" ] || continue
     grep -q '^# Managed by haus set\.' "$f" || continue
     path="haus.$(basename "$f" .nix)"
     json="$(settings_eval_json "$host" "$path" 2>/dev/null)" || continue
-    printf '%-38s %s\n' "${path#haus.}" "$(printf '%s' "$json" | settings_print_json)"
+    if [ -n "$UI_READY" ]; then
+      ui_trow "${path#haus.}" "$(printf '%s' "$json" | settings_print_json)"
+    else
+      printf '%-38s %s\n' "${path#haus.}" "$(printf '%s' "$json" | settings_print_json)"
+    fi
     found=1
   done
+  if [ -n "$UI_READY" ]; then ui_table_data 0; fi
   [ -n "$found" ] || info "no machine-writable settings; use: haus set <path> <value>"
 }
 
@@ -4609,6 +4655,26 @@ cmd_desktop() {
 
   if [ -z "$want" ]; then
     say "desktops"
+    # Built-in and pinned are ONE table, not two loops that happen to agree on a
+    # width: budgeted together, the name column fits the longest name in either
+    # half rather than each half guessing. The `→` is a column of its own so a
+    # name is at the same column whether or not it is the current one.
+    if [ -n "$UI_READY" ]; then
+      ui_table_clear
+      ui_col on      1 1 ok      never
+      ui_col desktop 8 3 subject right
+      ui_col from    7 1 muted   never
+      while IFS= read -r n; do
+        [ -n "$n" ] || continue
+        if [ "$n" = "$current" ]; then ui_trow "→" "$n" "built in"; else ui_trow "" "$n" "built in"; fi
+      done < <(printf '%s\n' "$builtin_list")
+      while IFS= read -r n; do
+        [ -n "$n" ] || continue
+        if [ "$n" = "$current" ]; then ui_trow "→" "$n" "pinned"; else ui_trow "" "$n" "pinned"; fi
+      done < <(printf '%s\n' "$pinned")
+      ui_table_data 2
+      return 0
+    fi
     printf '%s\n' "$builtin_list" | while IFS= read -r n; do
       [ -n "$n" ] || continue
       if [ "$n" = "$current" ]; then printf '  %s→%s %-12s built in\n' "$C_OK" "$C_OFF" "$n"

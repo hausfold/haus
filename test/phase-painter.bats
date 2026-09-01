@@ -611,6 +611,7 @@ ui_say() { printf 'FIXTURE %s\n' "$*"; }
 ui_warn() { :; }; ui_hint() { :; }; ui_fail() { :; }
 ui_glyph_bare() { printf -v "$1" '%s' '+'; }
 ui_row() { :; }; ui_clear() { :; }; ui_paint() { :; }; ui_live_close() { :; }
+ui_col() { :; }; ui_trow() { :; }; ui_table_data() { :; }; ui_table_clear() { :; }
 UI
   haus_sh HAUS_UI_SH="$ui" 'echo "[$UI_READY]"; ui_say hello'
   [ "$status" -eq 0 ] || { echo "$output"; false; }
@@ -822,5 +823,60 @@ PYEOF
     widest="$(printf '%s\n' "$out" | python3 -c 'import sys,unicodedata
 print(max([0]+[sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in l) for l in sys.stdin.read().split("\n")]))')"
     [ "$widest" -lt "$w" ] || { echo "cols=$w drew $widest cells:"; printf '%s\n' "$out"; false; }
+  done
+}
+
+# ── the geometry gate ────────────────────────────────────────────────────────
+# The colour gate above says no escape is hand-picked. This one says no COLUMN
+# is: every row with more than one field in it goes through `ui_col` + `ui_trow`
+# + `ui_table_data`, which budget against the real window, rather than through a
+# `%-NNs` that reserves its width whatever is in the cell and wraps the row in
+# anything narrower (docs/cli-presentation.md, defect 1).
+#
+# A count rather than a pattern, because what is left is not a shape a regex can
+# tell from a new one: each remaining `%-NNs` is either the no-ui.sh fallback —
+# a machine whose `HAUS_UI_SH` points at nothing has no window to budget against
+# and no painter, and keeps the columns it always had — or one of two named
+# exceptions. Adding a table means the count does not move; if this test reds,
+# either a fixed-width row was added (draw it with `ui_col`) or a fallback was
+# removed (update the number here and say which in the message).
+
+@test "every column is budgeted: no new fixed-width row in the four painters" {
+  local f n want
+  # file → how many `%-NNs` printf lines it may still hold, and why.
+  #
+  # haus.sh 8:      settings_diff's two fallback rows · the `gum filter` INPUT,
+  #                 whose padding is the parse contract that recovers the chosen
+  #                 path · `haus get`'s listing fallback · `haus desktop`'s four
+  #                 fallback rows.
+  # haus-show.sh 8: `field`, a one-row label and not a table · the five
+  #                 render_machine fallbacks · render_desktop's two.
+  # focus.sh 3:     scene_list's two fallback rows · the auto listing's one.
+  # signal.sh 2:    the hooks fallback and its fix row.
+  for f in "modules/core/haus.sh 8" \
+           "modules/core/haus-show.sh 8" \
+           "modules/focus/focus.sh 3" \
+           "modules/github/signal.sh 2"; do
+    set -- $f
+    want="$2"
+    n="$(grep -c "printf.*%-[0-9]\+s" "$BATS_TEST_DIRNAME/../$1" || true)"
+    [ "$n" = "$want" ] || {
+      echo "$1 has $n fixed-width printf rows, expected $want:"
+      grep -n "printf.*%-[0-9]\+s" "$BATS_TEST_DIRNAME/../$1"
+      false
+    }
+  done
+}
+
+@test "each painter actually reaches snug's table" {
+  # The other half of the count above: a file could pass it by drawing nothing
+  # at all. Every one of the four declares columns and paints them.
+  local f
+  for f in modules/core/haus.sh modules/core/haus-show.sh \
+           modules/focus/focus.sh modules/github/signal.sh; do
+    grep -q 'ui_col ' "$BATS_TEST_DIRNAME/../$f" \
+      || { echo "$f declares no column"; false; }
+    grep -q 'ui_table_data' "$BATS_TEST_DIRNAME/../$f" \
+      || { echo "$f never paints a table"; false; }
   done
 }

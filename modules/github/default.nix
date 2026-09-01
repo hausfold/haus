@@ -86,7 +86,18 @@ let
 
   # One body, two doors: this is the same file the surfaces source, so a person
   # debugging the bridge runs exactly what the bar runs.
-  signalBin = pkgs.writeShellScriptBin "github-signal" (builtins.readFile ./signal.sh);
+  #
+  # `HAUS_UI_SH` is prepended rather than wrapped — the same shape
+  # modules/ai/default.nix uses for the statusline, and for the same reason: the
+  # script is `readFile`d into the store, so it has nothing to look beside.
+  # `:-` so the environment still wins, and the file the SURFACES source (the
+  # `~/.config/haus/github/signal.sh` copy below) is untouched by this: its half
+  # never draws, and its `[ -r ]` guard leaves it plain either way.
+  signalBin = pkgs.writeShellScriptBin "github-signal" (
+    ''HAUS_UI_SH="''${HAUS_UI_SH:-${pkgs.snug}/share/ui.sh}"
+''
+    + builtins.readFile ./signal.sh
+  );
 
   credentialsFile =
     if cfg.tunnel.credentialsFile != "" then

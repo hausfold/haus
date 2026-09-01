@@ -392,6 +392,27 @@ mechanism, say so in one line.
   every colour an alias onto snug's generated roles there is no longer a legal
   place for one.
 
+  **Every ROW with columns in it is budgeted, never declared.** `ui_col` +
+  `ui_trow` + `ui_table_data` measure the real window and hand each column what
+  it needs; a `%-44s` reserves its width whatever is in the cell and wraps the
+  row in anything narrower, which is `docs/cli-presentation.md`'s founding
+  defect. The five painters that draw a table — `haus.sh`, `haus-show.sh`,
+  `modules/focus/focus.sh` and `modules/github/signal.sh` — carry NO fixed
+  width outside a `UI_READY`-empty fallback, and `test/phase-painter.bats`
+  counts them so a new one cannot land quietly. Two `%-Ns` are exceptions and
+  say so where they sit: `haus-show.sh`'s `field`, which is a one-row label
+  rather than a table, and `haus set`'s picker, whose padding is the parse
+  contract that recovers the chosen path out of `gum filter`'s answer.
+
+  **Two more binaries draw through it, and pay for it lazily.** `focus` and
+  `github-signal` are their own binaries with nobody's environment: focus takes
+  the path as a build-time `@uiSh@` substitution and sources it only inside the
+  two verbs that draw a table, because the bar drives that script on a timer;
+  `github-signal` takes it prepended by its derivation and sources it past the
+  sourced-half guard, so the surfaces that source the file pay nothing. Both
+  check `BASH_VERSINFO` first and both moved to `#!/usr/bin/env bash` for it —
+  they were `#!/bin/bash`, which is macOS's 3.2, where ui.sh half-loads.
+
   **Three more scripts draw through it too**, and they reach it a second way.
   `modules/ai/statusline.sh`, `modules/terminal/scripts/image-preview.sh` and
   `modules/terminal/lanes/lane-open.sh` are not behind the `haus` wrapper —
