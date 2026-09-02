@@ -42,11 +42,14 @@ windows=$(aerospace list-windows --all --format '%{window-id}|%{app-bundle-id}|%
 # T/<repo> is precisely "a window you did not touch leaving the page you were
 # reading it on". A plain window always has that label and a real lane never
 # does (its session is made by `zmx attach` inside the window, not by
-# launch.sh), so a claimed id is the impostor. Empty, and the lane branch below
-# behaves exactly as it did, on a machine with no zmx at all included.
+# launch.sh), so a claimed id is the impostor. Read through the terminal
+# room's zmx-rows.sh — the one reader of the wire format — at its cross-room
+# address; `awk NF` drops the sessions with no claim. Empty, and the lane
+# branch below behaves exactly as it did — on a machine with no reader (no
+# terminal room, and so no zmx sessions to claim anything) included.
 claimed=""
-command -v zmx >/dev/null 2>&1 &&
-    claimed=$(zmx ls 2>/dev/null | tr '\t' '\n' | sed -n 's/^window=//p')
+[ -x "$HOME/.config/haus/term/zmx-rows.sh" ] &&
+    claimed=$("$HOME/.config/haus/term/zmx-rows.sh" window | awk 'NF')
 
 while IFS='|' read -r id bundle title; do
     id=$(echo "$id" | tr -d ' ')

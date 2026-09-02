@@ -113,40 +113,19 @@ if command -v sqlite3 >/dev/null 2>&1; then
         [ -f "$_db" ] && OPENCODE_DB="$_db" && break
     done
 fi
-# Every live zmx session, one per line: "<name>\t<dir>". The directory is under
-# either of the two names zmx has used for it — 0.7.0 prints `start_dir=<plain
-# path>` and no `cwd`; a newer one prints `cwd=file://Mac/Users/…` — so take
-# whichever is there and strip the URL scheme, which is a no-op on a plain path.
+# Every live zmx session, one per line: "<name>\t<dir>". The wire format —
+# the start_dir/cwd rename and the file:// stripping included — is
+# zmx-rows.sh's to know; `dir` is its derived either-spelling answer.
 zmx_sessions() {
-    zmx ls 2>/dev/null | awk -F'\t' '
-        {
-            name = ""; c = ""; sd = ""
-            for (i = 1; i <= NF; i++) {
-                p = index($i, "=")
-                if (p == 0) continue
-                k = substr($i, 1, p - 1); gsub(/^[ \t]+|[ \t]+$/, "", k)
-                # zmx marks the row you are ATTACHED to in its first field
-                # ("-> ** name=..."), gluing the marker onto that key. Strip
-                # anything before the key proper or the session you are
-                # sitting in is the one row that never matches.
-                sub(/^[^A-Za-z_]*/, "", k)
-                if (k == "name")      name = substr($i, p + 1)
-                if (k == "cwd")       c    = substr($i, p + 1)
-                if (k == "start_dir") sd   = substr($i, p + 1)
-            }
-            if (name == "") next
-            if (c == "") c = sd
-            sub(/^file:\/\/[^\/]*/, "", c)
-            printf "%s\t%s\n", name, c
-        }'
+    "$(dirname "$SELF")/zmx-rows.sh" name,dir
 }
 
-# One session's labels as "k=v" lines. agents-hook.sh sets `convo` here; nothing
-# else in this script reads a label, so this stays a one-liner rather than
-# growing a parser.
+# One session's label, by key. agents-hook.sh sets `convo` here; nothing else
+# in this script reads a label. Through zmx-rows.sh --get, which knows that
+# `zmx get` went space-separated at 0.7.0 — the tab-splitting one-liner this
+# replaced answered empty for every key on that era, silently.
 zmx_label() { # zmx_label <session> <key>
-    zmx get "$1" 2>/dev/null | tr '\t' '\n' |
-        sed -n "s/^ *$2=//p" | head -1
+    "$(dirname "$SELF")/zmx-rows.sh" --get "$1" "$2"
 }
 
 # ── stage 1: resolve the window, open the overlay ───────────────────────────

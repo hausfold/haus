@@ -120,54 +120,23 @@ command -v zmx >/dev/null 2>&1 || give_up
 sess="$("$HOME/.config/haus/term/focused-session.sh" 2>/dev/null)"
 [ -n "$sess" ] || give_up
 
-# `zmx ls` is tab-separated k=v. The first two traps below are every copy of
-# this parse's to handle (scripts/focused-session.sh, scripts/find.sh,
-# scripts/launch.sh, the bar's agents.sh, the palette's lanes.sh); the third
-# binds only a reader that wants a LIVE directory, which today is this file
-# alone — find.sh's opencode lookup reads the same stale field and is content
-# to, because it falls back to a label join.
+# The `zmx ls` wire format — the attached-row marker, the start_dir/cwd
+# rename, first-"=" splitting — is zmx-rows.sh's to know; its header has the
+# list. One trap stays THIS caller's, because it binds only a reader that
+# wants a LIVE directory, which today is this file alone — find.sh's opencode
+# lookup reads the same stale field and is content to, because it falls back
+# to a label join:
 #
-#   · The directory field is `start_dir` in zmx 0.7.0; older zmx called it `cwd`
-#     and wrapped it in a file:// URL with the host in it. Both spellings are
-#     accepted and the URL prefix is stripped when present. Reading only `cwd`
-#     is what silently broke ⌘↵ once: no directory came back, the chord fell
-#     through to $HOME, and $HOME isn't a git repo.
-#   · zmx marks rows in the FIRST field ("→ ** name=…" for the session you are
-#     attached to), so that row's first key arrives with the marker glued to it.
-#     Strip everything before the key proper, or the session you pressed the
-#     chord IN is the one row that fails to resolve.
-#   · **`start_dir` is where the session was BORN, not where it is now.** It is
-#     stamped once at `zmx attach` and never moves again, so a window opened in
-#     $HOME still reports $HOME after you `cd` into a repo — which is the whole
-#     of "⌘↵ says ~ isn't a git repo" while you are plainly standing in one.
-#     zmx has no live-cwd field to ask for (0.7.0's `ls` emits exactly
-#     name/pid/clients/created/start_dir/window), so the live answer has to come
-#     from the kernel: `pid` is the session's own login shell, and a shell's cwd
-#     IS the thing that tracks `cd`. That makes start_dir the FALLBACK — right
-#     for a session whose shell has died or that we can't read — and the pid's
-#     real cwd the answer.
-row="$(
-  zmx ls 2>/dev/null | awk -F'\t' -v want="$sess" '
-    {
-      name = ""; c = ""; pid = ""
-      for (i = 1; i <= NF; i++) {
-        eq = index($i, "=")
-        if (eq == 0) continue
-        k = substr($i, 1, eq - 1); gsub(/^[ \t]+|[ \t]+$/, "", k)
-        sub(/^[^A-Za-z_]*/, "", k)
-        if (k == "name") name = substr($i, eq + 1)
-        else if (k == "pid") pid = substr($i, eq + 1)
-        else if (k == "start_dir") c = substr($i, eq + 1)
-        else if (k == "cwd" && c == "") c = substr($i, eq + 1)
-      }
-      if (name == want && (c != "" || pid != "")) {
-        sub(/^file:\/\/[^\/]*/, "", c)
-        print pid "\t" c
-        exit
-      }
-    }
-  '
-)"
+#   · **`dir` is where the session was BORN, not where it is now.** start_dir
+#     is stamped once at `zmx attach` and never moves again, so a window
+#     opened in $HOME still reports $HOME after you `cd` into a repo — which
+#     is the whole of "⌘↵ says ~ isn't a git repo" while you are plainly
+#     standing in one. zmx has no live-cwd field to ask for, so the live
+#     answer has to come from the kernel: `pid` is the session's own login
+#     shell, and a shell's cwd IS the thing that tracks `cd`. That makes the
+#     reported dir the FALLBACK — right for a session whose shell has died or
+#     that we can't read — and the pid's real cwd the answer.
+row="$("$HOME/.config/haus/term/zmx-rows.sh" pid,dir "name=$sess" | head -1)"
 
 pid="${row%%$'\t'*}"
 cwd="${row#*$'\t'}"

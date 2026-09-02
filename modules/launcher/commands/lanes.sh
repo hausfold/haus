@@ -108,32 +108,14 @@ command -v jq >/dev/null 2>&1 ||
   bail "jq isn't on PATH" "the lane picker can't parse scruff's listing" "questionmark.circle"
 
 # ── zmx: session name → "state<TAB>client<TAB>dir", the labels agents-hook.sh
-# keeps, plus the directory zmx keeps itself ─────────────────────────────────
+# keeps, plus the directory zmx keeps itself. The wire format is
+# ~/.config/haus/term/zmx-rows.sh's to know — the same cross-room address
+# raise-session.sh is reached at below. Absent (a machine without the
+# terminal room, which is also a machine without lanes to list), the picker
+# shows no live state, exactly as it did with no zmx ─────────────────────────
 zmx_states() {
-  command -v zmx >/dev/null 2>&1 || return 0
-  zmx ls 2>/dev/null | awk -F'\t' '
-    {
-      name = ""; state = ""; client = ""; dir = ""; cwd = ""
-      for (i = 1; i <= NF; i++) {
-        p = index($i, "=")
-        if (p == 0) { gsub(/^[ \t]+|[ \t]+$/, "", $i); if (name == "") name = $i; continue }
-        k = substr($i, 1, p - 1); gsub(/^[ \t]+|[ \t]+$/, "", k)
-        # The row you are attached to is marked in zmx s FIRST field
-        # ("-> ** name=..."), gluing the marker onto that key; strip it or the
-        # lane you are sitting in is the one row with no state.
-        sub(/^[^A-Za-z_]*/, "", k)
-        if (k == "name")      name   = substr($i, p + 1)
-        if (k == "state")     state  = substr($i, p + 1)
-        if (k == "client")    client = substr($i, p + 1)
-        # `start_dir` in zmx 0.7.0, `cwd` (a file:// URL with the host in it)
-        # before that — the same pair agents.sh reads, for the same reason.
-        if (k == "start_dir") dir    = substr($i, p + 1)
-        if (k == "cwd")       cwd    = substr($i, p + 1)
-      }
-      if (dir == "") dir = cwd
-      sub(/^file:\/\/[^\/]*/, "", dir)
-      if (name != "") printf "%s\t%s\t%s\t%s\n", name, state, client, dir
-    }'
+  [ -x "$HOME/.config/haus/term/zmx-rows.sh" ] || return 0
+  "$HOME/.config/haus/term/zmx-rows.sh" name,state,client,dir
 }
 
 focus_session() {

@@ -471,6 +471,17 @@ jobs:
       - name: raise-session lane join
         run: bats test/raise-session-lane-join.bats
 
+      # The zmx wire-format reader — the one parse of `zmx ls`/`zmx get`
+      # everything reads through (three rooms; ~10 hand parses replaced).
+      # Every trap it owns fired silently in production first: the attached
+      # marker glued to the first key, the 0.7.0 start_dir rename, and `zmx
+      # get`'s tab→space flip that left both label helpers answering empty.
+      # Hermetic: zmx is a fixture behind HAUS_ZMX_BIN, because the subject's
+      # own PATH prelude would beat a PATH stub on a real machine. Needs only
+      # bash + bats + awk.
+      - name: zmx-rows reader
+        run: bats test/zmx-rows.bats
+
       # The other end of that same fact: raise-session subtracts a mistitled
       # plain window AFTER it exists, new-window.sh refuses to create one. Both
       # halves stay — Ghostty's own New Window menu item can still put a window

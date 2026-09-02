@@ -203,31 +203,21 @@ APPLESCRIPT
 esac
 
 # One `zmx ls` for both joins: it is a socket round-trip per session, and these
-# chords are pressed from a keystroke.
-#
+# chords are pressed from a keystroke. zmx-rows.sh owns the wire format (the
+# attached-row marker, first-"=" splitting), so both columns this file needs
+# are asked for in that ONE call — the lane key rides as a third column when
+# this backend has one. Same id space as `key`, never on the same session:
+# one is written by launch.sh for a plain window, the other by
+# lanes/lane-open.sh for a lane.
+cols="name,$key"
+[ -n "$key2" ] && cols="$cols,$key2"
+
 # NO APOSTROPHES BELOW THIS LINE, comments included: the awk program is one
 # single-quoted shell string, so a lone `'` inside it closes the quote and the
 # whole file stops parsing. `bash -n` catches it; nothing else does.
-printf '%s' "$(zmx ls 2>/dev/null)" | awk -F'\t' -v want="$title" -v wid="$wid" -v key="$key" -v key2="$key2" '
+"$HOME/.config/haus/term/zmx-rows.sh" "$cols" | awk -F'\t' -v want="$title" -v wid="$wid" '
   {
-    name = ""; win = ""; alt = ""
-    for (i = 1; i <= NF; i++) {
-      p = index($i, "=")
-      if (p == 0) continue
-      k = substr($i, 1, p - 1); gsub(/^[ \t]+|[ \t]+$/, "", k)
-      # zmx marks the row you are ATTACHED to in its first field
-      # ("-> ** name=..."), gluing the marker onto that key. Strip
-      # anything before the key proper or the session you are
-      # sitting in is the one row that never matches.
-      sub(/^[^A-Za-z_]*/, "", k)
-      # Only up to the FIRST "=": a label value can carry its own.
-      if (k == "name") name = substr($i, p + 1)
-      if (k == key)    win  = substr($i, p + 1)
-      # The lane key, when this backend has one. Same id space as `key`, and
-      # never on the same session — one is written by launch.sh for a plain
-      # window, the other by lanes/lane-open.sh for a lane.
-      if (key2 != "" && k == key2) alt = substr($i, p + 1)
-    }
+    name = $1; win = $2; alt = (NF >= 3 ? $3 : "")
     if (name == "") next
     # Label first — see the note at the top of this file on why the title
     # cannot be trusted to be unique.
