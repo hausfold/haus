@@ -1463,6 +1463,14 @@ let
     m: "# ${m.meaning}\n" + "export MARK_${lib.toUpper m.name}=" + "$" + lib.toUpper m.key
   ) barMarks;
 
+  # tone() and mark() themselves, emitted right after the exports they read —
+  # so the functions and their data ride ONE file and cannot skew against
+  # each other. The emitter is shared with flake.nix's `bar-tones` check,
+  # which byte-diffs the committed test copy (test/colors-fns.sh) against
+  # the same strings; barlib.sh only guards the one colors.sh too old to
+  # carry them.
+  colorsFns = import ./colors-fns.nix { inherit lib; };
+
   # The order pills are emitted in: the bundled ones in the fixed left-to-right
   # order above, then whatever a desktop declared, alphabetically. A stranger's
   # widget lands outboard of haus's own rather than interleaved, which is the
@@ -2500,10 +2508,8 @@ lib.mkIf config.haus.bar.enable {
         )}
         # The tone ladder (modules/bar/tones.nix): the semantic names barlib
         # widgets paint with. GENERATED from that list (`toneExports` above)
-        # rather than typed here, so this file is one of the three the
-        # `bar-tones` check can no longer let drift — nebelung
-        # stays the only place a name becomes a hex, and each tone the only
-        # place a JOB becomes a name.
+        # rather than typed here — nebelung stays the only place a name
+        # becomes a hex, and each tone the only place a JOB becomes a name.
         #
         # `accent` is the one rung with no fixed key: it follows
         # haus.theme.accent, which is why nothing that carries meaning may
@@ -2512,9 +2518,12 @@ lib.mkIf config.haus.bar.enable {
         # The mark set (modules/bar/marks.nix): the IDENTITY axis, for a
         # subject the bar cannot know until it runs — which AI client wrote
         # this row, which app is playing. Generated the same way, and pinned
-        # by `bar-marks`, which also refuses a mark whose palette key is
+        # by `bar-marks`, which refuses a mark whose palette key is
         # already a tone's: identity and status never share a hue.
         ${markExports}
+
+        ${colorsFns.toneFn}
+        ${colorsFns.markFn}
       '';
       # The far-left logo pill. BAR_LOGO_COLOR is resolved to a colors.sh
       # VARIABLE REFERENCE rather than a hex: the accent name is a palette key,

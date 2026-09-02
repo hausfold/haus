@@ -68,12 +68,13 @@ jobs:
       #   bar-rc-executable       the rc files' +x bit
       #   bar-plugins-executable  the plugins' +x bit
       #   bar-tones                the TONE ladder (modules/bar/tones.nix) vs the
-      #                            two hand-written copies of it — barlib.sh's
-      #                            `tone()` and the bats stub. (The doc table was
-      #                            a third until the doc left for hausfold/ops;
-      #                            that table lives on hausfold.co now and is
-      #                            checked THERE, against the ladder this repo
-      #                            publishes as docs/site-data/bar-tones.json.)
+      #                            test pair — the bats stub's exports, and
+      #                            test/colors-fns.sh, the committed copy of the
+      #                            tone()/mark() the generated colors.sh emits
+      #                            from the list. (The doc table lives on
+      #                            hausfold.co and is checked THERE, against the
+      #                            ladder this repo publishes as
+      #                            docs/site-data/bar-tones.json.)
       #                            Up here because the drift it catches is
       #                            invisible on every machine: `tone()`
       #                            deliberately does not error, so a forgotten

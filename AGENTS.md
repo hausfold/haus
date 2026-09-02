@@ -777,13 +777,17 @@ mechanism, say so in one line.
     be checked. Two traps it exists to close: `accent` follows
     `haus.theme.accent`, whose enum contains `red`/`peach`/`yellow`/`green`,
     so **nothing carrying meaning may name it** (a verb row is `action`); and
-    a rung lives in FOUR files, three of them hand-written, whose drift is
-    SILENT — `tone()` warns to sketchybar's log and paints grey. TWO of those
-    are in this repo (`barlib.sh`'s `tone()` and `test/barlib.bats`'s stub) and
-    `bar-tones` diffs both against the list, names and order. The third is the
-    table on hausfold.co/docs/haus/rooms/bar-widgets, which this flake cannot
-    read: `site-data` publishes the ladder as `docs/site-data/bar-tones.json`
-    and the site's own `check-bar-tables.mjs` holds its page to it.
+    a rung's copies drift SILENTLY — `tone()` warns to sketchybar's log and
+    paints grey. `tone()` and `mark()` are themselves GENERATED from the two
+    lists into colors.sh, beside the exports they read
+    (`modules/bar/colors-fns.nix`), so the copies left to drift are the test
+    pair `bar-tones` pins: `test/barlib.bats`'s stub exports (names, values
+    and order) and `test/colors-fns.sh`, the committed copy of the emitted
+    functions the bats suite runs against, byte-diffed against the emitter.
+    The hand table left is on hausfold.co/docs/haus/rooms/bar-widgets, which
+    this flake cannot read: `site-data` publishes the ladder as
+    `docs/site-data/bar-tones.json` and the site's own `check-bar-tables.mjs`
+    holds its page to it.
 - **A plugin that can end up on the SECOND bar must never write `sketchybar`.**
   `haus.bar.bottom.enable` draws a second bar along the bottom, and SketchyBar
   has no two-bars-in-one-process mode: an instance is named `basename(argv[0])`

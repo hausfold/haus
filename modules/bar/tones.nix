@@ -5,21 +5,22 @@
 # is the one definition of what the names are and which nebelung key each
 # resolves to; everything else is generated from it or checked against it:
 #
-#   modules/bar/default.nix   generates the `TONE_*` exports in colors.sh
-#   modules/bar/sketchybar/barlib.sh   `tone()`'s case arms
-#   test/barlib.bats          the colors.sh stub its setup() writes
+#   modules/bar/default.nix    generates the `TONE_*` exports in colors.sh
+#   modules/bar/colors-fns.nix emits `tone()` itself into the same file, one
+#                              arm per rung, right after the exports it reads
+#   test/barlib.bats           the colors.sh stub its setup() writes, plus
+#                              test/colors-fns.sh — the committed copy of the
+#                              emitted functions the suite runs against
 #
-# The FIRST of those three is generated from this list, so it cannot drift. The
-# other two are hand-written, and a rung added to one and forgotten in
-# another does not error — `tone()` warns to stderr, which goes to
-# sketchybar's log where nobody looks, and the pill paints grey. So
-# `bar-tones` in flake.nix diffs those TWO against this list.
-#
-# It diffs PAIRS rather than bare names — each by what the rung resolves to.
-# Swapping two `printf` bodies inverts the severity ladder while leaving the
-# list of names byte-identical, and that is the likelier hand-edit mistake
-# than dropping an arm. Order is the ladder's own (quietest first) and is
-# pinned too, because the pairs come out in file order.
+# The first two are generated from this list, so they cannot drift. The test
+# pair is not, and neither errors when stale — `tone()` warns to stderr,
+# which goes to sketchybar's log where nobody looks, and the pill paints
+# grey. So `bar-tones` in flake.nix pins both against this list: the stub's
+# exports as PAIRS in file order (each rung by what it resolves to — swapping
+# two lines inverts the severity ladder while leaving the names
+# byte-identical, and order is the ladder's own, quietest first), and the
+# fixture byte-exact against what colors-fns.nix emits, so its failure
+# output IS the new file when the ladder moves.
 #
 # `meaning` has a consumer again, one repo out. The third copy used to be the
 # doc's own table and that arm went when the doc moved to a private repo this
@@ -38,6 +39,19 @@
 # here so the fixture is single-sourced with the ladder rather than being ten
 # magic numbers a test asserts against by hand. It ascends with the ladder so
 # a failing assertion reads as a position, not a colour.
+#
+# `fallback` is the colors.sh VARIABLE the emitted arm falls back to when the
+# rung's own TONE_* is unset — `TONE_WATCH:-$TONE_WARN` — which is the
+# rung this one was carved out of, and so also what the pill looked like one
+# generation ago. It guards a shell still carrying an OLDER generation's
+# exports: within colors.sh the function rides the same file as the exports
+# it reads, so those two cannot skew, but a by-hand shell that sourced last
+# generation's file keeps its variables (barlib's source guard honours them)
+# while knowing nothing newer. null means the rung was in the founding
+# ladder and reads its variable bare; a NEW rung always names one — `TONE_`
+# + another rung, or an UPPER-cased nebelung palette key (`text` falls back
+# to $TEXT, the palette's own foreground). `bar-tones` refuses a fallback
+# nothing could resolve.
 #
 # `key = null` means the tone does NOT resolve to a fixed palette key.
 # `accent` is the only one, and that is the whole reason it is dangerous —
@@ -59,6 +73,7 @@
     name = "mute";
     key = "overlay0";
     stub = "0xff111111";
+    fallback = null;
     meaning = "nothing there — inactive, stale, no verdict";
     # harvest's idle pill, trill's, elgato's unreachable third state,
     # ai_usage's doubly-stale values, calendar's done glyphs, and both
@@ -68,6 +83,7 @@
     name = "dim";
     key = "overlay1";
     stub = "0xff1a1a1a";
+    fallback = "TONE_MUTE";
     meaning = "present but subordinate — a heading, a row's name, a descriptor";
     # The second dim step, and the bar has had it all along: agents paints a
     # popup SECTION icon overlay1 and its META row overlay0, as vitals_lib
@@ -84,6 +100,7 @@
     name = "text";
     key = "text";
     stub = "0xff777777";
+    fallback = "TEXT";
     meaning = "a live readout carrying no alarm — the ordinary foreground";
     # The rung that is deliberately not a verdict. github's `info` sources:
     # a count that is news without being bad news.
@@ -92,18 +109,21 @@
     name = "ok";
     key = "green";
     stub = "0xff222222";
+    fallback = null;
     meaning = "green, nothing needed";
   }
   {
     name = "busy";
     key = "sky";
     stub = "0xff333333";
+    fallback = null;
     meaning = "the machine has it, not you";
   }
   {
     name = "watch";
     key = "yellow";
     stub = "0xff3a3a3a";
+    fallback = "TONE_WARN";
     meaning = "worth knowing, nothing to do yet";
     # The missing MIDDLE of the severity ladder. Two pills wrote the four
     # steps out in a comment and then in code — `GREEN → YELLOW → PEACH →
@@ -126,18 +146,21 @@
     name = "warn";
     key = "peach";
     stub = "0xff444444";
+    fallback = null;
     meaning = "wants a human here";
   }
   {
     name = "bad";
     key = "red";
     stub = "0xff555555";
+    fallback = null;
     meaning = "the load-bearing thing is broken";
   }
   {
     name = "action";
     key = "sapphire";
     stub = "0xff5a5a5a";
+    fallback = "TONE_ACCENT";
     meaning = "a thing you press — an affordance, not a status";
     # Three pills reached for sapphire for this independently: calendar's
     # trailing "Join" on a meeting row, caffeinate's active/stop rows, and
@@ -160,6 +183,7 @@
     name = "accent";
     key = null; # follows haus.theme.accent
     stub = "0xff666666";
+    fallback = null;
     meaning = "haus's own mark — identity, never status";
     # 🚨 The one rung that is not a fixed palette key, and the one nothing
     # carrying MEANING may name. `haus.theme.accent` is an enum of fourteen

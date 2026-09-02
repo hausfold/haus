@@ -31,8 +31,12 @@ EOF
   # colors.sh carries the TONE_* ladder AND the MARK_* set the generated file
   # exports (the real ones are modules/bar/tones.nix and modules/bar/marks.nix,
   # and `bar-tones` / `bar-marks` diff these names against them — a rung or a
-  # mark added there and not here paints grey in every test), bar.sh sets
-  # $SB / $BAR_TOP / $BAR_BOTTOM the way the generated router does.
+  # mark added there and not here paints grey in every test), then tone() and
+  # mark() themselves, appended from test/colors-fns.sh exactly as the
+  # generated colors.sh carries them (`bar-tones` byte-diffs that file
+  # against the emitter, modules/bar/colors-fns.nix), so the suite resolves
+  # colours through the very code a real bar does. bar.sh sets $SB /
+  # $BAR_TOP / $BAR_BOTTOM the way the generated router does.
   cat >"$HOME/.config/sketchybar/colors.sh" <<EOF
 export FLAMINGO=0xffeebbcc
 export TONE_MUTE=0xff111111
@@ -58,6 +62,7 @@ export OVERLAY0=0xff999999
 export OVERLAY1=0xffaaaaaa
 export SURFACE1=0xffbbbbbb
 EOF
+  cat "$BATS_TEST_DIRNAME/colors-fns.sh" >>"$HOME/.config/sketchybar/colors.sh"
   cat >"$HOME/.config/sketchybar/sizes.sh" <<'EOF'
 export BAR_FONT="Test Font"
 export FS_ICON=14
@@ -194,6 +199,34 @@ calls() { [ -f "$SB_LOG" ] && wc -l <"$SB_LOG" | tr -d ' ' || echo 0; }
   NAME=w SENDER=routine widget 'fetch() { emit x=1; }; render() { pill --icon X --tone banana; }' 2>"$BATS_TEST_TMPDIR/err"
   grep -q 'icon.color=0xff111111' "$SB_LOG"
   grep -q 'unknown tone' "$BATS_TEST_TMPDIR/err"
+}
+
+@test "a colors.sh too old to carry tone()/mark() paints mute and plum, not a crash" {
+  # The generation-skew window barlib's own guard exists for: colors.sh and
+  # barlib.sh are separate home.file entries landing in either order, so a
+  # widget can source a colors.sh from before the functions moved there. It
+  # must degrade to the grey the leniency doctrine promises — never die on
+  # `command not found` mid-render, which would take the whole batched --add
+  # with it. Heals at the activation-end bar reload.
+  #
+  # Plain assignments, not `export`: everything here is read in-shell, and
+  # `bar-tones` / `bar-marks` extract setup()'s stub from this file by the
+  # `export TONE_*` shape — an exported line here would ride into that diff.
+  cat >"$HOME/.config/sketchybar/colors.sh" <<'EOF'
+FLAMINGO=0xffeebbcc
+TONE_MUTE=0xff111111
+MARK_PLUM=0xff7a0004
+EOF
+  NAME=w SENDER=routine widget 'fetch() { emit x=1; }
+render() { pill --icon X --tone ok --label y --label-tone text; }'
+  grep -q 'icon.color=0xff111111' "$SB_LOG"
+  grep -q 'label.color=0xff111111' "$SB_LOG"
+  rm -f "$SB_LOG"
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_heading --icon C --label Claude --mark warm; }
+    on_click() { popup_open; }
+  '
+  grep -q 'icon=C icon.color=0xff7a0004' "$SB_LOG"
 }
 
 @test "emit refuses a non-identifier key and a newline value, loudly" {
