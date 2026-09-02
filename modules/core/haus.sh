@@ -1972,10 +1972,28 @@ CARD_TOTAL=0
 CARD_PATHS=()
 
 # Same search scruff's `notify` does (internal/commands/notify.go, `trillBinary`),
-# in the same order and for the same reason: Trill.app is routinely installed
-# while `trill` is on nobody's PATH, because the app binary IS the CLI. Keep the
-# two in step. `HAUS_TRILL` is authoritative when set — including set to something
-# that isn't there, which is how a machine says "no banners".
+# for the same reason: Trill.app is routinely installed while `trill` is on
+# nobody's PATH, because the app binary IS the CLI. `HAUS_TRILL` is authoritative
+# when set — including set to something that isn't there, which is how a machine
+# says "no banners".
+#
+# The two bundle paths are /Applications first, and the argument for that is
+# modules/core/trill.sh's, written out where the wrapper resolves: a dev build
+# left in ~/Applications by trill's own dev-install would otherwise outrank the
+# bundle haus.notifications.compositor pins, on every rebuild, silently. The two
+# copies of that precedence live in this repo and MUST agree — test/trill-
+# precedence.bats diffs this list against the wrapper's so they cannot drift.
+#
+# scruff's list (internal/commands/notify.go) is still home-first, and the honest
+# reason it isn't fixed here is that it is a different repo, not that it can
+# never fire. `exec.LookPath("trill")` and the `command -v trill` below both find
+# this wrapper whenever the system profile is on PATH — every login shell, and so
+# every agent hook that inherits one — and that is why this tail is a fallback
+# rather than the answer. It is NOT unreachable: a launchd context that sets its
+# own PATH has no `trill` to look up and falls through to the bundles, which is
+# precisely why the two lines below had to be flipped too. The same gap is live
+# in scruff, where it would drive a stale daemon while haus drove the pinned one;
+# tracked, not fixed here.
 trill_bin() {
   local candidate
   if [ -n "${HAUS_TRILL:-}" ]; then
@@ -1984,8 +2002,8 @@ trill_bin() {
   fi
   for candidate in \
       "$(command -v trill 2>/dev/null || true)" \
-      "$HOME/Applications/Trill.app/Contents/MacOS/Trill" \
-      "/Applications/Trill.app/Contents/MacOS/Trill"; do
+      "/Applications/Trill.app/Contents/MacOS/Trill" \
+      "$HOME/Applications/Trill.app/Contents/MacOS/Trill"; do
     [ -n "$candidate" ] && [ -x "$candidate" ] && { printf '%s' "$candidate"; return 0; }
   done
   return 1
