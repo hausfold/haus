@@ -22,6 +22,7 @@ let
     "popup"
     "subscribes"
     "graph"
+    "segments"
   ];
 
   splitList = s: lib.filter (x: x != "") (map lib.trim (lib.splitString "," s));
@@ -65,7 +66,7 @@ in
   ];
 
   # parse <path> -> { interval : int|null, popup : bool, subscribes : [str],
-  #                   graph : int|null }
+  #                   graph : int|null, segments : [str] }
   # Defaults are the manifest's, not the option system's: a widget with no
   # header at all is legal (event-driven, system_woke only).
   parse =
@@ -103,6 +104,7 @@ in
       interval = get "interval" null;
       popup = get "popup" "false";
       graph = get "graph" null;
+      segments = splitList (get "segments" "");
     in
     checked {
       # A boolean spelled as a word, because the header is read by a person
@@ -139,6 +141,55 @@ in
           throw "bar widget manifest ${pathStr}: graph needs an interval — a rolling window with no tick is a flat line"
         else
           lib.toInt graph;
+      # `segments = a, b, c` makes the pill a BRACKET over N+1 items: the head
+      # item `<name>`, which is the one that ticks and holds the script, plus
+      # `<name>.<seg>` for each name here. SketchyBar colours a label exactly
+      # once, so a pill that has to say three counts in three colours cannot
+      # be one item — and a bracket is the only way to put ONE background
+      # behind items that must colour themselves independently.
+      #
+      # The dropdown moves with it. A popup aligns to the item carrying it,
+      # and a head item is a fraction of a segmented pill's width, so a
+      # right-aligned popup anchored there hangs off to the left of its own
+      # pill by however many segments happen to be drawn. `frameworkItem`
+      # puts the popup on the BRACKET, whose rect is the whole pill at
+      # whatever width it currently has, and barlib addresses it there.
+      #
+      # Five refusals, each a thing that fails silently otherwise:
+      #   * fewer than two — a bracket over one member is a pill, and the
+      #     runtime would spend an extra item and a bracket to draw one.
+      #   * the same name twice — one `--add item` emitted twice, and a
+      #     bracket that lists the member twice.
+      #   * a name that is not a bare lower-case identifier: these become
+      #     sketchybar item ids by concatenation, and an id with a dot or a
+      #     space in it is one the runtime's own `<item>.popup.<n>` strip
+      #     cannot take apart again.
+      #   * `pill` — that IS the bracket's id (`<name>.pill`), so a segment
+      #     of that name would silently be the same item as the pill behind
+      #     it.
+      #   * with `graph` — a graph is one item's rolling window, and a
+      #     bracket head has none of its own to draw. No consumer wants both;
+      #     refuse until one does rather than emit an item whose graph is
+      #     hidden behind its own segments.
+      segments =
+        if segments == [ ] then
+          [ ]
+        else if lib.length segments < 2 then
+          throw "bar widget manifest ${pathStr}: segments needs two or more names — a bracket over one member is a pill"
+        else if graph != null then
+          throw "bar widget manifest ${pathStr}: segments and graph together — a bracket head has no rolling window of its own"
+        else if lib.length (lib.unique segments) != lib.length segments then
+          throw "bar widget manifest ${pathStr}: segments has a name twice — that is one item added twice and a bracket listing it twice"
+        else
+          map (
+            seg:
+            if builtins.match "[a-z][a-z0-9_]*" seg == null then
+              throw "bar widget manifest ${pathStr}: segment '${seg}' is not a bare lower-case name (it becomes the item id <name>.${seg})"
+            else if seg == "pill" then
+              throw "bar widget manifest ${pathStr}: segment 'pill' collides with the bracket's own id <name>.pill"
+            else
+              seg
+          ) segments;
       # system_woke is always in: every pill haus ships resubscribes to it, a
       # readout that sleeps through wake is stale by exactly how long the lid
       # was down, and no widget has yet wanted to opt out.
