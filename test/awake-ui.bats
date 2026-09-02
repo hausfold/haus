@@ -66,7 +66,7 @@ setup() {
   export TZ=UTC AWAKE_NOW=1000000
 
   # Stubs for everything that would touch the real machine. `poke_bar` is
-  # pointed at nothing on purpose — both bar binaries are behind `[ -x ]`.
+  # pointed at nothing on purpose — its one call is behind `[ -x ]`.
   mkdir -p "$TMP/bin"
   cat >"$TMP/bin/launchctl" <<EOF
 #!/bin/sh
@@ -91,8 +91,11 @@ esac
 EOF
   chmod +x "$TMP/bin/date"
   export AWAKE_DATE_BIN="$TMP/bin/date"
-  export AWAKE_SKETCHYBAR_BIN="$TMP/no-such-bar"
-  export AWAKE_BAR_BOTTOM_BIN="$TMP/no-such-bar-bottom"
+  # One stub-shaped hole where two used to be: `awake` pokes `haus-bar-poke`,
+  # which owns the both-bars pair for every producer. Pointed at nothing on
+  # purpose — the call is behind `[ -x ]`, and what this suite is about is the
+  # sentence, not the repaint.
+  export AWAKE_BAR_POKE_BIN="$TMP/no-such-poke"
 
   # `awake`'s shebang is `env bash` — the contract phase-painter.bats asserts —
   # and ui.sh is bash 4+. On a machine whose PATH finds macOS's /bin/bash 3.2
@@ -120,7 +123,7 @@ resolve_bash4() {
 }
 
 # The derivation's two build-time steps, by hand: modules/core/default.nix
-# PREPENDS the `HAUS_UI_SH` line and substitutes `@sketchybar@`. Doing both here
+# PREPENDS the `HAUS_UI_SH` line and substitutes `@barPoke@`. Doing both here
 # means the suite tests what nix will actually install rather than a shape only
 # bats has ever run — and in particular it tests the `:-` in that prepended
 # line, which is the whole reason a caller can still point the binary at a
@@ -136,7 +139,7 @@ build_subject() { # build_subject <uish>
     # have quietly run it under /bin/sh.
     printf '#!/usr/bin/env bash\n'
     printf 'HAUS_UI_SH="${HAUS_UI_SH:-%s}"\n' "$1"
-    sed -e "s|@sketchybar@|$TMP/no-such-bar|" "$SRC"
+    sed -e "s|@barPoke@|$TMP/no-such-poke|" "$SRC"
   } >"$SUBJECT"
   chmod +x "$SUBJECT"
 }

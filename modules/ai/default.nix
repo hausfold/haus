@@ -633,28 +633,21 @@ let
   # that pill's own 30s tick -- a cup that appears half a minute after the turn
   # started reads as a broken pill rather than a slow one.
   #
-  # BOTH bars, for the reason `awake`'s own poke_bar gives: haus.bar.bottom.items
-  # can move that pill to the second SketchyBar instance, which is a different
-  # binary with its own mach service, and a trigger for an event a bar never
-  # registered is a harmless no-op. The `[ -x ]` guards are what let the AI room
-  # write this without knowing whether the bar room is on at all -- on a machine
-  # with no bar the script runs, finds nothing, and exits 0.
+  # BOTH bars, and `haus-bar-poke` is where that pair lives (see its header):
+  # haus.bar.bottom.items can move the coffee pill to the second SketchyBar
+  # instance, which is a different binary with its own mach service. It exits 0
+  # on a machine with no bar at all, which is what lets the AI room write this
+  # without knowing whether the bar room is on -- and why this room no longer
+  # reads `haus.roster.sketchybar` for a path of its own.
   #
-  # `binPath or null` for the reason focus's copy spells out: `or` catches a
-  # missing ATTRIBUTE, not a null VALUE, and both happen -- no roster entry, and
-  # an entry that installs nothing.
-  agentAwakePoke =
-    let
-      p = config.haus.roster.sketchybar.binPath or null;
-    in
-    pkgs.writeShellScript "haus-agent-awake-poke" ''
-      for bar in ${
-        lib.escapeShellArg (if p == null then "" else p)
-      } /run/current-system/sw/bin/bar-bottom; do
-        [ -n "$bar" ] && [ -x "$bar" ] && "$bar" --trigger caffeinate_change >/dev/null 2>&1
-      done
-      exit 0
-    '';
+  # Still a script rather than the bare binary: `LIDAWAKE_ON_CHANGE` is exec'd as
+  # `"$ON_CHANGE"` with no arguments (modules/core/lidawake.sh:272), so the event
+  # name has to be carried by something. The absolute path is the one a
+  # `writeShellScript` can spell -- it inherits launchd's PATH, which names
+  # nothing of ours.
+  agentAwakePoke = pkgs.writeShellScript "haus-agent-awake-poke" ''
+    exec /run/current-system/sw/bin/haus-bar-poke caffeinate_change
+  '';
 
   onOff = b: if b then "on" else "off";
 

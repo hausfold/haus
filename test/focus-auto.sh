@@ -49,7 +49,6 @@ build_engine() { # $1 = path to the scene table
         -e "s|@scenes@|$1|" \
         -e "s|@switchAudio@||" \
         -e "s|@uiSh@|$TMP/no-such-ui.sh|" \
-        -e "s|@sketchybar@|$TMP/bin/sketchybar|" \
         "$ROOT/modules/focus/focus.sh" >"$TMP/focus"
     chmod +x "$TMP/focus"
     # The sed table above MIRRORS default.nix's --subst-var-by names, and a
@@ -129,6 +128,13 @@ export FOCUS_PMSET_BIN="$TMP/bin/pmset"
 export FOCUS_NETWORKSETUP_BIN="$TMP/bin/networksetup"
 export FOCUS_SYSTEM_PROFILER_BIN="$TMP/bin/system_profiler"
 export FOCUS_HAUSDISP_BIN="$TMP/bin/hausdisp"
+# focus no longer knows there are two bars: `poke_bar` calls `haus-bar-poke`,
+# which owns that pair for every producer (test/bar-poke.bats asserts the pair
+# itself). Pointed at a path that does not exist — this suite is about the
+# DECISIONS focus makes, and one variable now covers what used to leak: the
+# bottom bar's poke was hardcoded to /run/current-system/sw/bin/bar-bottom and
+# fired for real on a dev Mac running that bar.
+export FOCUS_BAR_POKE_BIN="$TMP/bin/no-such-poke"
 
 STATE="$HOME/.local/state/focus"
 

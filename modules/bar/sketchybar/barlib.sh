@@ -1233,15 +1233,23 @@ popup_toggle() {
 
 # ---- pubsub -----------------------------------------------------------------
 # bar_emit <event> [key=value…] — fire a custom event. Both instances, always:
-# "anything that pokes a bar pokes both" (AGENTS.md), as code. A bar that
-# isn't running just eats the error.
+# "anything that pokes a bar pokes both" (AGENTS.md), as code.
+#
+# A one-line wrapper over `haus-bar-poke`, which is where the pair actually
+# lives (modules/core/haus-bar-poke.sh). It moved OUT of here because this file
+# is sourced by framework widgets and by nothing else, while three of the four
+# producers of a both-bars trigger are not widgets — a `writeShellScript`, a
+# launchd argv and two plain CLIs, none of which can meaningfully source a
+# `$HOME` path. The name stays because a widget should not have to spell an
+# absolute path to signal one, and `subscribes =` is documented against it.
+#
+# Absolute, for the same reason `barpop` above is: a plugin runs on SketchyBar's
+# PATH, which names nothing of ours. It costs one extra fork over writing the
+# two `--trigger`s here (~4 ms, measured by barpop) on an event that fires when
+# something CHANGED — never on a tick — which is the whole budget for having one
+# copy of this rule instead of five.
 bar_emit() {
-    local event=$1
-    shift
-    "$BAR_TOP" --trigger "$event" "$@" 2>/dev/null || true
-    if [ -n "${BAR_BOTTOM:-}" ]; then
-        "$BAR_BOTTOM" --trigger "$event" "$@" 2>/dev/null || true
-    fi
+    "${BARLIB_BAR_POKE:-/run/current-system/sw/bin/haus-bar-poke}" "$@" 2>/dev/null || true
     return 0
 }
 

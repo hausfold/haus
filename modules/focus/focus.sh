@@ -78,12 +78,12 @@ SYSTEM_PROFILER="${FOCUS_SYSTEM_PROFILER_BIN:-/usr/sbin/system_profiler}"
 # the reason focus does NOT depend on that room.
 HAUSDISP="${FOCUS_HAUSDISP_BIN:-/run/current-system/sw/bin/hausdisp}"
 DB="$HOME/Library/DoNotDisturb/DB/Assertions.json"
-# Substituted from haus.roster.sketchybar.binPath (modules/focus/default.nix):
-# the bar room owns which profile sketchybar installs into, and this room only
-# has to know where that landed. Empty when this machine has no bar entry, which
-# every use below already guards with [ -x ].
-SKETCHYBAR=@sketchybar@
-BAR_BOTTOM="/run/current-system/sw/bin/bar-bottom"
+# The one both-bars poke (modules/core/haus-bar-poke.sh). Addressed absolutely
+# for the same reason `notify` below is: this runs under launchd, from the bar
+# and from the palette, on a PATH that names nothing of ours. It knows where
+# each bar binary landed — which is why this room no longer reads the roster at
+# all — and is a no-op on a machine with no bar.
+BAR_POKE="${FOCUS_BAR_POKE_BIN:-/run/current-system/sw/bin/haus-bar-poke}"
 
 # Must match the AppleSymbolicHotKeys 175 binding written by default.nix.
 KEY_CODE=@keyCode@
@@ -125,8 +125,7 @@ note() { printf 'focus: %s\n' "$*" >&2; }
 # `haus-activate` is reachable there.
 notify() { /run/current-system/sw/bin/haus-notify --source haus.focus --title focus --body "$1" >/dev/null 2>&1 || true; }
 poke_bar() {
-    [ -x "$SKETCHYBAR" ] && "$SKETCHYBAR" --trigger focus_change >/dev/null 2>&1 || true
-    [ -x "$BAR_BOTTOM" ] && "$BAR_BOTTOM" --trigger focus_change >/dev/null 2>&1 || true
+    [ -x "$BAR_POKE" ] && "$BAR_POKE" focus_change >/dev/null 2>&1 || true
 }
 
 # on|off. Exact when the signed pounce can report it (its FDA grant) or when

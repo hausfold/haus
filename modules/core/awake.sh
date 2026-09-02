@@ -21,13 +21,11 @@ CAFFEINATE="${AWAKE_CAFFEINATE_BIN:-/usr/bin/caffeinate}"
 # sentence would come back empty and the assertion would fail describing a bug
 # that does not exist on any machine haus runs on.
 DATE="${AWAKE_DATE_BIN:-/bin/date}"
-# @sketchybar@ is substituted from haus.roster.sketchybar.binPath by
-# ../core/default.nix, and is empty on a machine with no bar — every use below
-# is behind an `[ -x ]` guard, which is also what makes the env override work.
-SKETCHYBAR="${AWAKE_SKETCHYBAR_BIN:-@sketchybar@}"
-# bar's optional SECOND bar (haus.bar.bottom.enable) — the same binary under a
-# second name, hence a second client to poke. Absent on a machine without it.
-BAR_BOTTOM="${AWAKE_BAR_BOTTOM_BIN:-/run/current-system/sw/bin/bar-bottom}"
+# The one both-bars poke (../core/haus-bar-poke.sh), substituted by ../core/
+# default.nix as a store path because that file builds both. It knows which bar
+# binaries exist and is a no-op when neither does, so this script no longer
+# carries a copy of that pair — one env override stands where two used to.
+BAR_POKE="${AWAKE_BAR_POKE_BIN:-@barPoke@}"
 
 # ---- snug's bash painter, loaded only where this draws for a person ---------
 # `awake` is its own binary and inherits nobody's environment — a launchd agent,
@@ -35,7 +33,7 @@ BAR_BOTTOM="${AWAKE_BAR_BOTTOM_BIN:-/run/current-system/sw/bin/bar-bottom}"
 # `HAUS_UI_SH` is PREPENDED by the derivation (modules/core/default.nix), the
 # way `github-signal` takes it, rather than substituted into a `@uiSh@` hole.
 # Both shapes are legal; this one is right here because this file is already a
-# `replaceStrings` template for `@sketchybar@` and a second hole buys nothing.
+# `replaceStrings` template for `@barPoke@` and a second hole buys nothing.
 # The variable still wins when a caller sets it, so a working copy of ui.sh is
 # one export away.
 #
@@ -159,16 +157,12 @@ now() {
 
 # Poke BOTH bars: the coffee pill can be on either one (haus.bar.bottom.items
 # moves it to bar's second bar, a separate SketchyBar instance with its own mach
-# service and so its own client binary). A --trigger for an event a bar never
-# registered is a no-op, and the second binary only exists on a machine that
-# turned that bar on — so poking both beats teaching this script which bar won.
+# service and so its own client binary). Which bar won is not this script's
+# question, and never was — `haus-bar-poke` is where that pair lives now, for
+# every producer. It exits 0 whatever it finds, so a repaint that could not
+# happen is never why an `awake 1h` reports failure.
 poke_bar() {
-    local bar
-    for bar in "$SKETCHYBAR" "$BAR_BOTTOM"; do
-        if [ -x "$bar" ]; then
-            "$bar" --trigger caffeinate_change >/dev/null 2>&1 || true
-        fi
-    done
+    [ -x "$BAR_POKE" ] && "$BAR_POKE" caffeinate_change >/dev/null 2>&1 || true
 }
 
 domain() {
