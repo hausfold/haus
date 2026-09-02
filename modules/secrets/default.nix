@@ -124,11 +124,17 @@ let
   # safe assumption is the one that never interrupts them.
   providerItemAcl = if cfg.provider == null || lib.hasPrefix "keyring" cfg.provider then "1" else "0";
 
+  # `uiSh` is snug's bash painter, substituted rather than inherited: this
+  # binary is exec'd directly by launchd agents, by `haus doctor` and by a person
+  # at a prompt, so there is no `haus` wrapper above it to pass HAUS_UI_SH down.
+  # The script loads it lazily and degrades to plain blocks without it — a
+  # machine whose pin predates it still prints the listing.
   hausSecret = pkgs.runCommand "haus-secret" { } ''
     mkdir -p $out/bin
     substitute ${./haus-secret.sh} $out/bin/haus-secret \
       --subst-var-by secretspec ${pkgs.secretspec}/bin/secretspec \
       --subst-var-by table ${table} \
+      --subst-var-by uiSh ${pkgs.snug}/share/ui.sh \
       --subst-var-by providerItemAcl ${providerItemAcl}
     chmod 555 $out/bin/haus-secret
   '';
