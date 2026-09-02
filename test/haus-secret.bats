@@ -46,7 +46,15 @@ setup() {
   unset HAUS_UI_SH || true
 
   export HOME="$TMP/home"
-  mkdir -p "$HOME/.config/haus"
+  # HOME is not enough, and CI is where that showed. `haus-secret` resolves its
+  # manifest as `${XDG_CONFIG_HOME:-$HOME/.config}` and its stamp as
+  # `${XDG_STATE_HOME:-$HOME/.local/state}`, so a runner that exports either one
+  # — GitHub's does — sends the subject at the REAL home while the suite is
+  # setting up a sandbox nothing reads. Pin both to the sandbox rather than
+  # unsetting them: the defaulted branch is not the branch under test.
+  export XDG_CONFIG_HOME="$HOME/.config"
+  export XDG_STATE_HOME="$HOME/.local/state"
+  mkdir -p "$XDG_CONFIG_HOME/haus" "$XDG_STATE_HOME"
 
   # The colour environment, pinned for the same reason statusline.bats pins it:
   # a developer's terminal says truecolor and a GitHub runner sets TERM=dumb for
@@ -229,7 +237,7 @@ print(max((len(l.rstrip("\r")) for l in t.splitlines()), default=0))
   # One contract, not two. The prompt is narration in both branches — a
   # `--check >log` that swallowed the question on a bash-3.2 machine and showed
   # it everywhere else is the same verb behaving differently by accident.
-  touch "$HOME/.config/haus/secretspec.toml"
+  touch "$XDG_CONFIG_HOME/haus/secretspec.toml"
   run -0 --separate-stderr "$SUBJECT" --check
   [[ "$stderr" == *"is optional"* ]] || { echo "stderr was: $stderr"; false; }
   [[ "$output" != *"is optional"* ]] || { echo "the question landed on fd 1: $output"; false; }
@@ -293,7 +301,7 @@ EOF
   # The hot path: a room exec's this at boot, prints nothing, and must not pay
   # to read a thousand lines of bash. `--list` is what loads ui.sh; a `get` has
   # to reach secretspec with the value alone on fd 1.
-  touch "$HOME/.config/haus/secretspec.toml"
+  touch "$XDG_CONFIG_HOME/haus/secretspec.toml"
   run -0 --separate-stderr "$SUBJECT" GITHUB_WEBHOOK_SECRET
   [ "$output" = "the-value" ]
   [ -z "$stderr" ]
