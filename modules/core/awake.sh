@@ -13,6 +13,14 @@ STATE_FILE="$STATE_DIR/state"
 LABEL="${AWAKE_LAUNCHD_LABEL:-com.hausfold.awake}"
 LAUNCHCTL="${AWAKE_LAUNCHCTL_BIN:-/bin/launchctl}"
 CAFFEINATE="${AWAKE_CAFFEINATE_BIN:-/usr/bin/caffeinate}"
+# Overridable for the same reason the three above are — and here it is not only
+# a stub hook. `date -r <seconds>` is BSD's "format this epoch time"; GNU
+# coreutils spells `-r` as `--reference=FILE` and answers `No such file or
+# directory` on a number. That is fine on the Mac this ships to and fatal in a
+# suite running on a Linux CI runner, where the `(until …)` half of the timed
+# sentence would come back empty and the assertion would fail describing a bug
+# that does not exist on any machine haus runs on.
+DATE="${AWAKE_DATE_BIN:-/bin/date}"
 # @sketchybar@ is substituted from haus.roster.sketchybar.binPath by
 # ../core/default.nix, and is empty on a machine with no bar — every use below
 # is behind an `[ -x ]` guard, which is also what makes the env override work.
@@ -20,6 +28,100 @@ SKETCHYBAR="${AWAKE_SKETCHYBAR_BIN:-@sketchybar@}"
 # bar's optional SECOND bar (haus.bar.bottom.enable) — the same binary under a
 # second name, hence a second client to poke. Absent on a machine without it.
 BAR_BOTTOM="${AWAKE_BAR_BOTTOM_BIN:-/run/current-system/sw/bin/bar-bottom}"
+
+# ---- snug's bash painter, loaded only where this draws for a person ---------
+# `awake` is its own binary and inherits nobody's environment — a launchd agent,
+# the bar's coffee pill and a person at a prompt all exec it directly — so
+# `HAUS_UI_SH` is PREPENDED by the derivation (modules/core/default.nix), the
+# way `github-signal` takes it, rather than substituted into a `@uiSh@` hole.
+# Both shapes are legal; this one is right here because this file is already a
+# `replaceStrings` template for `@sketchybar@` and a second hole buys nothing.
+# The variable still wins when a caller sets it, so a working copy of ui.sh is
+# one export away.
+#
+# LAZY, and a function rather than a source at the top, for the reason `focus`
+# is: the hot path through this script is `awake status --raw`, which the bar's
+# caffeinate plugin runs on every tick, and reading a thousand lines of bash to
+# print three tab-separated fields is a cost paid forever for nothing. `_run`,
+# the launchd controller, never reaches it either. Only the prose paths call it.
+UI_READY=""
+ui_load() {
+    [ -n "${UI_LOADED:-}" ] && return 0
+    UI_LOADED=1
+    # ui.sh is bash 4+ — `${role^^}` inside ui_paint_role alone rules 3.2 out —
+    # and this script's shebang is `env bash` for exactly that reason. `env`
+    # still finds macOS's /bin/bash 3.2 on a launchd or sketchybar PATH, where
+    # sourcing would half-load with three `bad substitution` errors and leave a
+    # painter that answers `type` and then draws nothing. So the version is
+    # checked, not assumed, and 3.2 keeps the plain sentence.
+    [ "${BASH_VERSINFO[0]:-0}" -ge 4 ] || return 0
+    if [ -r "${HAUS_UI_SH:-}" ]; then
+        # `|| true` is load-bearing under `set -euo pipefail`: a sourced file's
+        # exit status is the body of this `if`, not its condition, so a ui.sh
+        # that returns non-zero at load would abort `awake 3h` AFTER `launchctl
+        # kickstart` started the assertion. That is the same failure the `type`
+        # probe below exists to prevent, arriving on the other axis — a Mac held
+        # awake with an error where its confirmation should be.
+        # shellcheck source=/dev/null
+        source "$HAUS_UI_SH" || true
+    fi
+    # Every verb this script calls, not a sample of them: a pin whose ui.sh
+    # predates one of them is a `command not found`, and under `set -euo
+    # pipefail` that aborts `awake 3h` AFTER the assertion started and BEFORE
+    # anything says so — a Mac held awake with an error where the confirmation
+    # should be. The plain sentence is still there for exactly that machine.
+    type ui_fail ui_hint ui_paint_role ui_glyph >/dev/null 2>&1 && UI_READY=1
+    return 0
+}
+
+# ---- the one sentence awake ever says about this Mac ------------------------
+# Every prose verb ends here. `status` prints it having changed nothing; `awake
+# 3h` and `awake off` print it having just made it true. One painter and not
+# three, because the confirmation IS the status — the person who typed `awake
+# off` and the person who typed `awake status` are owed the same line.
+#
+# fd 1, and `UI_OUT_` with it: this is a report, painted for the stream it is
+# written to (docs/cli-presentation.md, "Which stream a command draws on"). It
+# is fd 1 for every verb including the two that change the machine, which is
+# the one place this departs from `haus.sh`'s report/narrator split — awake has
+# no narration to separate a report from, and the bar's popup rows have always
+# run `awake 1h >/dev/null`, so moving the confirmation to fd 2 would put a
+# line in sketchybar's log on every click. `die` stays on fd 2, where an error
+# belongs whichever command raised it.
+#
+# The GLYPH carries the state and the colour only reinforces it, which is this
+# family's rule rather than a preference here: `awake status` under `NO_COLOR`
+# still has to say at a glance whether anything is holding this Mac awake, and
+# a role resolves to the empty string there. Text is otherwise byte-identical
+# to the plain branch, so a machine with no painter loses the mark and nothing
+# else.
+say_state() { # say_state <glyph> <role> <lead> [strong] [tail]
+    local glyph=$1 role=$2 lead=$3 strong=${4:-} tail=${5:-}
+    local mark plead pstrong ptail
+    ui_load
+    if [ -n "$UI_READY" ]; then
+        ui_glyph mark "$glyph"
+        ui_paint_role mark "$role" "$mark" UI_OUT_
+        # `body` rather than no call at all: it always resolves to the empty
+        # string, and naming it is how a caller says "deliberately unpainted"
+        # out loud — ui.sh keeps it in the public nine for exactly that. A
+        # future simplifier dropping it would leave the reader unable to tell
+        # this from an oversight.
+        ui_paint_role plead body "$lead" UI_OUT_
+        # The duration is what the person came for, so it is the SUBJECT of the
+        # line; "more", the parenthetical and "idle sleep is allowed" are all
+        # scaffolding around it. Both are empty on the states that have no
+        # number to point at — and an EMPTY segment is left unpainted rather
+        # than handed to `ui_paint_role`, which would wrap nothing in a
+        # set-then-reset pair and leave two escapes on a line with no text
+        # between them for them to mean anything about.
+        pstrong=""; [ -n "$strong" ] && ui_paint_role pstrong subject "$strong" UI_OUT_
+        ptail=""; [ -n "$tail" ] && ui_paint_role ptail muted "$tail" UI_OUT_
+        printf '%s%s%s%s\n' "$mark" "$plead" "$pstrong" "$ptail"
+    else
+        printf '%s%s%s\n' "$lead" "$strong" "$tail"
+    fi
+}
 
 usage() {
     cat <<'EOF'
@@ -36,8 +138,14 @@ off, and closing a MacBook lid still sleeps it.
 EOF
 }
 
+# The name stays in the message where `haus.sh`'s own `die` drops it and lets
+# the glyph speak. This binary's stderr is a LOG as often as it is a terminal —
+# the bar's popup rows run `awake 1h >/dev/null` with fd 2 left alone, so a
+# refusal lands in sketchybar's — and in a log nothing else says who refused.
 die() {
-    printf 'awake: %s\n' "$*" >&2
+    ui_load
+    if [ -n "$UI_READY" ]; then ui_fail "awake: $*"
+    else printf 'awake: %s\n' "$*" >&2; fi
     exit 64
 }
 
@@ -45,7 +153,7 @@ now() {
     if [ -n "${AWAKE_NOW:-}" ]; then
         printf '%s\n' "$AWAKE_NOW"
     else
-        /bin/date +%s
+        "$DATE" +%s
     fi
 }
 
@@ -186,11 +294,10 @@ show_status() {
 $raw
 EOF
     case "$mode" in
-        off) echo "idle sleep is allowed" ;;
-        indefinite) echo "awake indefinitely" ;;
-        timed) printf 'awake for %s more (until %s)\n' \
-            "$(format_duration "$remaining")" \
-            "$(/bin/date -r "$until" '+%l:%M %p' | /usr/bin/sed 's/^ //')" ;;
+        off) say_state bullet muted "idle sleep is allowed" ;;
+        indefinite) say_state ok accent "awake " "indefinitely" ;;
+        timed) say_state ok accent "awake for " "$(format_duration "$remaining")" \
+            " more (until $("$DATE" -r "$until" '+%l:%M %p' | /usr/bin/sed 's/^ //'))" ;;
     esac
 }
 
@@ -203,14 +310,20 @@ start_assertion() {
     if ! "$LAUNCHCTL" kickstart -k "$(domain)" >/dev/null 2>&1; then
         /bin/rm -f "$STATE_FILE"
         poke_bar
-        printf 'awake: could not start %s; rebuild once so its launchd job is loaded\n' "$LABEL" >&2
+        ui_load
+        if [ -n "$UI_READY" ]; then
+            ui_fail "awake: could not start $LABEL"
+            ui_hint "rebuild once so its launchd job is loaded"
+        else
+            printf 'awake: could not start %s; rebuild once so its launchd job is loaded\n' "$LABEL" >&2
+        fi
         exit 1
     fi
     poke_bar
     if [ "$mode" = indefinite ]; then
-        echo "awake indefinitely"
+        say_state ok accent "awake " "indefinitely"
     else
-        printf 'awake for %s\n' "$(format_duration "$seconds")"
+        say_state ok accent "awake for " "$(format_duration "$seconds")"
     fi
 }
 
@@ -218,7 +331,7 @@ stop_assertion() {
     /bin/rm -f "$STATE_FILE"
     "$LAUNCHCTL" kill TERM "$(domain)" >/dev/null 2>&1 || true
     poke_bar
-    echo "idle sleep is allowed"
+    say_state bullet muted "idle sleep is allowed"
 }
 
 # launchd-only entry point. It owns the child and only clears state if nobody

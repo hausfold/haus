@@ -18,17 +18,30 @@ let
   # depend on the bar room for it: the roster is the cross-room registry, and the
   # `or ""` is the machine with no bar at all, which awake.sh's own `[ -x ]`
   # guard already handles. See options-roadmap.md §5.4.
+  #
+  # `HAUS_UI_SH` is PREPENDED rather than substituted or wrapped — the same
+  # shape modules/github uses for `github-signal`, and for the same reason: the
+  # script is `readFile`d into the store, so it has nothing to look beside. `:-`
+  # so a caller's own variable still wins. A second `@uiSh@` hole would work
+  # equally well and buys nothing over a line of shell, and awake.sh's `[ -r ]`
+  # guard leaves it drawing the plain sentence either way.
   awake = pkgs.writeShellScriptBin "awake" (
-    let
-      # `or` catches a MISSING attribute, not a null value, and `replaceStrings`
-      # throws on a null replacement — so a host that declares a metadata-only
-      # `haus.roster.sketchybar` with the bar off (no assertion to catch it)
-      # would fail the whole eval with a type error naming no option. Both
-      # halves are real: no entry at all, and an entry with nothing to install.
-      p = config.haus.roster.sketchybar.binPath or null;
-    in
-    builtins.replaceStrings [ "@sketchybar@" ] [ (if p == null then "" else p) ] (
-      builtins.readFile ./awake.sh
+    ''
+      HAUS_UI_SH="''${HAUS_UI_SH:-${pkgs.snug}/share/ui.sh}"
+    ''
+    + (
+      let
+        # `or` catches a MISSING attribute, not a null value, and
+        # `replaceStrings` throws on a null replacement — so a host that
+        # declares a metadata-only `haus.roster.sketchybar` with the bar off (no
+        # assertion to catch it) would fail the whole eval with a type error
+        # naming no option. Both halves are real: no entry at all, and an entry
+        # with nothing to install.
+        p = config.haus.roster.sketchybar.binPath or null;
+      in
+      builtins.replaceStrings [ "@sketchybar@" ] [ (if p == null then "" else p) ] (
+        builtins.readFile ./awake.sh
+      )
     )
   );
 
