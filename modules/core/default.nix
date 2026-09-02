@@ -526,12 +526,30 @@ let
     fonts = fontsCfg;
   };
 
+  # The proportional family, resolved the same three ways — except that the
+  # third answer is null rather than a package of haus's own, because the
+  # default family is macOS's and nothing installs it. See ../lib/sans-font.nix.
+  sansPackage = import ../lib/sans-font.nix {
+    inherit lib pkgs;
+    fonts = fontsCfg;
+  };
+
   # Naming a family haus was never given a package for is silent tofu:
   # Ghostty just falls back and the powerline/icon glyphs vanish. Cheap to spot.
   fontFamilyUnprovided =
     fontsCfg.mono.package == null
     && fontsCfg.mono.packageName == null
     && fontsCfg.mono.name != options.haus.fonts.mono.name.default;
+
+  # The same mistake on the proportional side, and it is HARDER to see rather
+  # than easier: there is no tofu, because the fallback is the system UI font
+  # every one of these surfaces was drawing before. The bar, the launcher, the
+  # shelf and the banners all look exactly as they did, so the reading is "that
+  # option does nothing" rather than "that font isn't installed".
+  sansFamilyUnprovided =
+    fontsCfg.sans.package == null
+    && fontsCfg.sans.packageName == null
+    && fontsCfg.sans.name != options.haus.fonts.sans.name.default;
 in
 {
   system.primaryUser = username;
@@ -556,7 +574,19 @@ in
   # advance. Drop this once upstream guards the writes.
   #   https://github.com/nix-darwin/nix-darwin/issues/1049
   warnings =
-    lib.optional fontFamilyUnprovided ''
+    lib.optional sansFamilyUnprovided ''
+      haus: fonts.sans.name is "${fontsCfg.sans.name}" but neither
+      fonts.sans.package nor fonts.sans.packageName is set.
+
+      haus only installs the font it's given. If that family isn't already on
+      this Mac, the clock pill, pounce, perch and trill all fall back to the
+      system UI font — which is what they drew before you set this, so the
+      symptom is "the option did nothing" rather than anything visibly broken.
+      Name the matching package: fonts.sans.packageName =
+      "atkinson-hyperlegible" (or fonts.sans.package = pkgs.atkinson-hyperlegible,
+      outside a data-only desktop).
+    ''
+    ++ lib.optional fontFamilyUnprovided ''
       haus: fonts.mono.name is "${fontsCfg.mono.name}" but neither
       fonts.mono.package nor fonts.mono.packageName is set.
 
@@ -636,6 +666,15 @@ in
       assertion = !(fontsCfg.mono.package != null && fontsCfg.mono.packageName != null);
       message = ''
         haus: fonts.mono.package and fonts.mono.packageName are both set.
+        They are the same setting written two ways — `package` for a module
+        that has `pkgs`, `packageName` for a data-only desktop that doesn't.
+        Keep one.
+      '';
+    }
+    {
+      assertion = !(fontsCfg.sans.package != null && fontsCfg.sans.packageName != null);
+      message = ''
+        haus: fonts.sans.package and fonts.sans.packageName are both set.
         They are the same setting written two ways — `package` for a module
         that has `pkgs`, `packageName` for a data-only desktop that doesn't.
         Keep one.
@@ -1322,7 +1361,11 @@ in
   # this package is now the one the menu bar draws in too. `fonts.packages` is a
   # list option, so it merges with the one font bar still installs for itself:
   # sketchybar-app-font, for the workspace logos.
-  fonts.packages = [ monoPackage ];
+  # `sansPackage` is null on every desktop that leaves fonts.sans.name alone —
+  # its default is macOS's own family, which is already there — so the
+  # proportional half installs nothing unless somebody named a family AND the
+  # package for it.
+  fonts.packages = [ monoPackage ] ++ lib.optional (sansPackage != null) sansPackage;
 
   # Homebrew's tap-trust check is flaky under sudo-driven activation (the
   # per-user trust store gets bypassed), so third-party taps fail with "Refusing

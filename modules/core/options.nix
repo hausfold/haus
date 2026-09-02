@@ -703,46 +703,86 @@ in
       };
     };
 
-    # The PROPORTIONAL family, and it reaches exactly one label: the clock
-    # pill's, and only when `haus.bar.clock.monoFont` is false. That is not a
-    # first version — it is every proportional string this layer emits. Ghostty,
-    # the whole bar and the wallpaper's debug band are mono on purpose, macOS
-    # exposes no supported knob for the system UI font, and haus's own apps draw
-    # SwiftUI's `.system(…)` — a design token, not a family name — through a
-    # config seam that exists for pounce and does not exist for trill at all.
+    # The PROPORTIONAL family. It reaches the clock pill (when
+    # `haus.bar.clock.monoFont` is false) and the three apps this layer ships
+    # that draw proportional text: pounce's launcher, perch's shelf and trill's
+    # banners, each through the config file haus already generates for it.
     #
-    # So this option exists for one reason: the family that label falls back to
-    # used to be WELDED into modules/bar/default.nix as ".AppleSystemUIFont",
-    # which made `bar.clock.monoFont` a family switch with its second value
-    # hardcoded — an option surface is not the same thing as an option list.
-    # Naming the literal makes the second consumer a line rather than a design
-    # conversation. Deliberately no `size`: nothing here sizes proportional text
-    # by name (`haus.ui.scale` and `haus.launcher.scale` do), and a field with no
-    # reader is drift with a default value.
-    fonts.sans.name = lib.mkOption {
-      type = lib.types.str;
-      default = ".AppleSystemUIFont";
-      example = "Atkinson Hyperlegible";
-      description = ''
-        The proportional family the clock pill draws its date and time in.
-        It applies only when `haus.bar.clock.monoFont` is false, and that pill
-        is the whole of this layer's proportional type: everything else it
-        draws — the terminal, every other pill, the wallpaper — is mono, and
-        names `haus.fonts.mono` instead.
+    # THAT IS ALL OF IT, and the boundary is worth knowing: macOS exposes no
+    # supported knob for the system UI font, so menus, Finder and Safari keep
+    # drawing in SF Pro whatever this says. Ghostty, the rest of the bar and the
+    # wallpaper's debug band are mono on purpose and name `fonts.mono`.
+    #
+    # Deliberately no `size`: nothing here sizes proportional text by name
+    # (`haus.ui.scale` and `haus.launcher.scale` do), and a field with no reader
+    # is drift with a default value.
+    fonts.sans = {
+      name = lib.mkOption {
+        type = lib.types.str;
+        default = ".AppleSystemUIFont";
+        example = "Atkinson Hyperlegible";
+        description = ''
+          The proportional family this layer's own surfaces draw in: the clock
+          pill's date and time (when `haus.bar.clock.monoFont` is false), and
+          the text in pounce, perch and trill — the launcher and its rows, the
+          notch shelf, every notification banner and all three settings
+          windows.
 
-        The default is macOS's own system UI font, whose zero has no dot and is
-        easier to tell from an 8 at a glance. That legibility is the entire
-        reason the clock has an opt-out, so the default is also the answer for
-        almost everybody.
+          The default is macOS's own system UI font, whose zero has no dot and
+          is easier to tell from an 8 at a glance. That legibility is the
+          entire reason the clock has an opt-out, so the default is also the
+          answer for almost everybody.
 
-        Two things this does NOT do, both worth knowing before you set it.
-        It does not change the system UI font: macOS has no supported knob for
-        that, so menus, Finder and Safari keep drawing in SF Pro whatever this
-        says. And haus installs nothing for it — there is no `package` here the
-        way there is for `mono`, so name a family the machine already has, or
-        install one through `haus.roster` first. A family that isn't installed
-        falls back silently; there is no tofu to warn you.
-      '';
+          Two things this does NOT do, both worth knowing before you set it.
+          It does not change the system UI font — macOS has no supported knob
+          for that, so menus, Finder and Safari are unmoved. And it does not
+          touch monospaced text anywhere: a keycap, a timestamp, a source slug
+          and a code preview stay mono, because a column that shifts is harder
+          to read rather than easier.
+
+          Name a family the machine has, or one `package` / `packageName`
+          installs. A family that isn't there falls back to the system font
+          silently — there is no tofu to see, which is why haus warns instead.
+        '';
+      };
+
+      package = lib.mkOption {
+        type = lib.types.nullOr lib.types.package;
+        default = null;
+        example = lib.literalExpression "pkgs.atkinson-hyperlegible";
+        description = ''
+          The package providing `name`. null (the default) installs nothing,
+          which is correct for the default family: `.AppleSystemUIFont` is
+          macOS's own and is on every Mac.
+
+          Set this whenever you set `name` to something the machine doesn't
+          already have, or the family simply won't exist and every surface
+          falls back to the system font — which looks exactly like the setting
+          not working. haus warns if it spots that combination.
+
+          A shared desktop can't set this one — it needs `pkgs`, and a
+          data-only desktop has no arguments. Use `packageName` there.
+        '';
+      };
+
+      packageName = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "atkinson-hyperlegible";
+        description = ''
+          The same thing as `package`, NAMED rather than evaluated: an
+          attribute path into nixpkgs, so "atkinson-hyperlegible" means
+          `pkgs.atkinson-hyperlegible`.
+
+          This exists so a data-only desktop can change the proportional family
+          and not just name one it hopes is installed — reaching `pkgs` is
+          precisely what that format forbids.
+
+          Set one or the other, never both. A name that resolves to nothing, or
+          to a set of packages rather than a package, fails at eval with the
+          spelling to try instead.
+        '';
+      };
     };
 
     homebrew = {

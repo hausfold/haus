@@ -2967,7 +2967,7 @@
       "_type": "literalExpression",
       "text": "\".AppleSystemUIFont\""
     },
-    "description": "The proportional family the clock pill draws its date and time in.\nIt applies only when `haus.bar.clock.monoFont` is false, and that pill\nis the whole of this layer's proportional type: everything else it\ndraws — the terminal, every other pill, the wallpaper — is mono, and\nnames `haus.fonts.mono` instead.\n\nThe default is macOS's own system UI font, whose zero has no dot and is\neasier to tell from an 8 at a glance. That legibility is the entire\nreason the clock has an opt-out, so the default is also the answer for\nalmost everybody.\n\nTwo things this does NOT do, both worth knowing before you set it.\nIt does not change the system UI font: macOS has no supported knob for\nthat, so menus, Finder and Safari keep drawing in SF Pro whatever this\nsays. And haus installs nothing for it — there is no `package` here the\nway there is for `mono`, so name a family the machine already has, or\ninstall one through `haus.roster` first. A family that isn't installed\nfalls back silently; there is no tofu to warn you.\n",
+    "description": "The proportional family this layer's own surfaces draw in: the clock\npill's date and time (when `haus.bar.clock.monoFont` is false), and\nthe text in pounce, perch and trill — the launcher and its rows, the\nnotch shelf, every notification banner and all three settings\nwindows.\n\nThe default is macOS's own system UI font, whose zero has no dot and\nis easier to tell from an 8 at a glance. That legibility is the\nentire reason the clock has an opt-out, so the default is also the\nanswer for almost everybody.\n\nTwo things this does NOT do, both worth knowing before you set it.\nIt does not change the system UI font — macOS has no supported knob\nfor that, so menus, Finder and Safari are unmoved. And it does not\ntouch monospaced text anywhere: a keycap, a timestamp, a source slug\nand a code preview stay mono, because a column that shifts is harder\nto read rather than easier.\n\nName a family the machine has, or one `package` / `packageName`\ninstalls. A family that isn't there falls back to the system font\nsilently — there is no tofu to see, which is why haus warns instead.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"Atkinson Hyperlegible\""
@@ -2980,6 +2980,50 @@
     ],
     "readOnly": false,
     "type": "string"
+  },
+  "haus.fonts.sans.package": {
+    "declarations": [
+      "modules/core/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The package providing `name`. null (the default) installs nothing,\nwhich is correct for the default family: `.AppleSystemUIFont` is\nmacOS's own and is on every Mac.\n\nSet this whenever you set `name` to something the machine doesn't\nalready have, or the family simply won't exist and every surface\nfalls back to the system font — which looks exactly like the setting\nnot working. haus warns if it spots that combination.\n\nA shared desktop can't set this one — it needs `pkgs`, and a\ndata-only desktop has no arguments. Use `packageName` there.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "pkgs.atkinson-hyperlegible"
+    },
+    "loc": [
+      "haus",
+      "fonts",
+      "sans",
+      "package"
+    ],
+    "readOnly": false,
+    "type": "null or package"
+  },
+  "haus.fonts.sans.packageName": {
+    "declarations": [
+      "modules/core/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The same thing as `package`, NAMED rather than evaluated: an\nattribute path into nixpkgs, so \"atkinson-hyperlegible\" means\n`pkgs.atkinson-hyperlegible`.\n\nThis exists so a data-only desktop can change the proportional family\nand not just name one it hopes is installed — reaching `pkgs` is\nprecisely what that format forbids.\n\nSet one or the other, never both. A name that resolves to nothing, or\nto a set of packages rather than a package, fails at eval with the\nspelling to try instead.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"atkinson-hyperlegible\""
+    },
+    "loc": [
+      "haus",
+      "fonts",
+      "sans",
+      "packageName"
+    ],
+    "readOnly": false,
+    "type": "null or string"
   },
   "haus.git.email": {
     "declarations": [
