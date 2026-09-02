@@ -730,13 +730,18 @@ if [ "$rc" -ne 0 ]; then
   exit 1
 fi
 
-# trill's lane whitelist, halved: each side of a lane id is a basename, so
-# neither may carry a slash of its own even though the joined target does.
-# Prints the qualified target and succeeds, or prints nothing and fails — a
-# function rather than an inline `case` so the test runs the real one.
+# trill's lane whitelist, in full and halved. `focusesLane` refuses on FOUR
+# counts — empty, a character outside [A-Za-z0-9._-/], longer than 100, or a
+# leading `-` — and every one of them costs the whole send rather than the
+# action, so a guard that checks only the character class still falls through to
+# Apple's banner for a long lane name. Halved because each side of a lane id is
+# a basename: neither may carry a slash of its own, even though the joined
+# target must. Prints the qualified target and succeeds, or prints nothing and
+# fails — a function rather than an inline `case` so the test runs the real one.
 lane_target() {
-  case "$1" in "" | *[!A-Za-z0-9._-]*) return 1 ;; esac
+  case "$1" in "" | -* | *[!A-Za-z0-9._-]*) return 1 ;; esac
   case "$2" in "" | *[!A-Za-z0-9._-]*) return 1 ;; esac
+  [ "$((${#1} + 1 + ${#2}))" -le 100 ] || return 1
   printf '%s/%s\n' "$1" "$2"
 }
 
@@ -749,8 +754,10 @@ lane_target() {
 #
 # It is also the DOOR to the lane it announces. `--action "…=lane:<repo>/<name>"`
 # is trill's `focus_lane`, and trill's own rule is that the first action is what
-# clicking the banner BODY does — so the whole card is the target, not just the
-# pill. The click runs `scruff focus <repo>/<name>`, which goes through
+# clicking the banner BODY does. One action draws no pill row at all — trill's
+# `pillActions` wants two before it spends a row — so "Go to lane" rides the
+# meta row as a LABEL saying what the card does, and the card is the target.
+# The click runs `scruff focus <repo>/<name>`, which goes through
 # lane-focus.sh: the background spawn already has a window tiled on T/<repo>, so
 # the common answer is a plain raise onto that page, and the one case where the
 # window was closed with ⌘W defers back into lane-open.sh and opens a fresh one

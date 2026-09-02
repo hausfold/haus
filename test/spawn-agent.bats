@@ -290,3 +290,29 @@ stub_default() {
   run lane_target haus ""
   [ "$status" -ne 0 ]
 }
+
+# The other three refusals in trill's `focusesLane`, which a character-class-only
+# guard would sail straight past — and each of them costs the WHOLE send, not
+# the action, which is the fall this guard exists to catch.
+@test "lane_target: a target over 100 characters is refused, and 100 exactly is not" {
+  local long
+  long="$(printf '%095d' 0)"   # 95 characters, no `seq` needed
+  [ "${#long}" -eq 95 ]
+  # 100 exactly: repo(4) + slash(1) + name(95).
+  run lane_target haus "$long"
+  [ "$status" -eq 0 ]
+  # 101, by one character of repo name.
+  run lane_target hausf "$long"
+  [ "$status" -ne 0 ]
+}
+
+# Only the repo half: trill reads the leading `-` off the JOINED target, and a
+# dash inside it is an ordinary character. `scruff focus` takes the whole thing
+# as one argv element, so a lane called `-x` is not a flag to anybody.
+@test "lane_target: a leading dash is refused on the repo half only" {
+  run lane_target -repo lane
+  [ "$status" -ne 0 ]
+  run lane_target repo -lane
+  [ "$status" -eq 0 ]
+  [ "$output" = "repo/-lane" ]
+}
