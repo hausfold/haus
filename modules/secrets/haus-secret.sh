@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # haus-secret — the one door to the secrets THIS MACHINE'S ROOMS declared.
 #
 # Rooms don't fetch secrets themselves and don't learn which provider this Mac
@@ -36,6 +36,46 @@ PROVIDER_ITEM_ACL=@providerItemAcl@
 REPORT_REASON="haus-secret: report which of this machine's declared secrets have a value (no value is read out)"
 FILL_REASON="haus-secret --check: fill in the values this machine's rooms are missing"
 
+# ---- snug's bash painter, loaded only where this draws a report ------------
+# `haus-secret` is its own binary and inherits nobody's environment — a launchd
+# agent, `haus doctor` and a person at a prompt all exec it directly — so the
+# path is substituted at build time the way `focus` takes it, rather than
+# inherited from the `haus` wrapper the way `haus show` does. `HAUS_UI_SH` still
+# wins when it is set, so a working copy is one variable away.
+#
+# LAZY, and a function rather than a source at the top, because the hot path
+# through this script is `haus-secret NAME` at boot: a room reading one value
+# execs it, prints nothing, and must not pay to read a thousand lines of bash
+# it will never draw with. Only the report paths call it.
+UI_READY=""
+ui_load() {
+  [ -n "${UI_LOADED:-}" ] && return 0
+  UI_LOADED=1
+  # ui.sh is bash 4+ — `${role^^}` inside ui_paint_role alone rules 3.2 out —
+  # and this script's shebang is `env bash` for exactly that reason. `env` still
+  # finds macOS's /bin/bash 3.2 on a launchd PATH with nothing else on it, where
+  # sourcing would half-load and leave a painter that answers `type` and then
+  # draws nothing. So the version is checked, not assumed, and 3.2 keeps the
+  # plain blocks.
+  [ "${BASH_VERSINFO[0]:-0}" -ge 4 ] || return 0
+  local sh="${HAUS_UI_SH:-@uiSh@}"
+  if [ -r "$sh" ]; then
+    # shellcheck source=/dev/null
+    source "$sh"
+  fi
+  # Probed rather than assumed: a pin whose ui.sh predates one of these is a
+  # `command not found` halfway down the listing, and the plain blocks are still
+  # there for exactly that machine.
+  # Every verb this script calls, not a sample of them. `--check` reaches
+  # `ui_say` and `ui_info` a long way below the listing, and `set -euo pipefail`
+  # turns one missing function there into an abort BEFORE the optional-secret
+  # loop and before the stamp is written — so `haus-secret --ok` would go on
+  # reporting the machine as waiting on you.
+  type ui_fail ui_hint ui_say ui_info ui_fold ui_paint_role ui_glyph_bare \
+    >/dev/null 2>&1 && UI_READY=1
+  return 0
+}
+
 usage() {
   cat <<'EOF'
 haus-secret — the secrets this machine's rooms declared
@@ -51,13 +91,24 @@ haus-secret — the secrets this machine's rooms declared
 EOF
 }
 
+# The name stays in the message, where `haus.sh`'s own `die` drops it and lets
+# the glyph speak: this binary's stderr is a LAUNCHD LOG as often as it is a
+# terminal — a room reads a value at boot — and in that log nothing else says
+# who refused.
 die() {
-  printf 'haus-secret: %s\n' "$1" >&2
+  ui_load
+  if [ -n "$UI_READY" ]; then ui_fail "haus-secret: $1"
+  else printf 'haus-secret: %s\n' "$1" >&2; fi
   exit 1
 }
 
 no_manifest() {
-  cat >&2 <<EOF
+  ui_load
+  if [ -n "$UI_READY" ]; then
+    ui_fail "haus-secret: no room on this Mac declares a secret, so there is no manifest at $MANIFEST"
+    ui_hint "a room asks for one by writing haus._contrib.secrets.<key>. A PROJECT's own secrets stay in that project's committed secretspec.toml, which secretspec finds by itself."
+  else
+    cat >&2 <<EOF
 haus-secret: no room on this Mac declares a secret, so there is no manifest at
   $MANIFEST
 
@@ -65,6 +116,7 @@ A room asks for one by writing haus._contrib.secrets.<key>. A PROJECT's own
 secrets stay in that project's committed secretspec.toml, which secretspec
 finds by itself.
 EOF
+  fi
   exit 1
 }
 
@@ -73,12 +125,77 @@ EOF
 # for, and why" answer, and nothing parses it back.
 list() {
   [ -s "$TABLE" ] || no_manifest
-  local keys name required why obtain kind
+  ui_load
+  local keys name required why obtain kind kindrole
+  local pname pkind pline mark w i
   while IFS=$'\t' read -r keys name required why obtain; do
-    if [ "$required" = "1" ]; then kind=required; else kind=optional; fi
-    printf '%s  (%s, wanted by %s)\n' "$name" "$kind" "$keys"
-    printf '  %s\n' "$why"
-    if [ -n "$obtain" ]; then printf '  where: %s\n' "$obtain"; fi
+    if [ "$required" = "1" ]; then kind=required; kindrole=warn
+    else kind=optional; kindrole=muted; fi
+    if [ -n "$UI_READY" ]; then
+      # `UI_OUT_` and not `UI_` — this is the report and it lands on fd 1, and a
+      # report is painted for the stream it is written to. Redirect it and the
+      # profile answers `none`, which is the same decision the fold below makes
+      # when it declines to fit a pipe to a window it does not have.
+      #
+      # The header carries the NAME and nothing else that could have been
+      # folded, which is why `wanted by` moved down a line: a header of
+      # name + kind + keys ran to 64 cells and soft-wrapped in any window
+      # narrower than that, and a line built out of three painted segments
+      # cannot be folded afterwards — the escapes are content to a fold.
+      # A name alone still overflows a very narrow window, and it is left to
+      # wrap on purpose: this is the string a person is about to type at
+      # `haus-secret <NAME>`, and a `…` through the middle of it is worse than
+      # a wrap. `github-signal` makes the same call for the `gh api` line it
+      # prints whole.
+      ui_paint_role pname subject     "$name" UI_OUT_
+      ui_paint_role pkind "$kindrole" "$kind" UI_OUT_
+      printf '%s  (%s)\n' "$pname" "$pkind"
+      # Everything under the header hangs at two cells and folds at the window.
+      # This is the one thing the plain shape got wrong: a `why` long enough to
+      # soft-wrap came back at column 0 and read as the next entry's header.
+      w=$(( UI_OUT_AVAIL - 2 )); [ "$w" -lt 1 ] && w=1
+      ui_fold "$w" "wanted by $keys"
+      for i in "${!UI_FOLD[@]}"; do
+        ui_paint_role pline field "${UI_FOLD[$i]}" UI_OUT_
+        printf '  %s\n' "$pline"
+      done
+      ui_fold "$w" "$why"
+      for i in "${!UI_FOLD[@]}"; do printf '  %s\n' "${UI_FOLD[$i]}"; done
+      if [ -n "$obtain" ]; then
+        # Folded only when there is somewhere to fold. `obtain` is one of two
+        # things: a bare URL, or a sentence telling you how to make the value.
+        # ui_fold HARD-BREAKS a word wider than the line — deliberately, since
+        # overflowing is the one thing it never allows — and a real newline
+        # through a URL is a URL that no longer survives being copied. A lone
+        # token is therefore printed whole and left to the terminal, which wraps
+        # without putting a newline in the buffer; a sentence folds at its
+        # spaces like every other line in the block.
+        ui_glyph_bare mark hint
+        case "$obtain" in
+        *[[:space:]]*)
+          # The MARK and the label go into the fold with the text, or the first
+          # line is budgeted for the text alone and comes back nine cells wider
+          # than the window. Folded two narrower than the body above it so that
+          # a continuation, which hangs at four, still lands inside the window.
+          ui_fold "$(( w - 2 ))" "$mark where: $obtain"
+          for i in "${!UI_FOLD[@]}"; do
+            ui_paint_role pline muted "${UI_FOLD[$i]}" UI_OUT_
+            if [ "$i" -eq 0 ]; then printf '  %s\n' "$pline"
+            else printf '    %s\n' "$pline"; fi
+          done
+          ;;
+        *)
+          ui_paint_role pline muted "$mark where: $obtain" UI_OUT_
+          printf '  %s\n' "$pline"
+          ;;
+        esac
+      fi
+    else
+      printf '%s  (%s)\n' "$name" "$kind"
+      printf '  wanted by %s\n' "$keys"
+      printf '  %s\n' "$why"
+      if [ -n "$obtain" ]; then printf '  where: %s\n' "$obtain"; fi
+    fi
     printf '\n'
   done <"$TABLE"
 }
@@ -173,6 +290,7 @@ case "${1:-}" in
 
 --check)
   [ -f "$MANIFEST" ] || no_manifest
+  ui_load
   list
   # secretspec's own fill loop: it asks for each missing value and writes it to
   # the provider. Interactive on purpose — haus never handles the value.
@@ -183,15 +301,28 @@ case "${1:-}" in
   # typed `--check`, but not one to pay for a question they can answer with a
   # keystroke. Entering a value again simply overwrites it with itself.
   while IFS=$'\t' read -r name why; do
-    printf '\n%s is optional — %s\n' "$name" "$why"
-    printf 'Set it now? [y/N] '
+    if [ -n "$UI_READY" ]; then
+      printf '\n' >&2
+      ui_say "$name is optional — $why"
+      printf 'Set it now? [y/N] ' >&2
+    else
+      # fd 2 in BOTH branches. The question is narration whether or not a
+      # painter drew it, and a `--check >log` that swallowed the prompt on a
+      # bash-3.2 machine and showed it everywhere else would be two contracts
+      # wearing one verb's name.
+      printf '\n%s is optional — %s\n' "$name" "$why" >&2
+      printf 'Set it now? [y/N] ' >&2
+    fi
     # No tty (a script, a hook, `haus doctor`) is a no, quietly.
     # 2>… BEFORE the </dev/tty it silences: redirections are applied left to
     # right, so the other order reports the failure to the real stderr first.
     read -r answer 2>/dev/null </dev/tty || answer=""
     case "$answer" in
     [yY]*) "$SECRETSPEC" set --file "$MANIFEST" --reason "$FILL_REASON" "$name" ;;
-    *) printf 'Skipped. `haus-secret --check` asks again.\n' ;;
+    *)
+      if [ -n "$UI_READY" ]; then ui_info 'Skipped. `haus-secret --check` asks again.'
+      else printf 'Skipped. `haus-secret --check` asks again.\n' >&2; fi
+      ;;
     esac
   done < <(optional)
   # What the run confirmed, for the deck's sake. Written only on success, and

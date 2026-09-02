@@ -404,21 +404,29 @@ mechanism, say so in one line.
   rather than a table, and `haus set`'s picker, whose padding is the parse
   contract that recovers the chosen path out of `gum filter`'s answer.
 
-  **Two more binaries draw through it, and pay for it lazily.** `focus` and
-  `github-signal` are their own binaries with nobody's environment: focus takes
-  the path as a build-time `@uiSh@` substitution and sources it only inside the
-  two verbs that draw a table, because the bar drives that script on a timer;
-  `github-signal` takes it prepended by its derivation and sources it past the
-  sourced-half guard, so the surfaces that source the file pay nothing. Both
-  check `BASH_VERSINFO` before sourcing, because ui.sh half-loads under macOS's
-  /bin/bash 3.2 with three `bad substitution` errors and leaves a painter that
-  answers `type` and then draws nothing. For `focus` that check is what the
-  `#!/usr/bin/env bash` shebang is FOR — its launchd caller sets no PATH, so
-  `env` still resolves 3.2 there and the listing keeps its plain columns.
-  `github-signal` is built by `writeShellScriptBin` and so already runs
-  nixpkgs' bash; its own shebang only matters to somebody exec'ing the
-  `~/.config/haus/github/signal.sh` copy by hand, which nothing on the machine
-  does — every consumer SOURCES it, and a sourced file's shebang never runs.
+  **Three more binaries draw through it, and pay for it lazily.** `focus`,
+  `github-signal` and `haus-secret` are their own binaries with nobody's
+  environment: focus takes the path as a build-time `@uiSh@` substitution and
+  sources it only inside the two verbs that draw a table, because the bar drives
+  that script on a timer; `haus-secret` takes the same substitution and sources
+  it only from the report paths, because its hot path is a room reading one
+  value at boot; `github-signal` takes it prepended by its derivation and
+  sources it past the sourced-half guard, so the surfaces that source the file
+  pay nothing. All three check `BASH_VERSINFO` before sourcing, because ui.sh
+  half-loads under macOS's /bin/bash 3.2 with three `bad substitution` errors
+  and leaves a painter that answers `type` and then draws nothing. For `focus`
+  and `haus-secret` that check is what the `#!/usr/bin/env bash` shebang is FOR
+  — a launchd caller sets no PATH, so `env` still resolves 3.2 there and the
+  report keeps its plain shape. `github-signal` is built by
+  `writeShellScriptBin` and so already runs nixpkgs' bash; its own shebang only
+  matters to somebody exec'ing the `~/.config/haus/github/signal.sh` copy by
+  hand, which nothing on the machine does — every consumer SOURCES it, and a
+  sourced file's shebang never runs.
+
+  `haus-secret` is the one of the three that draws **no table**: its `--list` is
+  blocks, because `why` is a paragraph and `obtain` is a URL or another
+  sentence, and a column holding either cuts the only part worth reading. What
+  it takes from the runtime is the FOLD and the roles.
 
   **Three more scripts draw through it too**, and they reach it a second way.
   `modules/ai/statusline.sh`, `modules/terminal/scripts/image-preview.sh` and
