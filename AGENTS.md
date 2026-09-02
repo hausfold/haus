@@ -404,29 +404,55 @@ mechanism, say so in one line.
   rather than a table, and `haus set`'s picker, whose padding is the parse
   contract that recovers the chosen path out of `gum filter`'s answer.
 
-  **Three more binaries draw through it, and pay for it lazily.** `focus`,
-  `github-signal` and `haus-secret` are their own binaries with nobody's
-  environment: focus takes the path as a build-time `@uiSh@` substitution and
-  sources it only inside the two verbs that draw a table, because the bar drives
-  that script on a timer; `haus-secret` takes the same substitution and sources
-  it only from the report paths, because its hot path is a room reading one
-  value at boot; `github-signal` takes it prepended by its derivation and
-  sources it past the sourced-half guard, so the surfaces that source the file
-  pay nothing. All three check `BASH_VERSINFO` before sourcing, because ui.sh
-  half-loads under macOS's /bin/bash 3.2 with three `bad substitution` errors
-  and leaves a painter that answers `type` and then draws nothing. For `focus`
-  and `haus-secret` that check is what the `#!/usr/bin/env bash` shebang is FOR
-  — a launchd caller sets no PATH, so `env` still resolves 3.2 there and the
-  report keeps its plain shape. `github-signal` is built by
-  `writeShellScriptBin` and so already runs nixpkgs' bash; its own shebang only
-  matters to somebody exec'ing the `~/.config/haus/github/signal.sh` copy by
-  hand, which nothing on the machine does — every consumer SOURCES it, and a
-  sourced file's shebang never runs.
+  **Four more binaries draw through it, and pay for it lazily.** `focus`,
+  `github-signal`, `haus-secret` and `awake` are their own binaries with
+  nobody's environment, and they reach ui.sh two ways. SUBSTITUTED at build
+  time: `focus` takes a `@uiSh@` hole and sources it only inside the two verbs
+  that draw a table, because the bar drives that script on a timer;
+  `haus-secret` takes the same hole and sources it only from the report paths,
+  because its hot path is a room reading one value at boot. PREPENDED by the
+  derivation: `github-signal` sources it past the sourced-half guard, so the
+  surfaces that source the file pay nothing, and `awake` from a lazy `ui_load`
+  its two machine paths never call. Both shapes are correct and the choice is
+  local — a script already carrying `@placeholder@` holes takes another one, a
+  script read whole takes the line of shell.
 
-  `haus-secret` is the one of the three that draws **no table**: its `--list` is
+  All four check `BASH_VERSINFO` before sourcing, because ui.sh half-loads under
+  macOS's /bin/bash 3.2 with three `bad substitution` errors and leaves a
+  painter that answers `type` and then draws nothing. Three of the four also
+  carry `#!/usr/bin/env bash`, for two different reasons: for `focus` and
+  `haus-secret` the file's own first line IS the interpreter that runs, and a
+  launchd caller sets no PATH, so `env` still resolves 3.2 there and the report
+  keeps its plain shape. `awake` is built by `writeShellScriptBin` like
+  `github-signal`, so its first line does not run once installed — it is
+  asserted anyway because the file is ALSO run straight off disk, by
+  `test/awake.sh` and by anybody debugging the coffee pill. `github-signal` is
+  the one `test/phase-painter.bats` deliberately does not assert: its off-disk
+  copy at `~/.config/haus/github/signal.sh` is only ever SOURCED, and a sourced
+  file's shebang never runs, so the assertion would pass for the wrong reason.
+
+  `haus-secret` is the one of the four that draws **no table**: its `--list` is
   blocks, because `why` is a paragraph and `obtain` is a URL or another
   sentence, and a column holding either cuts the only part worth reading. What
   it takes from the runtime is the FOLD and the roles.
+
+  **`awake` is the one that is also a DATA SOURCE, and that is the whole shape
+  of its conversion.** `status` is its default verb (`command=${1:-status}`) and
+  prints one sentence for a person, so it draws: a mark, the duration as the
+  line's subject, the `(until …)` muted. But `awake status --raw` answers the
+  bar's coffee pill on every tick with `mode<TAB>remaining<TAB>until`, which
+  `modules/bar/sketchybar/plugins/caffeinate.sh` parses — one escape, one glyph
+  or one fold there and the pill goes wrong SILENTLY. So `raw_status` and `_run`
+  never reach `ui_load` at all, and `test/awake-ui.bats` asserts both halves:
+  that the sentence gained a mark, and that the three raw fields are byte-exact
+  on a terminal as well as through a pipe. Its confirmations stay on **fd 1**
+  for every verb, including the two that change the machine — the one place this
+  family departs from `haus.sh`'s report/narrator split, because `awake` has no
+  narration to separate a report from and the bar's popup rows have always run
+  `awake 1h >/dev/null`. `die` is still fd 2. Its `date` is `$DATE`
+  (`AWAKE_DATE_BIN`), because `date -r <seconds>` is BSD's "format this epoch"
+  and GNU spells `-r` as `--reference=FILE` — fine on the Mac this ships to,
+  fatal in a suite on a Linux CI runner.
 
   **Three more scripts draw through it too**, and they reach it a second way.
   `modules/ai/statusline.sh`, `modules/terminal/scripts/image-preview.sh` and

@@ -3,6 +3,17 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 AWAKE="$ROOT/modules/core/awake.sh"
+
+# The LIFECYCLE suite, and deliberately not the painter's — awake's prose paths
+# draw through snug when one is reachable, and every exact-match assertion below
+# is written against the plain sentence. Unset rather than left alone: this file
+# is run straight off disk with whatever environment a caller has, and
+# `.github/workflows/check.yml` exports HAUS_UI_SH for the render suites further
+# down the same job. Today this step happens to run above that export; that is
+# ordering, not a contract, and a reordered workflow would turn every assertion
+# here red with a mark it never asked about. The painted shapes are
+# test/awake-ui.bats's subject.
+unset HAUS_UI_SH || true
 TMP=$(/usr/bin/mktemp -d)
 trap '/bin/rm -rf "$TMP"' EXIT
 

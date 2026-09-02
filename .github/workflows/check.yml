@@ -509,6 +509,17 @@ jobs:
       - name: haus-secret's listing and its two streams
         run: bats test/haus-secret.bats
 
+      # `awake` — the CLI that is also a DATA SOURCE. `status` is its default
+      # verb and prints prose for a person, but the same script answers the
+      # bar's coffee pill on every tick through `status --raw`, and one escape
+      # or one glyph in those three tab-separated fields breaks the pill with no
+      # error anywhere. So this suite guards both directions at once: the
+      # sentence got a mark and roles, and `--raw` and `_run` never so much as
+      # source the painter. It stays BELOW the fetch because the painted cases
+      # want the real file. Needs bash + python3 + bats.
+      - name: awake's sentence, and the raw fields it must not touch
+        run: bats test/awake-ui.bats
+
       # The bar widget runtime (docs/bar-framework.md). Every promise barlib
       # makes fails silently on a live bar: a diff that never settles repaints
       # a quiet pill forever, one that over-matches freezes a pill on stale
