@@ -12,7 +12,7 @@
 # of the repo that owns it.*
 # This derivation is the output; `docs/site-data/` in this repo is the committed
 # copy of it, and the `site-data-current` flake check is the pin. The site then
-# reads three plain files out of a checkout, and the drift check stays here,
+# reads six plain files out of a checkout, and the drift check stays here,
 # next to the derivation that defines the truth.
 #
 # Two deliberate differences from the raw derivations:
@@ -23,11 +23,21 @@
 #   * everything is `jq -S`'d: sorted keys, two-space indent. The raw
 #     options.json is one 148 KB line, which is unreviewable as a diff. The
 #     whole point of committing it is that a human can read what moved.
+#
+# The two bar tables are the newest members and arrive a third way: not a
+# derivation to filter, but the plain Nix VALUES `modules/bar/{tones,marks}.nix`
+# already are, serialised straight out. They are here because the tables on
+# hausfold.co's bar-widgets page were hand-copied and nothing checked them —
+# the arm that used to diff `meaning` pointed at `docs/bar-framework.md`, which
+# left for hausfold/ops. Publishing the list is what lets the site check its
+# own page against it, which is the same trade the option reference made.
 {
   pkgs,
   optionsJson,
   wmBindingsJson,
   launchKeysJson,
+  barTones,
+  barMarks,
 }:
 
 pkgs.runCommand "haus-site-data"
@@ -59,7 +69,25 @@ pkgs.runCommand "haus-site-data"
 
     jq -S . ${optionsJson}/share/doc/nixos/groups.json > "$out/groups.json"
     jq -S . ${wmBindingsJson} > "$out/wm-bindings.json"
-    # NOT -S: this one is a list, and its order is the order the keys are bound
-    # in. Sorting it would be sorting the answer.
-    jq . ${launchKeysJson} > "$out/launch-keys.json"
+
+    # THREE of these are lists whose ORDER is the answer — launch mode's keys
+    # come out in the order they are bound, and the two bar vocabularies come
+    # out in the ladder's own sequence (quietest first, which the site's tables
+    # are meant to read top-to-bottom in). `-S` is on them anyway, and that is
+    # not a contradiction: it sorts an OBJECT's keys and never an ARRAY's
+    # elements, so it cannot touch any of the three. `jq -S` on launch-keys is
+    # byte-identical to `jq` — this file said otherwise until 2026-09-02, which
+    # is how one flag came to be explained two opposite ways in twenty lines.
+    # The one rule is the whole file's: sorted keys, two-space indent, so the
+    # committed copy reads as a diff.
+    jq -S . ${launchKeysJson} > "$out/launch-keys.json"
+
+    # The bar's two colour vocabularies. `stub` rides along even though it is a
+    # `test/barlib.bats` fixture and no page will ever render it: filtering
+    # here would make this file an EDITED view of the ladder rather than the
+    # ladder, and the next field added to tones.nix would silently not be
+    # published. The site selects the columns it draws, which is a thing a
+    # reader of ITS snapshot can see.
+    jq -S . ${pkgs.writeText "bar-tones.json" (builtins.toJSON barTones)} > "$out/bar-tones.json"
+    jq -S . ${pkgs.writeText "bar-marks.json" (builtins.toJSON barMarks)} > "$out/bar-marks.json"
   ''

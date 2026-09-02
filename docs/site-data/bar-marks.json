@@ -1,0 +1,44 @@
+[
+  {
+    "key": "flamingo",
+    "meaning": "Anthropic's clay — Claude, Claude elsewhere, and VLC",
+    "name": "warm",
+    "stub": "0xff7a0001"
+  },
+  {
+    "key": "maroon",
+    "meaning": "a muted red — video in a browser tab",
+    "name": "rust",
+    "stub": "0xff7a0005"
+  },
+  {
+    "key": "pink",
+    "meaning": "music with no app of its own — and media's catch-all kind",
+    "name": "pink",
+    "stub": "0xff7a0006"
+  },
+  {
+    "key": "lavender",
+    "meaning": "Gemini's blue-violet — and a video file playing locally",
+    "name": "violet",
+    "stub": "0xff7a0003"
+  },
+  {
+    "key": "blue",
+    "meaning": "music in a browser tab",
+    "name": "blue",
+    "stub": "0xff7a0007"
+  },
+  {
+    "key": "teal",
+    "meaning": "OpenAI's green-teal — Codex, GPT elsewhere, and Spotify",
+    "name": "teal",
+    "stub": "0xff7a0002"
+  },
+  {
+    "key": "mauve",
+    "meaning": "a subject with no mark of its own — the catch-all, and podcasts",
+    "name": "plum",
+    "stub": "0xff7a0004"
+  }
+]

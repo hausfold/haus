@@ -62,12 +62,17 @@ jobs:
       #   bar-rc-executable       the rc files' +x bit
       #   bar-plugins-executable  the plugins' +x bit
       #   bar-tones                the TONE ladder (modules/bar/tones.nix) vs the
-      #                            three hand-written copies of it — barlib.sh's
-      #                            `tone()`, the doc table, the bats stub. Up here
-      #                            because the drift it catches is invisible on
-      #                            every machine: `tone()` deliberately does not
-      #                            error, so a forgotten rung paints grey and says
-      #                            why only in sketchybar's log
+      #                            two hand-written copies of it — barlib.sh's
+      #                            `tone()` and the bats stub. (The doc table was
+      #                            a third until the doc left for hausfold/ops;
+      #                            that table lives on hausfold.co now and is
+      #                            checked THERE, against the ladder this repo
+      #                            publishes as docs/site-data/bar-tones.json.)
+      #                            Up here because the drift it catches is
+      #                            invisible on every machine: `tone()`
+      #                            deliberately does not error, so a forgotten
+      #                            rung paints grey and says why only in
+      #                            sketchybar's log
       #   bar-marks                the same for the IDENTITY axis
       #                            (modules/bar/marks.nix), plus the one thing that
       #                            axis has and the ladder does not: a mark may not
@@ -328,7 +333,7 @@ jobs:
           # log and nowhere a person looks, so a broken runtime is a pill that
           # simply stops painting. The widgets themselves are deliberately NOT
           # here: fetch() emits state that render() reads as variables, so
-          # every one of them trips SC2154 by design (docs/bar-framework.md).
+          # every one of them trips SC2154 by design (ops/todo/bar-framework.md).
           # modules/focus/focus.sh IS a @placeholder@ template and lints anyway:
           # every substitution in it sits on the right-hand side of an
           # assignment, so an unsubstituted copy is still valid shell. It earns
@@ -546,7 +551,7 @@ jobs:
       - name: the both-bars poke
         run: bats test/bar-poke.bats
 
-      # The bar widget runtime (docs/bar-framework.md). Every promise barlib
+      # The bar widget runtime (ops/todo/bar-framework.md). Every promise barlib
       # makes fails silently on a live bar: a diff that never settles repaints
       # a quiet pill forever, one that over-matches freezes a pill on stale
       # data, and a --hide without updates=on is a pill no event can bring

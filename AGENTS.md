@@ -91,10 +91,12 @@ modules/
                           #   the file before adding one; some moves get no alias on purpose
   options-doc.nix         # nixosOptionsDoc over them → the metadata the docs site
                           #   (.#options-json) and the agent skill are both RENDERED from
-  site-data.nix           # .#site-data: that metadata + the binding table, filtered to
-                          #   haus.* and pretty-printed, so the docs site can read it with
-                          #   NO Nix. Committed at docs/site-data/ — regenerate and commit
-                          #   whenever an option moves, or `site-data-current` goes red
+  site-data.nix           # .#site-data: that metadata + the binding table (both
+                          #   filtered to haus.*), launch mode's keys, and the bar's two
+                          #   colour vocabularies straight off modules/bar/{tones,marks}.nix
+                          #   — pretty-printed, so the docs site can read them with NO Nix.
+                          #   Committed at docs/site-data/ — regenerate and commit whenever
+                          #   ANY of those moves, or `site-data-current` goes red
   lib/gui-wait.nix        # cold-boot-safe GUI agent launch: .wrap (an executable) +
                           #   .script (the bounded wait alone, for pounce)
   lib/contrib.nix         # extension points: how a room contributes a feature to
@@ -753,8 +755,12 @@ mechanism, say so in one line.
     `haus.theme.accent`, whose enum contains `red`/`peach`/`yellow`/`green`,
     so **nothing carrying meaning may name it** (a verb row is `action`); and
     a rung lives in FOUR files, three of them hand-written, whose drift is
-    SILENT — `tone()` warns to sketchybar's log and paints grey. The
-    `bar-tones` flake check diffs all three against the list, names and order.
+    SILENT — `tone()` warns to sketchybar's log and paints grey. TWO of those
+    are in this repo (`barlib.sh`'s `tone()` and `test/barlib.bats`'s stub) and
+    `bar-tones` diffs both against the list, names and order. The third is the
+    table on hausfold.co/docs/haus/rooms/bar-widgets, which this flake cannot
+    read: `site-data` publishes the ladder as `docs/site-data/bar-tones.json`
+    and the site's own `check-bar-tables.mjs` holds its page to it.
 - **A plugin that can end up on the SECOND bar must never write `sketchybar`.**
   `haus.bar.bottom.enable` draws a second bar along the bottom, and SketchyBar
   has no two-bars-in-one-process mode: an instance is named `basename(argv[0])`

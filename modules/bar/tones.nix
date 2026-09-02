@@ -1,7 +1,7 @@
 # THE TONE LADDER — the bar's whole colour vocabulary, in one place.
 #
 # A barlib widget names a TONE and never a hex or a palette key (the framework
-# doc, hausfold.co/docs/haus/rooms/bar-widgets, "Tones, not colors"). This file
+# doc, hausfold.co/docs/haus/rooms/bar-widgets, "Tones, not colours"). This file
 # is the one definition of what the names are and which nebelung key each
 # resolves to; everything else is generated from it or checked against it:
 #
@@ -21,10 +21,18 @@
 # than dropping an arm. Order is the ladder's own (quietest first) and is
 # pinned too, because the pairs come out in file order.
 #
-# `meaning` is no longer diffed against anything: the third copy was the doc's
-# own table, and that arm went when the doc moved to a private repo this flake
-# cannot read. It is the ladder's wording, and the doc's table is a hand copy
-# of it now.
+# `meaning` has a consumer again, one repo out. The third copy used to be the
+# doc's own table and that arm went when the doc moved to a private repo this
+# flake cannot read — which left the table on
+# hausfold.co/docs/haus/rooms/bar-widgets a hand copy nothing checked. So the
+# list is PUBLISHED instead: `nix build .#site-data` writes it to
+# `docs/site-data/bar-tones.json` (committed, pinned by `site-data-current`),
+# and hausfold.co's `scripts/check-bar-tables.mjs` reads that file. It holds
+# the page's rung NAMES and their ORDER to this list exactly, and snapshots
+# `meaning` so a rewording here surfaces as a docs task rather than as a page
+# that quietly disagrees. The page's own wording stays the page's: it is
+# shorter than these lines on purpose, since "Claude elsewhere" is a client
+# name to us and a typo to a reader.
 #
 # `stub` is the fake hex `test/barlib.bats`'s `setup()` writes for that rung —
 # here so the fixture is single-sourced with the ladder rather than being ten
