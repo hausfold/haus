@@ -84,10 +84,10 @@
     # on PATH unconditionally, beside `trill` and `haus-notify`, for the same
     # reason those are unconditional: what a haus machine PRINTS is the product.
     #
-    # The standard it implements is the workshop's `docs/cli-presentation.md`,
-    # which binds five repos — so the runtime is a repo of its own rather than a
-    # module here, and the colour ROLES resolve against nebelung, never a
-    # hand-picked 256-colour index.
+    # Its own README and AGENTS.md are the standard, and it binds five repos —
+    # so the runtime is a repo of its own rather than a module here, and the
+    # colour ROLES resolve against nebelung, never a hand-picked 256-colour
+    # index.
     #
     # ⚠️ Second repo on trill's footing: a flake input and a lock source WITHOUT
     # being one of bench's `FAMILY` repos. (scruff is an input too and is

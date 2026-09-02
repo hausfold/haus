@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # How the two end-user CLIs put a line on screen: the `haus rebuild` phase
 # painter, the colour gate, and the `snug run` coprocess both of them draw
-# through. The standard is docs/cli-presentation.md in the workshop.
+# through. The standard is hausfold/snug's README and AGENTS.md.
 #
 # What this suite is FOR. Neither half fails loudly on the machine that writes
 # it: a maximised terminal never sees a fold, a developer watching colour never
@@ -831,7 +831,7 @@ print(max([0]+[sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in 
 # is: every row with more than one field in it goes through `ui_col` + `ui_trow`
 # + `ui_table_data`, which budget against the real window, rather than through a
 # `%-NNs` that reserves its width whatever is in the cell and wraps the row in
-# anything narrower (docs/cli-presentation.md, defect 1).
+# anything narrower — the founding defect snug exists for.
 #
 # A count rather than a pattern, because what is left is not a shape a regex can
 # tell from a new one: each remaining `%-NNs` is either the no-ui.sh fallback —

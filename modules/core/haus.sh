@@ -147,8 +147,8 @@ fi
 # The dispatch belongs to this script, not to ui.sh: one fork per COMMAND is the
 # whole economy, and a library sourced per script cannot see the command
 # boundary that decision needs. Never a message verb: that would put this
-# script's own printfs and snug's lines on two schedules. The standard is
-# `docs/cli-presentation.md` in the WORKSHOP, **Rules a caller has to meet**.
+# script's own printfs and snug's lines on two schedules. The standard is snug's
+# own AGENTS.md, **Rules a bash caller has to meet**.
 SNUG_FD=""
 SNUG_TRIED=""
 # SNUG_PID is not declared here on purpose: `coproc SNUG` makes bash set it
@@ -188,8 +188,7 @@ snug_emit() { # snug_emit <verb> <text> — one record; 1 = no coproc, caller fa
   # header, a failed phase's log tail) go straight to the terminal. Two
   # writers on two schedules put them in the wrong order. Inside a phase
   # region there is no race, because nothing here writes directly while one is
-  # up. See the workshop's docs/cli-presentation.md, **Rules a caller has to
-  # meet**.
+  # up. See snug's AGENTS.md, **Rules a bash caller has to meet**.
   [ -n "$SNUG_FD" ] || return 1
   # Multi-line text would break record framing, so it is one record per line.
   # (The Go side re-joins tab fields, so a tab inside prose is safe.)
@@ -369,8 +368,8 @@ VERBOSE="${HAUS_VERBOSE:-}"
 # exempts every command in a `&&`/`||` list EXCEPT the last, so `ssh mac haus
 # rebuild` died with status 2 and nothing on either stream, after a successful
 # evaluation and before anything activated. Measured. One runtime, in snug,
-# instead of a fourth copy of that here. See docs/cli-presentation.md in the
-# workshop for the standard and for what a live region owes you.
+# instead of a fourth copy of that here. See snug's README for what a live
+# region owes you, and its AGENTS.md for the rules a bash caller has to meet.
 #
 # Three fidelities, and the row degrades rather than disappearing:
 #

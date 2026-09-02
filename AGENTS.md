@@ -360,9 +360,9 @@ mechanism, say so in one line.
   the binary is the only way they reach the same table, spinner and colour
   tiers a Go caller gets by importing the package. Callers name a **role**
   (`accent`, `ok`, `warn`, `err`, `muted`, …) and never a 256-colour index —
-  roles resolve against nebelung. The standard is the workshop's
-  `docs/cli-presentation.md`; how a thing is DRAWN is snug's repo, and *whether*
-  haus should print it is still this one.
+  roles resolve against nebelung. The standard is snug's own README and
+  AGENTS.md — how a thing is DRAWN is that repo, and *whether* haus should print
+  it is still this one.
   **Degrade, never assume.** A shell on an older generation, or a script
   invoked off a PATH without the system profile, has no `snug` — the same
   runtime-fact problem `trill.sh`'s wrapper exists for. Guard with
@@ -395,8 +395,7 @@ mechanism, say so in one line.
   **Every ROW with columns in it is budgeted, never declared.** `ui_col` +
   `ui_trow` + `ui_table_data` measure the real window and hand each column what
   it needs; a `%-44s` reserves its width whatever is in the cell and wraps the
-  row in anything narrower, which is `docs/cli-presentation.md`'s founding
-  defect. The four painters that draw a table — `haus.sh`, `haus-show.sh`,
+  row in anything narrower, which is the founding defect snug exists for. The four painters that draw a table — `haus.sh`, `haus-show.sh`,
   `modules/focus/focus.sh` and `modules/github/signal.sh` — carry NO fixed
   width outside a `UI_READY`-empty fallback, and `test/phase-painter.bats`
   counts them so a new one cannot land quietly. Two `%-Ns` are exceptions and
