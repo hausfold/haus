@@ -589,9 +589,13 @@ in
     # alone: the bar's sizes come from ui.scale against the menu-bar band's
     # ceiling, because its pill geometry is built around them (../lib/bar.nix).
     #
-    # `sans` below is the proportional half and is deliberately tiny — see its
-    # own comment. The asymmetry is the point: `mono` is what this machine is
-    # drawn in, `sans` is one label's fallback given a name.
+    # `sans` below is the proportional half, and it is no longer one label's
+    # fallback: it reaches the clock pill AND pounce, perch and trill, each
+    # through the config file its own room already generates. The asymmetry
+    # that remains is what each family is FOR — `mono` is what this machine is
+    # drawn in, `sans` is what it is written in — and the package arms differ
+    # for the reason ../lib/sans-font.nix's header gives: the default family is
+    # macOS's own, so the third answer there is null rather than a package.
     fonts.mono = {
       name = lib.mkOption {
         type = lib.types.str;
