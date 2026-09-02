@@ -148,7 +148,11 @@ unknown-key error, naming their file.
 
 A framework widget sources `barlib.sh` at its top and calls
 `barlib_main "$@"` as its last line — the file itself is the `script=`, so
-running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
+running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story. A
+SEGMENTED pill wants its segment names too (`BARLIB_SEGMENTS='ready working
+done' BAR_ITEM=agents ./agents.sh`), because that variable is how the emitter
+tells the script it is a bracket; without it the head still paints and each
+`segment` call warns and drops, naming the variable.
 `barlib_main`:
 
 1. has `bar.sh` → `$SB` already sourced (the existing router, absorbed
