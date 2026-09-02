@@ -1487,6 +1487,12 @@ lib.mkIf config.haus.launcher.enable {
         source = ./commands/pages.sh;
         executable = true;
       };
+      # …and the parse it sources at $(dirname "$0")/lib/. The palette copy
+      # finds it inside riceCommands; THIS copy would find nothing — the source
+      # fails silently (no set -e) and every pick then dies unset under the
+      # script's set -u, which is a picker that opens and does nothing on the
+      # pill's click path. Same source file as the other two installs.
+      home.file.".config/haus/lib/menu-commit.sh".source = ./commands/lib/menu-commit.sh;
 
       # Palette settings — pounce re-reads this on each open. Edit + rebuild.
       home.file.".config/pounce/config.json".text = builtins.toJSON (

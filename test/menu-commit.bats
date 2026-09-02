@@ -97,6 +97,17 @@ setup() {
   [ -z "$(menu_field "typed words" 6)" ]
 }
 
+@test "menu_field on multi-line free text still answers nothing past field 1" {
+  # cut works per line and passes a tab-less line through whole, so without
+  # the first-line clamp a ⇧↵ answer's opening line would come back wearing a
+  # hidden field's number — and the free-text branch would act on it.
+  local row
+  row="$(printf -- '- one\n- two\twith a tab\n- three')"
+  [ "$(menu_field "$row" 1)" = "- one" ]
+  [ -z "$(menu_field "$row" 2)" ]
+  [ -z "$(menu_field "$row" 6)" ]
+}
+
 @test "every stdin-menu consumer parses through the helper" {
   # The seven scripts the helper replaced private parses in. A revert to a
   # local strip, or a new consumer with its own, should have to argue with

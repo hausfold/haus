@@ -32,14 +32,17 @@
 #   They are OVERWRITTEN by the next menu_commit — capture what you need
 #   before opening another picker.
 #
-# menu_field <row> <n> — field <n> of a row, tab-cut. Hand it $MENU_ROW, not
-#   the raw answer. On a free-text MENU_ROW (usually tab-free) field 1 is the
-#   whole text and every later field is EMPTY — which is what lets a caller
+# menu_field <row> <n> — field <n> of a row's FIRST line, tab-cut. Hand it
+#   $MENU_ROW, not the raw answer. On a free-text MENU_ROW (tab-free) field 1
+#   is the text and every later field is EMPTY — which is what lets a caller
 #   test a hidden payload field for emptiness to tell a row pick from typed
-#   text. cut alone would break that: it passes a delimiter-less line through
-#   WHOLE, whatever -f asks for, so the typed text would come back wearing a
-#   hidden field's number. The appended tab below is what closes that — it
-#   guarantees a delimiter, costing only an empty trailing field nothing reads.
+#   text. cut alone would break that twice over: it passes a delimiter-less
+#   line through WHOLE whatever -f asks for, and it does so per line, so a ⇧↵
+#   multi-line answer would hand its first line back wearing a hidden field's
+#   number. Taking line one and appending a tab closes both — rows are
+#   single-line by pounce's own protocol, and the trailing empty field is one
+#   nothing reads. A multi-line free text's BODY is $MENU_ROW itself, never a
+#   menu_field read.
 #
 # A --dial step's answer grows a MIDDLE field ("<action>\t<name=value>\t<text>")
 # which MENU_ROW then still carries in front of the text. Stripping it is the
@@ -65,4 +68,4 @@ menu_commit() {
   esac
 }
 
-menu_field() { printf '%s\t' "$1" | cut -f"$2"; }
+menu_field() { printf '%s\t' "${1%%$'\n'*}" | cut -f"$2"; }
