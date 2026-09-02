@@ -40,41 +40,57 @@ FILL_REASON="haus-secret --check: fill in the values this machine's rooms are mi
 # `haus-secret` is its own binary and inherits nobody's environment — a launchd
 # agent, `haus doctor` and a person at a prompt all exec it directly — so the
 # path is substituted at build time the way `focus` takes it, rather than
-# inherited from the `haus` wrapper the way `haus show` does. `HAUS_UI_SH` still
-# wins when it is set, so a working copy is one variable away.
+# inherited from the `haus` wrapper the way `haus show` does. A caller's own
+# HAUS_UI_SH still wins, so a working copy is one variable away.
 #
-# LAZY, and a function rather than a source at the top, because the hot path
-# through this script is `haus-secret NAME` at boot: a room reading one value
-# execs it, prints nothing, and must not pay to read a thousand lines of bash
-# it will never draw with. Only the report paths call it.
+# LAZY because the hot path through this script is `haus-secret NAME` at boot:
+# a room reading one value execs it, prints nothing, and must not pay to read
+# a thousand lines of bash it will never draw with — only the report paths
+# call ui_load.
+HAUS_UI_SH="${HAUS_UI_SH:-@uiSh@}"
+
+# ── ui_load — source the painter once, and answer whether it can draw ────────
+# The ONE copy of this block is modules/lib/ui-load.nix; `nix flake check`
+# (ui-load-sync) diffs this file against it, so edit it THERE and re-copy.
+# UI_READY=1 only when every verb named in UI_WANT arrived: the carrier sets
+# UI_WANT to every ui_* verb it CALLS, not a sample, because a pin whose ui.sh
+# predates one of them is a `command not found` halfway down a report — under
+# `set -e` an abort AFTER the machine changed and before anything said so —
+# and UI_READY would have licensed it. Idempotent, so calling it lazily from
+# each draw path and calling it once at load are the same verb; a path that
+# never draws never calls it and pays nothing. Three traps, each silent, each
+# paid for before this block existed:
+#
+#   * ui.sh is bash 4+ (`declare -gA`, `${v^^}`). macOS's /bin/bash 3.2 does
+#     not fail it quietly: three `bad substitution` errors and a half-loaded
+#     painter that answers `type` and then draws nothing — so the version is
+#     checked, never assumed, and 3.2 keeps the plain output.
+#   * `|| true` is load-bearing under `set -euo pipefail`: a sourced file's
+#     non-zero exit is the caller's to survive, and a ui.sh that failed at
+#     load would otherwise abort the verb mid-flight — for `awake 3h`, AFTER
+#     the assertion started.
+#   * The path stays in `HAUS_UI_SH`, never `UI_SH` — that exact name is
+#     ui.sh's own source-twice sentinel, and holding the path in it makes the
+#     file return before defining anything, with no error and no colour.
 UI_READY=""
 ui_load() {
-  [ -n "${UI_LOADED:-}" ] && return 0
-  UI_LOADED=1
-  # ui.sh is bash 4+ — `${role^^}` inside ui_paint_role alone rules 3.2 out —
-  # and this script's shebang is `env bash` for exactly that reason. `env` still
-  # finds macOS's /bin/bash 3.2 on a launchd PATH with nothing else on it, where
-  # sourcing would half-load and leave a painter that answers `type` and then
-  # draws nothing. So the version is checked, not assumed, and 3.2 keeps the
-  # plain blocks.
-  [ "${BASH_VERSINFO[0]:-0}" -ge 4 ] || return 0
-  local sh="${HAUS_UI_SH:-@uiSh@}"
-  if [ -r "$sh" ]; then
-    # shellcheck source=/dev/null
-    source "$sh"
-  fi
-  # Probed rather than assumed: a pin whose ui.sh predates one of these is a
-  # `command not found` halfway down the listing, and the plain blocks are still
-  # there for exactly that machine.
-  # Every verb this script calls, not a sample of them. `--check` reaches
-  # `ui_say` and `ui_info` a long way below the listing, and `set -euo pipefail`
-  # turns one missing function there into an abort BEFORE the optional-secret
-  # loop and before the stamp is written — so `haus-secret --ok` would go on
-  # reporting the machine as waiting on you.
-  type ui_fail ui_hint ui_say ui_info ui_fold ui_paint_role ui_glyph_bare \
-    >/dev/null 2>&1 && UI_READY=1
-  return 0
+    [ -n "${UI_LOADED:-}" ] && return 0
+    UI_LOADED=1
+    [ "${BASH_VERSINFO[0]:-0}" -ge 4 ] || return 0
+    if [ -r "${HAUS_UI_SH:-}" ]; then
+        # shellcheck source=/dev/null
+        source "$HAUS_UI_SH" || true
+    fi
+    [ -n "${UI_WANT:-}" ] || return 0
+    # shellcheck disable=SC2086
+    type $UI_WANT >/dev/null 2>&1 && UI_READY=1
+    return 0
 }
+# `--check` reaches `ui_say` and `ui_info` a long way below the listing, which
+# is exactly the sampled-probe abort the block above warns about — one missing
+# verb there and `haus-secret --ok` goes on reporting the machine as waiting
+# on you. So: every verb, and the plain blocks for a machine that fails it.
+UI_WANT="ui_fail ui_hint ui_say ui_info ui_fold ui_paint_role ui_glyph_bare"
 
 usage() {
   cat <<'EOF'

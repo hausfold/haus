@@ -538,6 +538,38 @@ haus_snug() {
   return 0
 }
 
+@test "the painter bootstrap is one copy: every carrier's block is identical" {
+  # ui_resolve and ui_load are spelled ONCE, in modules/lib/ui-load.nix, and
+  # every script that reaches ui.sh holds the block verbatim — comments
+  # included, because the traps they explain are part of the copy. `nix flake
+  # check`'s ui-load-sync diffs each carrier against that source; this is the
+  # same pin for a machine running only bats: the carriers must agree with
+  # each OTHER, byte for byte. Header to closing brace, diffed against the
+  # first carrier's. The two lists are the flake check's uiLoadCarriers table
+  # said again — a carrier added there and forgotten here is half-pinned.
+  local f ref blk
+  ref=""
+  for f in modules/core/haus.sh modules/core/haus-show.sh modules/core/awake.sh \
+           modules/focus/focus.sh modules/secrets/haus-secret.sh \
+           modules/github/signal.sh modules/ai/statusline.sh modules/ai/fix.sh \
+           modules/terminal/scripts/image-preview.sh; do
+    blk="$(sed -n '/^# ── ui_load — /,/^}$/p' "$BATS_TEST_DIRNAME/../$f")"
+    [ -n "$blk" ] || { echo "$f lost its ui_load block"; false; }
+    if [ -z "$ref" ]; then ref="$blk"; continue; fi
+    [ "$blk" = "$ref" ] || { echo "$f's ui_load drifted from haus.sh's copy:"
+      diff <(printf '%s\n' "$ref") <(printf '%s\n' "$blk") || true; false; }
+  done
+  ref=""
+  for f in modules/ai/statusline.sh modules/terminal/scripts/image-preview.sh \
+           modules/terminal/lanes/lane-open.sh; do
+    blk="$(sed -n '/^# ── ui_resolve — /,/^}$/p' "$BATS_TEST_DIRNAME/../$f")"
+    [ -n "$blk" ] || { echo "$f lost its ui_resolve block"; false; }
+    if [ -z "$ref" ]; then ref="$blk"; continue; fi
+    [ "$blk" = "$ref" ] || { echo "$f's ui_resolve drifted from statusline.sh's copy:"
+      diff <(printf '%s\n' "$ref") <(printf '%s\n' "$blk") || true; false; }
+  done
+}
+
 @test "a script that sources ui.sh asks for a bash that can run it" {
   # ui.sh is bash 4+ (`declare -gA`, `${v^^}`). Under macOS's /bin/bash 3.2 it
   # does not degrade — it prints three `bad substitution` / syntax errors and

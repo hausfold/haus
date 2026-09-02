@@ -99,6 +99,9 @@ modules/
                           #   ANY of those moves, or `site-data-current` goes red
   lib/gui-wait.nix        # cold-boot-safe GUI agent launch: .wrap (an executable) +
                           #   .script (the bounded wait alone, for pounce)
+  lib/ui-load.nix         # snug's painter bootstrap: ui_resolve + ui_load, the ONE
+                          #   copy the ten scripts that reach ui.sh hold verbatim —
+                          #   `ui-load-sync` and phase-painter.bats pin the copies
   lib/contrib.nix         # extension points: how a room contributes a feature to
                           #   another room without reaching into its config, or
                           #   switching it on. The receiver declares the point
@@ -421,26 +424,51 @@ mechanism, say so in one line.
   rather than a table, and `haus set`'s picker, whose padding is the parse
   contract that recovers the chosen path out of `gum filter`'s answer.
 
-  **Five more binaries draw through it, and pay for it lazily.** `focus`,
-  `github-signal`, `haus-secret`, `awake` and `haus-fix` are their own binaries
-  with nobody's environment, and they reach ui.sh two ways. SUBSTITUTED at build
-  time: `focus` takes a `@uiSh@` hole and sources it only inside the two verbs
-  that draw a table, because the bar drives that script on a timer;
-  `haus-secret` takes the same hole and sources it only from the report paths,
-  because its hot path is a room reading one value at boot; `haus-fix` takes it
-  through `replaceStrings` beside its `@client@` and `@oneshot@` holes, and
-  loads it only on the path that has a terminal — the trill pill runs it from a
-  detached holder with both streams on /dev/null. PREPENDED by the
-  derivation: `github-signal` sources it past the sourced-half guard, so the
-  surfaces that source the file pay nothing, and `awake` from a lazy `ui_load`
-  its two machine paths never call. Both shapes are correct and the choice is
-  local — a script already carrying `@placeholder@` holes takes another one, a
-  script read whole takes the line of shell.
+  **The bootstrap every caller shares is spelled ONCE, in
+  `modules/lib/ui-load.nix`** — two verbs, held VERBATIM by all ten scripts
+  that reach ui.sh, and pinned twice: `nix flake check`'s `ui-load-sync` diffs
+  each carrier against the source (its `uiLoadCarriers` table is the carrier
+  list), and `test/phase-painter.bats` diffs the carriers against each other.
+  Edit a verb THERE and re-copy; the checks are what make forgetting a carrier
+  a red build instead of an eleventh spelling. The block itself carries the
+  shared traps — the `UI_SH` sentinel (that exact name is ui.sh's own
+  source-twice guard, so a caller holding the path in it makes the file return
+  before defining anything: no error, no colour, and a green suite, because
+  every role is legitimately empty when the painter is absent), the bash-4
+  guard (macOS's /bin/bash 3.2 half-loads ui.sh with three `bad substitution`
+  errors into a painter that answers `type` and then draws nothing), and the
+  `|| true` that keeps a failing source from aborting a `set -e` caller after
+  the machine changed. What stays per-carrier, on purpose: HOW the path
+  arrives, WHEN `ui_load` runs, and WHICH verbs `UI_WANT` names — every verb
+  the script CALLS, never a sample, because a pin whose ui.sh predates one of
+  them is a `command not found` halfway down a report.
 
-  All five check `BASH_VERSINFO` before sourcing, because ui.sh half-loads under
-  macOS's /bin/bash 3.2 with three `bad substitution` errors and leaves a
-  painter that answers `type` and then draws nothing. Four of the five also
-  carry `#!/usr/bin/env bash`, for two different reasons: for `focus` and
+    ui_resolve   fill HAUS_UI_SH with the painter's path and stop — no
+                 source, no colour. For a carrier that hands the path to
+                 ANOTHER shell (lane-open's held snippet draws in the lane's
+                 own terminal), or one nothing injects into.
+    ui_load      source the painter once, lazily, and set UI_READY only when
+                 everything UI_WANT names arrived.
+
+  **Five binaries pay for it lazily.** `focus`, `github-signal`, `haus-secret`,
+  `awake` and `haus-fix` are their own binaries with nobody's environment, and
+  the PATH reaches them two ways. SUBSTITUTED at build time: `focus` and
+  `haus-secret` default `HAUS_UI_SH` from a `@uiSh@` hole and call `ui_load`
+  only from the verbs that draw — the bar drives `focus` on a timer, and
+  `haus-secret`'s hot path is a room reading one value at boot; `haus-fix`
+  takes the same hole through `replaceStrings` beside its `@client@` and
+  `@oneshot@` holes, and gates the call on a terminal — the trill pill runs it
+  from a detached holder with both streams on /dev/null, and that gate is the
+  CALL's, not the block's, because `statusline.sh` loads the same block with
+  no terminal at all. PREPENDED by the derivation: `github-signal` calls it
+  past the sourced-half guard, so the surfaces that source the file pay
+  nothing, and `awake` from the prose paths its two machine paths never reach.
+  Both shapes are correct and the choice is local — a script already carrying
+  `@placeholder@` holes takes another one, a script read whole takes the line
+  of shell.
+
+  Four of the five carry `#!/usr/bin/env bash`, for two different reasons:
+  for `focus` and
   `haus-secret` the file's own first line IS the interpreter that runs, and a
   launchd caller sets no PATH, so `env` still resolves 3.2 there and the report
   keeps its plain shape. `awake` and `haus-fix` are built by
@@ -485,21 +513,13 @@ mechanism, say so in one line.
   **Three more scripts draw through it too**, and they reach it a second way.
   `modules/ai/statusline.sh`, `modules/terminal/scripts/image-preview.sh` and
   `modules/terminal/lanes/lane-open.sh` are not behind the `haus` wrapper —
-  two are `home.file` symlinks with nothing substituted in — so nothing sets
-  `HAUS_UI_SH` for them and they RESOLVE it: honour the variable if a caller
-  set it, else take the copy beside `bin/snug` in snug's own derivation
-  (`command -v snug` → `readlink -f` → `../share/ui.sh`). Use that shape for
-  any new caller outside the wrapper; use `--set-default` when a derivation
-  can inject it, which is cheaper and is what `modules/core` and `modules/ai`
-  both do. Four rules those three add:
-  - **Never call the variable `UI_SH`.** ui.sh's own source-twice guard is
-    `[ -n "${UI_SH:-}" ] && return 0` — that exact name is its sentinel, so a
-    caller holding the PATH in it makes the file return before defining
-    anything: no error, no colour, and a green suite, because every role is
-    legitimately empty when the painter is absent.
-  - **ui.sh is bash 4+.** Under macOS's /bin/bash 3.2 it prints three
-    `bad substitution`/syntax errors and half-loads. A script that sources it
-    needs `#!/usr/bin/env bash` and a `BASH_VERSINFO` check.
+  two are `home.file` symlinks with nothing substituted in — so they carry
+  `ui_resolve`: honour the variable if a caller set it, else take the copy
+  beside `bin/snug` in snug's own derivation, which can never be a version
+  apart from the binary. Use that verb for any new caller outside the wrapper;
+  inject the path (`--set-default`, or a prepended line) when a derivation
+  can, which is cheaper and is what `modules/core` and `modules/ai` both do.
+  Two rules those three add:
   - **A raw escape that is not a COLOUR can still be legal.** OSC 8
     hyperlinks, OSC 2 window titles and DECTCEM cursor visibility are
     structure, and a monochrome terminal must keep them. `statusline.sh`'s

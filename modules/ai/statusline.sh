@@ -86,31 +86,76 @@ HAUS_GH_BACKSTOP="${HAUS_GH_BACKSTOP:-0}"
 # `script/gen-palette.sh` in hausfold/snug, resolved against nebelung — and a
 # flavour change reaches the HUD without anyone editing this file.
 #
-# Resolved rather than injected: this is a `writeShellScriptBin`, not the `haus`
-# wrapper, so nothing sets `HAUS_UI_SH` for it. Honour it if a caller did;
-# otherwise take the copy that ships beside `bin/snug` in snug's own derivation,
-# which the PATH line at the top of this file makes findable.
-# ⚠️ Two traps, both silent, both paid for once here so nobody pays again:
+# modules/ai/default.nix PREPENDS the `HAUS_UI_SH` line (this runs on EVERY
+# prompt, and ui_resolve's fallback would spend ~5.5 ms of a ~110 ms budget
+# rediscovering a constant), so on the render path ui_resolve is a no-op; the
+# fallback is for the raw file — the suite, a hand run off the checkout.
+
+# ── ui_resolve — the painter's PATH, and nothing else ────────────────────────
+# The ONE copy of this block is modules/lib/ui-load.nix; `nix flake check`
+# (ui-load-sync) diffs this file against it, so edit it THERE and re-copy.
+# Honour a caller's HAUS_UI_SH — the `haus` wrapper and the injecting
+# derivations set an absolute store path — else take the copy that ships
+# beside `bin/snug` in snug's own derivation, which can never be a version
+# apart from the binary; the carrier's own PATH setup is what makes `snug`
+# findable at all. Never the name `UI_SH`: that exact name is ui.sh's own
+# source-twice sentinel, and a caller holding the path in it makes the file
+# return before defining anything — no error, no colour, and a green suite,
+# because every role is legitimately empty when the painter is absent. Ends
+# readable-or-empty, so `[ -n "$HAUS_UI_SH" ]` is the whole downstream test.
+# No source, no bash-version check: resolving must stay safe in a shell that
+# could never LOAD the painter — that is ui_load's job, where one exists.
+ui_resolve() {
+    if [ -z "${HAUS_UI_SH:-}" ]; then
+        local _snug
+        _snug="$(command -v snug 2>/dev/null)" \
+            && HAUS_UI_SH="$(dirname "$(dirname "$(readlink -f "$_snug")")")/share/ui.sh"
+    fi
+    [ -r "${HAUS_UI_SH:-}" ] || HAUS_UI_SH=""
+    return 0
+}
+
+# ── ui_load — source the painter once, and answer whether it can draw ────────
+# The ONE copy of this block is modules/lib/ui-load.nix; `nix flake check`
+# (ui-load-sync) diffs this file against it, so edit it THERE and re-copy.
+# UI_READY=1 only when every verb named in UI_WANT arrived: the carrier sets
+# UI_WANT to every ui_* verb it CALLS, not a sample, because a pin whose ui.sh
+# predates one of them is a `command not found` halfway down a report — under
+# `set -e` an abort AFTER the machine changed and before anything said so —
+# and UI_READY would have licensed it. Idempotent, so calling it lazily from
+# each draw path and calling it once at load are the same verb; a path that
+# never draws never calls it and pays nothing. Three traps, each silent, each
+# paid for before this block existed:
 #
-#   * The variable is `HAUS_UI_SH` and must NOT be called `UI_SH`. ui.sh's own
-#     source-twice guard is `[ -n "${UI_SH:-}" ] && return 0` — it uses that
-#     exact name as its sentinel, so a caller holding the PATH in `UI_SH` makes
-#     the file return before it defines anything, with no error and no colour.
-#   * ui.sh is bash 4+ (`declare -gA`, `${v^^}`). Under macOS's /bin/bash 3.2 it
-#     does not fail quietly: it prints three `bad substitution` / syntax errors
-#     and half-loads. Hence the shebang above is `/usr/bin/env bash`, and hence
-#     the version check below, which is the belt for a thin PATH.
-HAUS_UI_SH="${HAUS_UI_SH:-}"
-if [ -z "$HAUS_UI_SH" ]; then
-  _snug="$(command -v snug 2>/dev/null)" \
-    && HAUS_UI_SH="$(dirname "$(dirname "$(readlink -f "$_snug")")")/share/ui.sh"
-fi
+#   * ui.sh is bash 4+ (`declare -gA`, `${v^^}`). macOS's /bin/bash 3.2 does
+#     not fail it quietly: three `bad substitution` errors and a half-loaded
+#     painter that answers `type` and then draws nothing — so the version is
+#     checked, never assumed, and 3.2 keeps the plain output.
+#   * `|| true` is load-bearing under `set -euo pipefail`: a sourced file's
+#     non-zero exit is the caller's to survive, and a ui.sh that failed at
+#     load would otherwise abort the verb mid-flight — for `awake 3h`, AFTER
+#     the assertion started.
+#   * The path stays in `HAUS_UI_SH`, never `UI_SH` — that exact name is
+#     ui.sh's own source-twice sentinel, and holding the path in it makes the
+#     file return before defining anything, with no error and no colour.
 UI_READY=""
-if [ "${BASH_VERSINFO[0]:-0}" -ge 4 ] && [ -r "${HAUS_UI_SH:-}" ]; then
-  # shellcheck source=/dev/null
-  . "$HAUS_UI_SH"
-  type ui__detect_profile ui__resolve_palette >/dev/null 2>&1 && UI_READY=1
-fi
+ui_load() {
+    [ -n "${UI_LOADED:-}" ] && return 0
+    UI_LOADED=1
+    [ "${BASH_VERSINFO[0]:-0}" -ge 4 ] || return 0
+    if [ -r "${HAUS_UI_SH:-}" ]; then
+        # shellcheck source=/dev/null
+        source "$HAUS_UI_SH" || true
+    fi
+    [ -n "${UI_WANT:-}" ] || return 0
+    # shellcheck disable=SC2086
+    type $UI_WANT >/dev/null 2>&1 && UI_READY=1
+    return 0
+}
+# Probed by the two verbs the forced-detection block below calls.
+UI_WANT="ui__detect_profile ui__resolve_palette"
+ui_resolve
+ui_load
 
 # ⚠️ THE ONE THING THIS CALLER DOES DIFFERENTLY FROM EVERY OTHER.
 #

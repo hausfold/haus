@@ -33,36 +33,55 @@ SWITCH_AUDIO="@switchAudio@" # empty unless some scene names an input device
 # ---- snug's bash painter, loaded only where a table is drawn ----------------
 # `focus` is its own binary and inherits nobody's environment: the bar plugin,
 # the pounce command and a person at a prompt all exec it directly, so the path
-# is substituted at build time rather than inherited the way `haus show` inherits
-# it from the `haus` wrapper. `HAUS_UI_SH` still wins when it is set, so a
-# working copy is one variable away.
+# is substituted at build time rather than inherited the way `haus show`
+# inherits it from the `haus` wrapper. A caller's own HAUS_UI_SH still wins,
+# so a working copy is one variable away.
 #
-# LAZY, and that is the whole reason this is a function rather than a source at
-# the top: the bar drives `focus` on a timer, and reading a thousand lines of
-# bash on a path that prints one word is a cost paid every tick for nothing.
-# Only the two listings below call it.
+# LAZY on purpose: the bar drives `focus` on a timer, and reading a thousand
+# lines of bash on a path that prints one word is a cost paid every tick for
+# nothing — only the two listings below call ui_load.
+HAUS_UI_SH="${HAUS_UI_SH:-@uiSh@}"
+
+# ── ui_load — source the painter once, and answer whether it can draw ────────
+# The ONE copy of this block is modules/lib/ui-load.nix; `nix flake check`
+# (ui-load-sync) diffs this file against it, so edit it THERE and re-copy.
+# UI_READY=1 only when every verb named in UI_WANT arrived: the carrier sets
+# UI_WANT to every ui_* verb it CALLS, not a sample, because a pin whose ui.sh
+# predates one of them is a `command not found` halfway down a report — under
+# `set -e` an abort AFTER the machine changed and before anything said so —
+# and UI_READY would have licensed it. Idempotent, so calling it lazily from
+# each draw path and calling it once at load are the same verb; a path that
+# never draws never calls it and pays nothing. Three traps, each silent, each
+# paid for before this block existed:
+#
+#   * ui.sh is bash 4+ (`declare -gA`, `${v^^}`). macOS's /bin/bash 3.2 does
+#     not fail it quietly: three `bad substitution` errors and a half-loaded
+#     painter that answers `type` and then draws nothing — so the version is
+#     checked, never assumed, and 3.2 keeps the plain output.
+#   * `|| true` is load-bearing under `set -euo pipefail`: a sourced file's
+#     non-zero exit is the caller's to survive, and a ui.sh that failed at
+#     load would otherwise abort the verb mid-flight — for `awake 3h`, AFTER
+#     the assertion started.
+#   * The path stays in `HAUS_UI_SH`, never `UI_SH` — that exact name is
+#     ui.sh's own source-twice sentinel, and holding the path in it makes the
+#     file return before defining anything, with no error and no colour.
 UI_READY=""
 ui_load() {
     [ -n "${UI_LOADED:-}" ] && return 0
     UI_LOADED=1
-    # ui.sh is bash 4+, and this script's shebang is `env bash` for exactly that
-    # reason. `env` still finds macOS's /bin/bash 3.2 on a PATH with nothing
-    # else on it — a launchd or sketchybar context — where sourcing it would
-    # half-load with three `bad substitution` errors and leave a painter that
-    # answers `type` and then draws nothing. So the version is checked, not
-    # assumed, and 3.2 keeps the plain columns.
     [ "${BASH_VERSINFO[0]:-0}" -ge 4 ] || return 0
-    local sh="${HAUS_UI_SH:-@uiSh@}"
-    if [ -r "$sh" ]; then
+    if [ -r "${HAUS_UI_SH:-}" ]; then
         # shellcheck source=/dev/null
-        source "$sh"
+        source "$HAUS_UI_SH" || true
     fi
-    # Probed by the verbs these listings CALL: a pin whose ui.sh predates the
-    # bash table is a `command not found` halfway down a report, and the plain
-    # columns are still there for exactly that machine.
-    type ui_col ui_trow ui_table_data ui_table_clear >/dev/null 2>&1 && UI_READY=1
+    [ -n "${UI_WANT:-}" ] || return 0
+    # shellcheck disable=SC2086
+    type $UI_WANT >/dev/null 2>&1 && UI_READY=1
     return 0
 }
+# Probed by the verbs the listings CALL; the plain columns are still there for
+# a machine that fails the probe.
+UI_WANT="ui_col ui_trow ui_table_data ui_table_clear"
 
 # The trigger probes, each overridable the way modules/core/awake.sh does it —
 # the suite (test/focus-auto.sh) stubs every one of them, which is how the

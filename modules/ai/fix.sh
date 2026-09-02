@@ -135,33 +135,50 @@ die2() { note "haus fix: $*"; banner fault "haus fix" "$*"; exit 2; }
 # `haus-fix` is its own binary and inherits nobody's environment — the trill
 # pill execs it from a detached holder with no terminal at all. `HAUS_UI_SH`
 # still wins when a caller sets one, so a working copy is one variable away.
+HAUS_UI_SH="${HAUS_UI_SH:-@uiSh@}"
+
+# ── ui_load — source the painter once, and answer whether it can draw ────────
+# The ONE copy of this block is modules/lib/ui-load.nix; `nix flake check`
+# (ui-load-sync) diffs this file against it, so edit it THERE and re-copy.
+# UI_READY=1 only when every verb named in UI_WANT arrived: the carrier sets
+# UI_WANT to every ui_* verb it CALLS, not a sample, because a pin whose ui.sh
+# predates one of them is a `command not found` halfway down a report — under
+# `set -e` an abort AFTER the machine changed and before anything said so —
+# and UI_READY would have licensed it. Idempotent, so calling it lazily from
+# each draw path and calling it once at load are the same verb; a path that
+# never draws never calls it and pays nothing. Three traps, each silent, each
+# paid for before this block existed:
+#
+#   * ui.sh is bash 4+ (`declare -gA`, `${v^^}`). macOS's /bin/bash 3.2 does
+#     not fail it quietly: three `bad substitution` errors and a half-loaded
+#     painter that answers `type` and then draws nothing — so the version is
+#     checked, never assumed, and 3.2 keeps the plain output.
+#   * `|| true` is load-bearing under `set -euo pipefail`: a sourced file's
+#     non-zero exit is the caller's to survive, and a ui.sh that failed at
+#     load would otherwise abort the verb mid-flight — for `awake 3h`, AFTER
+#     the assertion started.
+#   * The path stays in `HAUS_UI_SH`, never `UI_SH` — that exact name is
+#     ui.sh's own source-twice sentinel, and holding the path in it makes the
+#     file return before defining anything, with no error and no colour.
 UI_READY=""
 ui_load() {
-  [ -n "${UI_LOADED:-}" ] && return 0
-  UI_LOADED=1
-  # Nothing to paint on, nothing to read: the trill pill runs this from a
-  # detached holder with both streams on /dev/null, and sourcing a thousand
-  # lines of bash to decide not to draw is the cost `focus` made this function
-  # lazy to avoid. fd 2 is the one the region paints, so it is the one asked.
-  [ -t 2 ] || return 0
-  # ui.sh is bash 4+, and this file's shebang is `env bash` for that reason —
-  # it is run straight off disk by test/rebuild-fix-cta.bats even though
-  # `writeShellScriptBin` supplies the interpreter once installed. `env` still
-  # finds macOS's 3.2 on a bare PATH, where sourcing ui.sh half-loads with three
-  # `bad substitution` errors and leaves a painter that answers `type` and then
-  # draws nothing. Checked, never assumed: 3.2 keeps the plain `note` lines.
-  [ "${BASH_VERSINFO[0]:-0}" -ge 4 ] || return 0
-  local sh="${HAUS_UI_SH:-@uiSh@}"
-  if [ -r "$sh" ]; then
-    # shellcheck source=/dev/null
-    source "$sh"
-  fi
-  # Probed rather than assumed, for the same reason `focus` probes: a pin whose
-  # ui.sh predates the live region is a `command not found` in the middle of a
-  # wait, and the plain line is still right for that machine.
-  type ui_row ui_paint ui_live_close >/dev/null 2>&1 && UI_READY=1
-  return 0
+    [ -n "${UI_LOADED:-}" ] && return 0
+    UI_LOADED=1
+    [ "${BASH_VERSINFO[0]:-0}" -ge 4 ] || return 0
+    if [ -r "${HAUS_UI_SH:-}" ]; then
+        # shellcheck source=/dev/null
+        source "$HAUS_UI_SH" || true
+    fi
+    [ -n "${UI_WANT:-}" ] || return 0
+    # shellcheck disable=SC2086
+    type $UI_WANT >/dev/null 2>&1 && UI_READY=1
+    return 0
 }
+
+# Probed by what `spin_wait` draws with, for the same reason `focus` probes: a
+# pin whose ui.sh predates the live region is a `command not found` in the
+# middle of a wait, and the plain `note` line is still right for that machine.
+UI_WANT="ui_row ui_paint ui_live_close"
 
 # The job `spin_wait` is watching, so the signal handler below can stop it.
 #
@@ -443,7 +460,13 @@ head_before="$(git -C "$consumer" rev-parse HEAD 2>/dev/null || echo none)"
 # stdin from /dev/null so a client that would prompt gets EOF and exits rather
 # than blocking forever on a terminal it does not have.
 export HAUS_DESKTOP_OK=1
-ui_load
+# Only where somebody is looking. The trill pill runs this from a detached
+# holder with both streams on /dev/null, and sourcing a thousand lines of bash
+# to decide not to draw is the cost `focus` made ui_load lazy to avoid — fd 2
+# is the one the region paints, so it is the one asked. The gate is the
+# CALL's, not the block's: `statusline.sh` loads the same block with no
+# terminal at all.
+if [ -t 2 ]; then ui_load; fi
 # Where this run's own output starts, so the spinner path can print it after
 # the row rather than during it — `phase_slice` reads haus.sh's log exactly
 # this way, and for the same reason: everything before the offset belongs to

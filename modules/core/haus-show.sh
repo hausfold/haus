@@ -34,21 +34,52 @@ export PATH
 CHECK="${HAUS_DESKTOP_CHECK:-/run/current-system/sw/share/haus/desktop-check}"
 
 # ---- snug's bash painter ----------------------------------------------------
-# The same guarded source `haus.sh` does, and for the same reason: this script
-# is installed into the store by modules/desktop-check.nix, so it has nothing to
-# look beside, and `HAUS_UI_SH` is the absolute store path the `haus` wrapper
-# sets. `haus show` reaches it by inheritance (`cmd_show` execs this with the
-# wrapper's environment); run straight off the store path with no variable, this
-# degrades and still prints.
-if [ -r "${HAUS_UI_SH:-}" ]; then
-  # shellcheck source=/dev/null
-  source "$HAUS_UI_SH"
-fi
-# Probed by the functions this script CALLS: a partial painter is a `command not
-# found` in the middle of a report, and the gate below would have licensed it.
+# The same wrapper hand-off `haus.sh` takes, and for the same reason: this
+# script is installed into the store by modules/desktop-check.nix, so it has
+# nothing to look beside, and `HAUS_UI_SH` is the absolute store path the
+# `haus` wrapper sets. `haus show` reaches it by inheritance (`cmd_show` execs
+# this with the wrapper's environment); run straight off the store path with
+# no variable, ui_load finds nothing and the report still prints, plain.
+
+# ── ui_load — source the painter once, and answer whether it can draw ────────
+# The ONE copy of this block is modules/lib/ui-load.nix; `nix flake check`
+# (ui-load-sync) diffs this file against it, so edit it THERE and re-copy.
+# UI_READY=1 only when every verb named in UI_WANT arrived: the carrier sets
+# UI_WANT to every ui_* verb it CALLS, not a sample, because a pin whose ui.sh
+# predates one of them is a `command not found` halfway down a report — under
+# `set -e` an abort AFTER the machine changed and before anything said so —
+# and UI_READY would have licensed it. Idempotent, so calling it lazily from
+# each draw path and calling it once at load are the same verb; a path that
+# never draws never calls it and pays nothing. Three traps, each silent, each
+# paid for before this block existed:
+#
+#   * ui.sh is bash 4+ (`declare -gA`, `${v^^}`). macOS's /bin/bash 3.2 does
+#     not fail it quietly: three `bad substitution` errors and a half-loaded
+#     painter that answers `type` and then draws nothing — so the version is
+#     checked, never assumed, and 3.2 keeps the plain output.
+#   * `|| true` is load-bearing under `set -euo pipefail`: a sourced file's
+#     non-zero exit is the caller's to survive, and a ui.sh that failed at
+#     load would otherwise abort the verb mid-flight — for `awake 3h`, AFTER
+#     the assertion started.
+#   * The path stays in `HAUS_UI_SH`, never `UI_SH` — that exact name is
+#     ui.sh's own source-twice sentinel, and holding the path in it makes the
+#     file return before defining anything, with no error and no colour.
 UI_READY=""
-type ui_glyph_bare ui__detect_profile ui__resolve_palette \
-     ui_col ui_trow ui_table_data >/dev/null 2>&1 && UI_READY=1
+ui_load() {
+    [ -n "${UI_LOADED:-}" ] && return 0
+    UI_LOADED=1
+    [ "${BASH_VERSINFO[0]:-0}" -ge 4 ] || return 0
+    if [ -r "${HAUS_UI_SH:-}" ]; then
+        # shellcheck source=/dev/null
+        source "$HAUS_UI_SH" || true
+    fi
+    [ -n "${UI_WANT:-}" ] || return 0
+    # shellcheck disable=SC2086
+    type $UI_WANT >/dev/null 2>&1 && UI_READY=1
+    return 0
+}
+UI_WANT="ui_glyph_bare ui__detect_profile ui__resolve_palette ui_col ui_trow ui_table_data"
+ui_load
 
 # ---- palette ----------------------------------------------------------------
 # Role names, not colours: C_* alias snug's GENERATED roles, so the hexes come

@@ -69,40 +69,43 @@ export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/s
 # -lc` inside the lane's own window. So resolving COLOURS here would be wrong
 # twice over — this process has no terminal (scruff exec'd it, possibly from
 # launchd), while the destination always does, and ui.sh's gate would read this
-# end and strip the colour the far end can render.
+# end and strip the colour the far end can render. Hence ui_resolve ALONE and
+# deliberately no ui_load: the held snippet sources the file at exit time in
+# the terminal that will show it, carrying its own bash-4 guard, because IT is
+# the shell that sources. A path is environment-independent; a resolved escape
+# is not.
 #
-# Resolve the PATH here, where `snug` is on PATH and the store layout is known,
-# and let the snippet source it at exit time in the terminal that will show it.
-# A path is environment-independent; a resolved escape is not.
-#
-# `HAUS_UI_SH` first because the `haus` wrapper sets it as an absolute store
-# path; falling back to snug's own `share/ui.sh`, which ships beside `bin/snug`
-# in the same derivation, so the two can never be a version apart.
-# ⚠️ Two traps, both silent, both paid for once here so nobody pays again:
-#
-#   * The variable is `HAUS_UI_SH` and must NOT be called `UI_SH`. ui.sh's own
-#     source-twice guard is `[ -n "${UI_SH:-}" ] && return 0` — it uses that
-#     exact name as its sentinel, so a caller holding the PATH in `UI_SH` makes
-#     the file return before it defines anything, with no error and no colour.
-#   * ui.sh is bash 4+ (`declare -gA`, `${v^^}`). Under macOS's /bin/bash 3.2 it
-#     prints three `bad substitution` / syntax errors and half-loads rather than
-#     degrading — hence the `BASH_VERSINFO` check in the snippet below.
-#
-# THIS script's shebang stays `/bin/bash` on purpose, and the distinction is the
-# point: nothing here ever sources ui.sh. The line is drawn by the held snippet
-# further down, which runs under the `bash -lc` of the `zmx attach` — a bash
-# resolved from the PATH exported above, so bash 5, and guarded anyway. Moving
-# this shebang to `env bash` would trade an absolute interpreter for an inherited
-# PATH in a script scruff may exec from launchd, and buy nothing.
-#
-# So only the PATH is resolved here, never the palette: this process has no
-# terminal and the destination always does.
-HAUS_UI_SH="${HAUS_UI_SH:-}"
-if [ -z "$HAUS_UI_SH" ]; then
-  _snug="$(command -v snug 2>/dev/null)" \
-    && HAUS_UI_SH="$(dirname "$(dirname "$(readlink -f "$_snug")")")/share/ui.sh"
-fi
-[ -r "${HAUS_UI_SH:-}" ] || HAUS_UI_SH=""
+# THIS script's shebang stays `/bin/bash` on purpose, and the distinction is
+# the point: nothing here ever sources ui.sh — the held snippet runs under the
+# `bash -lc` of the `zmx attach`, resolved from the PATH exported above, so
+# bash 5, and guarded anyway. Moving this shebang to `env bash` would trade an
+# absolute interpreter for an inherited PATH in a script scruff may exec from
+# launchd, and buy nothing.
+
+# ── ui_resolve — the painter's PATH, and nothing else ────────────────────────
+# The ONE copy of this block is modules/lib/ui-load.nix; `nix flake check`
+# (ui-load-sync) diffs this file against it, so edit it THERE and re-copy.
+# Honour a caller's HAUS_UI_SH — the `haus` wrapper and the injecting
+# derivations set an absolute store path — else take the copy that ships
+# beside `bin/snug` in snug's own derivation, which can never be a version
+# apart from the binary; the carrier's own PATH setup is what makes `snug`
+# findable at all. Never the name `UI_SH`: that exact name is ui.sh's own
+# source-twice sentinel, and a caller holding the path in it makes the file
+# return before defining anything — no error, no colour, and a green suite,
+# because every role is legitimately empty when the painter is absent. Ends
+# readable-or-empty, so `[ -n "$HAUS_UI_SH" ]` is the whole downstream test.
+# No source, no bash-version check: resolving must stay safe in a shell that
+# could never LOAD the painter — that is ui_load's job, where one exists.
+ui_resolve() {
+    if [ -z "${HAUS_UI_SH:-}" ]; then
+        local _snug
+        _snug="$(command -v snug 2>/dev/null)" \
+            && HAUS_UI_SH="$(dirname "$(dirname "$(readlink -f "$_snug")")")/share/ui.sh"
+    fi
+    [ -r "${HAUS_UI_SH:-}" ] || HAUS_UI_SH=""
+    return 0
+}
+ui_resolve
 
 # ── identities a lane must not inherit ───────────────────────────────────────
 # macOS `open` forwards the caller's environment to the app it launches — the
