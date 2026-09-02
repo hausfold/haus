@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # The two installers' inlined nebelung, diffed against snug's generated
-# `share/ui.sh`. The standard is docs/cli-presentation.md in the workshop; this
-# suite is the enforcement of its ONE permanent exemption.
+# `share/ui.sh`. The standard is hausfold/snug's README and AGENTS.md; this
+# suite is the enforcement of the ONE permanent exemption from it.
 #
 # What it is FOR. `bootstrap.sh` and `modules/core/haus-activate.sh` both run
 # before snug is reachable — the first is a standalone `curl … | bash` on a Mac

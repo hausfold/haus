@@ -81,7 +81,7 @@ ui_load() {
 # off` and the person who typed `awake status` are owed the same line.
 #
 # fd 1, and `UI_OUT_` with it: this is a report, painted for the stream it is
-# written to (docs/cli-presentation.md, "Which stream a command draws on"). It
+# written to — the stream rule is snug's AGENTS.md, **Streams**. It
 # is fd 1 for every verb including the two that change the machine, which is
 # the one place this departs from `haus.sh`'s report/narrator split — awake has
 # no narration to separate a report from, and the bar's popup rows have always
