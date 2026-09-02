@@ -55,7 +55,7 @@ body:
       label: |-
         haus doctor
       description: |-
-        Paste the output of `haus doctor`. It only reads — it changes nothing, prompts for nothing, and sends nothing anywhere.
+        **`haus report` fills this in for you** — so does *Report haus Issue* in the palette. Both open this form with the report already here, or hand you the block to paste when it is too long to ride in a link, and send nothing until you press Submit. By hand: paste the output of `haus doctor`. It only reads — it changes nothing, prompts for nothing, and sends nothing anywhere.
       render: text
     validations:
       required: false

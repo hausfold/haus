@@ -229,6 +229,13 @@ user the extra step: `brew uninstall --zap <cask>`.
 
 - `haus doctor` — health check. Run it before blaming your own change for
   something being broken.
+- `haus report` — the fault is haus's own, not this machine's config. Opens
+  haus's bug form with the diagnostics field already filled in (this Mac's
+  `haus doctor` report, the pinned revision, the macOS build, the model, the
+  selected desktop). `--print` prints that block and the link and opens
+  nothing, which is the form to use from a pane: hand the user the link rather
+  than taking their screen. Nothing is sent either way — an issue exists only
+  once they press Submit.
 - `haus generations` / `haus rollback [N]` — the undo history.
 - `haus show <src> [--json]` — the user was handed a `.nix`, or linked to one,
   and wants to know what it is. `<src>` is a local path **or** a source they do

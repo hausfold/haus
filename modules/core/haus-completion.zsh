@@ -65,6 +65,7 @@ _haus() {
     'capture:turn this Mac'\''s current settings into config lines'
     'revert-settings:put back a haus capture snapshot'
     'doctor:check the machine'\''s health (Nix, CLT, the GUI agents)'
+    'report:file a bug, with this Mac'\''s haus doctor report already filled in'
     'permissions:walk every grant and click this Mac still needs a person for'
     'btm:check BTM daemon-gating (macOS 26 Tahoe+; no-op before)'
     'tour:take the guided haus tour'
@@ -124,6 +125,9 @@ _haus() {
           ;;
         tour)
           _values 'tour' 'reset[re-arm a finished tour]'
+          ;;
+        report)
+          _arguments '--print[print the block and the link; open no browser]'
           ;;
         show)
           # The only verb whose argument is a PATH rather than an option name.

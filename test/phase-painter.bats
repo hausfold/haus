@@ -404,7 +404,7 @@ haus_snug() {
   listed="$(sed -n 's/^  \(status | doctor.*\))$/\1/p' "$SUBJECT" | tr -d ' ')"
   [ -n "$listed" ] || { echo "the REPORT arm is gone or was reflowed"; false; }
   local c
-  for c in status doctor plan diff permissions btm generations get capture; do
+  for c in status doctor plan diff permissions btm generations get capture report; do
     [[ "|$listed|" == *"|$c|"* ]] || { echo "$c is not in the REPORT arm: $listed"; false; }
   done
 }
