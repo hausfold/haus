@@ -154,7 +154,11 @@ modules/
                           #   consumer starter pair (consumer-AGENTS.md + its
                           #   consumer-CLAUDE.md pointer) `haus doctor` offers to copy
   core/                   # system: macOS defaults, Homebrew framework, core CLI, GC
-                          #   + on-PATH CLIs: haus / haus-activate / awake
+                          #   + on-PATH CLIs: haus / haus-activate / awake.
+                          #   `haus`'s wrapper hands the script two store paths
+                          #   it has nothing to look beside for: HAUS_UI_SH
+                          #   (snug's painter) and HAUS_SKILL_DIR (the RENDERED
+                          #   agent skill `haus skill` prints)
   roster/                 # normalizes haus.roster — the one list of what this
                           #   machine has — into the Homebrew/packages it implies
   workspaces/             # normalizes haus.workspaces — the named AeroSpace
@@ -951,6 +955,27 @@ mechanism, say so in one line.
   load-bearing: security's NOPASSWD rule must name a literal path), and
   **`awake.sh`** (launchd-owned timed/indefinite macOS caffeinate assertions;
   bar's optional coffee pill is only its controller).
+  - **`haus skill` is core's, and it is the one place core names a path inside
+    another room.** A3 of the family agent-surface standard (the workshop's
+    `docs/agent-surface.md`) says every tool prints its own skill and can
+    install it — on every machine, whatever rooms that machine runs. So
+    `modules/core/default.nix` imports `../ai/agents/skill.nix` and hands the
+    result to the wrapper as `HAUS_SKILL_DIR`. That is an import of a
+    DERIVATION, a pure package expression taking only `pkgs` — the direction
+    three rooms already import `modules/lib/nebelung.nix` in — and it is not the
+    `config.haus.ai.*` read the `haus-fix` rule below forbids: modules/ai still
+    owns whether the skill is INSTALLED into a client, core only owns whether it
+    can be PRINTED. It must be handed in and never looked for beside the script:
+    `agents/SKILL.md` is a TEMPLATE whose version line is the literal
+    `@hausVersion@`, and `haus.sh` is `readFile`'d into a store binary, so a
+    haus user has no checkout to read the source from anyway. The price, paid
+    knowingly: a machine with the AI room off now builds that one small
+    derivation, and `darwinModules.core` no longer stands alone without
+    `modules/ai/agents/` beside it.
+  - **`haus skill install`'s client table is modules/ai's `agentHomes` said
+    again in bash**, because core may not read that room to ask. The two move
+    together or the command writes where nothing reads; `test/agent-surface.bats`
+    diffs them so a drift is a red test rather than a silent one.
 
   Five more live in **`modules/ai`**, which writes the system profile they land
   in, because the room that owns a capability owns its payload:

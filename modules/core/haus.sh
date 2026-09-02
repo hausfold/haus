@@ -13,7 +13,7 @@
 #   haus edit            open your host config (identity, apps) in $EDITOR
 #   haus options         refresh hosts/<host>/options.nix — every haus.* option, annotated
 #   haus set             write + apply haus.* options in the machine overlay (pairs; bare = pick one)
-#   haus get             read one option, or list the machine overlay
+#   haus get             read one option, or list the machine overlay (--json)
 #   haus unset           force nullable options to null (variadic)
 #   haus reset           remove machine overrides and inherit config again (variadic)
 #   haus plan            preview what 'haus rebuild' would change — packages, settings, files, launchd jobs, casks — read-only
@@ -22,6 +22,8 @@
 #   haus revert-settings put back a 'haus capture' snapshot (Nix rollback can't touch macOS defaults)
 #   haus doctor          check the machine's health (Nix, CLT, the GUI agents)
 #   haus report          file a bug on GitHub with 'haus doctor' already filled in (--print)
+#   haus skill           print haus's own agent skill, or one of its reference pages;
+#                        'haus skill install' writes it into an agent client
 #   haus permissions     every grant and click this Mac still needs a person for
 #   haus btm             check BTM daemon-gating (macOS 26 Tahoe+; no-op before)
 #   haus tour            take the guided haus tour (it lives in the bar)
@@ -253,7 +255,13 @@ snug_close() { # everything down: end the region and drop the coprocess
 #   report      status doctor plan diff permissions btm generations get capture
 #               report
 #   narration   rebuild update rollback set unset reset options add desktop
-#               remove edit tour revert-settings
+#               remove edit tour revert-settings skill
+#
+# `skill` is in the narration column and that is not an oversight: its payload
+# is `cat`, which is on fd 1 whatever REPORT says, so `haus skill | pbcopy` is
+# already whole — and `haus skill install` changes the machine, which is what
+# the narration column means. Listing it as a report would move `install`'s
+# every "wrote …" line into the document `haus skill` is supposed to be.
 #
 # A report never touches the coprocess. That costs it snug's folding — the same
 # price `bench`'s tables pay, and the same one these verbs have always paid —
@@ -295,6 +303,12 @@ info() { printf '  %s%s%s %s\n' "$C_FOG" "$G_INFO" "$C_OFF" "$*"; }
 # make the one command with an audience outside this Mac the one command that
 # cannot run outside it.
 #
+# `haus skill` is exempt because it reads ONE store path (HAUS_SKILL_DIR) and
+# nothing on this machine at all: the answer is the same in a container, in CI
+# and half way through a bootstrap, and an agent dropped into a fresh checkout
+# asking what haus is should not be refused because the machine has no config
+# yet — that is the moment the skill is most worth reading.
+#
 # `haus report` is exempt for the opposite reason: a missing or moved config
 # flake is not a state to refuse in, it is a state to REPORT. That is a
 # bootstrap that stopped half way, and the person meeting it is the reporter
@@ -317,7 +331,7 @@ for a in "$@"; do
   esac
 done
 case "$haus_verb" in
-  show | report) ;;
+  show | report | skill) ;;
   *) [ -e "$CONSUMER/flake.nix" ] || die "no config flake at $CONSUMER — set HAUS_CONSUMER, or run the bootstrap first." ;;
 esac
 unset haus_verb a
@@ -637,7 +651,9 @@ haus — the everyday CLI for a haus machine.
   haus set            with no arguments: search every option this machine has, then
                       pick or type the value — the list of values comes from the
                       option's own type
-  haus get [path]     print a declared value, or list values in the writable overlay
+  haus get [path]     print a declared value, or list values in the writable overlay.
+                      --json for an agent: one {path, defined, value} object for a
+                      path, an array of them for the listing
   haus unset <path> [<path>…]
                       force nullable options to null
   haus reset <path> [<path>…]
@@ -664,6 +680,17 @@ haus — the everyday CLI for a haus machine.
                       and the block is printed here first so you can read
                       every line of it. --print stops there, without opening
                       a browser
+  haus skill [name]   print haus's own agent skill — the file that teaches a
+                      coding agent to change this Mac. With a name, one of its
+                      reference pages instead: options, rooms or recipes. Always
+                      the copy rendered from the revision this machine pinned,
+                      so the option names in it are the ones you have
+  haus skill install  write that skill into every agent client on this Mac that
+                      hasn't got it. --client claude|codex|opencode|pi picks one,
+                      --dir PATH writes somewhere else. On a normal haus machine
+                      there is nothing to do: haus.ai.skill already installed it,
+                      as read-only Nix symlinks, and it says so rather than
+                      failing on a permission error
   haus permissions    walk everything on this Mac that needs a person: each grant
                       or click, why this machine wants it, and a button. Confirms
                       what macOS lets it confirm and says so about the rest.
@@ -2936,6 +2963,29 @@ settings_print_json() {
   jq -r 'if type == "string" then . else tojson end'
 }
 
+# `haus get --json`'s one row, and its whole schema:
+#
+#   {"path": "haus.theme.accent", "defined": true, "value": "mauve"}
+#
+# `defined` is what earns the envelope rather than printing the bare value.
+# A settable path need not be a DEFINED one — nothing has to have named an
+# `attrsOf` key yet — and `"value": null` alone cannot tell that apart from an
+# option whose type allows null and which is set to null, which is precisely the
+# pair `haus unset` creates. The plain rendering says the difference in prose on
+# stderr; JSON has to say it in a field.
+#
+# ⚠️ `defined: false` is "this evaluation produced no value", which is USUALLY
+# the undefined key above and is not only that: a value nix cannot render as
+# JSON lands here too. So the reason goes to stderr rather than being swallowed
+# — the field says what happened, the stream says why.
+settings_json_row() { # settings_json_row <path> [<value as json>]
+  if [ "$#" -ge 2 ]; then
+    jq -n --arg path "$1" --argjson value "$2" '{ $path, defined: true, $value }'
+  else
+    jq -n --arg path "$1" '{ $path, defined: false, value: null }'
+  fi
+}
+
 # True when a path is GONE rather than broken. An `attrsOf` key exists only
 # because something defined it, so withdrawing the last definition of
 # `displays.<uuid>.uiScale` takes the key away instead of revealing a value
@@ -3263,30 +3313,70 @@ reset one of them first (haus reset ${clash#haus.})"
   settings_apply
 }
 
+# `--json` is A2 of the family agent-surface standard: a read verb owes an agent
+# one documented schema. Two shapes, and they mirror the two the plain rendering
+# already has — a path prints ONE object, no path prints an ARRAY of them
+# (`[]` when the overlay is empty, never a message where JSON was promised).
+#
+# Under `--json` the prose lines move out of the way rather than being reworded:
+# `info` is fd 1 (see the note by the verbs), so a single "no machine-writable
+# settings" line would land in the middle of the document it was describing.
 cmd_get() {
-  local path host dir f json found=""
+  local path host dir f json found="" as_json="" rows="" a err
+  local -a args=()
+  for a in "$@"; do
+    case "$a" in
+      --json) as_json=1 ;;
+      -*) die "get takes a path and --json, not '$a'" ;;
+      *) args+=("$a") ;;
+    esac
+  done
+  [ "${#args[@]}" -le 1 ] || die "usage: haus get [<haus.path|relative.path>] [--json]"
+
   host="$(host_name)"
-  if [ -n "${1:-}" ]; then
-    path="$(settings_path "$1")"
-    settings_option_exists "$host" "$path"
+  if [ "${#args[@]}" -eq 1 ]; then
+    path="$(settings_path "${args[0]}")"
+    # 🚨 `get` is a REPORT command, so `warn` and `info` draw on fd 1 — and
+    # `settings_option_exists` warns (with a dozen lines of nix) whenever this
+    # machine's option surface will not evaluate at all. Under `--json` that
+    # prose lands INSIDE the document it was describing and every caller's `jq`
+    # dies on it, so the whole pre-flight is redirected: diagnostics on fd 2,
+    # stdout for the object alone.
+    if [ -n "$as_json" ]; then settings_option_exists "$host" "$path" >&2
+    else settings_option_exists "$host" "$path"; fi
     # A settable path need not be a defined one: nothing has to have named this
     # `attrsOf` key yet. Saying so beats printing a blank line — on stderr, so
     # `$(haus get …)` stays the value alone and this doesn't become one.
-    if json="$(settings_eval_json "$host" "$path" 2>/dev/null)"; then
-      printf '%s' "$json" | settings_print_json
+    err="$(mktemp)"
+    if json="$(settings_eval_json "$host" "$path" 2>"$err")"; then
+      rm -f "$err"
+      if [ -n "$as_json" ]; then settings_json_row "$path" "$json"
+      else printf '%s' "$json" | settings_print_json; fi
+    elif [ -n "$as_json" ]; then
+      # The field cannot carry the reason and stdout may not, so nix's own words
+      # go to stderr: `defined: false` is nearly always the undefined key, and
+      # the one time it is not, the caller can see which.
+      tail -n 4 "$err" >&2
+      rm -f "$err"
+      settings_json_row "$path"
     else
+      rm -f "$err"
       info "${path#haus.} is settable, but nothing defines it yet" >&2
     fi
     return
   fi
 
   dir="$(settings_host_dir)"
-  [ -d "$dir" ] || { info "no machine-writable settings; use: haus set <path> <value>"; return; }
+  if [ ! -d "$dir" ]; then
+    if [ -n "$as_json" ]; then printf '[]\n'
+    else info "no machine-writable settings; use: haus set <path> <value>"; fi
+    return
+  fi
   # No header and no indent: this is a listing, and `haus get` with no path is
   # read by eye and by pipe alike. A redirected stdout has no window to fit, so
   # snug folds nothing there — the pipe keeps whole values, exactly as the
   # `%-38s` pad did, without charging a terminal 38 cells for a path of nine.
-  if [ -n "$UI_READY" ]; then
+  if [ -n "$UI_READY" ] && [ -z "$as_json" ]; then
     ui_table_clear
     ui_col option 12 3 path   left
     ui_col value   6 2 accent right
@@ -3296,13 +3386,22 @@ cmd_get() {
     grep -q '^# Managed by haus set\.' "$f" || continue
     path="haus.$(basename "$f" .nix)"
     json="$(settings_eval_json "$host" "$path" 2>/dev/null)" || continue
-    if [ -n "$UI_READY" ]; then
+    if [ -n "$as_json" ]; then
+      rows="$rows$(settings_json_row "$path" "$json")"
+    elif [ -n "$UI_READY" ]; then
       ui_trow "${path#haus.}" "$(printf '%s' "$json" | settings_print_json)"
     else
       printf '%-38s %s\n' "${path#haus.}" "$(printf '%s' "$json" | settings_print_json)"
     fi
     found=1
   done
+  if [ -n "$as_json" ]; then
+    # `jq -s` over an empty stream is `[]`, which is the answer an overlay with
+    # nothing in it deserves — a caller's `.[]` then iterates nothing instead of
+    # dying on the message the plain rendering prints in its place.
+    printf '%s' "$rows" | jq -s '.'
+    return
+  fi
   if [ -n "$UI_READY" ]; then ui_table_data 0; fi
   [ -n "$found" ] || info "no machine-writable settings; use: haus set <path> <value>"
 }
@@ -3876,6 +3975,229 @@ cmd_report() {
   # Nothing is SENT from here: this opens a page with one field filled in, and
   # the report exists only once the reporter presses Submit.
   open "$url" || die "couldn't open a browser — the link is above."
+}
+
+# ---- the agent skill ---------------------------------------------------------
+# A3 of the family agent-surface standard (docs/agent-surface.md in the
+# workshop): every hausfold tool prints its own skill, and can write it into a
+# client that has not got it. `perch skill`, `trill skill`, `factory skill` and
+# this one are the same sixty lines, deliberately — an agent that has learned
+# the verb on one of them has learned it on all four.
+#
+# 🚨 IT PRINTS THE RENDERED COPY, never `modules/ai/agents/SKILL.md` beside it.
+# That file is a TEMPLATE: its version line is the literal `@hausVersion@`, and
+# `agents/skill.nix` substitutes it on the way into the store, alongside the
+# `references/` pages it renders from the module system and the room registry.
+# Reading the source would put `@hausVersion@` in front of a user and hand an
+# agent an option reference that does not exist.
+#
+# So the store path is handed IN, by the wrapper that builds this script
+# (modules/core/default.nix) — exactly the way `HAUS_UI_SH` is, and for exactly
+# the same reason: haus.sh is `builtins.readFile`'d into a store binary, so
+# `dirname $0` is /nix/store and a haus user has no checkout of anything to look
+# beside. Nothing else can supply it. modules/ai INSTALLS this skill into each
+# client, but core may not read that room's config, and `haus skill` has to work
+# on a machine with the AI room switched off — the skill is a property of the
+# haus CLI, not of a room a desktop can turn off.
+HAUS_SKILL_DIR="${HAUS_SKILL_DIR:-}"
+
+# Sets SKILL_DIR rather than printing it, so its refusal happens in the
+# CALLER's shell. A `dir="$(skill_dir)"` would run the check in a subshell,
+# where `die`'s exit ends the subshell alone: the message reaches stderr, the
+# caller gets an empty string, and what it does with that is `cat /SKILL.md`.
+# `set -e` happens to catch it today, which is precisely the kind of accident
+# that stops being true the first time this is called inside an `if`.
+SKILL_DIR=""
+skill_dir() {
+  [ -n "$HAUS_SKILL_DIR" ] && [ -d "$HAUS_SKILL_DIR" ] || die \
+    "no rendered skill on this machine — HAUS_SKILL_DIR names ${HAUS_SKILL_DIR:-nothing}. Run the 'haus' on PATH rather than the script."
+  SKILL_DIR="$HAUS_SKILL_DIR"
+}
+
+# Every page `haus skill <name>` will print, one per line, in reading order.
+# `haus` is first and is the skill itself — a list an agent is then REFUSED from
+# is worse than no list, so `cmd_skill` resolves that name explicitly rather
+# than leaving it to a `haus/SKILL.md` that does not exist.
+skill_names() {
+  local dir="$1" f
+  printf 'haus\n'
+  for f in "$dir"/*/SKILL.md; do [ -f "$f" ] && basename "$(dirname "$f")"; done
+  for f in "$dir"/references/*.md; do [ -f "$f" ] && basename "$f" .md; done
+  return 0
+}
+
+# Where the per-HOST page lives, if this machine has one. It is the one page the
+# store copy cannot carry — modules/ai renders `references/this-machine.md` from
+# this host's evaluated config, into each client's skills directory — so asking
+# for it by name gets a path rather than "no such page".
+skill_this_machine() {
+  local c d
+  for c in claude codex opencode pi; do
+    d="$(skill_client_dir "$c")/haus/references/this-machine.md"
+    [ -f "$d" ] && { printf '%s\n' "$d"; return 0; }
+  done
+  return 1
+}
+
+# `skill install` needs the same client table twice, so it is written once here.
+# One directory each, and the layout inside is the same for all of them —
+# `<dir>/<skill name>/…`. It is modules/ai's `agentHomes` said again in bash,
+# which is the price of core not reading that room: the two lists move together
+# or `haus skill install` starts writing where nothing reads.
+skill_client_dir() {
+  case "$1" in
+    claude)   echo "$HOME/.claude/skills" ;;
+    codex)    echo "$HOME/.codex/skills" ;;
+    opencode) echo "$HOME/.config/opencode/skills" ;;
+    pi)       echo "$HOME/.pi/agent/skills" ;;
+    *) return 1 ;;
+  esac
+}
+
+cmd_skill() {
+  local sub="${1:-}"
+  case "$sub" in
+    "") ;;
+    install) shift; cmd_skill_install "$@"; return ;;
+    -*) die "skill takes a name or 'install', not '$sub'" ;;
+  esac
+
+  skill_dir
+  local dir="$SKILL_DIR" path
+  path="$dir/SKILL.md"
+  if [ -n "${1:-}" ]; then
+    [ "$#" -le 1 ] || die "one page at a time (got: $*)"
+    # A name is ONE component. Not a security boundary — the caller could `cat`
+    # anything they can read — but `haus skill ../../etc/passwd` answering with
+    # a file is the kind of surprise a CLI should not hold.
+    case "$1" in
+      */* | .*) die "a skill name is one word, not a path (got '$1')" ;;
+      # The skill's own name, and it has to resolve: `skill_names` offers it and
+      # every refusal below prints that list, so an agent that takes the list at
+      # its word would otherwise be refused twice with the same words.
+      haus) ;;
+      *)
+        # A sibling skill is checked FIRST, so haus can grow one
+        # (`<name>/SKILL.md`, factory's layout) without a reference page of the
+        # same name shadowing it. The references are the second arm because
+        # haus's skill is the one in the family that is a DIRECTORY: its prose
+        # says "see references/options.md" and every option name lives there, so
+        # a `haus skill` that could not print one would be a routing document
+        # pointing at a file the reader cannot open.
+        if [ -f "$dir/$1/SKILL.md" ]; then
+          path="$dir/$1/SKILL.md"
+        elif [ -f "$dir/references/$1.md" ]; then
+          path="$dir/references/$1.md"
+        elif [ "$1" = this-machine ]; then
+          # Named rather than lumped in with a typo: it is a real page, it is
+          # just not in the copy this prints from.
+          path="$(skill_this_machine)" || die \
+            "'this-machine' is rendered per host by the AI room, into each client's skills directory — this machine has no copy (haus.ai.skill is off, or nothing has rebuilt since)"
+        else
+          die "no skill or reference '$1' — this machine has: $(skill_names "$dir" | tr '\n' ' ')"
+        fi
+        ;;
+    esac
+  fi
+  cat "$path"
+}
+
+cmd_skill_install() {
+  local dir="" client="" wrote=0 nixed=0 skipped=0
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      # The emptiness check comes BEFORE the shift, and it is not decoration: a
+      # trailing `--dir` with nothing after it would otherwise reach `shift 2`
+      # with one positional left, which returns 1 and — under `set -e` — ends
+      # the command with no message on either stream.
+      --dir)    dir="${2:-}";    [ -n "$dir" ]    || die "--dir needs a path"; shift 2 ;;
+      --client) client="${2:-}"; [ -n "$client" ] || die "--client needs one of: claude codex opencode pi"; shift 2 ;;
+      *) die "unknown flag '$1' — usage: haus skill install [--client claude|codex|opencode|pi] [--dir PATH]" ;;
+    esac
+  done
+
+  skill_dir
+  local src="$SKILL_DIR"
+  local -a targets=()
+  if [ -n "$dir" ]; then
+    targets=("$dir")
+  elif [ -n "$client" ]; then
+    local d; d="$(skill_client_dir "$client")" || die "unknown client '$client' — one of: claude codex opencode pi"
+    targets=("$d")
+  else
+    local c d
+    for c in claude codex opencode pi; do
+      d="$(skill_client_dir "$c")"
+      [ -d "$(dirname "$d")" ] && targets+=("$d")
+    done
+  fi
+  [ "${#targets[@]}" -gt 0 ] || die "no agent client found — name one with --client or --dir"
+
+  # Everything modules/ai puts in a client's skills directory, minus the one
+  # file core cannot render. The list matches that room's (default.nix's
+  # `agentSkillFiles`) deliberately: a directory that DIFFERS from the one a
+  # rebuild would write is a second layout for every later reader to handle, and
+  # `haus doctor` already reads `consumer-AGENTS.md` from exactly this path to
+  # decide whether to offer the starter pair — leave it out and doctor tells the
+  # user to switch on the room whose work they have just done by hand.
+  #
+  # `references/this-machine.md` is the exception, and it is not one this can
+  # close: modules/ai renders it per HOST out of the evaluated config, so it is
+  # not in the store dir copied from here. `haus skill this-machine` says where
+  # it does live.
+  local rel dest t wrote_client=""
+  local -a pages=(
+    SKILL.md
+    references/options.md references/rooms.md references/recipes.md
+    consumer-AGENTS.md consumer-CLAUDE.md
+  )
+  for t in "${targets[@]}"; do
+    for rel in "${pages[@]}"; do
+      [ -f "$src/$rel" ] || continue
+      dest="$t/haus/$rel"
+      # THE HAUS MACHINE CASE, and the reason this is a refusal rather than an
+      # EPERM: on any machine with `haus.ai.skill` on, every one of these is a
+      # read-only symlink into the store that haus itself put there, one rebuild
+      # ago. Writing is impossible and re-installing is pointless, so say which
+      # of the two it is — an agent that met a bare "permission denied" here
+      # would reach for sudo, and sudo would succeed at corrupting a generation.
+      if [ -L "$dest" ] || [ -L "$t/haus" ]; then
+        hint "skipped $dest — a symlink, so something else manages it (on a haus machine, haus.ai.skill already did)"
+        nixed=$((nixed + 1)); continue
+      fi
+      if [ -f "$dest" ] && ! cmp -s "$src/$rel" "$dest"; then
+        warn "skipped $dest — exists and differs; diff it against $src/$rel"
+        skipped=$((skipped + 1)); continue
+      fi
+      mkdir -p "$(dirname "$dest")"
+      cp "$src/$rel" "$dest"
+      chmod u+w "$dest"
+      say "wrote $dest"
+      wrote=$((wrote + 1))
+      [ -n "$dir" ] || wrote_client=1
+    done
+  done
+
+  # Exit 0 either way. "Already installed, by us, and unwritable for that
+  # reason" is the desired end state holding, not a failure — a non-zero here
+  # would make every agent that ran this on a normal haus machine report a
+  # broken command and try again with more force.
+  if [ "$wrote" -eq 0 ] && [ "$skipped" -eq 0 ] && [ "$nixed" -gt 0 ]; then
+    say "nothing to install: haus.ai.skill already installed this skill here, as read-only Nix symlinks."
+    hint "to place a copy somewhere haus does not manage: haus skill install --dir <path>"
+    return
+  fi
+  say "skills: $wrote written, $((nixed + skipped)) left alone"
+  # The one thing a copy in a CLIENT directory costs, said at the moment it is
+  # made rather than discovered at the next rebuild. `haus.ai.skill` declares
+  # these exact paths as home-manager files, and home-manager will not link over
+  # a real file: a consumer built by `mkHaus` renames each to `*.backup` and
+  # leaves it in the user's home forever (and fails outright the second time,
+  # the backup name being taken), while one composing `darwinModules.*` by hand
+  # sets no `backupFileExtension` at all and simply refuses to activate.
+  [ -n "$wrote_client" ] && hint \
+    "these are real files, and haus.ai.skill wants to link the same paths — remove them before you switch that room on, or the next rebuild backs them up (or refuses)"
+  return 0
 }
 
 # macOS 26 Tahoe and later gate LaunchDaemons/Agents whose executable isn't
@@ -5061,7 +5383,7 @@ case "${1:-status}" in
   edit)        cmd_edit ;;
   options)     cmd_options "${2:-}" ;;
   set)         shift; cmd_set "$@" ;;
-  get)         cmd_get "${2:-}" ;;
+  get)         shift; cmd_get "$@" ;;
   unset)       shift; cmd_unset "$@" ;;
   reset)       shift; cmd_reset "$@" ;;
   plan)        cmd_plan ;;
@@ -5070,6 +5392,7 @@ case "${1:-status}" in
   revert-settings) cmd_revert_settings "${2:-latest}" ;;
   doctor)      cmd_doctor ;;
   report)      shift; cmd_report "$@" ;;
+  skill)       shift; cmd_skill "$@" ;;
   permissions) cmd_permissions "${2:-}" ;;
   btm)         cmd_btm ;;
   tour)        cmd_tour "${2:-}" ;;
@@ -5078,5 +5401,5 @@ case "${1:-status}" in
   desktop)     cmd_desktop "${2:-}" ;;
   remove)      cmd_remove "${2:-}" "${3:-}" ;;
   -h|--help|help) usage ;;
-  *)           die "unknown command '$1' — try: rebuild fix update rollback generations status edit options set get unset reset plan diff capture revert-settings doctor report permissions btm tour show add desktop remove" ;;
+  *)           die "unknown command '$1' — try: rebuild fix update rollback generations status edit options set get unset reset plan diff capture revert-settings doctor report skill permissions btm tour show add desktop remove" ;;
 esac

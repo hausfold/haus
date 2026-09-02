@@ -10,6 +10,31 @@
 }:
 
 let
+  # haus's own agent skill, RENDERED — the file `haus skill` prints.
+  #
+  # Core imports a DERIVATION here, never `config.haus.ai.*`: this is a pure
+  # package expression whose only argument is `pkgs`, the same direction three
+  # rooms import `modules/lib/nebelung.nix` in. The room boundary that matters
+  # is unchanged — modules/ai still decides whether the skill is INSTALLED into
+  # a client's skills directory, and nothing here asks it.
+  #
+  # It has to be core's, because `haus skill` is A3 of the family agent-surface
+  # standard: the CLI teaches an agent about itself, on every machine, whatever
+  # rooms that machine runs. A `haus skill` that went quiet when a desktop
+  # switched the AI room off would be the "only teaches agents when the right
+  # room is present" failure that standard opens by naming.
+  #
+  # The cost, stated honestly rather than waved at: a runCommand over markdown,
+  # plus `modules/options-doc.nix` under it — which evaluates the per-room
+  # OPTIONS files alone, with no host and no darwin system (those modules are
+  # pure `{ lib, ... }`; the file itself does take `pkgs`). Every machine now
+  # pays it, including one with the AI room off, where `lib.optionalAttrs
+  # cfg.skill` used to leave it unevaluated. That is the trade: a `haus skill`
+  # that answers everywhere costs one small derivation on a machine that
+  # installs nothing. It also means `darwinModules.core` no longer stands alone
+  # without `modules/ai/agents/` beside it.
+  hausSkill = import ../ai/agents/skill.nix { inherit pkgs; };
+
   # `awake` is both an end-user CLI and the program behind its launchd-owned
   # caffeinate assertion. Keeping one derivation here means the optional bar
   # pill is only a view/controller; the wake lock survives bar/shell restarts.
@@ -904,8 +929,8 @@ in
       # so the two never shadow each other.)
       #
       # Wrapped rather than bare because two of its tools have to be THERE, not
-      # merely usually there — and because of `HAUS_UI_SH`, which is a path
-      # rather than a tool.
+      # merely usually there — and because of `HAUS_UI_SH` and
+      # `HAUS_SKILL_DIR`, which are paths rather than tools.
       #
       # `haus.sh` is `builtins.readFile`'d into this store binary, so it has no
       # checkout to look beside: `dirname $0` is /nix/store, and a haus user has
@@ -920,6 +945,14 @@ in
       # end-user CLI is the caller that most needs a painter when `snug` itself
       # is off PATH. `haus.sh` still degrades when the variable points at
       # nothing — same contract `haus-notify` keeps toward trill.
+      #
+      # `HAUS_SKILL_DIR` is handed in the same way and for the same reason, and
+      # it is the one that must not be guessed at: `modules/ai/agents/SKILL.md`
+      # is a TEMPLATE whose version line is the literal `@hausVersion@`, so a
+      # `haus skill` that read a file beside itself would print that string to a
+      # user and an option reference rendered from nothing. The store path is
+      # pinned to this revision, which is what makes the version that answers
+      # `--help` the version that answers `skill`.
       #
       # The two tools: `gum` draws `haus set`'s picker and is in nixpkgs
       # but in nobody's profile — bootstrap.sh fetches it ad-hoc with `nix build
@@ -947,7 +980,8 @@ in
               nixfmt
             ]
           } \
-            --set-default HAUS_UI_SH ${snug}/share/ui.sh
+            --set-default HAUS_UI_SH ${snug}/share/ui.sh \
+            --set-default HAUS_SKILL_DIR ${hausSkill}
         '';
       })
 
@@ -956,11 +990,14 @@ in
       # template, never from an evaluation. Lands on fpath through system-path's
       # /share/zsh, which is why this is a package rather than a terminal dotfile:
       # `haus` is system-wide, and its completion should not depend on a room a
-      # machine can turn off. jq's path is substituted in for the same reason.
+      # machine can turn off. jq's path is substituted in for the same reason,
+      # and so is the skill's: `haus skill <TAB>` offers the reference pages this
+      # revision actually rendered, and a completion cannot read the variable the
+      # wrapper sets — that one lives inside `haus`'s own process, not the shell's.
       (writeTextFile {
         name = "haus-zsh-completion";
         destination = "/share/zsh/site-functions/_haus";
-        text = builtins.replaceStrings [ "@jq@" ] [ (lib.getExe jq) ] (
+        text = builtins.replaceStrings [ "@jq@" "@skill@" ] [ (lib.getExe jq) "${hausSkill}" ] (
           builtins.readFile ./haus-completion.zsh
         );
       })

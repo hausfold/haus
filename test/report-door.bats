@@ -145,7 +145,9 @@ url() { printf '%s\n' "$output" | grep '^https://' | tail -1; }
   # guard above the dispatch — so `report` is exempt there, and the header says
   # "unknown" rather than desktop_selected's `hacker`, which would be a guess
   # dressed as a fact in a public issue.
-  grep -qE '^  show \| report\) ;;$' "$SUBJECT" \
+  # The arm, not its neighbours: `haus skill` joined it and others may. What
+  # this pins is that `report` is still IN it.
+  grep -qE '^  [a-z |]*\breport\b[a-z |]*\) ;;$' "$SUBJECT" \
     || fail "report is no longer exempt from the config-flake guard"
   haus_sh 'FLAKE=/nope/flake.nix; cmd_report --print'
   [ "$status" -eq 0 ] || fail "$output"

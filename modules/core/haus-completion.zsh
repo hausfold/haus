@@ -25,6 +25,12 @@
 # jq's store path is substituted in at build time (@jq@): it ships only with the
 # developer toolbelt, and a completion that silently stopped working on a
 # toolbelt-off machine would look like the option list being empty.
+#
+# The rendered agent skill (@skill@) is substituted for a different reason:
+# `haus`'s wrapper sets HAUS_SKILL_DIR inside its OWN process, which a shell
+# completing its arguments has never been in. So `haus skill <TAB>` reads the
+# store path directly, and honours the variable only for someone who exported it
+# on purpose to point at a working copy.
 
 _haus_option_paths() {
   local catalogue=${HAUS_CATALOGUE:-/run/current-system/sw/share/haus/options.json}
@@ -66,6 +72,7 @@ _haus() {
     'revert-settings:put back a haus capture snapshot'
     'doctor:check the machine'\''s health (Nix, CLT, the GUI agents)'
     'report:file a bug, with this Mac'\''s haus doctor report already filled in'
+    'skill:print haus'\''s own agent skill, or install it into an agent client'
     'permissions:walk every grant and click this Mac still needs a person for'
     'btm:check BTM daemon-gating (macOS 26 Tahoe+; no-op before)'
     'tour:take the guided haus tour'
@@ -114,8 +121,16 @@ _haus() {
           _haus_option_paths
           ;;
         get)
-          # Reads one path and ignores the rest, so offer it once.
-          if (( typed == 0 )); then _haus_option_paths; else _message 'no more arguments'; fi
+          # Reads one path and ignores the rest, so offer it once. `--json` is
+          # already excluded from the positional count above, so it may be typed
+          # on either side of the path.
+          if (( typed == 0 )); then
+            _alternative \
+              'flags:flag:((--json:"one {path,defined,value} object, or an array of them"))' \
+              'options:haus option:_haus_option_paths'
+          else
+            _message 'no more arguments'
+          fi
           ;;
         set)
           # PAIRS: path value path value…. An even number of positionals typed
@@ -128,6 +143,31 @@ _haus() {
           ;;
         report)
           _arguments '--print[print the block and the link; open no browser]'
+          ;;
+        skill)
+          # One positional: `install`, or the name of a page to print. The names
+          # come from the rendered skill this machine actually has, so a machine
+          # whose haus grew a reference page offers it without editing this file
+          # — and one whose skill is missing offers `install` alone rather than
+          # completing a page that would not print.
+          if (( typed == 0 )); then
+            local -a pages
+            pages=( 'install:write the skill into every agent client that has not got it' )
+            local skill=${HAUS_SKILL_DIR:-@skill@}
+            if [[ -d $skill ]]; then
+              local f
+              for f in $skill/references/*.md(N); do
+                pages+=( "${f:t:r}:the ${f:t:r} reference page" )
+              done
+            fi
+            _describe -t haus-skills 'skill or reference' pages
+          elif [[ $words[2] == install ]]; then
+            _arguments \
+              '--client[write into one client only]:client:(claude codex opencode pi)' \
+              '--dir[write into a directory of your own]:directory:_files -/'
+          else
+            _message 'one page at a time'
+          fi
           ;;
         show)
           # The only verb whose argument is a PATH rather than an option name.

@@ -73,7 +73,11 @@ rebuild — so an intent that spans two options (light mode is `theme.flavor` pl
 `theme.systemAppearance`) is one command, not two rebuilds with the machine
 half-switched in between. Reach for the host file when the change is structural,
 not merely multi-valued. `haus get
-[path]` reads the declared result, `haus unset <path> [<path>…]` writes null for
+[path]` reads the declared result — add `--json` and you get a
+`{path, defined, value}` object, or an array of them for the whole overlay, in
+which `defined: false` is the answer no bare value can give you: the path is
+settable but nothing has named it yet, which is not the same as an option set to
+null. `haus unset <path> [<path>…]` writes null for
 nullable options, and `haus reset <path> [<path>…]` removes machine overrides so
 the host, desktop, or room value wins again. Those two take a LIST the way `set`
 takes pairs, with the same all-or-nothing single rebuild — so undoing light mode
@@ -265,6 +269,12 @@ user the extra step: `brew uninstall --zap <cask>`.
   reference wins for what is settable *right now*.
 
 ## Files in this skill
+
+`haus skill` prints this page and `haus skill options|rooms|recipes` prints a
+reference, so you can read one without knowing where the client keeps it — and
+on a machine whose client has no skills directory, `haus skill install` writes
+them into one. `this-machine.md` is the exception both ways: it is rendered per
+HOST rather than per revision, so it exists only as the file below.
 
 | File | What it is |
 |---|---|
