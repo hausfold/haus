@@ -220,8 +220,9 @@ stub_default() {
 #
 #   * unqualified (`lane:$name`) — right until `scruff child` puts one lane name
 #     in two repos, then it is the ambiguity `scruff focus` refuses to guess at.
-#   * `$repo` rather than `$repo_name` — an absolute path, which `scruff focus`
-#     splits on the FIRST slash before going looking for a repo called "Users".
+#   * `$repo` rather than `$repo_name` — an absolute path, whose first slash is
+#     at index 0, so `registryLane` reads an EMPTY repo and takes the whole
+#     remainder as the lane name. It never looks for a repo at all.
 #     `lane_target` refuses it now, which turns that one into a lost click.
 #   * dropped in a later edit, which is the state this test was written to leave.
 #
@@ -245,7 +246,11 @@ stub_default() {
 # builds it with `basename "$repo"` — pin that too, since it is one `cut -f`
 # away from being any other column of the row.
 @test "spawn receipt: repo_name is the main checkout's basename" {
+  # The basename is emitted as column 2 of the repo row...
   grep -qF '"$(basename "$repo")"' "$SUBJECT"
+  # ...and read back out of column 2. Both halves, or this passes while the
+  # printf fields are reordered and the click targets the description string.
+  grep -qF 'repo_name="$(field "$repo_sel" 2)"' "$SUBJECT"
 }
 
 # The guard in front of it. trill refuses the WHOLE send when a lane target
@@ -315,4 +320,23 @@ stub_default() {
   run lane_target repo -lane
   [ "$status" -eq 0 ]
   [ "$output" = "repo/-lane" ]
+}
+
+# The one refusal that is not about the pattern but about who READS it.
+# `[!A-Za-z0-9._-]` is a collation range, and /bin/bash 3.2 under the pounce
+# daemon's `LANG=en_US.UTF-8` (modules/launcher/default.nix, no `LC_ALL`) reads
+# it wide enough to let `café` through — where trill, whose `laneCharacters` is
+# a codepoint-exact CharacterSet, refuses it and drops the whole send. Pinned
+# here in the locale that exposes it, since bash 5 gets this right and a suite
+# run under it would pass either way.
+@test "lane_target: a non-ASCII half is refused in the locale the daemon runs in" {
+  local probe
+  probe="$(declare -f lane_target)"
+  run env -u LC_ALL LANG=en_US.UTF-8 /bin/bash -c \
+    "$probe"$'\n''lane_target "café" lane'
+  [ "$status" -ne 0 ]
+  [ -z "$output" ]
+  run env -u LC_ALL LANG=en_US.UTF-8 /bin/bash -c \
+    "$probe"$'\n''lane_target haus "réparer"'
+  [ "$status" -ne 0 ]
 }

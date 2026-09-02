@@ -11,9 +11,12 @@
 # to its name, tiled on that repo's own T/<repo> page.
 #
 # Return files it and gets out of your way: the box closes at once, the lane's
-# window is born off-screen and walked to T/<repo> without ever reaching you,
+# window is born as a speck and walked to T/<repo> without ever taking focus,
 # and a banner says so when it is actually running — click it and you are taken
 # to that page. ⌃↵ is the one that brings you there in the first place.
+# (A speck, not off-screen: `--window-position-*` is IGNORED, and it is
+# `--window-width/--window-height` that shrink the birth. lane-open.sh:733 has
+# the measurement, and #544 was the cost of believing otherwise.)
 #
 # Why it exists: the same thing by hand is caps→t to a terminal, cd to the repo,
 # ⌃⌘A for a lane, then type the prompt — and the worktree ends up
@@ -739,6 +742,17 @@ fi
 # target must. Prints the qualified target and succeeds, or prints nothing and
 # fails — a function rather than an inline `case` so the test runs the real one.
 lane_target() {
+  # `[!A-Za-z0-9._-]` is a COLLATION range, not a codepoint one, and the shell
+  # this runs in resolves it the wrong way: measured on /bin/bash 3.2.57 under
+  # the pounce daemon's own `LANG=en_US.UTF-8` with no `LC_ALL` (default.nix
+  # sets exactly that), `café` passes the class and trill then refuses the send.
+  # The same input is correctly refused under `LC_ALL=C`, and by bash 5. So the
+  # collation is pinned rather than the pattern rewritten — the pattern is
+  # right, it was being read in a locale that disagrees with trill's
+  # codepoint-exact `CharacterSet`. Local, so nothing else in the script moves;
+  # safe for `${#…}` below because by then both halves are known ASCII, where a
+  # byte count and a character count are the same number.
+  local LC_ALL=C
   case "$1" in "" | -* | *[!A-Za-z0-9._-]*) return 1 ;; esac
   case "$2" in "" | *[!A-Za-z0-9._-]*) return 1 ;; esac
   [ "$((${#1} + 1 + ${#2}))" -le 100 ] || return 1
