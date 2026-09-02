@@ -3955,11 +3955,20 @@
             touch $out
           '';
 
+          # Building the package IS most of this check: `modules/ai/agents/
+          # skill.nix` carries the A4 shape guards (frontmatter, `name: haus`
+          # against the directory it installs into, the description's length,
+          # the 150-line cap, no surviving `@placeholder@`, no dangling
+          # `references/` pointer), so a skill that broke shape never gets far
+          # enough to be listed here. What is left for this check is the
+          # INVENTORY: every file `modules/ai`'s agentSkillFiles and `haus skill
+          # install`'s own list expect to find in the store copy. The three
+          # lists move together or a rebuild links a path that isn't there.
           agent-skill = pkgs.runCommand "haus-agent-skill-ok" { } ''
             skill=${self.packages.${system}.agent-skill}
             for f in SKILL.md consumer-AGENTS.md consumer-CLAUDE.md \
                      references/options.md references/rooms.md \
-                     references/recipes.md; do
+                     references/recipes.md references/vm.md; do
               test -s "$skill/$f" \
                 || { echo "agent skill is missing or empty: $f" >&2; exit 1; }
             done

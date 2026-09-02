@@ -313,8 +313,7 @@ let
       here. That is the answer to "can I try the palette / the bar / this
       keybind / the installer", and it is the FIRST thing to reach for:
       `scruff runtime up <lane> --backend tart`, then drive the guest over `ssh`.
-      The haus skill's **Seeing your change without taking the screen** has the
-      whole loop.
+      `haus skill vm` (the skill's `references/vm.md`) has the whole loop.
     - **Spawning a lane never takes the screen.** Put `HAUS_LANE_BACKGROUND=1`
       in front of `scruff spawn` — the same binary the handoff skill's
       `/handoff spawn` drives — and the lane opens without the user feeling it: on a
@@ -527,6 +526,10 @@ let
           # system — see agents/skill.nix.
           "${dir}/references/rooms.md".source = "${hausSkill}/references/rooms.md";
           "${dir}/references/recipes.md".source = "${hausSkill}/references/recipes.md";
+          # Seeing a change without taking the user's screen: the headless-VM
+          # loop SKILL.md's own trap sends the reader to. Hand-written like
+          # recipes.md — see agents/skill.nix.
+          "${dir}/references/vm.md".source = "${hausSkill}/references/vm.md";
           "${dir}/references/this-machine.md".text = thisMachine;
           "${dir}/consumer-AGENTS.md".source = "${hausSkill}/consumer-AGENTS.md";
           "${dir}/consumer-CLAUDE.md".source = "${hausSkill}/consumer-CLAUDE.md";
