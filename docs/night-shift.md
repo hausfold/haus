@@ -37,16 +37,30 @@ foreman loop wakes on a cadence measured in tens of minutes, so it drops in
 every gap. `while = "always"` has to be named directly, in the host's power
 block.
 
-The two neighbours stay at their defaults on purpose. `requirePower` keeps
+**Know what that costs before you set it: a machine holding the lid open through
+the power room alone has nothing on screen saying so.** The bar's coffee pill
+reads the AI room's user-agent hold file, and the power room's root daemon over
+`disablesleep` never writes one — that is the power room's shape and it has
+never had a pill. So the `always` hold is invisible, which is the exact failure
+`lidawake.sh`'s own header names: a Mac that never sleeps again with nothing to
+say why. A shift's own banners are the only receipt, and they stop when the
+shift does; `haus.power.lidAwake` does not. If the lid stays shut and the fans
+stay on the morning after, this is the first thing to check.
+
+The three neighbours stay at their defaults on purpose. `requirePower` keeps
 unplugging as the way to say stop. `maxHold` does not apply: its 8-hour cap is a
 failsafe for an *agent* hold that leaked, and `always` has no signal to leak, so
-a twelve-hour shift is not cut off at hour eight.
+a twelve-hour shift is not cut off at hour eight. `linger` does not apply for the
+same reason — only `while = "agents"` has anything to linger for.
 
 ## 2. The fixer lane — `haus-fix-github`
 
-A red default branch that is worth a machine gets one, and the binary already
-exists: `haus-fix-github` is what the bar's GitHub pill runs behind *Fix with
-AI*. A shift's `CI-RED <repo> <url>` line is its argv already filled in — the
+A red default branch that is worth a machine gets one, and on a machine with
+the AI room on there is already a binary for it: `haus-fix-github`, what the
+bar's GitHub pill runs behind *Fix with AI*. It reaches `PATH` only when
+`haus.ai.enable` is on **and** `haus.ai.default` names a client that is actually
+in `haus.ai.clients` — a fixer that cannot fix must not be findable — so a
+caller checks for it rather than assuming it. A shift's `CI-RED <repo> <url>` line is its argv already filled in — the
 verdict is `ci`, the selector is the default branch, the URL is the failed run:
 
 ```sh
@@ -78,9 +92,18 @@ checkout cloned under another name is the same ending as no checkout at all.
 
 **Three of the endings that produce no lane leave nothing behind but the
 banner** — nothing in `haus.ai.clients` on `PATH`, no local checkout, and a lane
-already running under the lock. Only spawn *failures* reach
-`~/.local/state/haus/github-fix.log`. The binary forks its work and exits 0
-before any of it happens, so no caller learns the outcome from a status.
+already running under the lock. A fourth leaves nothing at all, and it is the
+one above: where the binary was never installed, the caller gets
+`command not found`, and neither the screen nor
+`~/.local/state/haus/github-fix.log` records that a lane was wanted. Whatever
+asks for a lane has to log the asking itself.
+
+`~/.local/state/haus/github-fix.log` takes the spawn's stderr unconditionally,
+so a successful spawn can write there too; a failure is only the case that
+reliably does. Bad argv (exit 64) and a URL that is not github.com's (a banner,
+exit 2) are both decided before the fork and *are* visible in the status —
+everything after that point is forked and exits 0, so the resolve and the spawn
+are the unobservable half.
 
 ## 3. The budget feed — `usage-claude.tsv`
 
@@ -92,8 +115,9 @@ it.
 on every Claude Code statusline render — the client hands both to each render,
 so the primary source is also the cheapest there is: no keychain read, no API
 call. `modules/ai/statusline-refresh.sh` fills the hole under it, polling
-`api.anthropic.com/api/oauth/usage` on a 120-second TTL, kicked by the bar's own
-pill rather than by a session.
+`api.anthropic.com/api/oauth/usage` on a 120-second TTL. A stale feed kicks it
+from a render, and the bar's own pill kicks it as well — the second path is what
+covers a machine with no Claude statusline running at all.
 
 **Nine columns are written and the first four are what a budget reader wants:**
 
@@ -106,15 +130,29 @@ pill rather than by a session.
 A reader taking the first four positionally is leaning on the safe half: the
 columns that could go empty are 7 and 8, which are filled with a literal
 `claude` and `anthropic` for the pill's sake, and the first four default to `0`
-on both writers and are never blank. **What nothing on either side checks is the
+on both writers and are never blank. **What nothing checks at RUNTIME is the
 ORDER** — two percentages that swapped places are both integers under 100, and
-each side would keep reading the other happily.
+either side would keep reading the other happily. What holds the contract is a
+test rather than a guard: `test/statusline-refresh.bats` pins the positions with
+distinct values, so a swap fails haus's suite here. There is nothing equivalent
+on a reader's side, which is why the test is worth knowing about before moving a
+column.
 
-**The `-claude` in that path is load-bearing.** The two sibling feeds beside it
-are not interchangeable: `usage-codex.tsv` carries a weekly reset a fortnight
-out and `usage-opencode.tsv` reports a fractional percentage, and a gate whose
-arithmetic is written for Anthropic's two windows answers `budget unknown`
-forever against either.
+**The `-claude` in that path is load-bearing, and `usage-opencode.tsv` is the
+reason to say so out loud.** The three feeds share a column count and not a
+meaning. Claude's and Codex's are *subscription* rows — percentages and reset
+stamps. **Opencode's is a cost row**: columns 1 and 2 are today's and
+month-to-date API spend **in dollars**, and columns 3 and 4 are literal `0`
+rather than reset stamps. `ai_usage.sh`'s header carries both shapes side by
+side and is the contract.
+
+A reader that assumes percentages gets a dollar figure in the slot where a
+percentage goes, and a small bill reads as a nearly-empty quota. Codex's row is
+percentages, but its two windows are whatever OpenAI reports, classified only as
+under or over a day — nothing promises the second is the seven days a weekly
+bound expects. **A budget gate written for Anthropic's two windows may only read
+the Claude feed**, and the constraint and the right choice coincide here, since
+a fixer lane on this machine is a Claude Code lane.
 
 **The hole under all of it is that a statusline is a TUI feature.** The Claude
 Code macOS app renders none and pushes nothing, and what gates the refresher's
