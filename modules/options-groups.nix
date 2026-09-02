@@ -281,6 +281,7 @@ let
       "items.<name>.hotkey"
       "items.<name>.listed"
       "items.<name>.workspaces"
+      "plugins"
       "scale"
       "signingIdentity"
       "windowMode"

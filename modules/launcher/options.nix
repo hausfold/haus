@@ -603,6 +603,42 @@ in
       );
     };
 
+    launcher.plugins = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [
+        "docker"
+        "tailscale"
+      ];
+      description = ''
+        Optional palette commands to install, by id. Each one assumes a
+        specific tool, service or app it cannot provision, so the whole set is
+        off until you name what you have:
+
+          audio  bluetooth  caffeinate  docker  github
+          perplexity  spotify  ssh  tailscale
+
+        Enabling one installs the command AND the plain CLI it shells out to —
+        bluetooth pulls blueutil, audio pulls switchaudio-osx, github pulls gh
+        — so the command stops guarding "not found" with no separate install.
+        The ones that want an app or a daemon instead (Spotify, a Docker
+        engine, tailscaled) stay yours to provide; those guard at runtime with
+        an install hint.
+
+        The ids are pounce's own `optional/` filenames without .sh, not a
+        vocabulary haus invents on top. A typo fails the build naming the set
+        that exists, which is why this is a plain list rather than an enum
+        haus would have to keep in step with pounce's lock.
+
+        This is the whole of what a "pack" is here, and the other two halves
+        already exist: haus's own commands are gated by the feature that owns
+        them (`bench-lane` by haus.developer.enable, `gh-dash` by
+        haus.terminal.ghDash.enable, the lane commands by the AI room), and
+        haus.launcher.items.<addr>.listed = false hides a row you would rather
+        reach only by key.
+      '';
+    };
+
     launcher.signingIdentity = lib.mkOption {
       type = lib.types.str;
       default = "";
