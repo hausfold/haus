@@ -1891,6 +1891,16 @@ in
           source = ./scripts/focused-session.sh;
           executable = true;
         };
+        # The one reader for the `zmx ls` wire format — the attached-row
+        # marker, the 0.7.0 start_dir/cwd rename, first-"=" splitting, and
+        # `zmx get`'s tab→space flip all live in its header instead of in
+        # every caller's awk. A library like focused-session.sh: modules/bar
+        # and modules/launcher reach it at this path, the way they already
+        # reach raise-session.sh and float-term.sh.
+        ".config/haus/term/zmx-rows.sh" = {
+          source = ./scripts/zmx-rows.sh;
+          executable = true;
+        };
         ".config/haus/term/new-window.sh" = {
           source = ./scripts/new-window.sh;
           executable = true;

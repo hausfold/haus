@@ -58,10 +58,13 @@ if [ -z "$backend" ]; then
   if command -v aerospace >/dev/null 2>&1; then backend=aerospace; else backend=ghostty; fi
 fi
 
-# One session's label, by key. `zmx get` is tab-separated k=v like `zmx ls`,
-# minus the attached-row marker, so a plain sed is enough here.
+# One session's label, by key, through zmx-rows.sh --get. NOT the plain sed
+# it used to be: `zmx get` went from tab- to space-separated at 0.7.0, and
+# the tab-splitting sed answered EMPTY for every key on that era — so the
+# exact `lwindow=`/`window=` joins below silently fell through to the title
+# scan for as long as nobody noticed. The reader knows both eras.
 label() {
-  zmx get "$sess" 2>/dev/null | tr '\t' '\n' | sed -n "s/^ *$1=//p" | head -1
+  "$HOME/.config/haus/term/zmx-rows.sh" --get "$sess" "$1"
 }
 
 # ── no window has it: open one, if the caller asked ──────────────────────────

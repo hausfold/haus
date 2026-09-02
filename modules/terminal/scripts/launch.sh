@@ -182,23 +182,8 @@ else
     # `term.<n>` that EXISTS (what a new name must avoid), whether anything at
     # all is attached (are we the first window of this Ghostty), and the
     # detached sessions in name order (what restore has to reopen).
-    sessions=$(zmx ls 2>/dev/null | awk -F'\t' '
-      {
-        name = ""; clients = ""
-        for (i = 1; i <= NF; i++) {
-          p = index($i, "=")
-          if (p == 0) continue
-          k = substr($i, 1, p - 1); gsub(/^[ \t]+|[ \t]+$/, "", k)
-          # zmx marks the row you are ATTACHED to in its first field
-          # ("-> ** name=..."), gluing the marker onto that key. Strip
-          # anything before the key proper or the session you are
-          # sitting in is the one row that never matches.
-          sub(/^[^A-Za-z_]*/, "", k)
-          if (k == "name")    name    = substr($i, p + 1)
-          if (k == "clients") clients = substr($i, p + 1)
-        }
-        if (name != "") print name "\t" (clients == "" ? "0" : clients)
-      }')
+    sessions=$("$HOME/.config/haus/term/zmx-rows.sh" name,clients | awk -F'\t' '
+      $1 != "" { print $1 "\t" ($2 == "" ? "0" : $2) }')
 
     taken=$(printf '%s\n' "$sessions" | awk -F'\t' '$1 ~ /^term\./ { print substr($1, 6) }')
     n=1

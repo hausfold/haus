@@ -86,25 +86,12 @@ trap '/bin/rmdir "$lock" 2>/dev/null' EXIT
 # desk comes back in the order it was built, then the lanes by name. `sort -n`
 # on the number alone, because `sort` would otherwise put term.10 before term.2.
 parked=$(
-  zmx ls 2>/dev/null | awk -F'\t' '
-    {
-      name = ""; clients = ""
-      for (i = 1; i <= NF; i++) {
-        p = index($i, "=")
-        if (p == 0) continue
-        k = substr($i, 1, p - 1); gsub(/^[ \t]+|[ \t]+$/, "", k)
-        # zmx glues its "you are here" marker onto the first key of the row you
-        # are attached to; strip anything before the key proper.
-        sub(/^[^A-Za-z_]*/, "", k)
-        if (k == "name")    name    = substr($i, p + 1)
-        if (k == "clients") clients = substr($i, p + 1)
-      }
+  "$HOME/.config/haus/term/zmx-rows.sh" name,clients | awk -F'\t' '
       # An absent clients field is not "attached" — treat it as parked, since
       # the failure we care about is leaving a window unopened.
-      if (name != "" && (clients == "" || clients == "0")) print name
-    }' | awk '
-      /^term\./ { n = substr($0, 6) + 0; terms[n] = $0; if (n > max) max = n; next }
-      /^scruff\./ { lanes[++l] = $0 }
+      $1 == "" || ($2 != "" && $2 != "0") { next }
+      $1 ~ /^term\./ { n = substr($1, 6) + 0; terms[n] = $1; if (n > max) max = n; next }
+      $1 ~ /^scruff\./ { lanes[++l] = $1 }
       END {
         for (i = 1; i <= max; i++) if (i in terms) print terms[i]
         for (i = 1; i <= l; i++) print lanes[i]
@@ -115,20 +102,8 @@ parked=$(
 
 # One field of one session, out of `zmx ls` — `zmx get` returns labels only, so
 # `clients` (which zmx keeps itself) is not reachable through it.
-field() {
-  zmx ls 2>/dev/null | awk -F'\t' -v want="$1" -v key="$2" '
-    {
-      name = ""; val = ""
-      for (i = 1; i <= NF; i++) {
-        p = index($i, "=")
-        if (p == 0) continue
-        k = substr($i, 1, p - 1); gsub(/^[ \t]+|[ \t]+$/, "", k)
-        sub(/^[^A-Za-z_]*/, "", k)
-        if (k == "name") name = substr($i, p + 1)
-        else if (k == key) val = substr($i, p + 1)
-      }
-      if (name == want) { print val; exit }
-    }'
+field() { # <session> <key>
+  "$HOME/.config/haus/term/zmx-rows.sh" "$2" "name=$1" | head -1
 }
 
 # Wait for a spawned window to have finished IDENTIFYING itself, before letting

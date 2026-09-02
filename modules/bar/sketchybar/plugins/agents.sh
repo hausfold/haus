@@ -198,43 +198,30 @@ state_style() {
 # window, or an `zmx attach` you opened yourself) has no `state` label and is
 # skipped.
 #
-# Parsed out of plain `zmx ls`, not `zmx ls --where state=…`: in zmx 0.7.0
-# `--where` does not filter — it returns every session, labelled or not — so
-# doing it here is the honest version rather than a missed optimisation.
+# Read through ~/.config/haus/term/zmx-rows.sh — the one reader of the `zmx
+# ls` wire format, reached at the same cross-room address this file already
+# reaches raise-session.sh and float-term.sh. `dir` is its derived directory
+# (start_dir in zmx 0.7.0, the older file:// cwd stripped of its host — the
+# scruff join below wants the plain path either way; it is a field zmx keeps
+# itself, which is why the hook does not have to). Filtered HERE and not with
+# `zmx ls --where state=…`: in zmx 0.7.0 `--where` does not filter — it
+# returns every session, labelled or not — so doing it here is the honest
+# version rather than a missed optimisation. A machine without the terminal
+# room has no reader — and no lanes — so the pill counts desktop agents alone.
 zmx_records() {
-  command -v zmx >/dev/null 2>&1 || return 0
-  zmx ls 2>/dev/null | awk -F'\t' '
+  [ -x "$HOME/.config/haus/term/zmx-rows.sh" ] || return 0
+  "$HOME/.config/haus/term/zmx-rows.sh" name,state,client,label,since,created,dir |
+    awk -F'\t' '
+    $1 == "" || $2 == "" { next }
     {
-      split("", f)
-      for (i = 1; i <= NF; i++) {
-        p = index($i, "=")
-        if (p == 0) continue
-        k = substr($i, 1, p - 1)
-        gsub(/^[ \t]+|[ \t]+$/, "", k)
-        # zmx marks the row you are attached to in its FIRST field
-        # ("-> ** name=..."), so that row carries the marker glued onto its
-        # first key and matches nothing. Strip anything before the key proper.
-        sub(/^[^A-Za-z_]*/, "", k)
-        # Only up to the FIRST "=", because a value carries its own: the
-        # directory may be a URL, and a label is whatever the client wrote.
-        f[k] = substr($i, p + 1)
-      }
-      if (f["state"] == "" || f["name"] == "") next
       pr = 3
-      if      (f["state"] == "waiting") pr = 0
-      else if (f["state"] == "working") pr = 1
-      else if (f["state"] == "idle")    pr = 2
-      since = (f["since"] == "" ? f["created"] : f["since"])
-      # The session directory is `start_dir` in zmx 0.7.0 and was `cwd`, a
-      # file:// URL with the host in it ("file://Mac/Users/…"), before that;
-      # the scruff join below wants the plain path either way. This is not a
-      # label — zmx rejects any label value containing a slash — it is a field
-      # zmx keeps itself, which is why the hook does not have to.
-      cwd = (f["start_dir"] != "" ? f["start_dir"] : f["cwd"])
-      sub(/^file:\/\/[^\/]*/, "", cwd)
+      if      ($2 == "waiting") pr = 0
+      else if ($2 == "working") pr = 1
+      else if ($2 == "idle")    pr = 2
+      since = ($5 == "" ? $6 : $5)
       printf "%s\t%s\tzmx\t%s\t%s\t%s\t%s\t%s\n",
-        pr, (since == "" ? 0 : since), f["state"], f["name"],
-        (f["label"] == "" ? f["name"] : f["label"]), f["client"], cwd
+        pr, (since == "" ? 0 : since), $2, $1,
+        ($4 == "" ? $1 : $4), $3, $7
     }'
 }
 

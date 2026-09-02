@@ -925,7 +925,15 @@ mechanism, say so in one line.
   which is Ghostty's `command`). Persistence is the small half — the
   load-bearing half is that Ghostty's AppleScript API can create a surface but
   cannot READ one, and three shipped features read a window: ⌘F find, ⌘L links,
-  and the bar's agent peek. `zmx history` / `zmx tail` is that read API. The
+  and the bar's agent peek. `zmx history` / `zmx tail` is that read API. **The
+  `zmx ls` / `zmx get` wire format is read through
+  `~/.config/haus/term/zmx-rows.sh` alone** — its traps (the attached-row
+  marker glued to the first key, the 0.7.0 `start_dir` rename, `zmx get`
+  going space-separated) each broke a hand parse silently before it existed,
+  so never parse either by hand again; its header is the spec. One byte-pinned
+  exception stands: raise-session.sh's `window=` claim list, which
+  `test/raise-session-lane-join.bats` extracts verbatim by sed — worth more
+  as a test that keeps working than as a dedup. The
   session is named `term.<n>`, lowest n that no session holds; a lane is
   `scruff.<repo>.<lane>` and belongs to `lanes/lane-open.sh`. **That prefix is
   not haus's name to choose.** The tool keys a lane's parked trill fin as
