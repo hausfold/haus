@@ -433,7 +433,10 @@ let
   # spoken for; the bottom bar passes whatever haus.bar.bottom.items said. They
   # reference $SURFACE0 (from colors.sh) and $HOME, both live when either rc
   # sources its generated item file.
-  # ---- the barlib framework (ops/todo/bar-framework.md) -----------------------
+  # ---- the barlib framework ---------------------------------------------------
+  # The tier's contract, for somebody writing one:
+  # hausfold.co/docs/haus/rooms/bar-widgets
+  #
   # A framework widget's block, emitted from the `# widget:` header in its own
   # script — the file carries the behaviour AND the wiring, so converting a
   # pill deletes its hand-written block here. `style` is the pill's STATIC
@@ -869,8 +872,8 @@ let
     # an `--add graph` rather than an `--add item`, and the header carries the
     # interval and the popup too. What a graph pill IS — and the one thing about
     # it that reads as a bug the first time — is the `graph` component in the
-    # framework doc (ops/todo/bar-framework.md), next to the rule about which
-    # half of the widget may push a point.
+    # framework doc (hausfold.co/docs/haus/rooms/bar-widgets), next to the
+    # rule about which half of the widget may push a point.
     #
     # What is left here is each pill's IDENTITY: its hue, and the padding that
     # separates a graph pill from the readouts beside it, since the ladder
@@ -1017,8 +1020,9 @@ let
     # read.
     #
     # The maximal barlib widget, and the one the popup components were designed
-    # against (ops/todo/bar-framework.md): the two tones, the dropdown's frame
-    # align, every row's font/height/close-on-click, the barpop arm and the
+    # against (hausfold.co/docs/haus/rooms/bar-widgets): the two tones, the
+    # dropdown's frame and align, every row's font/height/close-on-click, the
+    # barpop arm and the
     # mouse.clicked routing all come from the header in github.sh and the
     # runtime. What is left here is the STATIC look, which is the only part
     # that interpolates options a header cannot see.
@@ -1961,7 +1965,7 @@ lib.mkIf config.haus.bar.enable {
       map
         (name: {
           assertion = false;
-          message = "haus.bar.widgets.${name} is enabled but sets neither `command` nor `script`, and `${name}` is not a pill haus ships — so there is nothing for the bar to run and the pill would draw an empty box forever. Give it a `command` (a script whose stdout is the label, on a timer) or a `script` (a barlib framework widget), or drop the widget.";
+          message = "haus.bar.widgets.${name} is enabled but sets neither `command` nor `script`, and `${name}` is not a pill haus ships — so there is nothing for the bar to run and the pill would draw an empty box forever. Give it a `command` (a script whose stdout is the label, on a timer) or a `script` (a barlib framework widget — hausfold.co/docs/haus/rooms/bar-widgets), or drop the widget.";
         })
         (
           builtins.filter (
@@ -1987,7 +1991,7 @@ lib.mkIf config.haus.bar.enable {
       map
         (name: {
           assertion = false;
-          message = "haus.bar.widgets.${name} sets a `style`, but it is a `command` widget — the simple tier draws the one pill every widget on this bar wears, and nothing here would be read. Wanting a look of its own is what the framework tier is for: write it as a barlib widget and name it in `script`.";
+          message = "haus.bar.widgets.${name} sets a `style`, but it is a `command` widget — the simple tier draws the one pill every widget on this bar wears, and nothing here would be read. Wanting a look of its own is what the framework tier is for: write it as a barlib widget (hausfold.co/docs/haus/rooms/bar-widgets) and name it in `script`.";
         })
         (
           builtins.filter (

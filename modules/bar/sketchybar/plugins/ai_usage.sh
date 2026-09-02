@@ -6,11 +6,11 @@
 # haus.bar.items). Puts rate-limit gauges for AI providers (Claude Code,
 # Codex, etc.) or token API costs (Opencode, etc.) in the menu bar.
 #
-# A framework widget (ops/todo/bar-framework.md): the header above is the whole of
-# its wiring, and barlib owns the bar instance, the batching, the state diff,
-# the dropdown and every colour. What is left here is the FEEDS — how a
-# provider reports, which one the pill speaks for, and what a percentage means
-# — which is the pill's actual subject.
+# A framework widget (hausfold.co/docs/haus/rooms/bar-widgets): the header
+# above is the whole of its wiring, and barlib owns the bar instance, the
+# batching, the state diff, the dropdown and every colour. What is left here is
+# the FEEDS — how a provider reports, which one the pill speaks for, and what a
+# percentage means — which is the pill's actual subject.
 #
 # Subscription TSV lines:
 #     <5h %>\t<7d %>\t<5h resets epoch>\t<7d resets epoch>\t<written epoch>\t<provider>\t<model>\t<provider_id>\t<used epoch>

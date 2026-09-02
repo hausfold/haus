@@ -136,9 +136,10 @@
 #   lock/         mkdir-lock, so the update tick and a click can't fetch at once.
 #
 # ── the framework ─────────────────────────────────────────────────────────────
-# A barlib widget (ops/todo/bar-framework.md), and the one the popup components
-# were designed against. The header below is the whole of this pill's wiring —
-# there is no block for it in modules/bar/default.nix beyond its static look.
+# A barlib widget (hausfold.co/docs/haus/rooms/bar-widgets), and the one
+# the popup components were designed against. The header below is the whole of
+# this pill's wiring — there is no block for it in modules/bar/default.nix
+# beyond its static look.
 # What that bought, concretely: the pill's two tones, the popup's frame and
 # align, every row's font and height and its close-on-click, the barpop arm,
 # and the `updates=on` that lets a hidden pill come back.
@@ -936,8 +937,9 @@ stamp_epoch() {
 }
 
 # ── the dropdown ──────────────────────────────────────────────────────────────
-# Six row kinds and nothing else (ops/todo/bar-framework.md): the runtime owns
-# every font, every height, the close-on-click, the batched --add and the
+# Six row kinds and nothing else (hausfold.co/docs/haus/rooms/bar-widgets):
+# the runtime owns every font, every height, the close-on-click, the batched
+# --add and the
 # barpop arm. What is left here is the only part that is about GitHub.
 popup_rows() {
   read_cache

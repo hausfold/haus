@@ -1,8 +1,8 @@
 # THE TONE LADDER — the bar's whole colour vocabulary, in one place.
 #
 # A barlib widget names a TONE and never a hex or a palette key (the framework
-# doc, ops/todo/bar-framework.md, "Tones, not colors"). This file is
-# the one definition of what the names are and which nebelung key each
+# doc, hausfold.co/docs/haus/rooms/bar-widgets, "Tones, not colors"). This file
+# is the one definition of what the names are and which nebelung key each
 # resolves to; everything else is generated from it or checked against it:
 #
 #   modules/bar/default.nix   generates the `TONE_*` exports in colors.sh

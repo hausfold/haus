@@ -718,11 +718,12 @@ mechanism, say so in one line.
     because a card nobody can act on trains people to skip the ones they can.
     Runtime facts go in `applies`; a runtime LIST goes in `detail`, whose stdout
     prints under the card (theme's ports card names the apps that way).
-- **New SketchyBar plugin**: write it as a **barlib widget**. The framework's
-  design and its migration ledger are `todo/bar-framework.md` in
-  [hausfold/ops](https://github.com/hausfold/ops), which is private — the code
-  in this repo is normative, and the paragraphs below are what an agent
-  working here needs from it. One file in `modules/bar/sketchybar/plugins/`
+- **New SketchyBar plugin**: write it as a **barlib widget**. The contract is
+  public — <https://hausfold.co/docs/haus/rooms/bar-widgets> — and
+  is what a widget author reads; the design record and the migration ledger are
+  `todo/bar-framework.md` in [hausfold/ops](https://github.com/hausfold/ops),
+  which is private. The code in this repo is normative over both. One file in
+  `modules/bar/sketchybar/plugins/`
   with a `# widget:` header, `fetch()`/`render()`/`on_*()`/`popup_rows()`
   bodies, and a `frameworkBlock` entry in `mkPluginBlocks` for its static
   look. `clock.sh` is the smallest reference and `github.sh` the largest —

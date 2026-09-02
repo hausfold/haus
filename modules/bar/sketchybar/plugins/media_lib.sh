@@ -11,12 +11,13 @@
 # are generated once.
 #
 # What is NOT here any more is the rendering. media.sh is a framework widget
-# (ops/todo/bar-framework.md), so the pill's paint is its `render()` and barlib owns
-# the batching, the state diff and every colour; `media_paint` at the bottom of
-# this file is how the two processes that are not the widget ask for one. Four
-# more things went the same way: the popup's row geometry and fonts are barlib's
-# row kinds, its scrubber is `popup_slider`, its cover and badge are
-# `popup_image`, and `media_color`'s palette keys are `media_mark`'s marks.
+# (hausfold.co/docs/haus/rooms/bar-widgets), so the pill's paint is its
+# `render()` and barlib owns the batching, the state diff and every colour;
+# `media_paint` at the bottom of this file is how the two processes that are
+# not the widget ask for one. Four more things went the same way: the popup's
+# row geometry and fonts are barlib's row kinds, its scrubber is
+# `popup_slider`, its cover and badge are `popup_image`, and `media_color`'s
+# palette keys are `media_mark`'s marks.
 #
 # THE THING THIS FILE CANNOT DO, so nobody re-discovers it the hard way: name the
 # SITE a browser is playing. media-control's payload is
@@ -631,9 +632,9 @@ media_hovered() { [ -f "$BAR_MEDIA_STATE_DIR/hover" ]; }
 # Repaint the pill, by re-entering the WIDGET.
 #
 # The pill's own render lives in media.sh now — it is a framework widget
-# (ops/todo/bar-framework.md), so `render()` is barlib's to call and the state it
-# reads is barlib's to diff. Two things outside that widget still have reason to
-# ask for a repaint, and neither can call the function:
+# (hausfold.co/docs/haus/rooms/bar-widgets), so `render()` is barlib's to call
+# and the state it reads is barlib's to diff. Two things outside that widget
+# still have reason to ask for a repaint, and neither can call the function:
 #
 #   * media_stream.sh, on every payload. That is the whole point of the stream —
 #     a track change or a play/pause repaints in the instant it happens rather

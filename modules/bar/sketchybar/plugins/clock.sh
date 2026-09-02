@@ -1,9 +1,9 @@
 #!/bin/bash
-# clock.sh — the clock pill, as the first barlib widget (ops/todo/bar-framework.md).
-# The item's block is emitted from this header by modules/bar/default.nix's
-# frameworkBlock; only the pill's static look (fonts, the pink icon) stays on
-# the Nix side, because it interpolates options this file cannot see.
-# widget: interval = 10
+# clock.sh — the clock pill, as the first barlib widget
+# (hausfold.co/docs/haus/rooms/bar-widgets). The item's block is emitted from
+# this header by modules/bar/default.nix's frameworkBlock; only the pill's
+# static look (fonts, the pink icon) stays on the Nix side, because it
+# interpolates options this file cannot see. widget: interval = 10
 
 BAR_ITEM=clock
 source "$HOME/.config/sketchybar/barlib.sh"

@@ -5,8 +5,9 @@
 #
 # cpu.sh — the CPU pill: a number, a rolling graph of that number, and a
 # dropdown splitting it up and naming what is responsible. A framework widget
-# (ops/todo/bar-framework.md): the header above is the whole of its wiring, and
-# barlib owns the bar instance, the batching, the tones and the dropdown.
+# (hausfold.co/docs/haus/rooms/bar-widgets): the header above is the whole of
+# its wiring, and barlib owns the bar instance, the batching, the tones and the
+# dropdown.
 #
 # The reading comes from `barvitals` (modules/bar/barvitals.swift), because
 # the `ps -A -o %cpu` sum this used to print is a LIFETIME average per process:
