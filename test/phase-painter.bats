@@ -882,9 +882,10 @@ print(max([0]+[sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in 
 }
 
 @test "the binaries outside the wrapper source ui.sh safely" {
-  # `focus`, `github-signal`, `haus-secret` and `awake` are the callers outside
-  # the `haus` wrapper that SOURCE ui.sh in their own shell — the others either
-  # only alias roles or hand the snippet to somebody else's. Three properties,
+  # `focus`, `github-signal`, `haus-secret`, `awake` and `haus-fix` are the
+  # callers outside the `haus` wrapper that SOURCE ui.sh in their own shell —
+  # the others either only alias roles or hand the snippet to somebody else's.
+  # Three properties,
   # and each has a way of going wrong silently:
   #
   #  - a bash-version guard, because ui.sh is bash 4+ and macOS's /bin/bash 3.2
@@ -897,7 +898,10 @@ print(max([0]+[sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in 
   #    person). `awake` is built by `writeShellScriptBin` like `github-signal`,
   #    so its first line does not run once installed — and it is asserted
   #    anyway, because the file is ALSO run straight off disk: `test/awake.sh`
-  #    does it, and so does anybody debugging the coffee pill. `github-signal`
+  #    does it, and so does anybody debugging the coffee pill. `haus-fix` is
+  #    the same pairing for the same reason — `writeShellScriptBin` supplies
+  #    the interpreter once installed, and `test/rebuild-fix-cta.bats` runs the
+  #    file itself. `github-signal`
   #    is the one deliberately NOT asserted: its off-disk copy at
   #    ~/.config/haus/github/signal.sh is only ever SOURCED, and a sourced
   #    file's shebang never runs, so asserting it would pass for the wrong
@@ -908,7 +912,8 @@ print(max([0]+[sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in 
   for f in "$BATS_TEST_DIRNAME/../modules/focus/focus.sh" \
            "$BATS_TEST_DIRNAME/../modules/github/signal.sh" \
            "$BATS_TEST_DIRNAME/../modules/secrets/haus-secret.sh" \
-           "$BATS_TEST_DIRNAME/../modules/core/awake.sh"; do
+           "$BATS_TEST_DIRNAME/../modules/core/awake.sh" \
+           "$BATS_TEST_DIRNAME/../modules/ai/fix.sh"; do
     grep -q 'BASH_VERSINFO' "$f" \
       || { echo "$f sources ui.sh with no bash-version guard"; false; }
     if grep -qE '^[[:space:]]*UI_SH=' "$f"; then
@@ -917,7 +922,8 @@ print(max([0]+[sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in 
   done
   for f in "$BATS_TEST_DIRNAME/../modules/focus/focus.sh" \
            "$BATS_TEST_DIRNAME/../modules/secrets/haus-secret.sh" \
-           "$BATS_TEST_DIRNAME/../modules/core/awake.sh"; do
+           "$BATS_TEST_DIRNAME/../modules/core/awake.sh" \
+           "$BATS_TEST_DIRNAME/../modules/ai/fix.sh"; do
     head -1 "$f" | grep -q 'env bash' \
       || { echo "$f has a /bin/bash shebang and sources a bash-4 painter"; false; }
   done

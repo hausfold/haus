@@ -353,8 +353,9 @@ jobs:
           # prints reaches a person; the only thing that does is the banner it
           # ends on, so a script that died before drawing one is a "Fix it"
           # button that visibly does nothing. It is a @placeholder@ template and
-          # lints anyway, for haus-notify.sh's reason: both substitutions are
-          # assignment right-hand sides, so an unsubstituted copy still parses.
+          # lints anyway, for haus-notify.sh's reason: all three substitutions
+          # are assignment right-hand sides, so an unsubstituted copy still
+          # parses (@uiSh@ joined them as `local sh="${HAUS_UI_SH:-@uiSh@}"`).
           # modules/secrets/haus-secret.sh joins for focus.sh's reason and
           # awake.sh's together: it is a @placeholder@ template whose four
           # substitutions are all assignment right-hand sides, so it lints
@@ -613,8 +614,12 @@ jobs:
       # Every part of it fails silently — a renamed crumb key answers "nothing
       # to fix" for a rebuild that failed in front of you, an inverted gate
       # offers a fix nothing can honour, and a holder that merely backgrounds
-      # looks identical until someone closes the terminal. Needs bash + git +
-      # bats, and perl for the one SIGHUP case (skipped without it).
+      # looks identical until someone closes the terminal.
+      #
+      # ⚠️ MUST stay below "snug's painter, at the pinned rev" — three cases
+      # drive `haus-fix` on a pty and `skip` when no ui.sh is found, and a skip
+      # reads as a pass. Needs bash + git + bats + python3 (the pty), and perl
+      # for the one SIGHUP case (skipped without it).
       - name: rebuild fix CTA
         run: bats test/rebuild-fix-cta.bats
       # The github pill's "Fix with AI" rows, BOTH halves — the fetch that
