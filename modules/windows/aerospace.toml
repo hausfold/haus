@@ -64,6 +64,12 @@ on-focus-changed = [@FOCUS_CHANGED@]
 on-focused-monitor-changed = [@MONITOR_CHANGED@]
 automatically-unhide-macos-hidden-apps = true
 
+# What a key NAME below means physically, from haus.keys.layout. Empty on
+# "qwerty", which is AeroSpace's own default and so needs no block at all — a
+# machine that never set the option gets these comment lines and not one changed
+# binding. It has to sit here, after the last root-level key and before the first
+# table, because everything below is inside one.
+@KEY_MAPPING@
 [gaps]
 inner.horizontal = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTERNAL@]
 inner.vertical = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTERNAL@]

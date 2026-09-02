@@ -50,7 +50,10 @@ let
           example = "s";
           description = ''
             The leader letter for this app: tap Caps Lock then this key to
-            launch/focus it. Must be unique across the roster, and not one of
+            launch/focus it. It names a POSITION on a US keyboard rather than
+            the letter printed on your key — `haus.keys.layout` is what makes
+            the two agree on AZERTY, where `a` is otherwise the key printed `Q`.
+            Must be unique across the roster, and not one of
             launch mode's own: `v` `f` `z` `,` `.` `` ` `` `-` `=` `/` `esc`, the
             arrows and one digit per numbered workspace (`1`-`4` out of the box;
             see haus.windows.numberedWorkspaces) are taken, and a rebuild refuses
@@ -360,7 +363,9 @@ let
         description = ''
           Leader then ⇧<key> throws the focused window to this workspace
           and follows it there (AeroSpace's `move-node-to-workspace
-          --focus-follows-window`). There is no bare <key> binding for a
+          --focus-follows-window`). Like a roster letter it is a US keyboard
+          POSITION — `haus.keys.layout` reconciles that with what your key
+          prints. There is no bare <key> binding for a
           workspace — that namespace belongs to `haus.roster` app
           launch keys, one of which can double as this workspace's "open
           something here" action by being one of its `apps`. null means the
@@ -687,9 +692,62 @@ in
     # Until this existed the keymap was closed: Caps Lock, ⌥, and ⌘Space were
     # baked in. That made three whole categories of desktop unexpressible — mouse-
     # first (no leader at all), one-handed, and any NON-US KEYBOARD LAYOUT, where
-    # ⌥+letter is how you type accented characters and so cannot belong to a
-    # window manager.
+    # ⌥ is a character layer of its own on a non-US keyboard, and a key NAME here
+    # is a physical position rather than the letter printed on the key —
+    # `layout` is what reconciles the two.
     keys = {
+      layout = lib.mkOption {
+        type = lib.types.enum [
+          "qwerty"
+          "azerty"
+          "dvorak"
+          "colemak"
+        ];
+        default = "qwerty";
+        example = "azerty";
+        description = ''
+          The keyboard your keys are PRINTED on. It doesn't change your macOS
+          input source (that's `haus.locale.inputSources`) — it tells the window
+          manager which physical key a name in this config means.
+
+          Every key name on this machine — a `haus.roster` entry's `key`, a
+          `haus.workspaces` key, a `haus.keys.leaderExtras` key, the fixed
+          launch-mode actions — is a POSITION on a US keyboard, because that is
+          the only thing macOS names a key by. On AZERTY the key printed `A`
+          is the one a US keyboard calls `Q`, so with the default `"qwerty"` a
+          French keyboard's `A` launches whatever you put on `q`. Setting
+          `"azerty"` moves every letter onto the key that prints it.
+
+          Measured on `com.apple.keylayout.French`, hacker desktop: with
+          `"qwerty"`, five of the twenty-six leader letters open the wrong thing
+          (`a`↔`q`, `z`↔`w`, and `m` does nothing), and launch mode's `,` opens
+          the app on `m`; with `"azerty"`, all twenty-six letters land on the key
+          that prints them and `,` is System Settings again.
+
+          Three things it cannot move, because AeroSpace maps a name to a key
+          and not to a key-plus-⇧, and AZERTY hides all three behind ⇧:
+
+            - the numbered workspaces. `1`-`4` stay on the number-row keys, which
+              AZERTY prints `&` `é` `"` `'`. **Pressing the key printed `1` is
+              ⇧+that key, which is the THROW** — it moves the focused window to
+              that workspace instead of going there. Measured, not inferred.
+            - launch mode's `.` (tiling cycle) and `/` (the cheatsheet), which
+              stay on the keys AZERTY prints `:` and `=`.
+            - launch mode's `-`/`=` resize pair, which stay on the keys AZERTY
+              prints `)` and `-` — so the key printed `-` is the one that GROWS.
+
+          `"dvorak"` and `"colemak"` hand the job to AeroSpace's own presets.
+          Only `"qwerty"` and `"azerty"` have been driven end to end on a real
+          macOS guest; the other two are one config line each and untested here.
+
+          Only meaningful with haus.windows.enable — it is AeroSpace's key
+          vocabulary this moves. pounce's own hotkeys (the palette, the
+          Ghostty-scoped chords) still name US positions; none of the ones haus
+          ships is on a key AZERTY moves, but a hotkey you add on `a`, `q`, `z`,
+          `w` or `m` will not follow this option.
+        '';
+      };
+
       leader = lib.mkOption {
         type = lib.types.enum [
           "caps"
@@ -767,9 +825,26 @@ in
           leader then an arrow.
 
           "alt" (default) is ⌥. The alternatives are for **non-US keyboard
-          layouts**, where ⌥+letter types accented characters — a machine that owns
-          ⌥+letter is unusable on those, which is the concrete reason this option
-          exists.
+          layouts**, where ⌥ is a character layer of its own rather than a spare
+          modifier — on AZERTY it is where `{` `}` `[` `]` `|` `\` `@` `#` `~`
+          and `€` are typed, so a machine that owns too much of ⌥ cannot write
+          code.
+
+          Measured on `com.apple.keylayout.French` with the hacker desktop: all
+          ten of those characters still type with "alt" live, under either
+          `haus.keys.layout`. The five chords haus claims cost four typographic
+          characters there (`≠ … ƒ Ó` under "qwerty", `≠ ∞ ƒ •` under "azerty")
+          and nothing structural, so "alt" is usable on French AZERTY and the
+          escapes are for a layout that is not — check yours against the list
+          below before assuming you need one. (`⌥f` is the only ⌥+letter haus
+          binds at all.)
+
+          Every chord below names a US keyboard POSITION, not the character
+          printed on the key — see haus.keys.layout, which moves the letters but
+          cannot move `/`. On AZERTY `<mod>/` is the key printed `=` whatever you
+          set; `<mod>,` and `<mod>⇧;` both follow `layout`, so they are the keys
+          printed `m` and `;` under "qwerty" and the keys printed `,` and `;`
+          under "azerty".
 
           Whatever you pick, AeroSpace claims those chords **globally**, so they
           stop reaching whatever owned them inside a terminal. The surface is
@@ -812,7 +887,9 @@ in
                 example = "enter";
                 description = ''
                   The AeroSpace key name pressed after the leader (e.g. "enter",
-                  "space", "backslash", or a letter). Must not collide with a roster
+                  "space", "backslash", or a letter). A US keyboard POSITION,
+                  like every other key name here; `haus.keys.layout` is what
+                  moves the letters onto the keys that print them. Must not collide with a roster
                   app's key or a built-in launch-mode key (one digit per
                   numbered workspace — see haus.windows.numberedWorkspaces — plus
                   the arrows, `-`/`=`, `v`/`f`/`z`, `,`, `.`, `` ` ``, `/`, esc) —

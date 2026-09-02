@@ -371,11 +371,30 @@ let
   );
   monitorChanged = lib.optionalString cfg.mouseFollowsFocus "'move-mouse monitor-lazy-center'";
 
+  # haus.keys.layout → AeroSpace's [key-mapping]. Nothing at all on "qwerty":
+  # that IS AeroSpace's default, and emitting `preset = 'qwerty'` would put a
+  # line in every existing machine's config for no behaviour.
+  keyMapping =
+    let
+      l = k.layout;
+      table = lib.concatStringsSep "\n" (
+        lib.mapAttrsToList (notation: code: "${notation} = '${code}'") l.notationToKeyCode
+      );
+    in
+    if l.preset == null then
+      ""
+    else
+      "[key-mapping]\npreset = '${l.preset}'\n"
+      + lib.optionalString (
+        l.notationToKeyCode != { }
+      ) "\n[key-mapping.key-notation-to-key-code]\n${table}\n";
+
   aerospaceToml =
     builtins.replaceStrings
       [
         "@HOME@"
         "@BIN@"
+        "@KEY_MAPPING@"
         "@MAIN_STATIC@"
         "@SERVICE_STATIC@"
         "@LAUNCH_DIGITS@"
@@ -399,6 +418,7 @@ let
       [
         homeDir
         binDir
+        keyMapping
         mainStatic
         serviceStatic
         launchDigits

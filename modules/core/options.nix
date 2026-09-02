@@ -1449,6 +1449,11 @@ in
           hausax input-sources --all
           ```
 
+          Choosing a non-QWERTY layout here does NOT move haus's own keys: a
+          `haus.roster` letter, a workspace key and every launch-mode action
+          name a physical position, so on AZERTY the key printed `A` still
+          launches whatever sits on `q`. `haus.keys.layout` is the other half.
+
           THIS ONE OWNS THE LIST. Unlike every other option in §5.6's groups, a
           non-null value here is exhaustive: layouts you don't name get
           disabled, because "add these and keep whatever else was there" makes
