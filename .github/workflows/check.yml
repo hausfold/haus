@@ -551,6 +551,19 @@ jobs:
       - name: the both-bars poke
         run: bats test/bar-poke.bats
 
+      # Which Trill.app the `trill` on PATH resolves to. A precedence with no
+      # error surface: every candidate is a real, working Trill, so the wrong
+      # one costs nothing at the call site and runs a stale daemon forever —
+      # a dev build in ~/Applications used to outrank the bundle
+      # `haus.notifications.compositor` pins at /Applications, and no rebuild
+      # could displace it. Asserts the order in each of the three files that
+      # spell it out (the wrapper, haus.sh's `trill_bin`, the bar's trill pill),
+      # so one cannot drift from the others silently. Hermetic: fake bundles in
+      # a tmpdir, the subject's absolute paths repointed into it. Needs only
+      # bash + bats.
+      - name: trill bundle precedence
+        run: bats test/trill-precedence.bats
+
       # The bar widget runtime (ops/todo/bar-framework.md). Every promise barlib
       # makes fails silently on a live bar: a diff that never settles repaints
       # a quiet pill forever, one that over-matches freezes a pill on stale

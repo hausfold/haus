@@ -32,16 +32,43 @@
 # This comment used to say the room that made trill a flake input would REPLACE
 # this file. It doesn't, and shouldn't: ../notifications
 # (haus.notifications.compositor) places the
-# bundle at /Applications/Trill.app — the second candidate below — and puts
-# nothing on PATH. The room is also off by default and there is no cask, so on
-# most machines Trill.app is somewhere this file has to go looking for. Build
+# bundle at /Applications/Trill.app — the first install location below — and
+# puts nothing on PATH. The room is also off by default and there is no cask, so
+# on most machines Trill.app is somewhere this file has to go looking for. Build
 # time cannot answer a runtime question; that is the whole argument, and having
 # a room does not change it.
 
 set -u
 
 # $TRILL_APP first, so a person testing a branch build can point at it without
-# touching the desktop. Then the two places every install source puts a bundle.
+# touching the desktop. Then the two places every install source puts a bundle —
+# /Applications ahead of ~/Applications.
+#
+# That order is the one JUDGEMENT in this file, and it goes this way round
+# because the two locations are not two spellings of the same thing.
+# /Applications is where a cask, a drag-install and
+# haus.notifications.compositor all put the RELEASE; ~/Applications is where
+# trill's own `scripts/dev-install.sh` leaves a build you were testing. Resolving
+# home-first let that stray outrank the pinned bundle FOREVER: the room rewrites
+# /Applications/Trill.app on every activation and could never displace the copy
+# in front of it, so the Mac went on calling a months-old daemon and no rebuild
+# ever said a word. Measured on mbp 2026-09-02 — a `~/Applications/Trill.app`
+# predating the history fix hung `trill history` at exactly 8192 bytes (the unix
+# socket's send buffer) while the pinned bundle beside it answered fine.
+#
+# The reverse mistake is the cheap one, which is what makes this the safe order.
+# Somebody who wants the branch build has $TRILL_APP, one line above and
+# deliberately still first. Somebody whose ONLY Trill.app is in ~/Applications
+# loses nothing: a candidate that isn't on disk is skipped, so home stays a real
+# fallback for a user-scoped install rather than a preference.
+#
+# It is not free in every direction, and the case it costs is worth naming: with
+# haus.notifications.compositor OFF, an old drag-installed /Applications/Trill.app
+# now outranks a NEWER one in ~/Applications, and nothing here warns. That is the
+# same silence this change is fixing, pointed the other way — but it is the
+# smaller half, because /Applications is the location a person updates on purpose
+# and ~/Applications is the one a tool writes behind their back. $TRILL_APP is the
+# answer in both directions.
 #
 # Both are `:-` guarded. `set -u` plus a bare `$HOME` exits **1**, and 1 is a
 # code the caller reads as "trill ran and rejected the call" rather than "no
@@ -49,8 +76,8 @@ set -u
 # whatever asked for the banner.
 for candidate in \
     "${TRILL_APP:-}" \
-    "${HOME:-}/Applications/Trill.app" \
-    "/Applications/Trill.app"
+    "/Applications/Trill.app" \
+    "${HOME:-}/Applications/Trill.app"
 do
     [ -n "$candidate" ] || continue
     binary="$candidate/Contents/MacOS/Trill"
@@ -66,7 +93,7 @@ done
 cat >&2 <<'MESSAGE'
 trill: Trill.app isn't installed on this Mac.
 
-  Looked in ~/Applications and /Applications (set TRILL_APP to point elsewhere).
+  Looked in /Applications and ~/Applications (set TRILL_APP to point elsewhere).
   Get it from https://github.com/hausfold/trill — the app is its own CLI, so
   installing the bundle is the whole install.
 MESSAGE

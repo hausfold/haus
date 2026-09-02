@@ -24,17 +24,22 @@ source "$HOME/.config/sketchybar/bar.sh"
 # so a nix-time answer would be wrong on both kinds of Mac.
 #
 # $TRILL_APP first, so a person testing a branch build can point at it; then a
-# `trill` on the system profile, which is where a future core shim would put the
-# name (hausfold/haus#511 adds one — this list is deliberately written to work
-# before, during and after that lands, and is what gets deleted if the shim ever
-# becomes the only supported path); then the two places every install source
-# puts the bundle.
+# `trill` on the system profile, which is where core's shim puts the name —
+# modules/core ships modules/core/trill.sh unconditionally, so on any machine
+# running this bar that candidate answers and the rest of the list never runs.
+# It is kept anyway because this file is also read on a Mac mid-rebuild, where
+# the profile can be a generation behind the plugin dir; then the two places
+# every install source puts the bundle, /Applications first for
+# modules/core/trill.sh's reason (a dev build in ~/Applications must not outrank
+# the pinned release). That tail is written this way round even though it is
+# effectively unreachable, so the three copies of the precedence in this repo
+# read alike and none of them teaches the wrong order.
 TRILL=""
 for candidate in \
     "${TRILL_APP:-}/Contents/MacOS/Trill" \
     "/run/current-system/sw/bin/trill" \
-    "${HOME:-}/Applications/Trill.app/Contents/MacOS/Trill" \
-    "/Applications/Trill.app/Contents/MacOS/Trill"
+    "/Applications/Trill.app/Contents/MacOS/Trill" \
+    "${HOME:-}/Applications/Trill.app/Contents/MacOS/Trill"
 do
     # An unset $TRILL_APP collapses to a path that cannot exist, so the -x test
     # is the whole guard: no candidate needs a second one.

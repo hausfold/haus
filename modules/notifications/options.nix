@@ -22,12 +22,16 @@
         copied to a fixed `/Applications/Trill.app`.
 
         haus has drawn its banners through trill since `haus-notify` landed, but
-        by *finding* it at runtime — PATH, then `~/Applications`, then
-        `/Applications` — and falling back to Apple's banner when nothing
+        by *finding* it at runtime — PATH, then `/Applications`, then
+        `~/Applications` — and falling back to Apple's banner when nothing
         answered. That still works, is still the fallback, and is not gated on
-        this switch. What this adds is the other half: the bundle actually being
-        there, at a path that does not move, pinned by this machine's flake lock
-        like every other room.
+        this switch. The bundle this room places wins that search against a
+        hand-installed one, deliberately: a dev build left in `~/Applications`
+        used to outrank it forever, because this room rewrites its own path on
+        every activation and can never displace a copy sitting in front of it.
+        What this adds is the other half: the bundle actually being there, at a
+        path that does not move, pinned by this machine's flake lock like every
+        other room.
 
         Why the path is fixed rather than a store path: trill's whole
         `trill doctor` and System Mirror surface is a **Full Disk Access** grant,
