@@ -487,6 +487,19 @@ jobs:
       - name: the bug-report door
         run: bats test/report-door.bats
 
+      # `haus skill` and `haus get --json` — A3 and A2 of the family
+      # agent-surface standard, and both are surfaces only an agent reads, so
+      # every way they break is silent: printing the UNRENDERED template puts
+      # `@hausVersion@` in front of a user and points an agent at option docs
+      # that were never generated; `skill install` meeting the read-only Nix
+      # symlinks haus itself put there has to refuse in words, because an agent
+      # that reads EPERM reaches for sudo; and a bare-value `--json` cannot tell
+      # "nothing defines this yet" from "defined as null", which is exactly the
+      # pair `haus unset` makes. Hermetic: a fixture skill dir, a fixture HOME,
+      # nix stubbed out. Needs bash + bats + jq, no Nix and no Mac.
+      - name: the agent surface (haus skill, haus get --json)
+        run: bats test/agent-surface.bats
+
       # The one PERMANENT exemption from that standard, and the only thing
       # keeping it honest. bootstrap.sh and haus-activate.sh run before snug is
       # reachable, so they carry nebelung's numbers inlined instead of naming a
