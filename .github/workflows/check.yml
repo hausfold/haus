@@ -321,6 +321,10 @@ jobs:
           # broken row build reads as "the palette closed itself" — which is
           # exactly the bug #430 was opened for. Both are plain bash with no
           # @placeholder@ substitution, so they lint as-is.
+          # modules/launcher/commands/lib/menu-commit.sh joins for barlib.sh's
+          # reason: it is the sourced parse under every palette menu and the
+          # bar's haus menu, and everything it gets wrong is a menu that
+          # silently does nothing.
           # lane-seen.sh joins lane-cwd.sh in the list for the same reason and one
           # more: AeroSpace runs it detached on EVERY focus change
           # (`exec-and-forget`), so nothing it prints or returns reaches anyone
@@ -363,7 +367,7 @@ jobs:
           # unsubstituted; and it is an end-user CLI that launchd agents also
           # exec at boot to read a value, where a non-zero is a room starting
           # without its secret and nothing on screen to say so.
-          shellcheck --severity=warning modules/secrets/haus-secret.sh bootstrap.sh modules/ai/fix.sh modules/ai/fix-github.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/haus-bar-poke.sh modules/core/lidawake.sh test/lidawake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh modules/ai/statusline.sh modules/github/signal.sh modules/terminal/scripts/image-preview.sh modules/terminal/lanes/lane-open.sh modules/bar/sketchybar/barlib.sh
+          shellcheck --severity=warning modules/secrets/haus-secret.sh bootstrap.sh modules/ai/fix.sh modules/ai/fix-github.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/haus-bar-poke.sh modules/core/lidawake.sh test/lidawake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/launcher/commands/lib/menu-commit.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh modules/ai/statusline.sh modules/github/signal.sh modules/terminal/scripts/image-preview.sh modules/terminal/lanes/lane-open.sh modules/bar/sketchybar/barlib.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
       # lidawake's three failsafes, over a fake pmset and a fake clock. Every
@@ -589,6 +593,14 @@ jobs:
       # idempotent, so a wrong key exits 0 and the fin just stays up.
       - name: lane-seen key join
         run: bats test/lane-seen.bats
+      # The one parse of a pounce stdin-menu answer, over fixture commit
+      # strings — "<action>\t<raw-row>", the shape every picker's reply wears.
+      # The bug it pins shut is silent by construction: a case on the ANSWER's
+      # first field compares every row against the literal "enter" and the
+      # menu does nothing at all. Also counts the seven consumers, so an
+      # eighth private parse cannot land quietly. Needs only bash + bats.
+      - name: menu commit parse
+        run: bats test/menu-commit.bats
       # Spawn Agent's field reading. `--dial` gives the prompt step a commit
       # one field wider than every other step's, and BOTH ways of misreading it
       # produce a lane rather than an error — a task silently shortened by its

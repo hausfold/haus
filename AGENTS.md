@@ -1105,11 +1105,16 @@ mechanism, say so in one line.
   - **A script that draws its own list with `pounce` over stdin gets back
     `<action>\t<raw-row>`, not the row** (pounce's `State.swift`, `buildCommit`'s
     `.plain` case) — `action` is `enter`/`cmd`/`opt`/`ctrl`, whichever key
-    committed. So the row's own name is field **2**, and a `case` on field 1
-    matches the literal `enter` every time, falls through the catch-all arm, and
-    the menu does nothing at all — no error, no log. Either strip the verb first
-    (`choice="${choice#*$'\t'}"`, what `haus_menu.sh` and `settings.sh` do) or
-    index past it (`field "$sel" 2`, what `add-app.sh` and `spawn-agent.sh` do).
+    committed. A `case` on field 1 of that answer matches the literal `enter`
+    every time, falls through the catch-all arm, and the menu does nothing at
+    all — no error, no log. So the parse is written ONCE:
+    `commands/lib/menu-commit.sh`'s `menu_commit` splits the answer into
+    `MENU_ACTION`/`MENU_ROW`, and `menu_field "$MENU_ROW" <n>` indexes the row
+    with the same field numbers your printf gave it. Source it at
+    `$(dirname "$0")/lib/menu-commit.sh` and never re-strip the verb by hand —
+    `test/menu-commit.bats` counts the consumers, so a private parse goes red.
+    (A `--dial` answer carries one extra middle field; that grammar belongs to
+    the caller that passed the flag — see `spawn-agent.sh`'s `dial_agent`.)
   - **A row with nothing to act on can absent itself**, with `# pounce: whenFile
     = <path>`: pounce hides it while that file's first line is `0`. `pages.sh`
     is the one that does — the file is `~/.local/state/haus/any-page`, written

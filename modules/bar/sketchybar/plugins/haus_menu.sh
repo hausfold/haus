@@ -40,19 +40,21 @@ rows() {
 choice="$(rows | pounce -p 'haus' -i 'house')"
 [ -n "$choice" ] || exit 0
 
-# A generic stdin picker's row commit is "<action>\t<raw-row>", not the raw
-# row alone (State.swift's buildCommit, .plain case) — action is enter/cmd/
-# opt/ctrl depending which key committed it. Drop that verb before matching
-# on the row's own first field, or every row here compares against "enter"
-# and none of them ever fire.
-choice="${choice#*$'\t'}"
+# A picker's answer is "<action>\t<raw-row>", not the raw row alone —
+# menu_commit (the launcher room's lib/menu-commit.sh, the one parse of that
+# answer) drops the verb, or every row here would compare against "enter" and
+# none of them would ever fire. This is a bar plugin, so it reads the copy the
+# bar installs beside its own generated config — same source file as the
+# launcher's, so the two cannot drift.
+source "$HOME/.config/sketchybar/menu-commit.sh"
+menu_commit "$choice"
 
 # The first three are pounce's OWN built-ins, which unlike a haus command each
 # ship a `pounce-<id>` launcher on PATH (pkgs/pounce-commands wraps `builtinIds`)
 # — so they are named, not reimplemented, for the same reason the haus rows go
 # through $BAR_LOGO_COMMANDS. `pounce-lock` in particular already IS the
 # ⌃⌘Q osascript, and a second copy here would be the one that went stale.
-case "${choice%%$'\t'*}" in
+case "$(menu_field "$MENU_ROW" 1)" in
 'System Settings') exec pounce-preferences ;;
 'Activity Monitor') exec pounce-activity ;;
 # NB this is the first thing in haus to drive System Events from a bar

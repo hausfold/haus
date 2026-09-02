@@ -154,13 +154,11 @@ fi
 DRAFT_KEY="spawn-agent"
 SHOTS="$HOME/.cache/haus-agent-screenshots"
 
-field() { printf '%s' "$1" | cut -f"$2"; }
-# A free-text commit is "<action>\t<text>" where the TEXT may now contain
-# newlines (⇧↵) — so the action is field 1 of the FIRST line, and the payload is
-# everything after that first tab, newlines and all. `field 2` would keep working
-# by accident here and break the moment a prompt's later line contained a tab.
-action_of() { printf '%s' "$1" | /usr/bin/head -n1 | cut -f1; }
-payload_of() { printf '%s' "$1" | /usr/bin/sed $'1s/^[^\t]*\t//'; }
+# The one parse of a pounce menu answer — menu_commit / menu_field. Its
+# MENU_ROW keeps a ⇧↵ answer's newlines and tabs intact, which is what this
+# script's private action_of/payload_of pair existed to get right before the
+# parse moved into lib/.
+. "$(dirname "$0")/lib/menu-commit.sh"
 # A `--dial` step's commit grows one MIDDLE field —
 # "<action>\t<name=value;…>\t<line-or-text>" — so the step that passed the flag
 # strips TWO fields where every other step here strips one. Both halves are
@@ -378,15 +376,16 @@ fi
 # is purely a shape and the commit string is identical either way.
 repo_sel="$(printf '%s\n' "$list" | pounce --grid -p "Spawn Agent — which repo?" -i "sparkles")"
 [ -z "$repo_sel" ] && exit 0
-repo_name="$(field "$repo_sel" 2)"
-repo="$(field "$repo_sel" 7)"
+menu_commit "$repo_sel"
+repo_name="$(menu_field "$MENU_ROW" 1)"
+repo="$(menu_field "$MENU_ROW" 6)"
 # Free text that matched no row commits as "<action>\t<what you typed>" and
-# carries no path in field 7 — there is nothing sensible to spawn on. Say which
-# text missed rather than vanishing: a step that closes with no window, no lane
-# and no message is indistinguishable from the palette having dropped the
-# keystroke, which is exactly how this read from the outside.
+# carries no path in the row's sixth field — there is nothing sensible to spawn
+# on. Say which text missed rather than vanishing: a step that closes with no
+# window, no lane and no message is indistinguishable from the palette having
+# dropped the keystroke, which is exactly how this read from the outside.
 if [ -z "$repo" ]; then
-  typed="$(payload_of "$repo_sel" | tr '\n\t' '  ')"
+  typed="$(printf '%s' "$MENU_ROW" | tr '\n\t' '  ')"
   notice "No repo matches “${typed}”" \
     "Add its parent to haus.ai.repoRoots, or spawn there once from a terminal" \
     "folder.badge.questionmark"
@@ -394,7 +393,7 @@ if [ -z "$repo" ]; then
 fi
 # A row WAS picked and its checkout is gone — a repo moved or deleted since the
 # list was built, or a stale scruff registry row. Different miss, different words:
-# `payload_of` here would hand back the whole tab-joined row.
+# $MENU_ROW here would hand back the whole tab-joined row.
 if [ ! -d "$repo/.git" ]; then
   notice "$repo_name is not there any more" "Nothing at $repo — moved, or removed" \
     "folder.badge.questionmark"
@@ -465,13 +464,16 @@ draft_picker() {
   fi
   sel="$(printf '%s\n' "$rows" | pounce -p "Drafts — $DRAFT_KEY" -i "tray.full")"
   [ -z "$sel" ] && return 1
-  # A row commits as "<action>\t<the whole row>", so every column is shifted by
-  # one: field 1 is the action and the index written as the row's 6th field
-  # arrives as the 7th. Free text typed here matches no row and carries no
-  # index — treat that as a miss rather than acting on draft 0.
-  idx="$(field "$sel" 7)"
+  # The index is the row's 6th field and stays the 6th — menu_commit already
+  # took the verb. Free text typed here matches no row and carries no index —
+  # treat that as a miss rather than acting on draft 0. (This runs in a
+  # command substitution, so clobbering the two globals costs the caller
+  # nothing; a picker helper called in the SAME shell would have to capture
+  # them first.)
+  menu_commit "$sel"
+  idx="$(menu_field "$MENU_ROW" 6)"
   case "$idx" in ''|*[!0-9]*) return 1 ;; esac
-  case "$(field "$sel" 1)" in
+  case "$MENU_ACTION" in
     cmd) pounce drafts "$DRAFT_KEY" rm "$idx" >/dev/null 2>&1; return 1 ;;
     opt) pounce drafts "$DRAFT_KEY" clear >/dev/null 2>&1; return 1 ;;
   esac
@@ -495,7 +497,8 @@ while :; do
     [ -n "$image" ] && rm -f "$image"
     exit 0
   fi
-  action="$(action_of "$prompt_sel")"
+  menu_commit "$prompt_sel"
+  action="$MENU_ACTION"
   # Every commit carries the chip's CURRENT value, so this is re-read on each
   # trip round the loop rather than once: cycling to another client and then
   # going out to the drafts list must not put the first client back. pounce
@@ -505,7 +508,7 @@ while :; do
     agent="$picked_agent"
     prompt="$(dial_payload "$prompt_sel")"
   else
-    prompt="$(payload_of "$prompt_sel")"
+    prompt="$MENU_ROW"
   fi
 
   case "$action" in

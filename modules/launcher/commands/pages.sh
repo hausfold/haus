@@ -75,6 +75,9 @@ set -u
 # PATH is bare. Same prelude as the other commands here.
 export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/bin:/bin${PATH:+:$PATH}"
 
+# The one parse of a pounce menu answer — menu_commit / menu_field.
+. "$(dirname "$0")/lib/menu-commit.sh"
+
 if ! command -v aerospace >/dev/null 2>&1; then
   printf '%s\t%s\t%s\n' "AeroSpace is unavailable" "Rebuild haus, then try again" \
     "exclamationmark.triangle" | pounce -p "Pages" -i "square.stack" >/dev/null
@@ -186,17 +189,16 @@ rows="$(
 sel="$(printf '%s\n' "$rows" | pounce -p "$prompt" -i "square.stack")" || exit 0
 [ -n "$sel" ] || exit 0
 
-# A reply is "<action>\t<the whole row>", so every column shifts by one and the
-# hidden 6th field arrives as the 7th.
-action="$(printf '%s' "$sel" | head -n1 | cut -f1)"
-page="$(printf '%s' "$sel" | cut -f7)"
+menu_commit "$sel"
+action="$MENU_ACTION"
+page="$(menu_field "$MENU_ROW" 6)"
 
 # Free text that matched no row: treat it as a page NAME. AeroSpace creates a
 # workspace on first use, so throwing a window at `T/newthing` is a working act
 # and not a typo to refuse — and it is how you page a repo whose first lane
 # hasn't been opened yet. Anything already looking like a page is taken as-is.
 if [ -z "$page" ]; then
-  typed="$(printf '%s' "$sel" | cut -f2)"
+  typed="$(menu_field "$MENU_ROW" 1)"
   typed="$(printf '%s' "$typed" | tr -d '[:space:]')"
   [ -n "$typed" ] || exit 0
   case "$typed" in

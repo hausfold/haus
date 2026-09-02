@@ -330,6 +330,11 @@ let
   riceCommands = pkgs.runCommand "haus-pounce-commands" { } ''
     mkdir -p $out
     cp ${./commands}/*.sh $out/
+    # The one parse of a pounce menu answer, sourced by the commands above at
+    # $(dirname "$0")/lib/ — nested like data/, so discovery can't offer it as
+    # a command. The bar's haus_menu.sh installs the same source file beside
+    # its plugins, so the two copies cannot drift.
+    install -Dm444 ${./commands/lib/menu-commit.sh} $out/lib/menu-commit.sh
     substituteInPlace $out/add-app.sh --replace-fail '@hostname@' '${hostname}'
     substituteInPlace $out/copy-text.sh --replace-fail '@hausocr@' '${hausocr}/bin/hausocr'
     chmod 555 $out/*.sh
@@ -1482,6 +1487,12 @@ lib.mkIf config.haus.launcher.enable {
         source = ./commands/pages.sh;
         executable = true;
       };
+      # …and the parse it sources at $(dirname "$0")/lib/. The palette copy
+      # finds it inside riceCommands; THIS copy would find nothing — the source
+      # fails silently (no set -e) and every pick then dies unset under the
+      # script's set -u, which is a picker that opens and does nothing on the
+      # pill's click path. Same source file as the other two installs.
+      home.file.".config/haus/lib/menu-commit.sh".source = ./commands/lib/menu-commit.sh;
 
       # Palette settings — pounce re-reads this on each open. Edit + rebuild.
       home.file.".config/pounce/config.json".text = builtins.toJSON (

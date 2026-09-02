@@ -16,20 +16,19 @@ choice="$({
   printf '%s\t%s\t%s\n' 'High contrast on' 'haus.theme.contrast → high' 'circle.lefthalf.filled'
 } | pounce -p 'Haus Settings' -i 'slider.horizontal.3')"
 
-# A generic stdin picker's row commit is "<action>\t<raw-row>", not the raw row
-# alone (State.swift's buildCommit, .plain case) — action is enter/cmd/opt/ctrl
-# depending which key committed it. Drop that verb before matching on the row's
-# own first field, or every row here compares against "enter", falls through to
-# the `*)` arm, and the menu silently does nothing. Same rule, same fix as
-# modules/bar/sketchybar/plugins/haus_menu.sh.
-choice="${choice#*$'\t'}"
+# A picker's answer is "<action>\t<raw-row>", not the raw row alone —
+# menu_commit (lib/menu-commit.sh, the one parse of that answer) drops the
+# verb, or every row here would compare against "enter" and silently fall
+# through the `*)` arm.
+. "$(dirname "$0")/lib/menu-commit.sh"
+menu_commit "$choice"
 
 # Each action is a list of `haus set` PAIRS. Light mode needs two of them, and
 # needs them in one `haus set`: theme.flavor alone recolours haus's own tools
 # and leaves System Settings ▸ Appearance dark, which is the half-done state
 # this row exists to avoid — and two `haus set` calls would be two rebuilds with
 # the machine sitting in exactly that state in between.
-case "${choice%%$'\t'*}" in
+case "$(menu_field "$MENU_ROW" 1)" in
   'Make text bigger') pairs=(ui.scale 1.35) ;;
   'Switch to light mode') pairs=(theme.flavor latte theme.systemAppearance flavor) ;;
   'High contrast on') pairs=(theme.contrast high) ;;

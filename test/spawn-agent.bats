@@ -18,10 +18,14 @@
 # Neither shows up in a feel-test, because both produce a lane. Hence this file.
 #
 # The subject is not sourceable — it is a command that runs top to bottom and
-# opens windows — so the four readers are lifted out of it by name. That keeps
+# opens windows — so its own readers are lifted out of it by name. That keeps
 # the assertions pinned to the real source rather than to a copy: rename or
 # reshape one of them and the extraction fails loudly instead of testing text
-# that no longer exists.
+# that no longer exists. The generic action/payload split moved into
+# lib/menu-commit.sh (menu_commit's MENU_ACTION/MENU_ROW — its own suite is
+# test/menu-commit.bats), which IS sourceable, so setup takes it whole; the
+# cases here keep asserting both halves side by side because a dial commit is
+# read by both in turn.
 
 bats_require_minimum_version 1.5.0
 
@@ -32,10 +36,14 @@ setup() {
     return 1
   }
 
+  # The one parse the subject now sources for the action/payload split.
+  # shellcheck disable=SC1091
+  . "$BATS_TEST_DIRNAME/../modules/launcher/commands/lib/menu-commit.sh"
+
   local lifted="$BATS_TEST_TMPDIR/readers.sh"
   : >"$lifted"
   local fn
-  for fn in action_of payload_of dial_agent dial_payload resolve_agents lane_target; do
+  for fn in dial_agent dial_payload resolve_agents lane_target; do
     awk -v fn="$fn" '
       $0 ~ "^" fn "\\(\\) \\{" { inside = 1 }
       inside { print }
@@ -67,7 +75,8 @@ setup() {
   [ "$status" -eq 0 ]
   [ "$output" = "pi" ]
   [ "$(dial_payload "$commit")" = "fix the bar pill flicker" ]
-  [ "$(action_of "$commit")" = "enter" ]
+  menu_commit "$commit"
+  [ "$MENU_ACTION" = "enter" ]
 }
 
 # ⇧↵ makes the task multi-line, and only the FIRST line carries the fields.
@@ -88,7 +97,8 @@ setup() {
   commit="$(printf 'enter\tfix the bar pill flicker')"
   run dial_agent "$commit"
   [ "$status" -ne 0 ]
-  [ "$(payload_of "$commit")" = "fix the bar pill flicker" ]
+  menu_commit "$commit"
+  [ "$MENU_ROW" = "fix the bar pill flicker" ]
 }
 
 # The whole reason the membership test exists: a task may begin with the
@@ -98,7 +108,8 @@ setup() {
   commit="$(printf 'enter\tagent=pi is what I want to write about')"
   run dial_agent "$commit"
   [ "$status" -ne 0 ]
-  [ "$(payload_of "$commit")" = "agent=pi is what I want to write about" ]
+  menu_commit "$commit"
+  [ "$MENU_ROW" = "agent=pi is what I want to write about" ]
 }
 
 # Same text, but with a tab in it so the field count alone would say yes.
@@ -109,7 +120,8 @@ setup() {
   run dial_agent "$commit"
   [ "$status" -ne 0 ]
   expected="$(printf 'agent=zed\tcompare it to ours')"
-  [ "$(payload_of "$commit")" = "$expected" ]
+  menu_commit "$commit"
+  [ "$MENU_ROW" = "$expected" ]
 }
 
 # A machine with one client installed passes no --dial at all, so no commit
@@ -246,11 +258,12 @@ stub_default() {
 # builds it with `basename "$repo"` — pin that too, since it is one `cut -f`
 # away from being any other column of the row.
 @test "spawn receipt: repo_name is the main checkout's basename" {
-  # The basename is emitted as column 2 of the repo row...
+  # The basename is emitted as the row's first column...
   grep -qF '"$(basename "$repo")"' "$SUBJECT"
-  # ...and read back out of column 2. Both halves, or this passes while the
-  # printf fields are reordered and the click targets the description string.
-  grep -qF 'repo_name="$(field "$repo_sel" 2)"' "$SUBJECT"
+  # ...and read back out of it — off $MENU_ROW, where the row keeps its own
+  # field numbers. Both halves, or this passes while the printf fields are
+  # reordered and the click targets the description string.
+  grep -qF 'repo_name="$(menu_field "$MENU_ROW" 1)"' "$SUBJECT"
 }
 
 # The guard in front of it. trill refuses the WHOLE send when a lane target
