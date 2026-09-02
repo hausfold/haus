@@ -13,6 +13,13 @@ let
 in
 {
   options.haus = {
+    # Two values, and a third that supplies its own hexes is deliberately not
+    # coming. The description below says why it would only half work — nebelung
+    # renders each port in a derivation — and this is why leaving it out is the
+    # safe half of the bet rather than a deferral: the asymmetry runs one way.
+    # Adding a "custom" flavor later costs a release; taking one away later is a
+    # deprecation on a desktop somebody is already running, and a palette is the
+    # option they would have built the most on top of.
     theme.flavor = lib.mkOption {
       type = lib.types.enum [
         "mocha"
