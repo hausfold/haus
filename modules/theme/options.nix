@@ -129,6 +129,16 @@ in
         turn haus's, so those two end up following `flavor` transitively —
         which is usually what you wanted, but it does mean `followSystemAppearance`
         stops being an independent axis on this machine.
+
+        There is deliberately no option pointing the other way — no
+        desktop-wide "follow the system" that every themed tool obeys. What
+        can follow appearance is a tool that owns its whole WINDOW, which is
+        not the same set as "a tool": a terminal that flipped on its own would
+        leave bat, delta, lsd and yazi rendering the other polarity inside it,
+        since those read their palette once at start and stay pinned to
+        `flavor`. One switch cannot say that, so following the system stays a
+        per-tool opt-in — one option on each tool that can honestly carry it.
+        modules/terminal/ghostty/config holds the mechanics where they bite.
       '';
     };
 
