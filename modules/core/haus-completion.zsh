@@ -163,7 +163,7 @@ _haus() {
             _describe -t haus-skills 'skill or reference' pages
           elif [[ $words[2] == install ]]; then
             _arguments \
-              '--client[write into one client only]:client:(claude codex opencode pi)' \
+              '--client[write into one client only]:client:(@skillClients@)' \
               '--dir[write into a directory of your own]:directory:_files -/'
           else
             _message 'one page at a time'

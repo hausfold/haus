@@ -54,6 +54,26 @@ setup() {
 
   export FAKEHOME="$BATS_TEST_TMPDIR/home"
   mkdir -p "$FAKEHOME"
+
+  # The client table the wrapper hands `haus` (modules/core/default.nix),
+  # derived here from the same source it renders — modules/ai/agents/homes.nix
+  # — so the suite exercises the real client paths without holding a copy of
+  # them. haus.sh no longer carries a table at all, only this parse's input.
+  # Both patterns are anchored to the file's exact indentation, and the pair
+  # count is checked against the client-header count below, so a future edit
+  # the awk cannot read (a renamed client, a comment carrying `skills = "`)
+  # fails the whole suite instead of silently feeding it a wrong table.
+  local homes="$BATS_TEST_DIRNAME/../modules/ai/agents/homes.nix"
+  HAUS_AGENT_SKILL_DIRS="$(awk '
+    /^  [a-z0-9_-]+ = \{$/ { client = $1 }
+    /^    skills = "/      { split($0, q, "\""); printf "%s%s=%s", sep, client, q[2]; sep = ":" }
+  ' "$homes")"
+  local nclients npairs
+  nclients="$(grep -cE '^  [a-z0-9_-]+ = \{$' "$homes")"
+  npairs="$(awk -F: '{ print NF }' <<<"$HAUS_AGENT_SKILL_DIRS")"
+  [ -n "$HAUS_AGENT_SKILL_DIRS" ] && [ "$nclients" = "$npairs" ] \
+    || { echo "setup: parsed $npairs pairs out of $nclients clients in homes.nix" >&2; return 1; }
+  export HAUS_AGENT_SKILL_DIRS
 }
 
 fail() { printf '%s\n' "$*" >&2; return 1; }   # not a bats builtin
@@ -67,6 +87,7 @@ haus_sh() { # haus_sh <VAR=val…> <snippet>
   # needs to blank is HAUS_SKILL_DIR itself.
   run env \
     HAUS_CONSUMER="$HAUS_CONSUMER" HAUS_SKILL_DIR="$SKILL" HOME="$FAKEHOME" \
+    HAUS_AGENT_SKILL_DIRS="$HAUS_AGENT_SKILL_DIRS" \
     "${@:1:$#-1}" HAUS_LIB=1 "$BASH" -c "
     set -uo pipefail
     source '$SUBJECT'
@@ -319,26 +340,38 @@ haus_sh() { # haus_sh <VAR=val…> <snippet>
   [[ "$output" == *"--client needs one of"* ]] || fail "died silently: '$output'"
 }
 
-@test "the client table matches modules/ai's agentHomes" {
-  # Core may not read the AI room's config, so this table is that room's
-  # `agentHomes` said again in bash. The two move together or `skill install`
-  # writes where nothing reads.
-  local ai="$BATS_TEST_DIRNAME/../modules/ai/default.nix"
-  local c dir
-  for c in claude codex opencode pi; do
-    haus_sh "skill_client_dir $c"
-    # haus.sh answers an absolute path under $HOME; agentHomes writes it
-    # home-relative, which is the same string with `$HOME/` off the front
-    # (`.claude/skills`). One spelling, derived, so neither side can be matched
-    # by an arm that could never fire.
-    dir="${output#"$FAKEHOME"/}"
-    grep -qF "skills = \"$dir\";" "$ai" \
-      || fail "$c: haus.sh says $dir, which modules/ai's agentHomes does not"
-  done
-  # And the derivation above is doing work: a spelling agentHomes has never
-  # carried must fail it.
-  grep -qF 'skills = ".emacs/skills";' "$ai" && fail "the grep matches anything"
-  return 0
+@test "the client table exists once, and haus.sh only parses it" {
+  # The table used to be said twice — modules/ai's `agentHomes` and a bash
+  # case here — with this test diffing the spellings. Now
+  # modules/ai/agents/homes.nix is the one copy: modules/ai imports it, core
+  # renders it into the wrapper as HAUS_AGENT_SKILL_DIRS, and haus.sh parses
+  # that. What is left to hold is the WIRING, each end by the line that does it.
+  local root="$BATS_TEST_DIRNAME/.."
+  grep -qF 'agentHomes = import ./agents/homes.nix;' "$root/modules/ai/default.nix" \
+    || fail "modules/ai no longer imports agents/homes.nix"
+  grep -qF 'agentHomes = import ../ai/agents/homes.nix;' "$root/modules/core/default.nix" \
+    || fail "core no longer imports the table"
+  grep -qF -- '--set-default HAUS_AGENT_SKILL_DIRS' "$root/modules/core/default.nix" \
+    || fail "the wrapper no longer hands haus.sh the rendered table"
+  # And no bash copy grew back: a client path spelled in this script is a
+  # second source nothing diffs any more.
+  grep -n '\.claude/skills\|\.codex/skills\|\.config/opencode/skills\|\.pi/agent/skills' "$SUBJECT" \
+    | grep -vE '^[0-9]+:[[:space:]]*#' \
+    && fail "haus.sh spells a client path of its own again"
+  # The parse feeding this suite (setup) produced the real table, so the
+  # behavior tests above exercised the paths a rebuild writes.
+  [[ "$HAUS_AGENT_SKILL_DIRS" == *"claude=.claude/skills"* ]] \
+    || fail "setup's parse of homes.nix answered: '$HAUS_AGENT_SKILL_DIRS'"
+  haus_sh 'skill_client_dir claude'
+  [ "$output" = "$FAKEHOME/.claude/skills" ] || fail "the parse answers '$output'"
+}
+
+@test "a missing client table is named, not an empty install" {
+  # Off the wrapper nothing sets HAUS_AGENT_SKILL_DIRS — the same broken
+  # invocation skill_dir refuses, refused in the same words.
+  haus_sh HAUS_AGENT_SKILL_DIRS= 'cmd_skill_install --client claude 2>&1'
+  [ "$status" -eq 1 ] || fail "installed with no table: $output"
+  [[ "$output" == *"HAUS_AGENT_SKILL_DIRS"* ]] || fail "$output"
 }
 
 # ---- A3: discoverability -----------------------------------------------------

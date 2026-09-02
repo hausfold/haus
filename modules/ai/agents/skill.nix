@@ -2,7 +2,7 @@
 #
 # ONE skill, installed into whichever clients this machine runs — Claude Code,
 # Codex and OpenCode all read a `<dir>/<name>/SKILL.md` of exactly this shape,
-# and this room (agentHomes, ../default.nix) knows each one's directory. It lived under
+# and this room (agentHomes, ./homes.nix) knows each one's directory. It lived under
 # terminal/claude/ and was called the Claude skill until 2026-08-11; nothing in
 # its content ever was.
 #

@@ -24,10 +24,12 @@
 #
 # And three more tables are keyed BY these ids rather than derived from them,
 # because their values are per-client facts this list can't hold. Two are in the
-# AI room (modules/ai/default.nix): `agentHomes` (where that client keeps its
-# instructions file and its skills dir) and `clientScopeNote` (which of its own
-# files haus does NOT own). The third is modules/lib/agent-oneshot.nix — how
-# to run that client for ONE headless turn, which is what `haus fix` needs.
+# AI room: `agentHomes` (where that client keeps its instructions file and its
+# skills dir — the table itself is modules/ai/agents/homes.nix, pure data,
+# because core also renders it into the `haus` wrapper) and `clientScopeNote`
+# (which of its own files haus does NOT own, modules/ai/default.nix). The third
+# is modules/lib/agent-oneshot.nix — how to run that client for ONE headless
+# turn, which is what `haus fix` needs.
 #
 # The oneshot table CHECKS ITSELF against this file and throws by name; the two
 # in the AI room fail the eval with `attribute '<id>' missing`, which names
