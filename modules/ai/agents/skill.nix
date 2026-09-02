@@ -196,11 +196,21 @@ pkgs.runCommand "haus-agent-skill-${version}"
 
     # The frontmatter, and ONLY the frontmatter. Every client routes on `name`
     # and `description`; the same words further down the body are prose.
+    #
+    # The close is found by LINE NUMBER inside a bounded window rather than with
+    # `sed '1,/^---$/p'`, which runs to EOF when the block is never closed and
+    # then hands the greps below the whole body to search. That is not
+    # hypothetical here: a markdown thematic break is spelt `---` too, so an
+    # unclosed block plus one horizontal rule anywhere in the prose would pass a
+    # "never closed" check and let `name:`/`description:` match a sentence. Real
+    # frontmatter is two keys; 12 lines is generous and still nowhere near the
+    # body.
     head -1 "$skill" | grep -qx -- '---' \
       || { echo "SKILL.md does not open with YAML frontmatter — no client will load it" >&2; exit 1; }
-    front="$(tail -n +2 "$skill" | sed -n '1,/^---$/p')"
-    printf '%s\n' "$front" | grep -qx -- '---' \
-      || { echo "SKILL.md frontmatter block is never closed" >&2; exit 1; }
+    close=$(tail -n +2 "$skill" | head -12 | grep -n -m1 -x -- '---' | cut -d: -f1 || true)
+    [ -n "$close" ] \
+      || { echo "SKILL.md frontmatter block is never closed in its first 12 lines" >&2; exit 1; }
+    front="$(tail -n +2 "$skill" | head -n "$close")"
 
     # The `name:` key and the directory this installs into are two identifiers
     # for one skill — the path a client scans and the string it routes on. haus

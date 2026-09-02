@@ -101,11 +101,13 @@ kind of change you are making, so the user knows whether a rollback undoes it.
 
 **A rebuild that stops on Full Disk Access is not "agents are refused".** The
 config sets `system.defaults.universalaccess.*`, a TCC-protected domain only an
-app with that grant can write, so an ungranted human is refused identically. Do
-not work around it and do not retry — the write fails mid-activation and skips
-every background service haus installs, with a symptom nowhere near the cause.
-The fix is usually to move those keys to `haus.accessibility.*`, whose guarded
-writes reach every key nix-darwin types there; `references/recipes.md` has both.
+app with that grant can write, so an ungranted human is refused identically.
+**Nothing has been changed** — the refusal is what PREVENTS a half-activated Mac,
+because that write is unguarded and would abort activation partway, skipping
+every background service haus installs. So do not work around it and do not
+retry. It prints two routes and the first is the fix: move those keys to
+`haus.accessibility.*`, whose guarded writes reach every key nix-darwin types
+there and degrade to "setting skipped" instead. `references/recipes.md` works it.
 
 **Do not verify by taking the user's screen.** Someone is sitting in front of
 this Mac; `agent-desktop-guard` puts any call that foregrounds an app, moves the
@@ -114,22 +116,21 @@ pointer or sends a keystroke back to a human. Boot a headless VM instead —
 
 ## When you need more than this skill
 
-- `haus --help` — every verb and flag, from the revision this machine has.
+- `haus --help` for every verb, `haus <verb> --help` for that verb's own flags
+  and exit codes — this revision's, which the docs site cannot promise.
 - `haus doctor` — health check, including whether this app holds Full Disk
-  Access. Run it before blaming your own change. `haus plan` previews a rebuild.
-- `haus report` — for a fault that is haus's own rather than this config's: opens
-  its bug form with the diagnostics filled in. `--print` prints the block and the
-  link and opens nothing, which is the form for a pane. Nothing is sent either
-  way until the user presses Submit.
+  Access. Run it before blaming your own change; `haus plan` says which grant a
+  rebuild wants before it runs.
+- `haus report` — for a fault that is haus's own, not this config's: opens its
+  bug form with the diagnostics filled in. `--print` gives the block and link
+  without opening anything — the form for a pane. Nothing is sent until Submit.
 - `haus generations` / `haus rollback [N]` — the undo history.
 - `haus show <src> [--json]` — inspect a `.nix` the user was handed or linked to.
-  Reads only; a source is fetched into the store and read there, so it is safe on
-  something they intend to refuse. `class: "desktop"` with `ok: true` means haus
-  PROVED it can set nothing but public, desktop-safe options; `class: "room"`
-  means it is code that runs as root — **never report that as safe**.
+  Reads only, into the store, so it is safe on one they intend to refuse.
+  `class: "desktop"` + `ok: true` means haus PROVED it sets nothing but public,
+  desktop-safe options; `class: "room"` is code run as root — **never call it safe**.
 - <https://hausfold.co/docs/> — guides and reference for the **latest** haus, so
-  it can describe options this pin does not have. When the two disagree, this
-  skill's reference wins for what is settable right now.
+  it may name options this pin lacks. On disagreement, `options.md` wins.
 
 ## Files in this skill
 

@@ -313,8 +313,7 @@ let
       here. That is the answer to "can I try the palette / the bar / this
       keybind / the installer", and it is the FIRST thing to reach for:
       `scruff runtime up <lane> --backend tart`, then drive the guest over `ssh`.
-      The haus skill's **Seeing your change without taking the screen** has the
-      whole loop.
+      `haus skill vm` (the skill's `references/vm.md`) has the whole loop.
     - **Spawning a lane never takes the screen.** Put `HAUS_LANE_BACKGROUND=1`
       in front of `scruff spawn` — the same binary the handoff skill's
       `/handoff spawn` drives — and the lane opens without the user feeling it: on a
