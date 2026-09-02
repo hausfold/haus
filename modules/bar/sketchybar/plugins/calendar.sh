@@ -30,28 +30,34 @@
 # event changed, on the theory that that's when you'd want to read it; in
 # practice the bar just moved on its own several times a day, which is the one
 # thing a status bar must never do. Nothing here starts a marquee unless the
-# pointer is on the pill. That also removed the whole hover-flag/settle timer
-# apparatus this file used to carry, and with it the stranded-flag failure mode
-# the bar's init had to clean up after.
+# pointer is on the pill.
 #
 # How wide the settled form is comes from `haus.bar.calendar.width`, applied as
-# the item's label.max_chars at add time (modules/bar/default.nix) — SketchyBar
-# owns the clip, so nothing here has to know the number.
+# the item's label.max_chars in the Nix style — SketchyBar owns the clip, so
+# nothing here has to know the number.
+#
+# ── the framework ─────────────────────────────────────────────────────────────
+# A barlib widget (hausfold.co/docs/haus/rooms/bar-widgets). The header below is
+# the pill's whole wiring; the runtime owns the $SB routing, the diffed repaint,
+# the click dispatch, and the whole popup dance — the per-row items, the one
+# batched --add, the close-on-click and the barpop arm this file used to spell
+# out by hand. The dropdown's rows are the runtime's six kinds now: a heading
+# per band, a two-column row per event (the when column on the left, the title
+# on the value column), and a second two-column row hanging the duration and
+# the who under it with the Join affordance trailing in the value slot.
+# widget: popup      = true
+# widget: subscribes = mouse.entered, mouse.exited, mouse.exited.global
 set -u
 export USER="${USER:-$(id -un)}"
 export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:$PATH"
-source "$HOME/.config/sketchybar/colors.sh"
-# $SB — which bar this pill lives on (haus.bar.bottom.items can move it to the
-# bottom bar, a separate SketchyBar instance addressed by its own binary).
+
 BAR_ITEM=calendar
-source "$HOME/.config/sketchybar/bar.sh"
-source "$HOME/.config/sketchybar/sizes.sh"
+source "$HOME/.config/sketchybar/barlib.sh"
 # GENERATED from haus.bar.calendar.* — absent on a desktop that predates it, hence
 # the defaults below rather than a hard `source`.
 [ -f "$HOME/.config/sketchybar/calendar_config.sh" ] &&
   source "$HOME/.config/sketchybar/calendar_config.sh"
 
-ITEM_NAME="${NAME:-calendar}"
 # This file, by the path SketchyBar knows it as — a dropdown row's click_script
 # is a string SketchyBar runs later, so it can't inherit anything from here.
 SELF="${BASH_SOURCE[0]:-$HOME/.config/sketchybar/plugins/calendar.sh}"
@@ -120,62 +126,19 @@ open_join() {
   /usr/bin/open "$url" >/dev/null 2>&1 &
 }
 
-case "${1:-}" in
-join)                       # right-click, and the pill's own gesture: the shown event
-  open_join "$(cat "$JOIN_CACHE" 2>/dev/null)"
-  exit 0
-  ;;
-open)                       # a dropdown row: the link that row was built with
+# A dropdown row's click: the link that row was built with. A CLI mode rather
+# than a handler because a click_script is a fresh process, and it exits here
+# without ever reaching barlib_main — the runtime already appended the popup
+# close to the row.
+if [ "${1:-}" = "open" ]; then
   open_join "${2:-}"
   exit 0
-  ;;
-esac
-
-# Hover is answered without touching icalBuddy for the marquee half — the
-# pointer crossing the bar fires this script and re-reading the calendar for a
-# mouse twitch would spawn a binary per pixel. Entering DOES fall through to a
-# repaint though: looking at the pill is the moment its number has to be right,
-# and it is also the cheapest possible cache-invalidation signal there is.
-# mouse.exited.global is the belt-and-braces twin — the per-item exit is missed
-# when the pointer is flicked straight off the bar, and a stranded marquee is
-# the exact failure this pill's whole sweep design exists to prevent.
-case "${SENDER:-}" in
-mouse.entered)
-  # haus.bar.calendar.marquee, which haus.appearance.reduceMotion sets off.
-  # Entering still falls through to the repaint below — looking at the pill is
-  # when its number has to be right — it just doesn't start the sweep.
-  [ "${BAR_CALENDAR_MARQUEE:-1}" = "1" ] && "$SB" --set "$ITEM_NAME" scroll_texts=on
-  ;;
-mouse.exited | mouse.exited.global)
-  "$SB" --set "$ITEM_NAME" scroll_texts=off
-  exit 0
-  ;;
-esac
-
-WANT_POPUP=0
-if [ "${1:-}" = "click" ]; then
-  case "${BUTTON:-left}" in
-  right)
-    open_join "$(cat "$JOIN_CACHE" 2>/dev/null)"
-    exit 0
-    ;;
-  *)
-    # Closing is just hiding. Rebuilding a dozen rows first would re-lay-out a
-    # popup the user can see, which is the shrink/regrow flash the AI-usage pill
-    # documents; the rows are rebuilt on the way back IN, where nothing shows.
-    if [ "$("$SB" --query "$ITEM_NAME" 2>/dev/null | jq -r '.popup.drawing')" = "on" ]; then
-      "$SB" --set "$ITEM_NAME" popup.drawing=off
-      exit 0
-    fi
-    WANT_POPUP=1
-    ;;
-  esac
 fi
 
 # ── reading the calendar ──────────────────────────────────────────────────────
-# ONE icalBuddy call serves both the pill and the dropdown (~50 ms, measured),
-# covering `past` hours back to a week ahead — the pill applies its own horizon
-# to what comes out. Every field is LABELLED (`-npn` deliberately not passed):
+# ONE icalBuddy call serves whichever half asked (~50 ms, measured), covering
+# `past` hours back to a week ahead — the pill applies its own horizon to what
+# comes out. Every field is LABELLED (`-npn` deliberately not passed):
 # icalBuddy omits a property an event doesn't have rather than emitting an empty
 # one, so a positional parse silently files the notes under the location the
 # first time somebody's meeting has no attendees. `-nnr` folds a note's newlines
@@ -189,40 +152,40 @@ fi
 # the pill says "No events" about a month it can see nothing of, with nothing
 # anywhere to explain why. A week is the FLOOR, not the reach, because the
 # dropdown's Next band is documented as being allowed to outrun the horizon.
-FROM=$(date -v-"${PAST}"H +%F 2>/dev/null || date +%F)
-AHEAD=$(((HORIZON + 23) / 24))
-[ "$AHEAD" -lt 7 ] && AHEAD=7
-TO=$(date -v+"${AHEAD}"d +%F 2>/dev/null || date +%F)
-RAW=$("$ICALBUDDY" -nc -nrd -ea \
-  -nnr " ⏎ " -b "@@E@@" -ps "|@@F@@|" \
-  -df "%Y-%m-%d" -tf "%H:%M" \
-  -iep "datetime,title,attendees,location,url,notes" \
-  eventsFrom:"$FROM" to:"$TO" 2>/dev/null)
+#
+# Sets EVENTS (one US-separated row per event, oldest first:
+# startMin endMin sdate stime etime title who join), NOW_MIN and the day
+# anchors. startMin/endMin are NAIVE local minutes (a Julian day number × 1440
+# plus the clock), which is all the ordering, the section split and the
+# durations need and costs no `date` fork per event. The one number that must
+# survive a DST boundary — the countdown the pill prints — is computed from a
+# real epoch in pick_focus, for the one event it's about.
+read_calendar() {
+  NOW_YMD=$(date +%Y-%m-%d)
+  NOW_HM=$(date +%H:%M)
+  TODAY=$NOW_YMD
+  TOMORROW=$(date -v+1d +%F 2>/dev/null || echo "")
+  YESTERDAY=$(date -v-1d +%F 2>/dev/null || echo "")
 
-NOW_YMD=$(date +%Y-%m-%d)
-NOW_HM=$(date +%H:%M)
-TODAY=$NOW_YMD
-TOMORROW=$(date -v+1d +%F 2>/dev/null || echo "")
-YESTERDAY=$(date -v-1d +%F 2>/dev/null || echo "")
+  local from ahead to raw
+  from=$(date -v-"${PAST}"H +%F 2>/dev/null || date +%F)
+  ahead=$(((HORIZON + 23) / 24))
+  [ "$ahead" -lt 7 ] && ahead=7
+  to=$(date -v+"${ahead}"d +%F 2>/dev/null || date +%F)
+  raw=$("$ICALBUDDY" -nc -nrd -ea \
+    -nnr " ⏎ " -b "@@E@@" -ps "|@@F@@|" \
+    -df "%Y-%m-%d" -tf "%H:%M" \
+    -iep "datetime,title,attendees,location,url,notes" \
+    eventsFrom:"$from" to:"$to" 2>/dev/null)
 
-# The parser. Emits one US-separated row per event, oldest first:
-#
-#   startMin  endMin  sdate  stime  etime  title  who  join
-#
-# startMin/endMin are NAIVE local minutes (a Julian day number × 1440 plus the
-# clock), which is all the ordering, the section split and the durations need
-# and costs no `date` fork per event. The one number that must survive a DST
-# boundary — the countdown the pill prints — is computed from a real epoch
-# below, for the one event it's about.
-#
-# Both lists reach awk COMMA-joined, never newline-joined: a `-v` assignment is
-# parsed by awk's own lexer, which will not take a literal newline inside the
-# value and dies with "newline in string" — silently, from the pill's point of
-# view, since stderr goes nowhere.
-EVENTS=$(printf '%s\n' "$RAW" | awk \
-  -v me="$(printf '%s\n%s\n' "$(me_addresses)" "$ME_EXTRA" | tr '\n' ',')" \
-  -v extrahosts="$(printf '%s\n' "$JOIN_EXTRA" | tr '\n' ',')" \
-  -v nowymd="$NOW_YMD" -v nowhm="$NOW_HM" '
+  # Both lists reach awk COMMA-joined, never newline-joined: a `-v` assignment
+  # is parsed by awk's own lexer, which will not take a literal newline inside
+  # the value and dies with "newline in string" — silently, from the pill's
+  # point of view, since stderr goes nowhere.
+  EVENTS=$(printf '%s\n' "$raw" | awk \
+    -v me="$(printf '%s\n%s\n' "$(me_addresses)" "$ME_EXTRA" | tr '\n' ',')" \
+    -v extrahosts="$(printf '%s\n' "$JOIN_EXTRA" | tr '\n' ',')" \
+    -v nowymd="$NOW_YMD" -v nowhm="$NOW_HM" '
 function jdn(y, m, d,   a, yy, mm) {
   a = int((14 - m) / 12); yy = y + 4800 - a; mm = m + 12 * a - 3
   return d + int((153 * mm + 2) / 5) + 365 * yy + int(yy / 4) \
@@ -374,162 +337,131 @@ function emit(line,   n, f, i, v, dt, title, att, loc, url, notes, rest, r,
 }
 ')
 
-# ── which event the pill is about ─────────────────────────────────────────────
-# The one running right now, else the next one to start. An in-progress meeting
-# outranks the one after it: during the half hour you are actually in it, "in 4h
-# · Standup" is the pill telling you about the wrong thing.
-NOW_MIN=$(awk -v d="$NOW_YMD" -v t="$NOW_HM" '
+  NOW_MIN=$(awk -v d="$NOW_YMD" -v t="$NOW_HM" '
 BEGIN {
   y = substr(d,1,4)+0; m = substr(d,6,2)+0; dd = substr(d,9,2)+0
   a = int((14-m)/12); yy = y+4800-a; mm = m+12*a-3
   j = dd + int((153*mm+2)/5) + 365*yy + int(yy/4) - int(yy/100) + int(yy/400) - 32045
   print j*1440 + substr(t,1,2)*60 + substr(t,4,2)
 }')
+}
 
-FOCUS=$(printf '%s\n' "$EVENTS" | awk -F"$US" -v now="$NOW_MIN" -v us="$US" '
-  NF >= 6 && $1 <= now && $2 > now { print "now" us $0; found = 1; exit }
-  END { if (!found) exit 1 }
-' 2>/dev/null)
-if [ -z "$FOCUS" ]; then
+# ── which event the pill is about ─────────────────────────────────────────────
+# The one running right now, else the next one to start. An in-progress meeting
+# outranks the one after it: during the half hour you are actually in it, "in 4h
+# · Standup" is the pill telling you about the wrong thing.
+#
+# Sets FOCUS (the picked row, or empty), the F_* fields it splits into, and the
+# three facts the pill paints from: LABEL, FILL and JOIN_URL.
+pick_focus() {
   FOCUS=$(printf '%s\n' "$EVENTS" | awk -F"$US" -v now="$NOW_MIN" -v us="$US" '
-    NF >= 6 && $1 > now { print "next" us $0; exit }
-  ')
-fi
+    NF >= 6 && $1 <= now && $2 > now { print "now" us $0; found = 1; exit }
+    END { if (!found) exit 1 }
+  ' 2>/dev/null)
+  if [ -z "$FOCUS" ]; then
+    FOCUS=$(printf '%s\n' "$EVENTS" | awk -F"$US" -v now="$NOW_MIN" -v us="$US" '
+      NF >= 6 && $1 > now { print "next" us $0; exit }
+    ')
+  fi
 
-FILL=0
-LABEL="No events"
-JOIN_URL=""
-if [ -n "$FOCUS" ]; then
-  IFS="$US" read -r F_STATE F_SMIN _F_EMIN F_SDATE F_STIME _F_ETIME F_TITLE _F_WHO F_JOIN \
-    <<<"$FOCUS"
-  # The one place a real epoch is worth two forks: everything else here is naive
-  # local minutes, which is exact for ordering and off by an hour for a duration
-  # that straddles a daylight-saving change. This number is a countdown someone
-  # walks into a meeting on.
-  START_EPOCH=$(date -j -f "%Y-%m-%d %H:%M" "$F_SDATE $F_STIME" +%s 2>/dev/null || echo "")
-  NOW_EPOCH=$(date +%s)
-  DIFF=$((${START_EPOCH:-$NOW_EPOCH} - NOW_EPOCH))
+  FILL=0
+  LABEL="No events"
+  JOIN_URL=""
+  F_SMIN=""
+  F_TITLE=""
+  if [ -n "$FOCUS" ]; then
+    IFS="$US" read -r F_STATE F_SMIN _F_EMIN F_SDATE F_STIME _F_ETIME F_TITLE _F_WHO F_JOIN \
+      <<<"$FOCUS"
+    # The one place a real epoch is worth two forks: everything else here is
+    # naive local minutes, which is exact for ordering and off by an hour for a
+    # duration that straddles a daylight-saving change. This number is a
+    # countdown someone walks into a meeting on.
+    local start_epoch now_epoch diff
+    start_epoch=$(date -j -f "%Y-%m-%d %H:%M" "$F_SDATE $F_STIME" +%s 2>/dev/null || echo "")
+    now_epoch=$(date +%s)
+    diff=$((${start_epoch:-$now_epoch} - now_epoch))
 
-  if [ "$F_STATE" = "now" ]; then
-    LABEL="now · $F_TITLE"
-    JOIN_URL="$F_JOIN"
-  elif [ "$DIFF" -le $((HORIZON * 3600)) ]; then
-    MINS=$(((DIFF + 59) / 60))   # round UP: "in 0m" for a meeting that hasn't started
-    [ "$MINS" -lt 0 ] && MINS=0
-    HOURS=$((MINS / 60))
-    if [ "$MINS" -lt 60 ]; then
-      TIME_STR="${MINS}m"
-    elif [ "$HOURS" -lt "$PRECISE_UNDER" ] && [ $((MINS % 60)) -gt 0 ]; then
-      TIME_STR="${HOURS}h$((MINS % 60))m"
-    elif [ "$HOURS" -lt 24 ]; then
-      TIME_STR="${HOURS}h"
-    elif [ $((HOURS % 24)) -eq 0 ]; then
-      TIME_STR="$((HOURS / 24))d"
+    if [ "$F_STATE" = "now" ]; then
+      LABEL="now · $F_TITLE"
+      JOIN_URL="$F_JOIN"
+    elif [ "$diff" -le $((HORIZON * 3600)) ]; then
+      local mins hours time_str
+      mins=$(((diff + 59) / 60))   # round UP: "in 0m" for a meeting that hasn't started
+      [ "$mins" -lt 0 ] && mins=0
+      hours=$((mins / 60))
+      if [ "$mins" -lt 60 ]; then
+        time_str="${mins}m"
+      elif [ "$hours" -lt "$PRECISE_UNDER" ] && [ $((mins % 60)) -gt 0 ]; then
+        time_str="${hours}h$((mins % 60))m"
+      elif [ "$hours" -lt 24 ]; then
+        time_str="${hours}h"
+      elif [ $((hours % 24)) -eq 0 ]; then
+        time_str="$((hours / 24))d"
+      else
+        time_str="$((hours / 24))d$((hours % 24))h"
+      fi
+      LABEL="in $time_str · $F_TITLE"
+      JOIN_URL="$F_JOIN"
     else
-      TIME_STR="$((HOURS / 24))d$((HOURS % 24))h"
+      FOCUS=""   # something exists, but past the horizon: the pill has nothing to say
     fi
-    LABEL="in $TIME_STR · $F_TITLE"
-    JOIN_URL="$F_JOIN"
-  else
-    FOCUS=""   # something exists, but past the horizon: the pill has nothing to say
-  fi
 
-  # The fill window, measured from the START in both directions — five minutes
-  # before is "go now" and five after is "you are late", and they are the same
-  # fact. It deliberately does NOT last the whole meeting: a pill that stays
-  # filled for an hour is just a pill that is a different colour.
-  if [ -n "$FOCUS" ] && [ "$DIFF" -le $((IMMINENT * 60)) ] &&
-    [ "$DIFF" -ge $((-IMMINENT * 60)) ]; then
-    FILL=1
+    # The fill window, measured from the START in both directions — five minutes
+    # before is "go now" and five after is "you are late", and they are the same
+    # fact. It deliberately does NOT last the whole meeting: a pill that stays
+    # filled for an hour is just a pill that is a different colour.
+    if [ -n "$FOCUS" ] && [ "$diff" -le $((IMMINENT * 60)) ] &&
+      [ "$diff" -ge $((-IMMINENT * 60)) ]; then
+      FILL=1
+    fi
   fi
-fi
+}
 
-# Via a tmp file and a rename: a plain `>` truncates first, so a right-click
-# landing inside a tick's write window would read an empty file and open
-# nothing. The rename is atomic, so the reader sees the old link or the new one.
-printf '%s' "$JOIN_URL" >"$JOIN_CACHE.tmp" && mv -f "$JOIN_CACHE.tmp" "$JOIN_CACHE"
+fetch() {
+  read_calendar
+  pick_focus
+  # Via a tmp file and a rename: a plain `>` truncates first, so a right-click
+  # landing inside a tick's write window would read an empty file and open
+  # nothing. The rename is atomic, so the reader sees the old link or the new
+  # one.
+  printf '%s' "$JOIN_URL" >"$JOIN_CACHE.tmp" && mv -f "$JOIN_CACHE.tmp" "$JOIN_CACHE"
+  emit label="$LABEL" fill="$FILL"
+}
 
 # Filled: the accent moves off the glyph and onto the whole pill, and the type
 # goes to BASE so it reads on it. Unfilled is the bar's ordinary SURFACE0 pill.
-if [ "$FILL" = 1 ]; then
-  "$SB" --set "$ITEM_NAME" label="$LABEL" \
-    background.color="$MAUVE" icon.color="$BASE" label.color="$BASE"
-else
-  "$SB" --set "$ITEM_NAME" label="$LABEL" \
-    background.color="$SURFACE0" icon.color="$MAUVE" label.color="$TEXT"
-fi
-
-[ "$WANT_POPUP" = 1 ] || exit 0
+# Palette keys through sb_set rather than tones, deliberately: the mauve is
+# this pill's IDENTITY (the ladder has no rung for a pill's own hue — the same
+# reason clock's pink and cpu's peach live in the Nix style), and the fill is
+# that identity swapping between the glyph and the background at runtime,
+# which a style written at --add time cannot do. Same escape media.sh uses for
+# its artwork tint.
+render() {
+  if [ "$fill" = 1 ]; then
+    pill --label "$label"
+    sb_set background.color="$MAUVE" icon.color="$BASE" label.color="$BASE"
+  else
+    pill --label "$label"
+    sb_set background.color="$SURFACE0" icon.color="$MAUVE" label.color="$TEXT"
+  fi
+}
 
 # ── the dropdown ──────────────────────────────────────────────────────────────
 # A timeline, top to bottom: what's DONE (the last `past` hours), what's on NOW,
-# and what's NEXT. The old popup was five undated "09:00 Some meeting" rows,
-# which answered the one question you already knew the answer to and none of the
-# ones you opened it for — which day, who with, and how do I get in.
+# and what's NEXT. Two rows per event, and the split is the point:
 #
-# Two rows per event, and the split is the point:
-#   spine  `Today 12:45` in the ICON, the title in the LABEL — one item draws one
-#          colour, so the when and the what can only differ if they sit in
-#          different fields. The when column is fixed-width so the times stack.
-#   meta   duration + who, dim, hanging under the TITLE rather than under the
-#          clock — the when column is a column, and nothing else belongs in it —
-#          with the join affordance trailing it in SAPPHIRE. Clicking either row
-#          opens the link.
+#   spine  the when in the NAME column ("Today 12:45" — five-char day label +
+#          clock, so the times stack; the column is monospace), the title on
+#          the value column. The band picks the tones: a done row is mute/dim,
+#          the now band warns from its when column, everything later is dim.
+#   meta   duration + who in the name column, dim, with the join affordance
+#          trailing it on the value slot in the action sapphire. Clicking
+#          either row opens the link.
 #
 # Exactly ONE row gets a filled box: the event the PILL is about. Highlighting
 # by background rather than by colour alone is what makes it findable at a
-# glance, and keeping it to a single row means no two rounded boxes ever meet at
-# a seam. Everything else is separated by weight and hue only.
-#
-# Every row is accumulated into ARGS and handed to ONE sketchybar call, so the
-# popup appears fully formed instead of growing a row at a time.
-#
-# Horizontal measures are PIXEL counts derived from the monospace advance, never
-# leading spaces: SketchyBar sizes an item from its label with the whitespace
-# trimmed and then draws the untrimmed string, so an indent written as spaces
-# buys nothing but a row clipped by exactly the width of its own indent. (The
-# AI-usage pill's grid documents the same trap, including that a no-break space
-# is trimmed too.) The advance is ~0.602em, which holds for JetBrains Mono and
-# Fira Code alike — name a proportional family in haus.fonts.mono and the meta
-# lines drift a few points, which is a wobble in one popup, not a broken bar.
-ROW_ICON_PAD=10                       # the popup's own left margin
-WHEN_COLS=11                          # "Today 12:45" — every when is this wide
-WHEN_GAP=12                           # when column -> title gutter
-ADV_M=$(awk -v s="${FS_SMALL:-13}" 'BEGIN { printf "%.0f", s * 602 }')
-px() { printf '%s' $((($1 + 500) / 1000)); }
-# The meta line hangs under the TITLE, not under the clock: the when column
-# holds one kind of thing and a duration is not it.
-META_INDENT=$(px $((ROW_ICON_PAD * 1000 + WHEN_COLS * ADV_M + WHEN_GAP * 1000)))
-META_GAP=$(px $((2 * ADV_M)))         # meta text -> the trailing `Join`
-H_SECTION=28
-H_SPINE=26
-H_META=20
-TITLE_MAX=46
-
-"$SB" --remove "/${ITEM_NAME}\.row\..*/" 2>/dev/null
-ARGS=()
-i=0
-
-pop_add() {
-  ARGS+=(--add item "${ITEM_NAME}.row.$i" "popup.${ITEM_NAME}"
-    --set "${ITEM_NAME}.row.$i"
-    icon="" icon.padding_left=0 icon.padding_right=0
-    label="" label.padding_left=0 label.padding_right=14
-    background.drawing=off background.height="$H_SPINE"
-    click_script="$SB --set ${ITEM_NAME} popup.drawing=off"
-    "$@")
-  i=$((i + 1))
-}
-
-# A section rule: the smallest, dimmest thing in the popup. It names the band
-# rather than decorating it — "Next" above three rows is what tells you the two
-# above the fold are already over.
-section() { # section <glyph> <colour> <name>
-  pop_add icon="$1" icon.color="$2" icon.font="${BAR_FONT}:Bold:${FS_SMALL}" \
-    icon.padding_left=10 icon.padding_right=8 \
-    label="$3" label.color="$2" label.font="${BAR_FONT}:Bold:${FS_TINY}" \
-    background.height="$H_SECTION"
-}
+# glance; popup_set on the row the runtime just added is how the box lands on
+# exactly one.
 
 # `Today`, `Tmrw`, `Ystdy` or a weekday, padded to a common width so the clock
 # column underneath it stacks. Five characters is the longest of them, and the
@@ -569,114 +501,121 @@ duration() { # duration <minutes>
   else printf '%dh%dm' $((m / 60)) $((m % 60)); fi
 }
 
-# One event: the spine, then the meta line under it. `focus` boxes the spine,
-# which is the only background in the whole popup.
-event_rows() { # event_rows <smin> <emin> <sdate> <stime> <title> <who> <join> <tone> <focus>
+# One event: the spine, then the meta line under it. `focus` boxes the spine —
+# the only background in the whole popup, put there with popup_set on the row
+# id the runtime just handed back.
+event_rows() { # event_rows <smin> <emin> <sdate> <stime> <title> <who> <join> <band> <focus>
   local smin="$1" emin="$2" sdate="$3" stime="$4" title="$5" who="$6" join="$7"
-  local tone="$8" focus="$9"
-  local when icol tcol tweight meta click
-  local box
-  # `box=()` then an unguarded "${box[@]}" is an unbound-variable error under
-  # `set -u` on the bash this shebang gets (macOS ships 3.2), which is why the
-  # expansion at the bottom carries the +alternate guard rather than being bare.
-  box=()
+  local band="$8" focus="$9"
+  local when ntone vtone meta
 
   when="$(daylabel "$sdate") $stime"
-  case "$tone" in
-  done) icol="$OVERLAY0"; tcol="$OVERLAY1"; tweight="Regular" ;;
-  now) icol="$PEACH"; tcol="$TEXT"; tweight="Bold" ;;
-  focus) icol="$MAUVE"; tcol="$TEXT"; tweight="Bold" ;;
-  *) icol="$SUBTEXT0"; tcol="$SUBTEXT1"; tweight="Regular" ;;
+  # The band picks the two tones: the when column (the name) and the title
+  # (the value). A done row is over — its when goes mute and its title dim; the
+  # now band's when is the same peach the section rule wears; everything else
+  # is the quiet default. The focus row brightens its title to full text and
+  # takes the box below.
+  case "$band" in
+  done) ntone=mute; vtone=dim ;;
+  now) ntone=warn; vtone=text ;;
+  focus) ntone=text; vtone=text ;;
+  *) ntone=dim; vtone=dim ;;
   esac
 
-  # A row with a link is a button; one without just closes the popup. Both are
-  # click_scripts, so the popup never stays open under a browser it just raised.
-  click="$SB --set ${ITEM_NAME} popup.drawing=off"
-  [ -n "$join" ] &&
-    click="$click; $(printf '%q' "$SELF") open $(printf '%q' "$join")"
-
-  if [ "$focus" = 1 ]; then
-    box=(background.drawing=on background.color="$SURFACE1"
-      background.corner_radius=8 background.height=30)
+  if [ -n "$join" ]; then
+    popup_row --label "$when" --name-tone "$ntone" --value "$title" --tone "$vtone" \
+      --max-chars 46 --run "$SELF open $(popup_quote "$join")"
+  else
+    popup_row --label "$when" --name-tone "$ntone" --value "$title" --tone "$vtone" \
+      --max-chars 46
   fi
-
-  pop_add icon="$when" icon.color="$icol" \
-    icon.font="${BAR_FONT}:Bold:${FS_SMALL}" \
-    icon.padding_left="$ROW_ICON_PAD" icon.padding_right="$WHEN_GAP" \
-    label="$title" label.color="$tcol" \
-    label.font="${BAR_FONT}:${tweight}:${FS_SMALL}" \
-    label.max_chars="$TITLE_MAX" \
-    click_script="$click" ${box[@]+"${box[@]}"}
+  if [ "$focus" = 1 ]; then
+    popup_set "$POPUP_ID" background.drawing=on background.color="$SURFACE1" \
+      background.corner_radius=8 background.height=30
+  fi
 
   meta="$(duration $((emin - smin)))"
   [ -n "$who" ] && meta="$meta · $(withwho "$who")"
-  pop_add icon="$meta" icon.color="$OVERLAY1" \
-    icon.font="${BAR_FONT}:Regular:${FS_TINY}" \
-    icon.padding_left="$META_INDENT" icon.padding_right="$META_GAP" \
-    label="${join:+󰕧 Join}" label.color="$SAPPHIRE" \
-    label.font="${BAR_FONT}:Bold:${FS_TINY}" \
-    background.height="$H_META" click_script="$click"
+  if [ -n "$join" ]; then
+    popup_row --label "$meta" --value "󰕧 Join" --tone action \
+      --run "$SELF open $(popup_quote "$join")"
+  else
+    popup_row --label "$meta" --value ""
+  fi
 }
 
-# The focus event's identity, so the loop below can box exactly one row. Start
-# minute plus title, and `boxed` makes it exactly one even then: two calendars
-# invited to the same meeting is one event listed twice with the same key, and
-# two boxes is no highlight at all.
-FOCUS_KEY=""
-[ -n "$FOCUS" ] && FOCUS_KEY="$F_SMIN|$F_TITLE"
+popup_rows() {
+  read_calendar
+  pick_focus
 
-drawn_done=0
-drawn_now=0
-drawn_next=0
-next_count=0
-boxed=0
-PAST_MIN=$((NOW_MIN - PAST * 60))
+  # The focus event's identity, so the loop below can box exactly one row.
+  # Start minute plus title, and `boxed` makes it exactly one even then: two
+  # calendars invited to the same meeting is one event listed twice with the
+  # same key, and two boxes is no highlight at all.
+  local focus_key="" drawn_done=0 drawn_now=0 drawn_next=0 next_count=0 boxed=0
+  local rows=0 past_min focus
+  [ -n "$FOCUS" ] && focus_key="$F_SMIN|$F_TITLE"
+  past_min=$((NOW_MIN - PAST * 60))
 
-while IFS="$US" read -r smin emin sdate stime _etime title who join; do
-  [ -n "${title:-}" ] || continue
-  focus=0
-  if [ "$boxed" = 0 ] && [ "$smin|$title" = "$FOCUS_KEY" ]; then
-    focus=1
-    boxed=1
-  fi
-  if [ "$emin" -le "$NOW_MIN" ]; then
-    # Keyed on when it ENDED, not when it began: an all-day-long workshop that
-    # finished an hour ago is the most relevant thing in the band, and a
-    # start-keyed window is exactly the filter that would drop it.
-    [ "$emin" -ge "$PAST_MIN" ] || continue
-    [ "$drawn_done" = 1 ] || { section "󰄬" "$OVERLAY0" "Done"; drawn_done=1; }
-    event_rows "$smin" "$emin" "$sdate" "$stime" "$title" "$who" "$join" "done" 0
-  elif [ "$smin" -le "$NOW_MIN" ]; then
-    [ "$drawn_now" = 1 ] || { section "󰔟" "$PEACH" "Now"; drawn_now=1; }
-    event_rows "$smin" "$emin" "$sdate" "$stime" "$title" "$who" "$join" now "$focus"
-  else
-    [ "$next_count" -lt "$UPCOMING" ] || continue
-    next_count=$((next_count + 1))
-    [ "$drawn_next" = 1 ] || { section "󰃰" "$MAUVE" "Next"; drawn_next=1; }
-    if [ "$focus" = 1 ]; then
-      event_rows "$smin" "$emin" "$sdate" "$stime" "$title" "$who" "$join" focus 1
-    else
-      event_rows "$smin" "$emin" "$sdate" "$stime" "$title" "$who" "$join" later 0
+  local smin emin sdate stime _etime title who join
+  while IFS="$US" read -r smin emin sdate stime _etime title who join; do
+    [ -n "${title:-}" ] || continue
+    focus=0
+    if [ "$boxed" = 0 ] && [ "$smin|$title" = "$focus_key" ]; then
+      focus=1
+      boxed=1
     fi
+    if [ "$emin" -le "$NOW_MIN" ]; then
+      # Keyed on when it ENDED, not when it began: an all-day-long workshop
+      # that finished an hour ago is the most relevant thing in the band, and a
+      # start-keyed window is exactly the filter that would drop it.
+      [ "$emin" -ge "$past_min" ] || continue
+      [ "$drawn_done" = 1 ] || { popup_heading --icon "󰄬" --tone mute --label "Done"; drawn_done=1; }
+      event_rows "$smin" "$emin" "$sdate" "$stime" "$title" "$who" "$join" "done" 0
+    elif [ "$smin" -le "$NOW_MIN" ]; then
+      [ "$drawn_now" = 1 ] || { popup_heading --icon "󰔟" --tone warn --label "Now"; drawn_now=1; }
+      event_rows "$smin" "$emin" "$sdate" "$stime" "$title" "$who" "$join" now "$focus"
+    else
+      [ "$next_count" -lt "$UPCOMING" ] || continue
+      next_count=$((next_count + 1))
+      # `--mark plum` is the pill's own mauve on the identity axis — the Next
+      # band is the one the pill itself speaks for, so its rule wears the hue
+      # the glyph in the bar does.
+      [ "$drawn_next" = 1 ] || { popup_heading --icon "󰃰" --mark plum --label "Next"; drawn_next=1; }
+      if [ "$focus" = 1 ]; then
+        event_rows "$smin" "$emin" "$sdate" "$stime" "$title" "$who" "$join" focus 1
+      else
+        event_rows "$smin" "$emin" "$sdate" "$stime" "$title" "$who" "$join" later 0
+      fi
+    fi
+    rows=$((rows + 1))
+  done <<<"$EVENTS"
+
+  if [ "$rows" = 0 ]; then
+    popup_note --label "Nothing on the calendar"
   fi
-done <<<"$EVENTS"
+}
 
-if [ "$i" = 0 ]; then
-  pop_add icon="󰃭" icon.color="$OVERLAY1" icon.padding_left=10 icon.padding_right=10 \
-    label="Nothing on the calendar" label.color="$OVERLAY1" \
-    label.font="${BAR_FONT}:Regular:${FS_SMALL}" background.height="$H_SECTION"
-fi
+# ── gestures ──────────────────────────────────────────────────────────────────
+on_click() { popup_toggle; }
 
-# Guarded, though the fallback row above means it can't currently be empty:
-# `"${ARGS[@]}"` on an empty array is an unbound-variable error under `set -u`
-# on bash 3.2, so an early `continue` added to the loop later would turn this
-# into a dropdown that never opens, with nothing printed anywhere.
-[ ${#ARGS[@]} -gt 0 ] && "$SB" "${ARGS[@]}" 2>/dev/null
-"$SB" --set "$ITEM_NAME" popup.drawing=on
-# Then hand it to barpop so it also closes on the first click anywhere else —
-# the dismissal SketchyBar can't do, since it only hears clicks on its own
-# items. SKETCHYBAR_BIN is how barpop learns WHICH bar to guard: unset, it
-# queries the top bar, finds no such item on a pill that moved to the bottom
-# one, and exits before it ever arms.
-SKETCHYBAR_BIN="$SB" /run/current-system/sw/bin/barpop arm "$ITEM_NAME" 2>/dev/null &
-exit 0
+# Right-click joins the event the pill is showing, off the cache the last fetch
+# wrote — so the gesture is instant, never behind an icalBuddy spawn.
+on_right_click() { open_join "$(cat "$JOIN_CACHE" 2>/dev/null)"; }
+
+# Hover starts the sweep (haus.bar.calendar.marquee, which
+# haus.appearance.reduceMotion sets off) and re-reads the calendar on the spot:
+# looking at the pill is the moment its number has to be right, and it is also
+# the cheapest possible cache-invalidation signal there is. barlib_tick is
+# DIFFED, so a calendar that hasn't moved costs no repaint.
+on_hover() {
+  [ "${BAR_CALENDAR_MARQUEE:-1}" = "1" ] && sb_set scroll_texts=on
+  barlib_tick
+}
+
+# The runtime routes mouse.exited AND its .global twin here — the per-item exit
+# is missed when the pointer is flicked straight off the bar, and a stranded
+# marquee is the exact failure the hover-only sweep design exists to prevent.
+on_unhover() { sb_set scroll_texts=off; }
+
+barlib_main

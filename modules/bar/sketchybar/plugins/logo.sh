@@ -5,29 +5,36 @@
 # One script for all of it because every branch here reads the same two facts —
 # what the machine's health is, and whether the leader is armed — and a pill
 # whose hover and whose state tick disagree about either is a pill that flickers
-# between two colours. See `paint` for the one place that resolves them.
+# between two colours. See `fetch`/`settle` for the two places that resolve them.
+#
+# A barlib widget with NO emitted block: the pill is hand-written into
+# sketchybarrc's left side (it is not in `haus.bar.widgets`, and it can only
+# ever be on the menu bar), so there is no `# widget:` header for the emitter
+# to read — the runtime here buys the click dispatch, the tone names for the
+# two alarm states, and the diffed repaint that keeps a healthy pill's
+# five-minute tick free of sketchybar traffic.
 #
 # PATH: a SketchyBar plugin inherits launchd's bare PATH (/usr/bin:/bin:…), so
 # `git`, `jq`, `pgrep` and the nix profile have to be named. Same prelude
 # reload-bar.sh carries, for the same reason.
 export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-source "$HOME/.config/sketchybar/colors.sh"
-# BAR_LOGO_* — GENERATED from haus.bar.logo.*. Sourced AFTER colors.sh on
-# purpose: BAR_LOGO_COLOR and BAR_LOGO_SWEEP_COLORS are written as `$MAUVE`,
-# `$TEAL`, … so a palette change reaches this pill without anything here
-# knowing a hex. Sourced first they would expand to empty and the pill would
-# draw in SketchyBar's default white.
+BAR_ITEM=haus.logo
+source "$HOME/.config/sketchybar/barlib.sh"
+# BAR_LOGO_* — GENERATED from haus.bar.logo.*. Sourced AFTER barlib (which
+# sourced colors.sh) on purpose: BAR_LOGO_COLOR and BAR_LOGO_SWEEP_COLORS are
+# written as `$MAUVE`, `$TEAL`, … so a palette change reaches this pill without
+# anything here knowing a hex. Sourced first they would expand to empty and the
+# pill would draw in SketchyBar's default white.
 source "$HOME/.config/sketchybar/logo_config.sh"
 
-ITEM=haus.logo
-# A bare `sketchybar` (not bar.sh's $SB routing): this pill is hand-written into
-# sketchybarrc's left side and is not in `haus.bar.items`, so unlike the movable
-# pills it can only ever be on the menu bar. $SKETCHYBAR_BIN — the same override
-# barpop already takes — is honoured so this can be exercised against a
-# stand-in: the PATH line above prepends the real binary's directory, so a test
-# shim earlier on PATH loses and the run repaints the live bar instead.
-SB="${SKETCHYBAR_BIN:-sketchybar}"
+# This pill is hand-written into sketchybarrc's left side, so unlike the
+# movable pills it can only ever be on the menu bar — which is where bar.sh
+# just routed $SB. $SKETCHYBAR_BIN — the same override barpop takes — is still
+# honoured so this can be exercised against a stand-in: the PATH line above
+# prepends the real binary's directory, so a test shim earlier on PATH loses
+# and the run repaints the live bar instead.
+SB="${SKETCHYBAR_BIN:-$SB}"
 
 STATE_FILE=/tmp/sketchybar_logo_state        # ok | update | alert
 UPSTREAM_CACHE=/tmp/sketchybar_logo_upstream # 1 == a newer haus is pinned upstream
@@ -129,10 +136,15 @@ resolve_state() {
     fi
 }
 
+# The two alarm rungs are the ladder's — a wedged agent wants a human here, a
+# newer pin upstream is worth knowing and nothing to do yet — and `ok` is the
+# pill's own mark: BAR_LOGO_COLOR follows haus.theme.accent, whose option doc
+# promises this is the ONE pill that does (`accent-reach` pins it), so the
+# identity hue has to come from the generated config rather than any tone.
 state_color() {
     case "$1" in
-    alert) printf '%s' "$RED" ;;
-    update) printf '%s' "$YELLOW" ;;
+    alert) tone bad ;;
+    update) tone watch ;;
     *) printf '%s' "$BAR_LOGO_COLOR" ;;
     esac
 }
@@ -146,7 +158,11 @@ state_color() {
 #
 # A background loop with a pidfile rather than a fixed-length run, because the
 # thing that ends it is the pointer leaving, and that arrives as a separate
-# event in a separate process. Same shape as media.sh's marquee.
+# event in a separate process. Same shape as media.sh's marquee — and like that
+# marquee it is a DETACHED job, running long after barlib_main flushed, so its
+# frames are raw `"$SB"` calls: `sb_now` is the runtime's door for exactly this
+# job, but it cannot carry the `--animate` prefix that makes six steps read as
+# a turn.
 # Stopping it is belt AND braces, and the braces are the load-bearing half.
 #
 #   * $SWEEP_RUN's existence is the loop's own permission to draw another frame,
@@ -185,7 +201,7 @@ sweep_start() {
         while [ -f "$SWEEP_RUN" ]; do
             for c in $BAR_LOGO_SWEEP_COLORS; do
                 [ -f "$SWEEP_RUN" ] || exit 0
-                "$SB" --animate sin 45 --set "$ITEM" icon.color="$c"
+                "$SB" --animate sin 45 --set "$NAME" icon.color="$c"
                 sleep 0.75
             done
         done
@@ -201,6 +217,10 @@ sweep_start() {
 # it again — the callers here are the two that end a sweep, and both want the
 # cached answer rather than another round of `pgrep`.
 #
+# Raw rather than batched, for the animate: the fade from whatever hue the
+# sweep was mid-way to back to the state colour is the one paint here the eye
+# actually watches, and the batch has no way to carry an `--animate` prefix.
+#
 # `snap` skips the animation, and exists for exactly one caller: launch_mode.sh
 # snapshots this colour on the way into leader mode, and a value read mid-tween
 # is the one it would restore on the way out.
@@ -209,32 +229,48 @@ settle() {
     local col
     col="$(state_color "$(cat "$STATE_FILE" 2>/dev/null || echo ok)")"
     if [ "${1:-animate}" = "snap" ]; then
-        "$SB" --set "$ITEM" icon.color="$col"
+        "$SB" --set "$NAME" icon.color="$col"
     else
-        "$SB" --animate sin 30 --set "$ITEM" icon.color="$col"
+        "$SB" --animate sin 30 --set "$NAME" icon.color="$col"
     fi
 }
 
-# The single place the two facts meet. Leader mode owns the pill outright while
-# armed (launch_mode.sh has filled it), so nothing here touches it then — the
-# state is still computed and written down, and the next tick after disarm puts
-# the right colour back.
-paint() {
+# The state is computed on the tick and written down even while the leader owns
+# the pill — `armed` rides the emitted state precisely so that DISARMING is a
+# change the runtime's diff can see, and the first tick after it repaints
+# rather than waiting for the health answer itself to move.
+fetch() {
     local state
     state="$(resolve_state)"
     echo "$state" >"$STATE_FILE"
-    armed && return 0
-    "$SB" --animate sin 20 --set "$ITEM" icon.color="$(state_color "$state")"
+    local a=0
+    armed && a=1
+    emit state="$state" armed="$a"
+}
+
+# Leader mode owns the pill outright while armed (launch_mode.sh has filled
+# it), so nothing here touches it then — the next diffable change after disarm
+# puts the right colour back.
+render() {
+    [ "$armed" = 1 ] && return 0
+    sb_set icon.color="$(state_color "$state")"
 }
 
 # ── gestures ─────────────────────────────────────────────────────────────────
-# All three detached with nohup: a click_script runs inside SketchyBar's own
+# All three detached with nohup: a click handler runs inside SketchyBar's own
 # event loop, so anything here that waits on a GUI app stalls the whole bar.
-# Same reason launch_palette.sh — the old bare-click target, deleted with this,
-# since the palette is now one branch of a click rather than all of it — did it.
-menu() { nohup "$HOME/.config/sketchybar/plugins/haus_menu.sh" >/dev/null 2>&1 & }
-palette() { nohup pounce-palette >/dev/null 2>&1 & }
+# Every gesture opens something pounce draws, so all of them are off together —
+# see haus.bar.logo.gestures, which folds in haus.launcher.enable.
+menu() {
+    [ "$BAR_LOGO_GESTURES" = "1" ] || return 0
+    nohup "$HOME/.config/sketchybar/plugins/haus_menu.sh" >/dev/null 2>&1 &
+}
+palette() {
+    [ "$BAR_LOGO_GESTURES" = "1" ] || return 0
+    nohup pounce-palette >/dev/null 2>&1 &
+}
 rebuild() {
+    [ "$BAR_LOGO_GESTURES" = "1" ] || return 0
     # The palette's own Rebuild System command by path, so ⌘-click and
     # ⌘Space → "Rebuild System" are one implementation of the floating-terminal
     # rebuild rather than two. $BAR_LOGO_COMMANDS is empty when pounce is off,
@@ -243,55 +279,43 @@ rebuild() {
     nohup "$BAR_LOGO_COMMANDS/rebuild.sh" >/dev/null 2>&1 &
 }
 
+on_click() { menu; }
+on_cmd_click() { rebuild; }
+on_right_click() { palette; }
+
+# Hover says "show me the family colours" — and only that. A pill sitting at
+# yellow or red is already saying something, and a rainbow running over the
+# top of it is a pill saying two things at once, so the sweep is gated on a
+# clear state (and on the leader not owning the pill).
+on_hover() {
+    [ "$BAR_LOGO_SWEEP" = "1" ] || return 0
+    armed && return 0
+    [ "$(cat "$STATE_FILE" 2>/dev/null || echo ok)" = "ok" ] || return 0
+    sweep_start
+}
+
+# The .global twin lands here too, exactly as the media and calendar pills use
+# it: a per-item mouse.exited is missable when the pointer leaves fast or a
+# window comes up under it, and a sweep nothing stops is permanent motion in
+# the corner of your eye.
+on_unhover() {
+    sweep_stop
+    settle
+}
+
 # A hand call, not an event. launch_mode.sh runs it on the way into leader mode:
 # the pointer can be sitting on the pill when caps is tapped, and a sweep loop
 # left running would keep writing icon.color over the inverted pill once every
 # 0.75s. It settles the colour too, synchronously and un-animated, because the
 # very next thing that caller does is snapshot this pill — so this is what makes
 # the snapshot a state colour rather than whatever the sweep was mid-way to.
-# Here rather than in launch_mode.sh so the pidfile has exactly one owner.
+# Here rather than in launch_mode.sh so the pidfile has exactly one owner; it
+# exits without reaching barlib_main, the CLI-mode shape every widget's hand
+# entry points take.
 if [ "${1:-}" = "sweep-stop" ]; then
     sweep_stop
     settle snap
     exit 0
 fi
 
-case "${SENDER:-}" in
-mouse.clicked)
-    # Every gesture opens something pounce draws, so all of them are off
-    # together — see haus.bar.logo.gestures, which folds in haus.launcher.enable.
-    [ "$BAR_LOGO_GESTURES" = "1" ] || exit 0
-    # A plain click sends MODIFIER=none (not empty), so test against "none".
-    case "${BUTTON:-left}" in
-    right) palette ;;
-    *)
-        case "${MODIFIER:-none}" in
-        *cmd*) rebuild ;;
-        *) menu ;;
-        esac
-        ;;
-    esac
-    ;;
-mouse.entered)
-    # Hover says "show me the family colours" — and only that. A pill sitting at
-    # yellow or red is already saying something, and a rainbow running over the
-    # top of it is a pill saying two things at once, so the sweep is gated on a
-    # clear state (and on the leader not owning the pill).
-    [ "$BAR_LOGO_SWEEP" = "1" ] || exit 0
-    armed && exit 0
-    [ "$(cat "$STATE_FILE" 2>/dev/null || echo ok)" = "ok" ] || exit 0
-    sweep_start
-    ;;
-mouse.exited | mouse.exited.global)
-    # The .global twin is belt and braces, exactly as the media and calendar
-    # pills use it: a per-item mouse.exited is missable when the pointer leaves
-    # fast or a window comes up under it, and a sweep nothing stops is permanent
-    # motion in the corner of your eye.
-    sweep_stop
-    settle
-    ;;
-*)
-    # The update_freq tick, system_woke, and the first run at bar start.
-    paint
-    ;;
-esac
+barlib_main

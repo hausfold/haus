@@ -124,7 +124,12 @@ sketchybar --default \
 # right through the ears, long after the last Apple glyph left it; the three
 # readers are this file, plugins/logo.sh and plugins/launch_mode.sh.
 #
-# One item, five gestures, all of them in plugins/logo.sh (see there):
+# One item, five gestures, all of them in plugins/logo.sh (see there) — a
+# barlib widget whose block is THIS one, hand-written because the pill is not
+# in `haus.bar.widgets` and can only ever sit here. No click_script: the
+# mouse.clicked subscription is the one door in, and barlib_main routes the
+# button/modifier to the right gesture (a click_script would arrive with no
+# $SENDER and cost a full health-check tick per click on top of the gesture).
 #   left click        the haus menu — a prefilled pounce list of system rows
 #   ⌘ left click      haus rebuild, in a floating terminal
 #   right click       the full pounce palette (what a bare click used to do)
@@ -178,7 +183,6 @@ sketchybar --add item haus.logo left \
         updates=on \
         update_freq=300 \
         script="$HOME/.config/sketchybar/plugins/logo.sh" \
-        click_script="$HOME/.config/sketchybar/plugins/logo.sh" \
     --subscribe haus.logo mouse.clicked mouse.entered mouse.exited mouse.exited.global system_woke
 
 "$HOME/.config/sketchybar/plugins/logo.sh" sweep-stop
