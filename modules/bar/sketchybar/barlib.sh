@@ -1237,19 +1237,30 @@ popup_toggle() {
 #
 # A one-line wrapper over `haus-bar-poke`, which is where the pair actually
 # lives (modules/core/haus-bar-poke.sh). It moved OUT of here because this file
-# is sourced by framework widgets and by nothing else, while three of the four
-# producers of a both-bars trigger are not widgets — a `writeShellScript`, a
-# launchd argv and two plain CLIs, none of which can meaningfully source a
-# `$HOME` path. The name stays because a widget should not have to spell an
-# absolute path to signal one, and `subscribes =` is documented against it.
+# is sourced by framework widgets and by nothing else, while EVERY producer of a
+# both-bars trigger other than this function is something else — two plain CLIs,
+# a bar script AeroSpace spawns, and two that cannot meaningfully source a
+# `$HOME` path at all: a `writeShellScript` and a launchd argv. The name stays
+# because a widget should not have to spell an absolute path to signal one, and
+# `subscribes =` is documented against it.
 #
 # Absolute, for the same reason `barpop` above is: a plugin runs on SketchyBar's
 # PATH, which names nothing of ours. It costs one extra fork over writing the
 # two `--trigger`s here (~4 ms, measured by barpop) on an event that fires when
 # something CHANGED — never on a tick — which is the whole budget for having one
-# copy of this rule instead of five.
+# copy of this rule instead of six.
+#
+# `_BARLIB_`-prefixed, not `BARLIB_`: emitted keys are written into the widget's
+# scope by name (see the reject list near the top), so a plain `BARLIB_BAR_POKE`
+# would be a name a widget could `emit` and silently redirect every subsequent
+# `bar_emit` from that widget to a path of its choosing.
+#
+# stderr is NOT swallowed, and that is the point of the `|| true` beside it: the
+# only thing `haus-bar-poke` ever writes there is its usage error — it sends the
+# bars' own noise to /dev/null itself — and a widget calling `bar_emit` with no
+# event is a bug that has to reach sketchybar's log rather than repaint nothing.
 bar_emit() {
-    "${BARLIB_BAR_POKE:-/run/current-system/sw/bin/haus-bar-poke}" "$@" 2>/dev/null || true
+    "${_BARLIB_BAR_POKE:-/run/current-system/sw/bin/haus-bar-poke}" "$@" || true
     return 0
 }
 

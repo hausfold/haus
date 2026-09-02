@@ -311,7 +311,11 @@ lib.mkMerge [
     #
     # The absolute path is the one a launchd argv can spell — this agent has no
     # PATH of ours, which is the reason `haus-bar-poke` is a binary in the system
-    # profile rather than a function in barlib.sh.
+    # profile rather than a function in barlib.sh. `|| true` rather than `exec`
+    # for the same reason the line it replaced carried one: the binary cannot
+    # fail, but a generation mid-switch can leave the PATH momentarily unresolved,
+    # and this fires on every write to the DoNotDisturb DB — a 127 per toggle in
+    # the log is noise where there used to be none.
     launchd.user.agents.focus-watcher = lib.mkIf config.haus.bar.enable {
       serviceConfig = {
         ProgramArguments = [
@@ -319,7 +323,7 @@ lib.mkMerge [
           "-c"
           ''
             /bin/sleep 1
-            exec /run/current-system/sw/bin/haus-bar-poke focus_change
+            /run/current-system/sw/bin/haus-bar-poke focus_change || true
           ''
         ];
         WatchPaths = [ "/Users/${username}/Library/DoNotDisturb/DB" ];

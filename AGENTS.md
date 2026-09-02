@@ -774,15 +774,16 @@ mechanism, say so in one line.
     **A TRIGGER spells that as `haus-bar-poke <event> [key=value…]`**
     (`modules/core/haus-bar-poke.sh`, on PATH, pinned by `test/bar-poke.bats`)
     rather than writing the pair out — `focus`, `awake`, the focus watcher's
-    launchd argv, the AI room's `agentAwakePoke` and barlib's `bar_emit` are all
-    one call to it now. It is a binary and not a shell helper because two of
-    those are a `writeShellScript` and a launchd `ProgramArguments`, which can
-    source nothing, and `bar_emit` lives in a file only a framework widget
-    reads; core owns it because it reads the ROSTER for the bar's binary, so it
-    ships and exits 0 on a machine with no bar. Two trigger shapes are
-    deliberately NOT this, and `docs/bar-framework.md`'s Pubsub section says
-    which: one that only wakes `aerospace_watcher.sh` on the top bar, and one
-    that repaints a single pill on `$SB` alone.
+    launchd argv, the AI room's `agentAwakePoke`, `aerospace-notify.sh`'s
+    `workspace` arm and barlib's `bar_emit` are all one call to it now. It is a
+    binary and not a shell helper because two of those are a `writeShellScript`
+    and a launchd `ProgramArguments`, which can source nothing, and `bar_emit`
+    lives in a file only a framework widget reads; core owns it because it reads
+    the ROSTER for the bar's binary, so it ships and exits 0 on a machine with no
+    bar. Two trigger shapes are deliberately NOT this, and
+    `docs/bar-framework.md`'s Pubsub section says which: one that only wakes
+    `aerospace_watcher.sh` on the top bar (the OTHER two arms of that same
+    file), and one that repaints a single pill on `$SB` alone.
   - **Every reload names its rc** (`--reload
     ~/.config/sketchybar/bar-bottomrc`). `--reload` with no path re-runs the
     config path the instance resolved AT STARTUP, and SketchyBar resolves it

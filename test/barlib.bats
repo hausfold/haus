@@ -1180,3 +1180,77 @@ on_click() { popup_open; }'
   ' 2>"$BATS_TEST_TMPDIR/err"
   grep -q -- "--name-tone needs a --value" "$BATS_TEST_TMPDIR/err"
 }
+
+# ---- bar_emit ---------------------------------------------------------------
+# The pubsub half, which had no cases at all while it had no producer. It is a
+# wrapper over `haus-bar-poke` now (modules/core/haus-bar-poke.sh, and
+# test/bar-poke.bats is where the both-bars behaviour itself is pinned), so what
+# a widget owes it is narrower: the argv it was given, unmangled, and the two
+# failure modes that would otherwise be silent.
+
+# The poke stands in for the binary at its absolute path, which a test cannot
+# write to — hence the `_BARLIB_`-prefixed override. That name is deliberately
+# inside the reject list's `_BARLIB*` arm: a plain `BARLIB_BAR_POKE` would be a
+# name a widget could `emit` over, silently redirecting every bar_emit it makes.
+poke_stub() { # poke_stub [exit-status]
+  export POKE_LOG="$BATS_TEST_TMPDIR/poke.log"
+  cat >"$BATS_TEST_TMPDIR/bin/poke" <<EOF
+#!/bin/bash
+printf '%s\n' "\$*" >>"$BATS_TEST_TMPDIR/poke.log"
+exit ${1:-0}
+EOF
+  chmod +x "$BATS_TEST_TMPDIR/bin/poke"
+  export _BARLIB_BAR_POKE="$BATS_TEST_TMPDIR/bin/poke"
+}
+
+@test "bar_emit hands the event and its key=value pairs through unchanged" {
+  poke_stub
+  NAME=w SENDER=routine widget '
+    fetch() { emit n=1; }
+    render() { bar_emit haus.w.change kind="a b" n=2; }
+  '
+  [ "$(cat "$BATS_TEST_TMPDIR/poke.log")" = "haus.w.change kind=a b n=2" ]
+}
+
+# A widget must never be able to `emit` its way onto the binary this calls.
+# `_BARLIB_BAR_POKE` is caught by the reject list's `_BARLIB*` arm, which is
+# exactly why the variable wears that prefix rather than a bare BARLIB_ one.
+@test "a widget cannot emit over the poke's own variable" {
+  poke_stub
+  NAME=w SENDER=routine widget '
+    fetch() { emit _BARLIB_BAR_POKE=/tmp/hijacked; emit n=1; }
+    render() { bar_emit haus.w.change; }
+  ' 2>"$BATS_TEST_TMPDIR/err"
+  grep -q "is a runtime name — dropped" "$BATS_TEST_TMPDIR/err"
+  [ "$(cat "$BATS_TEST_TMPDIR/poke.log")" = "haus.w.change" ]
+}
+
+# The poke sends the bars' own noise to /dev/null itself, so the only thing it
+# ever writes to stderr is its usage error — a widget calling bar_emit with no
+# event. That has to reach sketchybar's log: swallowed, the bug is found later
+# by a pill that never repaints.
+@test "bar_emit with no event lets the usage error through" {
+  # The REAL script here, not the recorder: the usage error is its behaviour,
+  # and a stub asserting it would be asserting itself. Copied because the file
+  # in the tree is not executable — nix installs it through
+  # `writeShellScriptBin`, which is also what supplies the `@sketchybar@` value.
+  install -m 755 "$BATS_TEST_DIRNAME/../modules/core/haus-bar-poke.sh" \
+    "$BATS_TEST_TMPDIR/bin/real-poke"
+  export _BARLIB_BAR_POKE="$BATS_TEST_TMPDIR/bin/real-poke"
+  NAME=w SENDER=routine widget '
+    fetch() { emit n=1; }
+    render() { bar_emit; }
+  ' 2>"$BATS_TEST_TMPDIR/err"
+  grep -q "usage: haus-bar-poke <event>" "$BATS_TEST_TMPDIR/err"
+}
+
+# ...and it still must not take the widget down with it. Every producer calls
+# this as a side effect on something else's success path.
+@test "a poke that fails does not fail the render" {
+  poke_stub 3
+  NAME=w SENDER=routine widget '
+    fetch() { emit n=1; }
+    render() { bar_emit haus.w.change; pill --icon x --label ok; }
+  '
+  grep -q -- '--set w ' "$SB_LOG"
+}

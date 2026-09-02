@@ -661,10 +661,10 @@ the `MARK_*` exports from it.
   **The pair itself lives outside the framework**, in
   `modules/core/haus-bar-poke.sh`, and `bar_emit` is a one-line wrapper over
   it. That is where it had to go: `barlib.sh` is sourced by a framework WIDGET
-  and by nothing else, while three of the four producers of a both-bars
-  trigger are not widgets and two of them cannot source a `$HOME` path at all
-  — `agentAwakePoke` in `modules/ai/default.nix` is a `writeShellScript`, and
-  the focus watcher in `modules/focus/default.nix` is a launchd
+  and by nothing else, while every producer of a both-bars trigger other than
+  `bar_emit` is something else — and two of them cannot source a `$HOME` path
+  at all: `agentAwakePoke` in `modules/ai/default.nix` is a `writeShellScript`,
+  and the focus watcher in `modules/focus/default.nix` is a launchd
   `ProgramArguments`. So it is a binary on `environment.systemPackages`,
   addressed absolutely, the same shape `haus-notify` and `haus-activate` have
   and for the same reason. Core owns it because it reads the ROSTER for the
@@ -674,16 +674,17 @@ the `MARK_*` exports from it.
   Triggers come in three shapes, and only the first is what the helper is for:
 
   - **Poke both bars** — `haus-bar-poke <event>`, or `bar_emit` from inside a
-    widget. All four producers of this shape are converted:
-    `modules/focus/focus.sh` and `modules/core/awake.sh` (the two CLIs),
-    `agentAwakePoke` (the second `caffeinate_change` producer) and the
-    focus-watcher argv (the second `focus_change` one).
+    widget. Every producer of this shape calls it: `modules/focus/focus.sh` and
+    `modules/core/awake.sh` (the two CLIs), `agentAwakePoke` (the second
+    `caffeinate_change` producer), the focus-watcher argv (the second
+    `focus_change` one), and `aerospace-notify.sh`'s `workspace` arm — the one
+    arm of that file that is this shape rather than the next one.
   - **Wake a watcher on the top bar alone** — `aerospace-notify.sh`'s
     `fullscreen` and `tiling` arms, and `plugins/launch_mode.sh`, hit the top
     bar only on purpose: the trigger just WAKES `aerospace_watcher.sh`, and
-    the watcher is what reads the new state and paints the pills. Only that
-    file's `workspace` arm pokes both bars, and it says why. A blind
-    conversion here would start poking the bottom bar for nothing.
+    the watcher is what reads the new state and paints the pills on both bars
+    itself. A blind conversion here would start poking the bottom bar for
+    nothing.
   - **Repaint one pill on the instance drawing it** — `github_update`
     (`plugins/github.sh`, and the delivery subscriber in
     `modules/bar/default.nix`) and `harvest_update` (`plugins/harvest.sh`)
@@ -693,7 +694,9 @@ the `MARK_*` exports from it.
 - Widgets may `bar_emit` too — inter-widget signaling without knowing names.
   It costs one fork more than writing the two `--trigger`s by hand (~4 ms), on
   an event that fires when something CHANGED rather than on a tick, which is
-  the whole price of having one copy of this rule instead of five.
+  the whole price of having one copy of this rule instead of six. The variable
+  behind it is `_BARLIB_BAR_POKE`, underscore-prefixed like every other runtime
+  name a widget must not be able to `emit` over.
 
 ## Why not SbarLua
 
