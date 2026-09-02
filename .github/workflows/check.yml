@@ -469,6 +469,18 @@ jobs:
       - name: phase painter and colour gate
         run: bats test/phase-painter.bats
 
+      # `haus report` — the door to the one feedback channel anything we ship
+      # has, and every way it breaks leaves a working-looking command behind: a
+      # `body=` prefill opens GitHub's blank editor and files a shapeless report
+      # with no error, a lax encoder turns every `+` in the block into a space,
+      # a redaction that stops firing publishes a username, and past the length
+      # cap the form opens empty. Hermetic: a fixture consumer flake, and every
+      # stub a function (haus.sh puts the system profile on PATH ahead of any
+      # directory a test could add). Needs bash + bats + jq, python3 for one
+      # round-trip case, no Nix and no Mac.
+      - name: the bug-report door
+        run: bats test/report-door.bats
+
       # The one PERMANENT exemption from that standard, and the only thing
       # keeping it honest. bootstrap.sh and haus-activate.sh run before snug is
       # reachable, so they carry nebelung's numbers inlined instead of naming a

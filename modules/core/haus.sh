@@ -21,6 +21,7 @@
 #   haus capture         turn this Mac's current settings into config lines + a snapshot
 #   haus revert-settings put back a 'haus capture' snapshot (Nix rollback can't touch macOS defaults)
 #   haus doctor          check the machine's health (Nix, CLT, the GUI agents)
+#   haus report          file a bug on GitHub with 'haus doctor' already filled in (--print)
 #   haus permissions     every grant and click this Mac still needs a person for
 #   haus btm             check BTM daemon-gating (macOS 26 Tahoe+; no-op before)
 #   haus tour            take the guided haus tour (it lives in the bar)
@@ -251,6 +252,7 @@ snug_close() { # everything down: end the region and drop the coprocess
 # you can read the whole list at a glance.
 #
 #   report      status doctor plan diff permissions btm generations get capture
+#               report
 #   narration   rebuild update rollback set unset reset options add desktop
 #               remove edit tour revert-settings
 #
@@ -648,6 +650,13 @@ haus — the everyday CLI for a haus machine.
                       put back a 'haus capture' snapshot — Nix rollback rewinds
                       packages and agents, never macOS's own preferences
   haus doctor         check the machine's health (Nix, CLT, the GUI agents)
+  haus report         file a bug: opens haus's issue form with this Mac's
+                      details and its 'haus doctor' report already in the
+                      diagnostics field, so the only thing left to write is
+                      what happened. Nothing is sent until you press Submit,
+                      and the block is printed here first so you can read
+                      every line of it. --print stops there, without opening
+                      a browser
   haus permissions    walk everything on this Mac that needs a person: each grant
                       or click, why this machine wants it, and a button. Confirms
                       what macOS lets it confirm and says so about the rest.
@@ -3663,6 +3672,175 @@ cmd_doctor() {
   fi
 }
 
+# ---- haus report -------------------------------------------------------------
+# The in-product door to haus's bug form: it opens the form with the diagnostics
+# field already answered. The palette's *Report haus Issue* row is one line that
+# runs this, and a `curl | bash` user with no palette at all still has a door.
+#
+# There is no telemetry in anything haus ships and there never will be, so the
+# issue form is not one feedback channel among several — it is the only one (the
+# workshop's docs/bug-reports.md). Its third field asks the reporter to run
+# `haus doctor` and paste the output: two steps for a report to get lost in, and
+# a third for it to arrive truncated from because a terminal scrolled. haus can
+# answer that field itself.
+#
+# Three things here are easy to get wrong and NONE of them fails loudly:
+#
+#   `?template=bug.yml`, never `?title=&body=`. A `body=` prefill opens GitHub's
+#   BLANK editor and walks straight past the form — its four fields, its "wrong
+#   repo? file it anyway" preamble, and the `bug`/`triage` labels it applies. An
+#   issue is still filed, so nothing anywhere errors; the report just arrives
+#   shapeless, every time. The palette row hand-built exactly that URL from
+#   before the forms existed until this landed, and pounce's did the same for a
+#   year (its own report-issue-pounce.sh carries the story).
+#
+#   Only `diagnostics` is prefilled. `what` is the report, `area` is the
+#   reporter's guess, `anything` is optional by design — filling any of them in
+#   is putting words in their mouth, and the old row pre-blocked `what` with a
+#   markdown skeleton. `diagnostics` is the one field haus answers better than
+#   the person can, which is the whole argument for the door.
+#
+#   Nothing in the block may want redacting: it lands in a PUBLIC issue, and a
+#   field haus filled in is a weaker kind of consent than one the reporter
+#   typed. See report_redact.
+REPORT_REPO="hausfold/haus"
+REPORT_FORM="https://github.com/$REPORT_REPO/issues/new?template=bug.yml"
+
+# Above this many characters of URL, drop the prefill: the block goes to stdout
+# (and, with no terminal to read it, the pasteboard) and the form opens empty.
+#
+# The number is NOT the ~8 KB GitHub refuses past, and that is the trap. A
+# reporter who is signed OUT is bounced to `/login?return_to=<this whole URL
+# again>`, and that redirect breaks first — with a 500, on GitHub's side, for
+# exactly the person filing their first issue. Measured against the real form
+# (2026-09-01): 6.6 KB of URL redirects fine, 6.9 KB comes back 500, and the raw
+# 414 doesn't start until 8.3 KB. 6000 keeps ~800 characters of margin, and is
+# the number every other door in the family carries.
+#
+# It is a LIVE path here rather than a guard rail: `haus doctor` grows a line per
+# permission card and per room, and on a full hacker machine the block already
+# encodes to ~6.9 KB. Most reports from a finished desktop take the overflow
+# branch, which is why that branch has to be as good as the prefill.
+REPORT_URL_MAX=6000
+
+# The reporter's home directory, written back as `~`.
+#
+# `haus doctor` names real paths — $CONSUMER, the skill directory, a theme port
+# under ~/Library — and every one of them starts with the reporter's own name.
+# In a terminal that is fine: they typed the command and they are reading their
+# own screen. In a field haus filled in for them, on its way to a public issue,
+# it is a username we put there. `~` says the same thing to whoever reads it.
+# (The row this replaces did worse: its footer was `scutil --get LocalHostName`,
+# which on a stock Mac is the owner's full name.)
+#
+# The guard is not decoration: an empty or `/` HOME would rewrite every path in
+# the report to nonsense. The pattern is quoted so a home directory containing a
+# glob character stays a literal.
+report_redact() {
+  local home="${HOME:-}"
+  case "$home" in "" | /) printf '%s' "$1"; return 0 ;; esac
+  home="${home%/}"
+  printf '%s' "${1//"$home"/\~}"
+}
+
+# What haus knows and the reporter would otherwise have to look up, above the
+# doctor report the form asks for: which haus this is, which Mac, which desktop.
+# Facts about the machine's haus, never about its owner — the host's name is
+# deliberately absent, because it tells a maintainer nothing and on a stock Mac
+# it is a person's name.
+report_header() {
+  local lock="$CONSUMER/flake.lock" rev="" when="" from="" head
+  if [ -f "$lock" ]; then
+    rev="$(jq -r '.nodes.haus.locked.rev // "" | .[0:12]' "$lock" 2>/dev/null || true)"
+    when="$(jq -r '.nodes.haus.locked.lastModified // empty' "$lock" 2>/dev/null || true)"
+    # A machine can pin a FORK, and a bug in one is not a bug in the other —
+    # said only when it isn't ours, so the usual report carries no noise.
+    from="$(jq -r '.nodes.haus.original | select(.owner and .repo) | "\(.owner)/\(.repo)"' "$lock" 2>/dev/null || true)"
+  fi
+  head="haus ${rev:-unpinned}"
+  [ -n "$when" ] && head="$head ($(date -r "$when" '+%Y-%m-%d' 2>/dev/null || echo '?'))"
+  case "$from" in "" | "$REPORT_REPO") ;; *) head="$head from $from" ;; esac
+  printf '%s\n' "$head"
+  printf 'macOS %s (%s)\n' \
+    "$(sw_vers -productVersion 2>/dev/null || echo '?')" \
+    "$(sw_vers -buildVersion 2>/dev/null || echo '?')"
+  printf '%s\n' "$(sysctl -n hw.model 2>/dev/null || echo 'unknown Mac')"
+  printf 'desktop: %s\n' "$(desktop_selected)"
+}
+
+cmd_report() {
+  local quiet="" a
+  for a in "$@"; do
+    case "$a" in
+      # One spelling, and no short alias: an alias nobody documents is surface
+      # you cannot remove later, because you cannot know who found it.
+      --print) quiet=1 ;;
+      *) die "report takes no '$a' — 'haus report', or 'haus report --print' for the block and the link without opening a browser." ;;
+    esac
+  done
+
+  local block encoded url overflow=""
+  # REPORT and the palette are set INSIDE the capture rather than trusted from
+  # the caller. Without REPORT, doctor's section headers go to fd 2 (see the note
+  # by the verbs) and the block arrives as an unlabelled list of ticks; without
+  # the empty C_*, every line of it carries a colour escape into a public issue,
+  # because those are resolved once at load against the real fd 1 and a command
+  # substitution never re-measures them.
+  block="$(REPORT=1; C_OFF=; C_FOG=; C_OK=; C_WARN=; C_ERR=; C_MUT=; report_header; echo; cmd_doctor)" || true
+  block="$(report_redact "$block")"
+
+  # Strict percent-encoding: everything that is not RFC 3986 unreserved, UTF-8
+  # byte by byte. `jq @uri` rather than a hand-rolled loop, and not because it is
+  # shorter — an encoder built from a "characters allowed in a query" set (which
+  # is what `URLComponents` and most one-liners use) CONTAINS `+`, so it leaves
+  # it literal and the receiving server reads it back as a space. doctor prints
+  # `Tahoe+` on every Mac running one, and a pounce-style palette report prints
+  # `cmd+space` on nearly every line. jq is already load-bearing here (the
+  # permissions deck is jq), so this adds no dependency.
+  encoded="$(printf '%s' "$block" | jq -sRr @uri)"
+  url="$REPORT_FORM&diagnostics=$encoded"
+  if [ "${#url}" -gt "$REPORT_URL_MAX" ]; then
+    url="$REPORT_FORM"
+    overflow=1
+  fi
+
+  printf '%s\n\n%s\n' "$block" "$url"
+
+  if [ -n "$overflow" ]; then
+    printf '\n'
+    # The block is already on stdout, which is where a CLI puts it. A palette row
+    # has no stdout anyone will ever read, so that is the one case worth writing
+    # to the reporter's own pasteboard — the door's single write, to their
+    # clipboard, and it is still the reporter who presses Submit.
+    #
+    # `--print` is excluded from that write deliberately, terminal or not: it
+    # means "hand me the text", and `haus report --print | pbcopy` should not
+    # find the clipboard already taken by a copy it never asked for.
+    if [ -t 1 ] || [ -n "$quiet" ]; then
+      info "too long to prefill — paste the block above into the form's diagnostics field."
+    elif printf '%s\n' "$block" | pbcopy 2>/dev/null; then
+      info "too long to prefill — copied to the clipboard instead."
+      # Reached only from the palette row (no terminal, and a browser about to
+      # open), where this banner is the only way the person learns there is
+      # something to paste — an empty field they were not told about is the
+      # silent failure this whole door exists to stop.
+      if command -v haus-notify >/dev/null 2>&1; then
+        haus-notify --source haus.report --kind note --symbol ladybug \
+          --title "Paste your haus report" \
+          --body "It was too long to fill in for you, so it's on your clipboard — paste it into the form's diagnostics field." \
+          >/dev/null 2>&1 || true
+      fi
+    else
+      info "too long to prefill — run 'haus report --print' in a terminal, then paste the block into the diagnostics field."
+    fi
+  fi
+
+  [ -z "$quiet" ] || return 0
+  # Nothing is SENT from here: this opens a page with one field filled in, and
+  # the report exists only once the reporter presses Submit.
+  open "$url" || die "couldn't open a browser — the link is above."
+}
+
 # macOS 26 Tahoe and later gate LaunchDaemons/Agents whose executable isn't
 # Apple-signed, via Background Task Management (BTM). Every nix login item runs
 # through `/bin/sh -c "…"`, which BTM flags as "unidentified developer" and can
@@ -4629,6 +4807,24 @@ EOF
   fi
 }
 
+# The current selection, read the same landmark way it is WRITTEN — a grep, not
+# an eval: "what does this machine have" should cost nothing and need no
+# network, the same rule --no-diff protects in `haus show`. Shared with
+# `haus report`, whose diagnostics block names the desktop and must not answer
+# that question a second way.
+desktop_selected() {
+  local line
+  line="$(grep -E '^        desktop = ' "$FLAKE" 2>/dev/null || true)"
+  case "$line" in
+    *'haus.desktops.'*) line="${line#*haus.desktops.}"; printf '%s' "${line%;}" ;;
+    '') printf 'hacker' ;;  # mkHaus's own default when no line is written
+    # A pinned input's RHS is `name` (a file-shaped source) or
+    # `name + "/file.nix"` (a tree) — either way the input's own name is the
+    # leading token, up to the first space.
+    *) line="${line#*desktop = }"; line="${line%;}"; printf '%s' "${line%% *}" ;;
+  esac
+}
+
 cmd_desktop() {
   local want="${1:-}"
   local check="${HAUS_DESKTOP_CHECK:-/run/current-system/sw/share/haus/desktop-check}"
@@ -4636,19 +4832,7 @@ cmd_desktop() {
     || die "no desktop list at $check — this machine's haus predates 'haus desktop'; run 'haus update' first."
   local builtin_list; builtin_list="$(jq -r '.[]' "$check/desktops.json")"
 
-  # The current selection, read the same landmark way it is written — a
-  # grep, not an eval: "what does this machine have" should cost nothing and
-  # need no network, the same rule --no-diff protects in `haus show`.
-  local current_line current
-  current_line="$(grep -E '^        desktop = ' "$FLAKE" || true)"
-  case "$current_line" in
-    *'haus.desktops.'*) current="${current_line#*haus.desktops.}"; current="${current%;}" ;;
-    '') current="hacker" ;;  # mkHaus's own default when no line is written
-    # A pinned input's RHS is `name` (a file-shaped source) or
-    # `name + "/file.nix"` (a tree) — either way the input's own name is the
-    # leading token, up to the first space.
-    *) current="${current_line#*desktop = }"; current="${current%;}"; current="${current%% *}" ;;
-  esac
+  local current; current="$(desktop_selected)"
 
   local pinned; pinned="$(grep -oE '^  inputs\.[A-Za-z0-9_'"'"'-]+\.url = ' "$FLAKE" \
     | sed -E 's/^  inputs\.//; s/\.url = $//' | grep -vx haus || true)"
@@ -4825,7 +5009,7 @@ set -- ${HAUS_ARGS[@]+"${HAUS_ARGS[@]}"}
 # read at a glance — and so a helper both kinds call (`settings_diff`,
 # `consumer_worktree_warning`) needs no opinion of its own.
 case "${1:-status}" in
-  status | doctor | plan | diff | permissions | btm | generations | get | capture)
+  status | doctor | plan | diff | permissions | btm | generations | get | capture | report)
     REPORT=1
     ;;
 esac
@@ -4848,6 +5032,7 @@ case "${1:-status}" in
   capture)     shift; cmd_capture "$@" ;;
   revert-settings) cmd_revert_settings "${2:-latest}" ;;
   doctor)      cmd_doctor ;;
+  report)      shift; cmd_report "$@" ;;
   permissions) cmd_permissions "${2:-}" ;;
   btm)         cmd_btm ;;
   tour)        cmd_tour "${2:-}" ;;
@@ -4856,5 +5041,5 @@ case "${1:-status}" in
   desktop)     cmd_desktop "${2:-}" ;;
   remove)      cmd_remove "${2:-}" "${3:-}" ;;
   -h|--help|help) usage ;;
-  *)           die "unknown command '$1' — try: rebuild fix update rollback generations status edit options set get unset reset plan diff capture revert-settings doctor permissions btm tour show add desktop remove" ;;
+  *)           die "unknown command '$1' — try: rebuild fix update rollback generations status edit options set get unset reset plan diff capture revert-settings doctor report permissions btm tour show add desktop remove" ;;
 esac

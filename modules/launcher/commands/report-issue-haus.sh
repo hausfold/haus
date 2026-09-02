@@ -3,52 +3,29 @@
 # pounce: description = Open a pre-filled bug report for haus
 # pounce: icon = ladybug
 
-# The haus counterpart to pounce's built-in "Report Pounce Issue": opens
-# github.com/hausfold/haus with a new-issue form pre-filled from a
-# template. Shipped by haus (modules/launcher/commands, layered in via
-# extraCommandDirs), so it only appears when pounce is used with haus.
-# Same URL-query approach as the pounce built-in — nothing hosted needed.
+# One line, because the work is `haus report`'s (modules/core/haus.sh) and it
+# belongs there: the block it prefills is this machine's whole `haus doctor`
+# report plus the pinned revision, macOS build, Mac model and selected desktop,
+# none of which a shell script can assemble without re-deriving all of it — and
+# a verb also gives the `curl | bash` user, who has no palette, the same door.
+#
+# ⚠️ What this file used to be is worth knowing, because it is the mistake the
+# whole door exists to avoid — the same one pounce's own row made for a year
+# (pkgs/pounce-commands/commands/report-issue-pounce.sh has that story). It
+# hand-built `issues/new?labels=bug&title=&body=` with a markdown skeleton in
+# the query, and its comment said "nothing hosted needed". That was true when it
+# was written and stopped being true when the forms landed: a `body=` prefill
+# opens GitHub's BLANK editor and walks straight past bug.yml — its four fields,
+# its "wrong repo? file it anyway" preamble, and the `bug`/`triage` labels it
+# applies. Nothing failed. Every report filed through this row simply arrived
+# shapeless. It also pre-blocked the reporter's own "What happened?" with a
+# skeleton, and footered the issue with `scutil --get LocalHostName`, which on a
+# stock Mac is the owner's full name, in public.
+#
+# The form is the ONLY feedback channel haus has (there is no telemetry in
+# anything we ship), so the row that opens it has to open the real one.
+#
+# Absolute path: pounce's daemon inherits launchd's bare PATH, so nothing here
+# can assume /run/current-system/sw/bin is on it.
 
-repo="hausfold/haus"
-
-# Environment footer, best-effort.
-macos=$(sw_vers -productVersion 2>/dev/null)
-[ -z "$macos" ] && macos="unknown"
-host=$(scutil --get LocalHostName 2>/dev/null || hostname -s 2>/dev/null)
-[ -z "$host" ] && host="unknown"
-
-body="**What happened?**
-
-
-**What did you expect?**
-
-
-**Steps to reproduce**
-1.
-2.
-3.
-
----
-- host: ${host}
-- macOS: ${macos}"
-
-# Pure-bash percent-encoding — no python/jq dependency (the daemon inherits
-# launchd's bare PATH, so we can't assume either is on it).
-urlencode() {
-    local s="$1" out="" c i
-    for (( i = 0; i < ${#s}; i++ )); do
-        c="${s:i:1}"
-        case "$c" in
-            [a-zA-Z0-9.~_-]) out+="$c" ;;
-            *) printf -v c '%%%02X' "'$c" ; out+="$c" ;;
-        esac
-    done
-    printf '%s' "$out"
-}
-
-url="https://github.com/${repo}/issues/new"
-url+="?labels=bug"
-url+="&title=$(urlencode '[bug] ')"
-url+="&body=$(urlencode "$body")"
-
-open "$url"
+exec /run/current-system/sw/bin/haus report
