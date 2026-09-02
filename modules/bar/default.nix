@@ -2559,6 +2559,12 @@ lib.mkIf config.haus.bar.enable {
         ".config/sketchybar/top_items.sh".text = topItemsSh;
         ".config/sketchybar/bar.sh".text = barSh;
         ".config/sketchybar/barlib.sh".source = ./sketchybar/barlib.sh;
+        # The launcher room's one parse of a pounce menu answer, installed
+        # beside the plugins so haus_menu.sh can source it. The SAME file the
+        # launcher bakes into its command set (riceCommands' lib/), pointed at
+        # rather than copied — the direction modules/ai reads agents-hook.sh —
+        # so the two installs can never drift.
+        ".config/sketchybar/menu-commit.sh".source = ../launcher/commands/lib/menu-commit.sh;
         ".config/sketchybar/position.sh".text = positionSh;
         ".config/sketchybar/windows_config.sh".text = windowsConfigSh;
         ".config/sketchybar/tour_item.sh".text = tourItemSh;

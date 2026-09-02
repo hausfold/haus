@@ -69,6 +69,10 @@ set -u
 
 export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/bin:/bin${PATH:+:$PATH}"
 
+# The one parse of a pounce menu answer — menu_commit / menu_field.
+# shellcheck source-path=SCRIPTDIR
+. "$(dirname "$0")/lib/menu-commit.sh"
+
 PROMPT="Lanes"
 ICON="point.3.connected.trianglepath.dotted"
 
@@ -385,11 +389,12 @@ selected="$(printf '%s\n' "$rows" |
 # under the cursor. Re-exec so the whole picker rebuilds from a forced sync,
 # rather than threading a fresh lane list back through the row/search branches
 # below. The re-exec presents into the held skeleton this commit chained.
-if [ "$(printf '%s' "$selected" | cut -f1)" = "cmd" ]; then
+menu_commit "$selected"
+if [ "$MENU_ACTION" = cmd ]; then
   exec env LANES_FORCE_FRESH=1 "$0"
 fi
 
-picked="$(printf '%s' "$selected" | cut -f2)"
+picked="$(menu_field "$MENU_ROW" 1)"
 [ -n "$picked" ] || exit 0
 
 # ── a picked lane row ────────────────────────────────────────────────────────
@@ -490,9 +495,10 @@ ICON="text.magnifyingglass"
     "text.magnifyingglass"
 
 selected="$(printf '%s' "$matches" | pounce -p "$PROMPT" -i "$ICON")" || exit 0
-# Reply is "<action>\t<raw row>", and the session is the row's hidden sixth
-# field — so field 7 of the whole reply.
-sess="$(printf '%s' "$selected" | cut -f7)"
+# The session is the row's hidden sixth field, indexed as the sixth: the
+# committing verb is menu_commit's to strip, not this read's to count past.
+menu_commit "$selected"
+sess="$(menu_field "$MENU_ROW" 6)"
 [ -n "$sess" ] || exit 0
 focus_session "$sess" && exit 0
 # Session alive but its window ⌘W'd: same wake-up the lane rows get — and ONLY

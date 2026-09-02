@@ -41,7 +41,9 @@ FLOAT_TERM="$HOME/.config/haus/term/float-term.sh"
 APP_ICON_MAP="$(dirname "$0")/app-icon-map"
 POPULAR_APPS="$(dirname "$0")/data/popular-apps.tsv"
 
-field() { printf '%s' "$1" | cut -f"$2"; }
+# The one parse of a pounce menu answer — menu_commit / menu_field.
+. "$(dirname "$0")/lib/menu-commit.sh"
+
 notice() {
   printf '%s\t%s\t%s\n' "$1" "$2" "${3:-exclamationmark.triangle}" \
     | pounce -p "Install App" -i "square.and.arrow.down.on.square" >/dev/null
@@ -182,11 +184,12 @@ source_menu="$(printf '%s\t%s\t%s\t\t%s\n%s\t%s\t%s\t\t%s\n%s\t%s\t%s\t\t%s\n%s\
   "Nix packages" "Packages from this flake's pinned Nixpkgs revision" "snowflake" "Browse by source")"
 source_sel="$(printf '%s\n' "$source_menu" | pounce -p "Install App — from where?" -i "square.and.arrow.down.on.square")"
 [ -z "$source_sel" ] && exit 0
-source_name="$(field "$source_sel" 2)"
+menu_commit "$source_sel"
+source_name="$(menu_field "$MENU_ROW" 1)"
 
 # Every result row has the same private payload after the five visible pounce
-# fields: type, app name, package id, bundle id. Selection prepends the action,
-# so those become fields 7–10 below.
+# fields: type, app name, package id, bundle id — fields 6–9 of the row, read
+# below off $MENU_ROW so they keep the numbers the printf gave them.
 list=""
 query=""
 
@@ -339,7 +342,8 @@ while :; do
     if [ -z "$query" ]; then
       query_sel="$(printf '' | pounce --chain -p "Mac App Store — type a search, then Enter" -i "apple.logo")"
       [ -z "$query_sel" ] && exit 0
-      query="$(field "$query_sel" 2)"
+      menu_commit "$query_sel"
+      query="$(menu_field "$MENU_ROW" 1)"
       [ -z "$query" ] && continue
     fi
 
@@ -383,7 +387,8 @@ $(again_row "Not what you wanted? Search the App Store again")"
     if [ -z "$query" ]; then
       query_sel="$(printf '' | pounce --chain -p "Nixpkgs — type a search, then Enter" -i "snowflake")"
       [ -z "$query_sel" ] && exit 0
-      query="$(field "$query_sel" 2)"
+      menu_commit "$query_sel"
+      query="$(menu_field "$MENU_ROW" 1)"
       [ -z "$query" ] && continue
     fi
 
@@ -466,11 +471,12 @@ $(again_row "Not what you wanted? Search Nixpkgs again")"
     selected="$(printf '%s\n' "$list" | pounce --chain -p "Install App — search $source_name" -i "square.and.arrow.down.on.square")"
   fi
   [ -z "$selected" ] && exit 0
+  menu_commit "$selected"
 
-  type="$(field "$selected" 7)"
-  appname="$(field "$selected" 8)"
-  token="$(field "$selected" 9)"
-  app_id="$(field "$selected" 10)"
+  type="$(menu_field "$MENU_ROW" 6)"
+  appname="$(menu_field "$MENU_ROW" 7)"
+  token="$(menu_field "$MENU_ROW" 8)"
+  app_id="$(menu_field "$MENU_ROW" 9)"
 
   # The "Search again" row, or free text that matched no row (pounce hands it
   # back with an empty payload): both mean "search for this instead".
@@ -479,7 +485,7 @@ $(again_row "Not what you wanted? Search Nixpkgs again")"
     continue
   fi
   if [ -z "$type" ]; then
-    typed="$(field "$selected" 2)"
+    typed="$(menu_field "$MENU_ROW" 1)"
     if [ "$source_name" = "Homebrew" ]; then
       query=""     # the whole catalog is already here; just clear the filter
     else
@@ -500,7 +506,8 @@ if [ "$type" = "cask" ] || [ "$type" = "mas" ]; then
     "Just install" "Install $appname only — no tiling, no hotkey" "square.and.arrow.down")"
   lane_sel="$(printf '%s\n' "$lane_menu" | pounce -p "$appname" -i "app.badge")"
   [ -z "$lane_sel" ] && exit 0
-  lane="$(field "$lane_sel" 2)"
+  menu_commit "$lane_sel"
+  lane="$(menu_field "$MENU_ROW" 1)"
 else
   lane="Just install"
 fi
@@ -527,7 +534,8 @@ if [ "$lane" = "Add to roster" ]; then
   fi
   key_sel="$(printf '%s' "$key_list" | pounce -p "Leader key for $appname (Caps Lock + …)" -i "keyboard")"
   [ -z "$key_sel" ] && exit 0
-  key="$(field "$key_sel" 2)"
+  menu_commit "$key_sel"
+  key="$(menu_field "$MENU_ROW" 1)"
 
   # ── workspace or launcher-only ──────────────────────────────────────────
   ws_menu="$(printf '%s\t%s\t%s\n%s\t%s\t%s' \
@@ -535,7 +543,8 @@ if [ "$lane" = "Add to roster" ]; then
     "Launcher-only" "Just the leader key — opens in the current workspace, no pill" "arrow.up.forward.app")"
   ws_sel="$(printf '%s\n' "$ws_menu" | pounce -p "$appname — workspace?" -i "rectangle.3.group")"
   [ -z "$ws_sel" ] && exit 0
-  if [ "$(field "$ws_sel" 2)" = "Own workspace" ]; then
+  menu_commit "$ws_sel"
+  if [ "$(menu_field "$MENU_ROW" 1)" = "Own workspace" ]; then
     # Workspace name = the leader letter, uppercased — the roster's convention
     # (t→T, b→B). Unique because leader keys are unique.
     workspace="$(printf '%s' "$key" | tr '[:lower:]' '[:upper:]')"

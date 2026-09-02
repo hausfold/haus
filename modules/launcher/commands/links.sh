@@ -33,6 +33,9 @@
 
 export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
 
+# The one parse of a pounce menu answer — menu_commit / menu_field.
+. "$(dirname "$0")/lib/menu-commit.sh"
+
 CACHE_DIR="${CLAUDE_STATUSLINE_CACHE:-$HOME/.cache/claude-statusline}"
 MAP="$CACHE_DIR/pane-transcripts.tsv"
 MAX_LINKS=40
@@ -144,9 +147,11 @@ while IFS= read -r u; do
   i=$((i + 1))
 done <<<"$urls"
 
-# ⏎ opens the pick. pounce echoes the whole selected row; the subtitle always
-# carries the full URL, so grep it back out rather than trusting field order.
+# ⏎ opens the pick. The subtitle always carries the full URL, so grep it back
+# out of the row rather than trusting field order — but out of the ROW, not the
+# whole answer, so the committing verb can never be mistaken for content.
 selected=$(printf '%s' "$items" | pounce -p "Links" -i "link")
 [ -z "$selected" ] && exit 0
-url=$(grep -oE 'https?://[^[:space:]]+' <<<"$selected" | tail -1)
+menu_commit "$selected"
+url=$(grep -oE 'https?://[^[:space:]]+' <<<"$MENU_ROW" | tail -1)
 [ -n "$url" ] && open "$url"
