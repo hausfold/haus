@@ -692,6 +692,17 @@ mechanism, say so in one line.
   and the whole popup dance (rebuild, batch, `barpop arm &`, the four row
   kinds' typography), so the bullets below about those only concern the
   pre-framework plugins — which remain valid and convert on touch.
+  - **A widget that is NOT haus's is the same file**, named in
+    `haus.bar.widgets.<name>.script` instead of dropped in `plugins/`. Same
+    header, same parser, same emitter — the only two differences are where it
+    is installed (`~/.config/sketchybar/widgets/<name>.sh`, its own directory
+    so a widget called `media_lib` cannot shadow a library three pills source)
+    and that its static look is the `style` option rather than a Nix literal
+    in `mkPluginBlocks`. Both leaves are host-only: a desktop may place,
+    retune and switch off any pill and may not bring one that runs code.
+    So the test for a NEW capability is whether both kinds of widget can
+    reach it — a field only `mkPluginBlocks` can write is the framework
+    quietly closing again.
   - **The colour vocabulary is `modules/bar/tones.nix`** — the ten-rung tone
     ladder, and it is the whole bar's rather than the framework's, drawn from
     what every pill already spends its hexes on. A widget names a tone and

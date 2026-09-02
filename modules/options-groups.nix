@@ -179,6 +179,8 @@ let
       "widgets.<name>.interval"
       "widgets.<name>.permissions"
       "widgets.<name>.placement"
+      "widgets.<name>.script"
+      "widgets.<name>.style"
     ];
     developer = [
       "enable"
@@ -539,6 +541,19 @@ let
       # bring a new one that runs code. That asymmetry is the point rather than
       # a limitation: everything else about a widget stays desktop data.
       "widgets.<name>.command" = "runs-a-command";
+      # The other tier, the same rule. A `script` is a barlib framework widget
+      # — a file the bar executes every tick, with click handlers and a
+      # dropdown of its own — so it is the `command` leaf above with MORE
+      # reach, not less, and the fact that it arrives as a path rather than a
+      # string changes nothing about what runs.
+      "widgets.<name>.script" = "runs-a-command";
+      # And the leaf that only exists to decorate one. `style` values are
+      # written into the bar's generated item file unquoted, so that a palette
+      # name (`$TEAL`) resolves and a font can carry its own quotes — which
+      # makes every one of them a shell fragment rather than data, and
+      # `"$(…)"` among them. It is also unreadable on its own: a desktop that
+      # could set it could never set the widget it styles.
+      "widgets.<name>.style" = "runs-a-command";
     };
     focus = {
       hooks = "runs-a-command";

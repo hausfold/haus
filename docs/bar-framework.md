@@ -1,14 +1,15 @@
 # The bar framework
 
-> Status: **phases 1–4c shipped** — `barlib.sh` (the runtime: dispatch, state
-> diff, `pill`, `graph`, tones, marks, the six popup row kinds and their value
-> column, `bar_emit`), the `# widget:` parser (`modules/bar/manifest.nix`),
-> `frameworkBlock` in `modules/bar/default.nix`, and `clock` + `github` +
-> `cpu` + `memory` + `ai_usage` + `media` converted, pinned by
-> `test/barlib.bats`. Sections below marked **planned** are what is left:
-> `badge`, and third-party framework widgets. The code is normative where the
-> two disagree; a planned key is an EVAL ERROR today, not a silent no-op, so
-> nothing here can be half-used by accident.
+> Status: **phases 1–4c shipped, and the framework is open** — `barlib.sh`
+> (the runtime: dispatch, state diff, `pill`, `graph`, tones, marks, the six
+> popup row kinds and their value column, `bar_emit`), the `# widget:` parser
+> (`modules/bar/manifest.nix`), `frameworkBlock` in `modules/bar/default.nix`,
+> `clock` + `github` + `cpu` + `memory` + `ai_usage` + `media` converted,
+> pinned by `test/barlib.bats`, and `haus.bar.widgets.<name>.script` — a widget
+> somebody else wrote, reaching the bar down the same path haus's own pills do.
+> Sections below marked **planned** are what is left: `badge`. The code is
+> normative where the two disagree; a planned key is an EVAL ERROR today, not a
+> silent no-op, so nothing here can be half-used by accident.
 
 ## Why
 
@@ -60,12 +61,45 @@ diffing, tone→hex — belongs to the runtime. A widget script never calls
 low-level escape for raw properties on the widget's own item; leaning on it
 for everything is the signal a component is missing.
 
-Two tiers today, so the trivial case stays trivial:
+Two tiers, so the trivial case stays trivial:
 
-1. **`command`** (exists, unchanged): a script whose stdout is the label,
-   run on a timer — `haus.bar.widgets.<name>.command`. No header needed.
-2. **framework widget**: the file above. `fetch`/`render` split, optional
-   click handlers.
+1. **`command`**: a script whose stdout is the label, run on a timer —
+   `haus.bar.widgets.<name>.command`. No header needed.
+2. **framework widget**: the file above, named in
+   `haus.bar.widgets.<name>.script`. `fetch`/`render` split, optional click
+   handlers.
+
+Both tiers are the SAME option, and the widget above is the same file whether
+this repo ships it or you wrote it. A pill haus bundles is `frameworkBlock`
+over a script in `modules/bar/sketchybar/plugins/`; yours is the identical
+emitter over the store path `script` names, installed to
+`~/.config/sketchybar/widgets/<name>.sh` — same header, same parser, same
+custom-event declaration, same popup frame, same graph derivation, same
+batched `--add`. The one thing a bundled pill has that a declared one cannot
+write in its own file is its STATIC look, which is
+`haus.bar.widgets.<name>.style`: identity properties (this widget's hue, its
+padding, `graph.color`), never the ones `render` should be naming a tone for.
+
+Setting both `command` and `script` is an error, as are the leaves that belong
+to one tier only — `icon` on a framework widget (it draws its own), `style` on
+a command widget (the simple tier wears the bar's look). Each of those would
+otherwise be a leaf that reads fine and does nothing, which is what the
+manifest parser refuses one file over.
+
+The whole host side of the widget above, if you wrote it yourself:
+
+```nix
+haus.bar.widgets.pomodoro = {
+  script = ./pomodoro.sh;          # the file, header and all
+  style."icon.color" = "$TEAL";    # its identity, and nothing else
+  placement = "bottom-right";      # optional — the menu bar otherwise
+};
+```
+
+Host-only, both of them: `script` runs code on a timer in your session and
+`style` is a shell fragment, so a shared desktop may place, retune and switch
+off any pill and may not bring a new one. That asymmetry is the same one
+`command` has carried since the open form shipped.
 
 ## The manifest (`# widget:` header)
 
@@ -102,10 +136,12 @@ Presentation and registry facts that are prose or policy — `description`,
 `default` — stay in `widgets.nix`; the header carries only what the runtime
 and generator consume.
 
-**Planned**: third-party FRAMEWORK widgets through the open form
-(`haus.bar.widgets.<name>` today takes only the timer-driven `command`; a
-`script` field whose header is read the same way is the natural extension —
-it's a store path, `readFile` works).
+The parser takes a PATH, and takes no interest in where it came from —
+which is what made third-party framework widgets a small change rather than a
+second code path. `haus.bar.widgets.<name>.script` is a store path;
+`builtins.readFile` reads a header out of one exactly as it reads one out of
+this repo's `plugins/` directory, so a stranger's widget gets the same
+unknown-key error, naming their file.
 
 ## The runtime (`barlib`)
 
@@ -717,10 +753,38 @@ Lua (or Go daemon) runtime would consume, so nothing built now is thrown away.
    `~/.local/state/haus/media/badge-pad`, so it survives a bar reload and the
    only open that can be wrong is the first one on a machine that has never
    opened the dropdown.
-8. Third-party framework widgets through `haus.bar.widgets.<name>.script`:
-   the header is read the same way, and it is a store path, so `readFile`
-   works. It is what makes barlib a framework rather than an internal
-   refactor, and nothing else is blocking it.
+8. ✅ **Third-party framework widgets** through
+   `haus.bar.widgets.<name>.script` — what makes barlib a framework rather
+   than an internal refactor. The emitter's own change was one line's worth of
+   idea: `frameworkBlock` took the widget's name and derived both paths from
+   it, and now takes the script twice — the store path the header is READ
+   from, and the `$HOME` path the bar RUNS — because for a stranger's widget
+   those are two different files and for a bundled one they always were. The
+   parser needed nothing at all.
+
+   What it cost was everything AROUND the emitter, and each piece is a thing
+   a bundled pill had been getting for free:
+   - **somewhere to live.** `plugins/` is a single directory `home.file`
+     entry, so nothing can be added inside it without copying the whole
+     thing — and copying it would put a declared `media_lib` widget in the
+     same namespace as the library three pills source. Declared widgets get
+     `~/.config/sketchybar/widgets/<name>.sh`, one entry each, executable
+     because `script=` runs a path rather than sourcing it.
+   - **`style` as an option.** A bundled pill's identity colours are a Nix
+     literal in `mkPluginBlocks`; a declared one had no way to say them at
+     all, which made `graph` unreachable outside this repo — the emitter
+     REFUSES a graph with no `graph.color`, correctly, and nothing could set
+     one. It is host-only: the values are shell fragments by design, so that
+     `$TEAL` resolves and a font can carry its own quotes.
+   - **four more refusals**, all of the same shape the room already had:
+     `script` on a bundled name, both tiers at once, and the two leaves that
+     belong to one tier each (`icon` on a framework widget, `style` on a
+     command one). The pre-existing "enabled but sets no command" grew the
+     second tier into its sentence rather than gaining a twin.
+   The interval override learned the other tier too: what
+   `haus.bar.widgets.<n>.interval` overrides on a declared widget is the
+   `interval` in that script's own header, which is the same relationship a
+   bundled pill's `widgets.nix` entry has to its block.
 9. Long tail: convert on touch. A converted pill's entry in `mkPluginBlocks`
    shrinks to a `frameworkBlock` call carrying only what is IDENTITY — its
    hue, its padding — because the ladder deliberately has no rung for "this

@@ -66,13 +66,21 @@ let
   # writes the same fields haus's own pills carry, so there is no second-class
   # widget and no private field a bundled pill gets and a new one doesn't.
   #
-  # `bundled` is the exception that proves it. A bundled widget's BLOCK is a
-  # hand-written SketchyBar run in default.nix — dropdown rows, click gestures,
-  # popup alignment, colour rules — and none of that is expressible here, so
-  # `command` on one of them is refused rather than half-honoured (the
-  # assertion is in default.nix, which is the only file that knows which is
-  # which). What a bundled widget DOES admit is the two fields that mean the
-  # same thing for every pill on the bar: where it sits, and how often it runs.
+  # `bundled` is the exception that proves it. A bundled widget's BLOCK is
+  # written in default.nix — a hand-written SketchyBar run for the older pills,
+  # a `frameworkBlock` call over haus's own plugin for the converted ones — and
+  # neither is expressible here, so `command` and `script` on one of them are
+  # refused rather than half-honoured (the assertions are in default.nix, which
+  # is the only file that knows which is which). What a bundled widget DOES
+  # admit is the two fields that mean the same thing for every pill on the bar:
+  # where it sits, and how often it runs.
+  #
+  # Two tiers, and a widget is exactly one of them: `command` is a script whose
+  # stdout is the label, run on a timer, and `script` is a barlib framework
+  # widget — the same tier the bundled pills are converting to, with the same
+  # runtime, the same components and the same `# widget:` header read the same
+  # way. `docs/bar-framework.md` is the contract; `style` is the only field
+  # that exists because a framework widget cannot say a thing in its own file.
   widgetModule =
     { name, config, ... }:
     {
@@ -110,6 +118,88 @@ let
 
             null on a bundled pill, whose behaviour is haus's own plugin, and
             setting one there is an error rather than an override.
+
+            The other tier is `script`, and a widget is one or the other:
+            setting both is an error, since only one of them can be what the
+            bar runs.
+          '';
+        };
+
+        script = lib.mkOption {
+          type = lib.types.nullOr lib.types.path;
+          default = null;
+          example = lib.literalExpression "./my-widget.sh";
+          description = ''
+            A barlib FRAMEWORK widget — the richer tier, and the one haus's own
+            pills are written in. Where `command` is a script whose stdout is a
+            label, this is a file that sources
+            `~/.config/sketchybar/barlib.sh`, defines `fetch`/`render` and
+            whatever `on_*` handlers it wants, and ends with
+            `barlib_main "$@"`. It gets everything a bundled pill gets: the
+            state diff (a quiet tick costs zero traffic), the tone ladder, the
+            identity marks, graphs, the dropdown row kinds, and one
+            batched call per repaint. `docs/bar-framework.md` in the haus
+            repository is the whole contract, and
+            `modules/bar/sketchybar/plugins/clock.sh` is the smallest working
+            example of it.
+
+            The file's own `# widget:` header is the WIRING — how often it
+            ticks, what events it hears, whether it has a dropdown, whether it
+            draws a graph — and it is read at build time, so a header key that
+            does not exist fails the build naming your file rather than
+            wiring nothing. The header is the reason this is a path and not a
+            string: the file has to be readable while the configuration is
+            being evaluated, and it is installed to
+            `~/.config/sketchybar/widgets/<name>.sh`, which is where you go to
+            run it by hand when it misbehaves — just the path, since the file
+            names its own `BAR_ITEM` and the bar's own `$NAME` is what wins
+            when the bar is the caller.
+
+            `icon` is not read for one of these — a framework widget draws its
+            own icon in `render`, which is the point of the tier — and the
+            static half of its look is `style`.
+
+            null on a bundled pill, whose script is haus's own, and setting one
+            there is an error rather than an override.
+          '';
+        };
+
+        style = lib.mkOption {
+          type = lib.types.attrsOf lib.types.str;
+          default = { };
+          example = {
+            "icon.color" = "$TEAL";
+            "background.padding_left" = "8";
+          };
+          description = ''
+            The static half of a `script` widget's look: SketchyBar item
+            properties, set once when the pill is created, as a plain
+            `property = value` set.
+
+            It is the one thing a framework widget cannot say in its own file,
+            and the reason is worth knowing before you reach for it: everything
+            a pill draws that MEANS something — its label, its colour, whether
+            it is showing at all — is the widget's `render`, which names a tone
+            from the ladder and never a colour. What is left over is IDENTITY,
+            which the ladder deliberately has no rung for: this widget's own
+            hue, its padding, a font that is not the bar's. That is what
+            belongs here, and a `style` doing more than that is usually a
+            `render` that should have been doing it.
+
+            One property is not optional: a widget whose header declares
+            `graph` must name a `graph.color` here, because the line's colour
+            is which readout it is and nothing else on the machine can answer
+            that.
+
+            Values are written into the bar's generated item file as they
+            stand, so a palette name from `colors.sh` (`$TEAL`, `$SURFACE0`)
+            reaches the theme, and anything with a space in it needs its own
+            quotes — `"''${config.haus.fonts.mono.name}:Bold:13"`. Host-only for
+            exactly that reason: it is a shell fragment rather than data.
+
+            Ignored on a `command` widget, and setting it on one is an error:
+            the simple tier draws the same pill every other pill wears, and
+            wanting to change that is what the framework tier is for.
           '';
         };
 
@@ -124,7 +214,8 @@ let
               haus.bar.widgets.weather.interval = 1800;
 
             null keeps the widget's own default — for a bundled pill the rate
-            it ships with, for yours a 60-second tick. A few pills are
+            it ships with, for a `script` widget the `interval` in its own
+            header, and for a `command` widget a 60-second tick. A few pills are
             push-driven rather than polled (`agents`) and a couple own
             their rate through an older option of their own
             (`haus.bar.calendar.refresh`); setting this on one of those is
@@ -144,7 +235,9 @@ let
 
             Ignored on a bundled pill: those set their own, and several change
             it to say something (the memory pill's pressure colour, the
-            github pill's two-tone logo).
+            github pill's two-tone logo). Ignored on a `script` widget for the
+            same reason — it draws its own — and setting it on one is an error
+            rather than a glyph that never appears.
           '';
         };
 
