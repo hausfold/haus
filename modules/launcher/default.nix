@@ -357,10 +357,22 @@ let
     ${lib.optionalString (scenes != { }) "install -m555 ${sceneOffCommand} $out/scene-off.sh"}
   '';
 
+  # The command library this machine actually installs: pounce's built-ins, the
+  # optional plugins named by haus.launcher.plugins, and haus's own layered on
+  # by runtime discovery. ONE binding, because it has two consumers that must
+  # agree — home.packages below and the daemon's POUNCE_BUILTIN_DIR. Overriding
+  # only the profile copy would install a plugin's command and its CLI while
+  # leaving the ⌘Space daemon searching the un-overridden store path, so the row
+  # would never appear and there would be nothing to see it fail.
+  pounceCommands = pkgs.pounce-commands.override {
+    extraCommandDirs = [ riceCommands ];
+    plugins = config.haus.launcher.plugins;
+  };
+
   # The built-in command set exposed by the pounce-commands package. The daemon
   # discovers commands from these dirs itself (in-process launcher, see below),
   # so it needs the same values the pounce-palette wrapper bakes in.
-  builtinCommandsDir = "${pkgs.pounce-commands}/share/pounce/commands";
+  builtinCommandsDir = "${pounceCommands}/share/pounce/commands";
 
   # Launch-mode cheatsheet rows — generated from the app roster so the leader
   # page always matches AeroSpace's launcher, then the fixed leader
@@ -1436,14 +1448,14 @@ lib.mkIf config.haus.launcher.enable {
         pkgs.pounce
         # The generic command library, plus haus's own commands layered on
         # via runtime discovery. Same-filename scripts shadow pounce built-ins.
-        (pkgs.pounce-commands.override { extraCommandDirs = [ riceCommands ]; })
-      ]
-      # The optional plugins are discovered via ~/.config/pounce/commands symlinks
-      # (dev checkout), not the `plugins` override, so their CLI deps wouldn't come
-      # along automatically. Pull every optional plugin's tool into the profile so
-      # audio/bluetooth/github stop guarding "not found"; pounce-commands is the
-      # single source of truth for that list (its pluginRuntimeDeps).
-      ++ pkgs.pounce-commands.allPluginDeps;
+        # `plugins` installs each named command and propagates only ITS CLI
+        # (pounce's own pluginRuntimeDeps), so a machine that asked for none
+        # carries none — the rule modules/focus keeps switchaudio-osx out of
+        # the closure by. A dev checkout that shadows one of these through
+        # ~/.config/pounce/commands still names it here to get the tool; the
+        # symlink wins on filename, so the built-in copy is inert.
+        pounceCommands
+      ];
 
       # The rendered variant palettes (see themeFiles above). xdg.configFile
       # rather than home.file only because the sibling home.file entries below
