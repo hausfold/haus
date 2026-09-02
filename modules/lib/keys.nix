@@ -21,10 +21,69 @@
 }:
 
 let
+  # What a KEY NAME in this config means physically.
+  #
+  # AeroSpace, pounce and macOS all name a key by where it sits on a US
+  # keyboard: `a` is kVK_ANSI_A, the key second from the left on the home row,
+  # whatever is printed on it. On AZERTY that key prints Q — so `haus.roster.<a>.key
+  # = "a"` binds the key a French keyboard calls Q, and the letter that gave the
+  # binding its mnemonic is on a different key entirely. Measured on
+  # com.apple.keylayout.French: five of the twenty-six leader letters land on the
+  # wrong app that way (a↔q, z↔w, and m on nothing at all), and launch mode's
+  # `,` action lands on whatever the roster put on `m`.
+  #
+  # AeroSpace can be told otherwise. `[key-mapping.key-notation-to-key-code]`
+  # maps a NOTATION — the character printed on the key you want to press — to the
+  # US-NAMED PHYSICAL KEY that carries it, and `preset` selects one of its two
+  # built-in tables (three of them: qwerty, dvorak, colemak). So each entry below
+  # reads "when this config says <name>,
+  # mean the key US keyboards call <value>".
+  #
+  # What this cannot do, and why AZERTY still needs its own paragraph in the
+  # docs: the mapping is notation → key code, with no room for a MODIFIER. AZERTY
+  # puts `.` on ⇧+the `;` key, `/` on ⇧+the `:` key, and every digit behind ⇧,
+  # so those bindings have no unshifted key to move to and stay where US
+  # keyboards put them. Mapping only what can be mapped is deliberate: a partial
+  # table that never collides beats a complete-looking one where two bindings
+  # silently claim one key.
+  layoutVocab = {
+    qwerty = {
+      preset = null; # what AeroSpace already does — emit nothing at all
+      notationToKeyCode = { };
+    };
+    # AeroSpace ships no azerty preset, so this is the whole table. Letters
+    # first, then the two punctuation keys the letter block displaces: AZERTY's
+    # `m` sits where US keyboards put `;`, which pushes `;` onto the US `,` key
+    # and `,` onto the US `m` key.
+    azerty = {
+      preset = "qwerty";
+      notationToKeyCode = {
+        a = "q";
+        q = "a";
+        z = "w";
+        w = "z";
+        m = "semicolon";
+        semicolon = "comma";
+        comma = "m";
+      };
+    };
+    # These two are AeroSpace's own, and are the reason this option is named for
+    # the layout rather than for AZERTY.
+    dvorak = {
+      preset = "dvorak";
+      notationToKeyCode = { };
+    };
+    colemak = {
+      preset = "colemak";
+      notationToKeyCode = { };
+    };
+  };
+
   # AeroSpace modifier prefix + the glyph that names it. The alternatives exist
-  # for a real reason rather than for choice's sake: on many non-US layouts ⌥ is
-  # how you type accented characters, so a desktop that owns ⌥+letter is unusable
-  # there. ⌃⌥ and ⌘⌥ are the escapes.
+  # for a real reason rather than for choice's sake: on a non-US layout ⌥ is a
+  # character layer in its own right — on AZERTY it is where `{ } [ ] | \ @ #`
+  # live — so a desktop that owns too much of ⌥ makes the keyboard unusable for
+  # writing code. ⌃⌥ and ⌘⌥ are the escapes.
   navVocab = {
     alt = {
       chord = "alt";
@@ -86,6 +145,13 @@ let
   };
 in
 {
+  # Never null: every machine has SOME layout, and "qwerty" is the one that
+  # emits nothing, so a config that never heard of this option keeps every
+  # binding exactly where it was. `or "qwerty"` is for the SYNTHETIC keys
+  # attrsets — flake.nix builds two by hand, for the caption golden and for the
+  # published binding table — which have no layout to give and would otherwise
+  # turn into `attribute 'layout' missing` the first time anything forced this.
+  layout = layoutVocab.${keys.layout or "qwerty"};
   # null when keys.windowNav = "none": no modifier-based window chords at all.
   nav = navVocab.${keys.windowNav} or null;
   # null when keys.leader = "none": Caps Lock stays Caps Lock and launch mode is

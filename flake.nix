@@ -1519,15 +1519,22 @@
           # mouse-first desktop possible, where "none" must yield NO chord rather than
           # a default one.
           keymapRow =
-            leader: palette: windowNav:
+            leader: palette: windowNav: layout:
             let
               k = import ./modules/lib/keys.nix {
                 inherit (pkgs) lib;
-                keys = { inherit leader palette windowNav; };
+                keys = {
+                  inherit
+                    leader
+                    palette
+                    windowNav
+                    layout
+                    ;
+                };
               };
               show = v: f: if v == null then "-" else f v;
             in
-            "${leader}/${palette}/${windowNav}"
+            "${leader}/${palette}/${windowNav}/${layout}"
             + " leader=${
                show k.leader (v: "${v.chord} ${v.glyph} caps=${if v.capsRemap then "yes" else "no"}")
              }"
@@ -1540,14 +1547,29 @@
                )
              }"
             + " nav=${show k.nav (v: "${v.chord} ${v.glyph}")}"
+            # The layout table is the same class of thing as a caption: wrong, it
+            # is green at eval, green at `nix flake check`, and silently binds a
+            # different physical key. So it is pinned here rather than trusted.
+            + " layout=${if k.layout.preset == null then "-" else k.layout.preset}"
+            + "[${
+              builtins.concatStringsSep "," (
+                nixpkgs.lib.mapAttrsToList (n: c: "${n}>${c}") k.layout.notationToKeyCode
+              )
+            }]"
             + " conflicts=${toString (builtins.length k.conflicts)}";
           keymapTable = builtins.concatStringsSep "\n" [
-            (keymapRow "caps" "cmd-space" "alt")
-            (keymapRow "alt-space" "ctrl-space" "ctrl-alt")
-            (keymapRow "none" "none" "none")
+            (keymapRow "caps" "cmd-space" "alt" "qwerty")
+            (keymapRow "alt-space" "ctrl-space" "ctrl-alt" "qwerty")
+            (keymapRow "none" "none" "none" "qwerty")
             # Two keys, one chord. Silent in practice (whoever registers first
             # wins), so windows asserts on it — this pins that it's detected at all.
-            (keymapRow "alt-space" "alt-space" "cmd-alt")
+            (keymapRow "alt-space" "alt-space" "cmd-alt" "qwerty")
+            # The three non-US layouts. azerty is the only one with a table of
+            # its own (AeroSpace ships no preset for it), so it is the row that
+            # would drift; the other two pin that a preset arrives alone.
+            (keymapRow "caps" "cmd-space" "alt" "azerty")
+            (keymapRow "caps" "cmd-space" "alt" "dvorak")
+            (keymapRow "caps" "cmd-space" "alt" "colemak")
           ];
           # ---- alert-volume ----------------------------------------------------
           # haus.sound.alertVolume is 0–100, and macOS stores e^(v/100 − 1).
@@ -1796,10 +1818,13 @@
           a11yArmsMissing = builtins.filter (c: a11yArmLineOf c == null) a11yClasses;
 
           expectedKeymapTable = ''
-            caps/cmd-space/alt leader=f18 ⇪ caps=yes palette=cmd-space ⌘ Space spotlight=yes nav=alt ⌥ conflicts=0
-            alt-space/ctrl-space/ctrl-alt leader=alt-space ⌥␣ caps=no palette=ctrl-space ⌃ Space spotlight=no nav=ctrl-alt ⌃⌥ conflicts=0
-            none/none/none leader=- palette=- nav=- conflicts=0
-            alt-space/alt-space/cmd-alt leader=alt-space ⌥␣ caps=no palette=alt-space ⌥ Space spotlight=no nav=cmd-alt ⌘⌥ conflicts=1
+            caps/cmd-space/alt/qwerty leader=f18 ⇪ caps=yes palette=cmd-space ⌘ Space spotlight=yes nav=alt ⌥ layout=-[] conflicts=0
+            alt-space/ctrl-space/ctrl-alt/qwerty leader=alt-space ⌥␣ caps=no palette=ctrl-space ⌃ Space spotlight=no nav=ctrl-alt ⌃⌥ layout=-[] conflicts=0
+            none/none/none/qwerty leader=- palette=- nav=- layout=-[] conflicts=0
+            alt-space/alt-space/cmd-alt/qwerty leader=alt-space ⌥␣ caps=no palette=alt-space ⌥ Space spotlight=no nav=cmd-alt ⌘⌥ layout=-[] conflicts=1
+            caps/cmd-space/alt/azerty leader=f18 ⇪ caps=yes palette=cmd-space ⌘ Space spotlight=yes nav=alt ⌥ layout=qwerty[a>q,comma>m,m>semicolon,q>a,semicolon>comma,w>z,z>w] conflicts=0
+            caps/cmd-space/alt/dvorak leader=f18 ⇪ caps=yes palette=cmd-space ⌘ Space spotlight=yes nav=alt ⌥ layout=dvorak[] conflicts=0
+            caps/cmd-space/alt/colemak leader=f18 ⇪ caps=yes palette=cmd-space ⌘ Space spotlight=yes nav=alt ⌥ layout=colemak[] conflicts=0
           '';
           # ---- accent-reach ---------------------------------------------------
           # haus.theme.accent does NOT recolour everything, and the option
@@ -4470,6 +4495,7 @@
                   leader = "caps";
                   palette = "cmd-space";
                   windowNav = "alt";
+                  layout = "qwerty";
                 };
               };
             in

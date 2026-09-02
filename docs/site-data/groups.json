@@ -854,8 +854,12 @@
     "keys": {
       "blurb": "The keys haus owns — the leader, the palette, the window-chord modifier — and anything extra you hang off the leader.",
       "kind": "shared",
-      "optionCount": 7,
+      "optionCount": 8,
       "options": {
+        "haus.keys.layout": {
+          "desktopSafe": false,
+          "reason": "your-region"
+        },
         "haus.keys.leader": {
           "desktopSafe": true
         },
@@ -1858,7 +1862,7 @@
         "keys",
         "tour"
       ],
-      "optionCount": 34,
+      "optionCount": 35,
       "order": 200,
       "title": "Shared surfaces"
     },

@@ -259,6 +259,7 @@ let
       "topRight"
     ];
     keys = [
+      "layout"
       "leader"
       "leaderExtras"
       "leaderExtras.*.caption"
@@ -594,6 +595,9 @@ let
       "tunnel.id" = "your-account";
     };
     keys."leaderExtras.*.command" = "runs-a-command";
+    # Which keyboard is physically in front of you, which is the same class of
+    # fact as `locale.inputSources` beside it and gets the same sentence.
+    keys.layout = "your-region";
     launcher.signingIdentity = "keychain";
     locale = wholeNamespace "locale" "your-region";
     power = wholeNamespace "power" "this-hardware";
