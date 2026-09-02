@@ -89,6 +89,9 @@ format_duration() {
 # rather than something render reads for itself, because the runtime skips
 # render when nothing changed: the mute has to be a change the diff can see,
 # or it only takes effect the next time Harvest's numbers happen to move.
+# Read right before each emit, never cached at the top of fetch — the curls
+# above an emit are seconds long, and a value read before them re-opens the
+# exact race this function exists to close.
 tour_drawing() {
   local muted="$HOME/.local/state/haus/tour-muted"
   if [ -f "$muted" ] && grep -qxF harvest "$muted" 2>/dev/null; then
@@ -147,10 +150,9 @@ last_label() {
 }
 
 fetch() {
-  local drawing entry count label=''
-  drawing=$(tour_drawing)
+  local entry count label=''
   entry=$(harvest_get "$HARVEST_API_URL/time_entries?is_running=true&_=$TIMESTAMP") || {
-    emit state=unreachable label="$(last_label)" drawing="$drawing"
+    emit state=unreachable label="$(last_label)" drawing="$(tour_drawing)"
     return 0
   }
   count=$(echo "$entry" | jq -r '.time_entries | length // 0')
@@ -174,14 +176,14 @@ fetch() {
       label="$label · $(format_duration "$hours")"
     fi
     save_label "$label"
-    emit state=running label="$label" drawing="$drawing"
+    emit state=running label="$label" drawing="$(tour_drawing)"
     return 0
   fi
 
   # Timer is STOPPED - show most recently used entry for quick resume
   local latest
   latest=$(harvest_get "$HARVEST_API_URL/time_entries?per_page=10&_=$TIMESTAMP") || {
-    emit state=unreachable label="$(last_label)" drawing="$drawing"
+    emit state=unreachable label="$(last_label)" drawing="$(tour_drawing)"
     return 0
   }
   latest=$(echo "$latest" | jq '[.time_entries[] | select(.is_running == false)] | sort_by(.updated_at) | reverse | .[0]')
@@ -196,7 +198,7 @@ fetch() {
     label="Start Timer"
   fi
   save_label "$label"
-  emit state=stopped label="$label" drawing="$drawing"
+  emit state=stopped label="$label" drawing="$(tour_drawing)"
 }
 
 # Running is a FILLED pill ($PEACH behind $BASE type) and unreachable dims
@@ -227,12 +229,17 @@ render() {
   sb_set drawing="$drawing" updates=on
 }
 
-# The unreachable paint for the CLICK path, where nothing was emitted: dim
-# what is already on the pill without repainting the label, so the next
-# successful poll restores the colours on its own.
+# The unreachable paint for the CLICK path. Through a FORCED tick rather than
+# a hand `sb_set` dim, because the hand paint would sit outside the runtime's
+# diff: with a stopped timer the emitted state is byte-identical tick after
+# tick, so a one-off dim nothing emitted would survive every subsequent
+# successful poll — the cache says nothing changed, render never runs, and the
+# pill stays grey until Harvest's actual state moves. The forced tick fetches
+# (fails, most likely), renders the unreachable state through the same path
+# the poll uses, and CACHES it, so the next good poll is a diff that repaints.
 click_unreachable() {
   notify "Harvest is unreachable"
-  sb_set icon.color="$OVERLAY0" label.color="$OVERLAY0" background.color="$SURFACE0"
+  (SENDER=forced barlib_tick)
 }
 
 # Left-click: toggle the timer. The paints here are OPTIMISTIC — flushed
