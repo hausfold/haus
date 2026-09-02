@@ -57,7 +57,7 @@
 # is barlib's: `popup_heading` is which client, `popup_row --value` is a
 # question on the left and its answer on the right, `popup_note` is a
 # footnote. This file no longer owns a font, a height or a pixel of the value
-# column — the four row kinds do, once, for every pill on the bar.
+# column — the six row kinds do, once, for every pill on the bar.
 #
 # A stale provider drops its heading to `dim` and its values to `mute`, so a
 # block whose feed died greys out as a whole exactly like the pill does — no

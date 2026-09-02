@@ -1,15 +1,17 @@
 # The bar framework
 
-> Status: **phases 1–4c shipped, and the framework is open** — `barlib.sh`
-> (the runtime: dispatch, state diff, `pill`, `graph`, tones, marks, the six
-> popup row kinds and their value column, `bar_emit`), the `# widget:` parser
-> (`modules/bar/manifest.nix`), `frameworkBlock` in `modules/bar/default.nix`,
-> `clock` + `github` + `cpu` + `memory` + `ai_usage` + `media` converted,
-> pinned by `test/barlib.bats`, and `haus.bar.widgets.<name>.script` — a widget
-> somebody else wrote, reaching the bar down the same path haus's own pills do.
-> Sections below marked **planned** are what is left: `badge`. The code is
-> normative where the two disagree; a planned key is an EVAL ERROR today, not a
-> silent no-op, so nothing here can be half-used by accident.
+> Status: **the migration list below is ✅ through 9, and the framework is
+> open** — `barlib.sh` (the runtime: dispatch, state diff, `pill`, `graph`,
+> `segments`, tones, marks, the six popup row kinds and their value column,
+> `bar_emit`), the `# widget:` parser (`modules/bar/manifest.nix`),
+> `frameworkBlock` in `modules/bar/default.nix`, `clock` + `github` + `cpu` +
+> `memory` + `ai_usage` + `media` + `agents` converted, pinned by
+> `test/barlib.bats`, and `haus.bar.widgets.<name>.script` — a widget somebody
+> else wrote, reaching the bar down the same path haus's own pills do.
+> Sections below marked **planned** are what is left: `badge`, and a producer
+> for `bar_emit`. The code is normative where the two disagree; a planned key
+> is an EVAL ERROR today, not a silent no-op, so nothing here can be half-used
+> by accident.
 
 ## Why
 
@@ -651,11 +653,39 @@ the `MARK_*` exports from it.
   not one of SketchyBar's own and subscribes the widget. The built-in list
   lives in `manifest.nix` and the split is a **difference against it**, not a
   prefix rule — subscribing to an event nobody declared is silent, and so is
-  `--add event volume_change` shadowing the built-in of that name. Producers
-  fire them with `bar_emit <event> [key=value…]` (a barlib helper that
+  `--add event volume_change` shadowing the built-in of that name.
+  `bar_emit <event> [key=value…]` is the helper for firing one, and it
   triggers BOTH bars — the "anything that pokes a bar pokes both" rule, in
-  code). **Planned**: bridging the remaining producers in — focus changes,
-  `agent-state` — so a widget can subscribe to them by name.
+  code. **It has no producer yet**, and the reason is where it lives: it is
+  defined in `barlib.sh`, which only a framework WIDGET sources, while every
+  producer today is something else. They come in three shapes, and only the
+  first is what the helper is for:
+
+  - **Poke both bars by hand** — the shape `bar_emit` exists to replace.
+    `modules/focus/focus.sh` and `modules/core/awake.sh` each write the pair
+    out, and so do two Nix-generated producers that could not source a
+    `$HOME` path meaningfully even if they wanted to: `agentAwakePoke` in
+    `modules/ai/default.nix` (a `writeShellScript`, and the second
+    `caffeinate_change` producer) and the focus-watcher's launchd
+    `ProgramArguments` in `modules/focus/default.nix` (the second
+    `focus_change` one).
+  - **Wake a watcher on the top bar alone** — `aerospace-notify.sh`'s
+    `fullscreen` and `tiling` arms, and `plugins/launch_mode.sh`, hit the top
+    bar only on purpose: the trigger just WAKES `aerospace_watcher.sh`, and
+    the watcher is what reads the new state and paints the pills. Only that
+    file's `workspace` arm pokes both bars, and it says why. A blind
+    conversion here would start poking the bottom bar for nothing.
+  - **Repaint one pill on the instance drawing it** — `github_update`
+    (`plugins/github.sh`, and the delivery subscriber in
+    `modules/bar/default.nix`) and `harvest_update` (`plugins/harvest.sh`)
+    go to `$SB` alone, so a pill on the bottom bar isn't woken by an event
+    sent to the menu bar's mach service. For this shape `bar_emit` is the
+    WRONG call rather than a missing one.
+
+  **Planned**: bridging the first shape in — focus changes, `agent-state` —
+  which means first deciding whether a non-widget producer sources
+  `barlib.sh`, or the helper moves somewhere a `writeShellScript` and a
+  launchd argv can reach it too.
 - Widgets may `bar_emit` too — inter-widget signaling without knowing names.
 
 ## Why not SbarLua

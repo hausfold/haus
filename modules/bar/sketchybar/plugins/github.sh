@@ -936,7 +936,7 @@ stamp_epoch() {
 }
 
 # ── the dropdown ──────────────────────────────────────────────────────────────
-# Four row kinds and nothing else (docs/bar-framework.md): the runtime owns
+# Six row kinds and nothing else (docs/bar-framework.md): the runtime owns
 # every font, every height, the close-on-click, the batched --add and the
 # barpop arm. What is left here is the only part that is about GitHub.
 popup_rows() {
