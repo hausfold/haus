@@ -1,8 +1,8 @@
-# The `# widget:` header parser (docs/bar-framework.md). A framework widget
-# declares its wiring — interval, event subscriptions — in its own file, and
-# this is the one reader: default.nix emits the item's block from what it
-# returns, so there is no parallel table to edit and no key that can be set
-# in one place and ignored in the other.
+# The `# widget:` header parser (hausfold.co/docs/haus/rooms/bar-widgets). A
+# framework widget declares its wiring — interval, event subscriptions — in its
+# own file, and this is the one reader: default.nix emits the item's block from
+# what it returns, so there is no parallel table to edit and no key that can be
+# set in one place and ignored in the other.
 #
 # Parsed at EVAL, so a bad header is a build failure that names the file and
 # the key — the lesson `pounce-command-keys` teaches one repo over, enforced
@@ -10,12 +10,12 @@
 # unknown key is an error, never a silent ignore: a silently-dropped
 # `subscribes` is a pill that stops updating with nothing on any stream.
 #
-# knownKeys is exactly the set frameworkBlock CONSUMES, grown only in the
-# same change that implements a key — a key that parses green and wires
-# nothing is the silent ignore this file's whole job is to refuse. There are
-# no keys waiting to be added: `permissions` and `placement` are already
-# `haus.bar.widgets.<name>.*` options, which is the only place a third
-# party's widget could declare either (docs/bar-framework.md).
+# knownKeys is exactly the set frameworkBlock CONSUMES, grown only in the same
+# change that implements a key — a key that parses green and wires nothing is
+# the silent ignore this file's whole job is to refuse. There are no keys
+# waiting to be added: `permissions` and `placement` are already
+# `haus.bar.widgets.<name>.*` options, which is the only place a third party's
+# widget could declare either (hausfold.co/docs/haus/rooms/bar-widgets).
 { lib }:
 let
   knownKeys = [

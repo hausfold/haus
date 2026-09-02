@@ -19,13 +19,13 @@
 # sketchybarrc launches it detached, and media.sh restarts it if it ever dies.
 #
 # Rendering itself is media.sh's — it is a framework widget
-# (docs/bar-framework.md), so the paint is its `render()` and barlib owns the
-# batching and the state diff. This file's own job is narrower: turn each
-# payload into the `now` record, notice when the TRACK (not the state) changed,
-# and ask for a repaint. `media_paint` (media_lib.sh) is that ask, and it is
-# DIFFED on the other side — a payload that changes nothing about what the pill
-# says now costs no sketchybar traffic, where the old in-process render redrew
-# on every one.
+# (hausfold.co/docs/haus/rooms/bar-widgets), so the paint is its `render()` and
+# barlib owns the batching and the state diff. This file's own job is narrower:
+# turn each payload into the `now` record, notice when the TRACK (not the
+# state) changed, and ask for a repaint. `media_paint` (media_lib.sh) is that
+# ask, and it is DIFFED on the other side — a payload that changes nothing
+# about what the pill says now costs no sketchybar traffic, where the old
+# in-process render redrew on every one.
 
 export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/usr/bin:/bin:$PATH"
 

@@ -20,7 +20,7 @@
 # `environment.systemPackages` is the one address all four can spell — the same
 # reason `haus-activate` sits at a stable /run/current-system path.
 #
-# It is the WRONG call for two of the three producer shapes docs/bar-framework.md
+# It is the WRONG call for two of the three producer shapes ops/todo/bar-framework.md
 # names, and those are decisions rather than conversions nobody got to:
 #   - **Waking a watcher on the top bar alone** — `aerospace-notify.sh`'s
 #     `fullscreen` and `tiling` arms, and `plugins/launch_mode.sh`. The trigger

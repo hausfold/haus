@@ -79,8 +79,9 @@ let
   # stdout is the label, run on a timer, and `script` is a barlib framework
   # widget — the same tier the bundled pills are converting to, with the same
   # runtime, the same components and the same `# widget:` header read the same
-  # way. `docs/bar-framework.md` is the contract; `style` is the only field
-  # that exists because a framework widget cannot say a thing in its own file.
+  # way. The framework doc (hausfold.co/docs/haus/rooms/bar-widgets) is the
+  # contract; `style` is the only field that exists because a framework widget
+  # cannot say a thing in its own file.
   widgetModule =
     { name, config, ... }:
     {
@@ -138,10 +139,11 @@ let
             `barlib_main "$@"`. It gets everything a bundled pill gets: the
             state diff (a quiet tick costs zero traffic), the tone ladder, the
             identity marks, graphs, the dropdown row kinds, and one
-            batched call per repaint. `docs/bar-framework.md` in the haus
-            repository is the whole contract, and
-            `modules/bar/sketchybar/plugins/clock.sh` is the smallest working
-            example of it.
+            batched call per repaint. The whole contract — the header keys,
+            the components, the tones, the dropdown row kinds — is
+            <hausfold.co/docs/haus/rooms/bar-widgets>, and
+            `~/.config/sketchybar/barlib.sh` on this machine is the runtime it
+            documents.
 
             The file's own `# widget:` header is the WIRING — how often it
             ticks, what events it hears, whether it has a dropdown, whether it

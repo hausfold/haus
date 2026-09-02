@@ -6,8 +6,9 @@
 # a dropdown of what's responsible — so the only things their own files hold are
 # the words: which glyph, which unit, which rows. This is the rest.
 #
-# Both are framework widgets now (docs/bar-framework.md), which is why this
-# file is short: the row builders, the pixel alignment, the popup dance and
+# Both are framework widgets now (hausfold.co/docs/haus/rooms/bar-widgets),
+# which is why this file is short: the row builders, the pixel alignment, the
+# popup dance and
 # the tone→hex ladder that used to live here are barlib's, written once for
 # every pill on the bar rather than twice for these two.
 #
@@ -67,8 +68,9 @@ vitals_sample() { # vitals_sample <state-path> <cpu|mem|none> [rows]
 # The same four steps the AI-usage pill climbs, so a percentage means the same
 # thing wherever it appears on this bar — said in TONE NAMES, because a
 # framework widget names a tone and never a palette entry (see
-# docs/bar-framework.md). It is the only spelling now: `vitals_color` was the
-# hex half, kept alive only while one pill was converted and the other was not.
+# hausfold.co/docs/haus/rooms/bar-widgets). It is the only spelling now:
+# `vitals_color` was the hex half, kept alive only while one pill was
+# converted and the other was not.
 #
 # The mapping onto the tone ladder is one-to-one because that ladder was
 # widened to fit this one — bad/warn/watch/ok are the old RED/PEACH/YELLOW/

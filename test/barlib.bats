@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # Hermetic tests for modules/bar/sketchybar/barlib.sh — the bar widget runtime
-# (docs/bar-framework.md).
+# (hausfold.co/docs/haus/rooms/bar-widgets).
 #
 # Why a suite. Every promise barlib makes fails SILENTLY on the machine that
 # breaks it: a diff that never settles repaints a quiet pill forever (invisible

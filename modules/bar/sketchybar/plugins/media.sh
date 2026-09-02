@@ -4,11 +4,12 @@
 # widget: subscribes = mouse.entered, mouse.exited, mouse.exited.global, mouse.scrolled
 #
 # The media pill: what is playing, the gestures that drive it, and the dropdown
-# behind it. A framework widget (docs/bar-framework.md) — the header above is
-# the whole of its wiring, and barlib owns the bar instance, the batching, the
-# state diff, the dropdown's rows and every colour. What is left here is the
-# pill's actual subject: what a now-playing session says, what you can do to it
-# from a menu bar, and the one control on this bar you AIM rather than press.
+# behind it. A framework widget (hausfold.co/docs/haus/rooms/bar-widgets) — the
+# header above is the whole of its wiring, and barlib owns the bar instance,
+# the batching, the state diff, the dropdown's rows and every colour. What is
+# left here is the pill's actual subject: what a now-playing session says, what
+# you can do to it from a menu bar, and the one control on this bar you AIM
+# rather than press.
 #
 # It is fed by a long-running `media-control stream` (plugins/media_stream.sh)
 # rather than by SketchyBar's `media_change` event, which Apple killed in macOS

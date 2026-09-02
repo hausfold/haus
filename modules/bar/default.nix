@@ -433,7 +433,10 @@ let
   # spoken for; the bottom bar passes whatever haus.bar.bottom.items said. They
   # reference $SURFACE0 (from colors.sh) and $HOME, both live when either rc
   # sources its generated item file.
-  # ---- the barlib framework (docs/bar-framework.md) ---------------------------
+  # ---- the barlib framework ---------------------------------------------------
+  # The tier's contract, for somebody writing one:
+  # hausfold.co/docs/haus/rooms/bar-widgets
+  #
   # A framework widget's block, emitted from the `# widget:` header in its own
   # script — the file carries the behaviour AND the wiring, so converting a
   # pill deletes its hand-written block here. `style` is the pill's STATIC
@@ -868,9 +871,9 @@ let
     # `# widget: graph = 48` in cpu.sh and memory.sh is what makes each of these
     # an `--add graph` rather than an `--add item`, and the header carries the
     # interval and the popup too. What a graph pill IS — and the one thing about
-    # it that reads as a bug the first time — is the `graph` component in
-    # docs/bar-framework.md, next to the rule about which half of the widget may
-    # push a point.
+    # it that reads as a bug the first time — is the `graph` component in the
+    # framework doc (hausfold.co/docs/haus/rooms/bar-widgets), next to the
+    # rule about which half of the widget may push a point.
     #
     # What is left here is each pill's IDENTITY: its hue, and the padding that
     # separates a graph pill from the readouts beside it, since the ladder
@@ -1017,8 +1020,9 @@ let
     # read.
     #
     # The maximal barlib widget, and the one the popup components were designed
-    # against (docs/bar-framework.md): the two tones, the dropdown's frame and
-    # align, every row's font/height/close-on-click, the barpop arm and the
+    # against (hausfold.co/docs/haus/rooms/bar-widgets): the two tones, the
+    # dropdown's frame and align, every row's font/height/close-on-click, the
+    # barpop arm and the
     # mouse.clicked routing all come from the header in github.sh and the
     # runtime. What is left here is the STATIC look, which is the only part
     # that interpolates options a header cannot see.
@@ -1308,7 +1312,7 @@ let
 
   # A widget a rice declared as a barlib FRAMEWORK widget — the other tier, and
   # the one that makes barlib a framework rather than an internal refactor
-  # (docs/bar-framework.md's migration order). There is deliberately nothing
+  # (ops/todo/bar-framework.md's migration order). There is deliberately nothing
   # here but the two paths: a stranger's script reaches `frameworkItem` down
   # exactly the route clock.sh does, gets the same header read by the same
   # parser, the same custom events declared, the same popup frame and graph
@@ -1950,7 +1954,7 @@ lib.mkIf config.haus.bar.enable {
       map
         (name: {
           assertion = false;
-          message = "haus.bar.widgets.${name} sets both `command` and `script`, and a widget is one tier or the other: `command` is a script whose stdout is this pill's label, `script` is a barlib framework widget that draws the pill itself (docs/bar-framework.md). Only one of them can be what the bar runs. Keep the framework widget and delete the command, or the other way round.";
+          message = "haus.bar.widgets.${name} sets both `command` and `script`, and a widget is one tier or the other: `command` is a script whose stdout is this pill's label, `script` is a barlib framework widget that draws the pill itself. Only one of them can be what the bar runs. Keep the framework widget and delete the command, or the other way round.";
         })
         (
           builtins.filter (
@@ -1961,7 +1965,7 @@ lib.mkIf config.haus.bar.enable {
       map
         (name: {
           assertion = false;
-          message = "haus.bar.widgets.${name} is enabled but sets neither `command` nor `script`, and `${name}` is not a pill haus ships — so there is nothing for the bar to run and the pill would draw an empty box forever. Give it a `command` (a script whose stdout is the label, on a timer) or a `script` (a barlib framework widget — docs/bar-framework.md), or drop the widget.";
+          message = "haus.bar.widgets.${name} is enabled but sets neither `command` nor `script`, and `${name}` is not a pill haus ships — so there is nothing for the bar to run and the pill would draw an empty box forever. Give it a `command` (a script whose stdout is the label, on a timer) or a `script` (a barlib framework widget — hausfold.co/docs/haus/rooms/bar-widgets), or drop the widget.";
         })
         (
           builtins.filter (
@@ -1987,7 +1991,7 @@ lib.mkIf config.haus.bar.enable {
       map
         (name: {
           assertion = false;
-          message = "haus.bar.widgets.${name} sets a `style`, but it is a `command` widget — the simple tier draws the one pill every widget on this bar wears, and nothing here would be read. Wanting a look of its own is what the framework tier is for: write it as a barlib widget (docs/bar-framework.md) and name it in `script`.";
+          message = "haus.bar.widgets.${name} sets a `style`, but it is a `command` widget — the simple tier draws the one pill every widget on this bar wears, and nothing here would be read. Wanting a look of its own is what the framework tier is for: write it as a barlib widget (hausfold.co/docs/haus/rooms/bar-widgets) and name it in `script`.";
         })
         (
           builtins.filter (
@@ -2488,10 +2492,10 @@ lib.mkIf config.haus.bar.enable {
             name: hex: "export ${lib.toUpper name}=0xff${lib.removePrefix "#" hex}"
           ) nebelungPalette
         )}
-        # The tone ladder (modules/bar/tones.nix, docs/bar-framework.md): the
-        # semantic names barlib widgets paint with. GENERATED from that list
-        # (`toneExports` above) rather than typed here, so this file is one of
-        # the four the `bar-tones` check can no longer let drift — nebelung
+        # The tone ladder (modules/bar/tones.nix): the semantic names barlib
+        # widgets paint with. GENERATED from that list (`toneExports` above)
+        # rather than typed here, so this file is one of the three the
+        # `bar-tones` check can no longer let drift — nebelung
         # stays the only place a name becomes a hex, and each tone the only
         # place a JOB becomes a name.
         #

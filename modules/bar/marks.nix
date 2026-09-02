@@ -3,7 +3,8 @@
 # A tone answers "how is it going" (`modules/bar/tones.nix`). A mark answers
 # "which one is this", for a subject the bar cannot know until it runs: which
 # AI client wrote this usage row, which app is playing, which agent owns this
-# pane. `docs/bar-framework.md` — "Marks, for what a tone cannot say".
+# pane. The framework doc, hausfold.co/docs/haus/rooms/bar-widgets — "Marks,
+# for what a tone cannot say".
 #
 # ── why this is not the ladder with four more rungs ───────────────────────────
 # The ladder's rule is that a rung names a JOB (`warn` = wants a human here),
@@ -58,7 +59,8 @@
 #
 # Fields mirror tones.nix so the two read as one system: `name` is what a
 # widget says, `key` is the nebelung palette entry it resolves to, `stub` is
-# the fake hex test/barlib.bats writes, `meaning` is what the doc table says.
+# the fake hex test/barlib.bats writes, `meaning` is the set's own wording
+# (nothing diffs it — see tones.nix on the arm that went with the doc).
 #
 # A plain value, imported the way tones.nix is: no module system, so flake.nix
 # can read it without evaluating a configuration.
