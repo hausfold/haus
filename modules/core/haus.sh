@@ -52,31 +52,52 @@ FLAKE="$CONSUMER/flake.nix"
 # lower fidelity, for a shell that cannot see the binary. `HAUS_UI_SH` is an
 # absolute store path set by the wrapper in modules/core/default.nix, because
 # this script is `builtins.readFile`'d into a store binary: it has no checkout
-# to look beside, and a haus user has no clone of anything to look in.
-#
-# GUARDED, never assumed — the same contract this script keeps toward trill.
-# `${VAR:-}` and `-r` rather than a bare `source`: under `set -euo pipefail` an
-# unset variable is fatal and a `source` of a missing path exits 1, which would
-# kill `haus` at load time, before any verb ran, with nothing on either stream.
-# That is the worst possible failure mode for a courtesy, and it is exactly the
-# shape of the `tput` bug ui.sh itself was written not to inherit.
-if [ -r "${HAUS_UI_SH:-}" ]; then
-  # shellcheck source=/dev/null
-  source "$HAUS_UI_SH"
-fi
-
-# Did it load? A generation older than the wrapper that sets HAUS_UI_SH, or a
-# hand-run `bash haus.sh`, has no painter at all and still has to work — so
-# every line below degrades to plain text rather than assuming a function.
-# (ui.sh sets its own gates — UI_TTY, UI_PROFILE — at load; never assume those
+# to look beside, and a haus user has no clone of anything to look in. No
+# ui_resolve here on purpose: a generation older than the wrapper, or a
+# hand-run `bash haus.sh`, has no painter at all and still has to work — every
+# line below degrades to plain text rather than assuming a function. (ui.sh
+# sets its own gates — UI_TTY, UI_PROFILE — at load; never assume those
 # either. UI_TTY is measured from fd 2, which is the point of the next block.)
-# Probed by the functions this script actually CALLS, not by one of them: a
-# partial painter is a `command not found` in the middle of a rebuild, and the
-# gate below would have licensed it.
+
+# ── ui_load — source the painter once, and answer whether it can draw ────────
+# The ONE copy of this block is modules/lib/ui-load.nix; `nix flake check`
+# (ui-load-sync) diffs this file against it, so edit it THERE and re-copy.
+# UI_READY=1 only when every verb named in UI_WANT arrived: the carrier sets
+# UI_WANT to every ui_* verb it CALLS, not a sample, because a pin whose ui.sh
+# predates one of them is a `command not found` halfway down a report — under
+# `set -e` an abort AFTER the machine changed and before anything said so —
+# and UI_READY would have licensed it. Idempotent, so calling it lazily from
+# each draw path and calling it once at load are the same verb; a path that
+# never draws never calls it and pays nothing. Three traps, each silent, each
+# paid for before this block existed:
+#
+#   * ui.sh is bash 4+ (`declare -gA`, `${v^^}`). macOS's /bin/bash 3.2 does
+#     not fail it quietly: three `bad substitution` errors and a half-loaded
+#     painter that answers `type` and then draws nothing — so the version is
+#     checked, never assumed, and 3.2 keeps the plain output.
+#   * `|| true` is load-bearing under `set -euo pipefail`: a sourced file's
+#     non-zero exit is the caller's to survive, and a ui.sh that failed at
+#     load would otherwise abort the verb mid-flight — for `awake 3h`, AFTER
+#     the assertion started.
+#   * The path stays in `HAUS_UI_SH`, never `UI_SH` — that exact name is
+#     ui.sh's own source-twice sentinel, and holding the path in it makes the
+#     file return before defining anything, with no error and no colour.
 UI_READY=""
-type ui_say ui_warn ui_hint ui_fail ui_glyph_bare \
-     ui_row ui_clear ui_paint ui_live_close \
-     ui_col ui_trow ui_table_data ui_table_clear >/dev/null 2>&1 && UI_READY=1
+ui_load() {
+    [ -n "${UI_LOADED:-}" ] && return 0
+    UI_LOADED=1
+    [ "${BASH_VERSINFO[0]:-0}" -ge 4 ] || return 0
+    if [ -r "${HAUS_UI_SH:-}" ]; then
+        # shellcheck source=/dev/null
+        source "$HAUS_UI_SH" || true
+    fi
+    [ -n "${UI_WANT:-}" ] || return 0
+    # shellcheck disable=SC2086
+    type $UI_WANT >/dev/null 2>&1 && UI_READY=1
+    return 0
+}
+UI_WANT="ui_say ui_warn ui_hint ui_fail ui_glyph_bare ui_row ui_clear ui_paint ui_live_close ui_col ui_trow ui_table_data ui_table_clear"
+ui_load
 
 # ---- palette ----------------------------------------------------------------
 # Role names, not colours. C_* alias snug's GENERATED roles — one source of

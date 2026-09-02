@@ -1289,6 +1289,63 @@
             two data files, one app each: obsidian, zotero (merged, no error)
           '';
 
+          # ---- ui-load --------------------------------------------------------
+          # snug's painter bootstrap: two shell verbs (ui_resolve, ui_load),
+          # spelled once in modules/lib/ui-load.nix and held VERBATIM by every
+          # script that reaches ui.sh. The carriers keep in-file copies rather
+          # than taking the text at build time because most of them are also
+          # run straight off the checkout and two are installed as `home.file`
+          # symlinks nothing substitutes into — and a copy drifts SILENTLY: a
+          # half-loaded painter answers `type` and then draws nothing. So this
+          # is the pin, the same shape as bar-tones below: read each carrier as
+          # TEXT and require the canonical block, byte for byte, comments
+          # included. test/phase-painter.bats diffs the carriers against each
+          # OTHER for a machine running only bats; this is the arm that knows
+          # which file is the SOURCE. Adding a carrier means adding its row
+          # here and, when it holds ui_load, to the bats list beside it.
+          #
+          # ⚠️ The containment test itself lives in the check's BUILDER, not in
+          # eval, and that is a measured crash rather than a preference:
+          # `lib.hasInfix` is `builtins.match ".*<escaped needle>.*"`, std::regex
+          # underneath, and matching a 1.5 KB block against the 270 KB haus.sh
+          # overflowed the evaluator's stack on the CI runner — `nix flake
+          # check` died with a SIGSEGV and no red check, twice, while passing
+          # on a dev Mac. `builtins.split`/`splitString` ride the same regex
+          # engine, so no eval-time spelling of "does this file contain this
+          # text" is safe at this size. The builder's bash `[[ == *"$x"* ]]`
+          # is fnmatch, no regex, and does not care.
+          uiLoadSnippets = import ./modules/lib/ui-load.nix;
+          uiLoadCarriers = {
+            "modules/ai/statusline.sh" = [
+              "resolve"
+              "load"
+            ];
+            "modules/terminal/scripts/image-preview.sh" = [
+              "resolve"
+              "load"
+            ];
+            "modules/terminal/lanes/lane-open.sh" = [ "resolve" ];
+            "modules/ai/fix.sh" = [ "load" ];
+            "modules/core/awake.sh" = [ "load" ];
+            "modules/core/haus.sh" = [ "load" ];
+            "modules/core/haus-show.sh" = [ "load" ];
+            "modules/focus/focus.sh" = [ "load" ];
+            "modules/github/signal.sh" = [ "load" ];
+            "modules/secrets/haus-secret.sh" = [ "load" ];
+          };
+          # One `check <label> <verb> <carrier-store-path>` line per (file,
+          # verb) pair, rendered for the builder below. The carrier files ride
+          # in as individual store paths, so the check rebuilds exactly when
+          # one of them (or a snippet) changes.
+          uiLoadCheckLines = nixpkgs.lib.concatStringsSep "\n" (
+            nixpkgs.lib.flatten (
+              nixpkgs.lib.mapAttrsToList (
+                file: verbs:
+                map (verb: "check ${nixpkgs.lib.escapeShellArg file} ${verb} ${./. + "/${file}"}") verbs
+              ) uiLoadCarriers
+            )
+          );
+
           # ---- bar-tones ------------------------------------------------------
           # The tone ladder (modules/bar/tones.nix) is the bar's whole colour
           # vocabulary. Everything shell reads is GENERATED from the list —
@@ -3865,6 +3922,41 @@
                     ${pkgs.writeText "bats" barMarkFromBats}
             touch $out
           '';
+
+          # The painter bootstrap, pinned across the ten scripts that hold a
+          # verbatim copy of one or both of its verbs. See the `ui-load` block
+          # in the `let` above for why a drift here is silent — and for why the
+          # containment test runs HERE, in the builder, rather than at eval:
+          # every eval-time spelling of it rides std::regex and segfaulted the
+          # CI runner on the 270 KB haus.sh. The builder's `[[ == *"$x"* ]]`
+          # is bash's own matcher, no regex anywhere.
+          #
+          # 🚨 Like site-data-current, it only runs when it is BUILT — `nix
+          # flake check --no-build` passes it vacuously. CI builds it.
+          ui-load-sync =
+            pkgs.runCommand "haus-ui-load-ok"
+              {
+                resolve = uiLoadSnippets.resolve;
+                load = uiLoadSnippets.load;
+                passAsFile = [
+                  "resolve"
+                  "load"
+                ];
+              }
+              ''
+                status=0
+                check() { # check <label> <verb> <carrier>
+                  local snippetPath="resolvePath"
+                  [ "$2" = load ] && snippetPath="loadPath"
+                  if [[ "$(< "$3")" != *"$(< "''${!snippetPath}")"* ]]; then
+                    echo "✗ $1 no longer holds the canonical $2 block from modules/lib/ui-load.nix — edit it THERE and re-copy it into the carrier" >&2
+                    status=1
+                  fi
+                }
+                ${uiLoadCheckLines}
+                [ "$status" -eq 0 ] || exit 1
+                touch $out
+              '';
 
           theme-variants = pkgs.runCommand "haus-theme-variants-ok" { } ''
             ${nixpkgs.lib.optionalString (

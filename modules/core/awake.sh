@@ -37,40 +37,53 @@ BAR_POKE="${AWAKE_BAR_POKE_BIN:-@barPoke@}"
 # The variable still wins when a caller sets it, so a working copy of ui.sh is
 # one export away.
 #
-# LAZY, and a function rather than a source at the top, for the reason `focus`
-# is: the hot path through this script is `awake status --raw`, which the bar's
-# caffeinate plugin runs on every tick, and reading a thousand lines of bash to
-# print three tab-separated fields is a cost paid forever for nothing. `_run`,
-# the launchd controller, never reaches it either. Only the prose paths call it.
+# LAZY, for the reason `focus` is: the hot path through this script is `awake
+# status --raw`, which the bar's caffeinate plugin runs on every tick, and
+# reading a thousand lines of bash to print three tab-separated fields is a
+# cost paid forever for nothing. `_run`, the launchd controller, never reaches
+# it either — only the prose paths call ui_load.
+
+# ── ui_load — source the painter once, and answer whether it can draw ────────
+# The ONE copy of this block is modules/lib/ui-load.nix; `nix flake check`
+# (ui-load-sync) diffs this file against it, so edit it THERE and re-copy.
+# UI_READY=1 only when every verb named in UI_WANT arrived: the carrier sets
+# UI_WANT to every ui_* verb it CALLS, not a sample, because a pin whose ui.sh
+# predates one of them is a `command not found` halfway down a report — under
+# `set -e` an abort AFTER the machine changed and before anything said so —
+# and UI_READY would have licensed it. Idempotent, so calling it lazily from
+# each draw path and calling it once at load are the same verb; a path that
+# never draws never calls it and pays nothing. Three traps, each silent, each
+# paid for before this block existed:
+#
+#   * ui.sh is bash 4+ (`declare -gA`, `${v^^}`). macOS's /bin/bash 3.2 does
+#     not fail it quietly: three `bad substitution` errors and a half-loaded
+#     painter that answers `type` and then draws nothing — so the version is
+#     checked, never assumed, and 3.2 keeps the plain output.
+#   * `|| true` is load-bearing under `set -euo pipefail`: a sourced file's
+#     non-zero exit is the caller's to survive, and a ui.sh that failed at
+#     load would otherwise abort the verb mid-flight — for `awake 3h`, AFTER
+#     the assertion started.
+#   * The path stays in `HAUS_UI_SH`, never `UI_SH` — that exact name is
+#     ui.sh's own source-twice sentinel, and holding the path in it makes the
+#     file return before defining anything, with no error and no colour.
 UI_READY=""
 ui_load() {
     [ -n "${UI_LOADED:-}" ] && return 0
     UI_LOADED=1
-    # ui.sh is bash 4+ — `${role^^}` inside ui_paint_role alone rules 3.2 out —
-    # and this script's shebang is `env bash` for exactly that reason. `env`
-    # still finds macOS's /bin/bash 3.2 on a launchd or sketchybar PATH, where
-    # sourcing would half-load with three `bad substitution` errors and leave a
-    # painter that answers `type` and then draws nothing. So the version is
-    # checked, not assumed, and 3.2 keeps the plain sentence.
     [ "${BASH_VERSINFO[0]:-0}" -ge 4 ] || return 0
     if [ -r "${HAUS_UI_SH:-}" ]; then
-        # `|| true` is load-bearing under `set -euo pipefail`: a sourced file's
-        # exit status is the body of this `if`, not its condition, so a ui.sh
-        # that returns non-zero at load would abort `awake 3h` AFTER `launchctl
-        # kickstart` started the assertion. That is the same failure the `type`
-        # probe below exists to prevent, arriving on the other axis — a Mac held
-        # awake with an error where its confirmation should be.
         # shellcheck source=/dev/null
         source "$HAUS_UI_SH" || true
     fi
-    # Every verb this script calls, not a sample of them: a pin whose ui.sh
-    # predates one of them is a `command not found`, and under `set -euo
-    # pipefail` that aborts `awake 3h` AFTER the assertion started and BEFORE
-    # anything says so — a Mac held awake with an error where the confirmation
-    # should be. The plain sentence is still there for exactly that machine.
-    type ui_fail ui_hint ui_paint_role ui_glyph >/dev/null 2>&1 && UI_READY=1
+    [ -n "${UI_WANT:-}" ] || return 0
+    # shellcheck disable=SC2086
+    type $UI_WANT >/dev/null 2>&1 && UI_READY=1
     return 0
 }
+# Every verb the prose paths call — an aborted probe here would land AFTER
+# `launchctl kickstart` started the assertion, which is the block's own third
+# trap; the plain sentence is still there for exactly that machine.
+UI_WANT="ui_fail ui_hint ui_paint_role ui_glyph"
 
 # ---- the one sentence awake ever says about this Mac ------------------------
 # Every prose verb ends here. `status` prints it having changed nothing; `awake
