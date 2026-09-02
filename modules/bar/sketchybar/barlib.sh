@@ -567,16 +567,18 @@ graph() {
 # the result to barpop so the popup also closes on the first click ANYWHERE
 # else (SketchyBar hears clicks on its own items and nothing else).
 #
-# FOUR ROW KINDS, and their typography is the runtime's, not the widget's:
+# SIX ROW KINDS, and their typography is the runtime's, not the widget's:
 #
 #   popup_heading   a section title.      Bold, label size,   32pt tall
 #   popup_row       a thing you can act on. Regular, small,   25pt
 #   popup_action    a verb — Refresh, a command to copy. Bold, small, 25pt
 #   popup_note      an aside — "nothing", "+4 more".  Italic, tiny, 20pt
+#   popup_slider    a track you aim at rather than press.     25pt
+#   popup_image     a row that is entirely a picture. --box points tall
 #
-# Four because that is what every popup in this bar already is; a widget
+# Six because that is what every popup in this bar already is; a widget
 # naming ":Bold:${FS_SMALL}" itself is the hardcoded-hex mistake one layer up,
-# and the fifth kind someone needs is a kind to add here rather than a --font
+# and the seventh kind someone needs is a kind to add here rather than a --font
 # to add to the signature.
 #
 # The three label colours below ARE palette keys rather than tones, and that
@@ -595,7 +597,7 @@ _BARLIB_ROW_INDENT=22
 # A row that carries a NUMBER is two columns, not one sentence: a name on the
 # left and a value that has to land on the same x as the value in every row
 # above it. Getting that wrong is the one dropdown flaw you see immediately,
-# so the arithmetic is the runtime's — the same reason the four row kinds own
+# so the arithmetic is the runtime's — the same reason the six row kinds own
 # their fonts.
 #
 # The gap is a PIXEL PADDING derived from the monospace advance, never

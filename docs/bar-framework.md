@@ -657,15 +657,35 @@ the `MARK_*` exports from it.
   `bar_emit <event> [key=value…]` is the helper for firing one, and it
   triggers BOTH bars — the "anything that pokes a bar pokes both" rule, in
   code. **It has no producer yet**, and the reason is where it lives: it is
-  defined in `barlib.sh`, which only a framework WIDGET sources, and every
-  producer of a custom event today is outside that runtime — `focus.sh`,
-  `awake.sh` and `aerospace-notify.sh` each hand-roll their own both-bars
-  pair. `github_update` is the one that should not use it at all: github.sh
-  fires it on `$SB` alone on purpose, so a pill on the bottom bar isn't woken
-  by an event sent to the menu bar's mach service. **Planned**: bridging the
-  producers in — focus changes, `agent-state` — which means first deciding
-  whether a non-widget producer sources `barlib.sh` or the helper moves
-  somewhere both can reach.
+  defined in `barlib.sh`, which only a framework WIDGET sources, while every
+  producer today is something else. They come in three shapes, and only the
+  first is what the helper is for:
+
+  - **Poke both bars by hand** — the shape `bar_emit` exists to replace.
+    `modules/focus/focus.sh` and `modules/core/awake.sh` each write the pair
+    out, and so do two Nix-generated producers that could not source a
+    `$HOME` path meaningfully even if they wanted to: `agentAwakePoke` in
+    `modules/ai/default.nix` (a `writeShellScript`, and the second
+    `caffeinate_change` producer) and the focus-watcher's launchd
+    `ProgramArguments` in `modules/focus/default.nix` (the second
+    `focus_change` one).
+  - **Wake a watcher on the top bar alone** — `aerospace-notify.sh`'s
+    `fullscreen` and `tiling` arms, and `plugins/launch_mode.sh`, hit the top
+    bar only on purpose: the trigger just WAKES `aerospace_watcher.sh`, and
+    the watcher is what reads the new state and paints the pills. Only that
+    file's `workspace` arm pokes both bars, and it says why. A blind
+    conversion here would start poking the bottom bar for nothing.
+  - **Repaint one pill on the instance drawing it** — `github_update`
+    (`plugins/github.sh`, and the delivery subscriber in
+    `modules/bar/default.nix`) and `harvest_update` (`plugins/harvest.sh`)
+    go to `$SB` alone, so a pill on the bottom bar isn't woken by an event
+    sent to the menu bar's mach service. For this shape `bar_emit` is the
+    WRONG call rather than a missing one.
+
+  **Planned**: bridging the first shape in — focus changes, `agent-state` —
+  which means first deciding whether a non-widget producer sources
+  `barlib.sh`, or the helper moves somewhere a `writeShellScript` and a
+  launchd argv can reach it too.
 - Widgets may `bar_emit` too — inter-widget signaling without knowing names.
 
 ## Why not SbarLua
