@@ -407,34 +407,45 @@ mechanism, say so in one line.
   rather than a table, and `haus set`'s picker, whose padding is the parse
   contract that recovers the chosen path out of `gum filter`'s answer.
 
-  **Four more binaries draw through it, and pay for it lazily.** `focus`,
-  `github-signal`, `haus-secret` and `awake` are their own binaries with
-  nobody's environment, and they reach ui.sh two ways. SUBSTITUTED at build
+  **Five more binaries draw through it, and pay for it lazily.** `focus`,
+  `github-signal`, `haus-secret`, `awake` and `haus-fix` are their own binaries
+  with nobody's environment, and they reach ui.sh two ways. SUBSTITUTED at build
   time: `focus` takes a `@uiSh@` hole and sources it only inside the two verbs
   that draw a table, because the bar drives that script on a timer;
   `haus-secret` takes the same hole and sources it only from the report paths,
-  because its hot path is a room reading one value at boot. PREPENDED by the
+  because its hot path is a room reading one value at boot; `haus-fix` takes it
+  through `replaceStrings` beside its `@client@` and `@oneshot@` holes, and
+  loads it only on the path that has a terminal — the trill pill runs it from a
+  detached holder with both streams on /dev/null. PREPENDED by the
   derivation: `github-signal` sources it past the sourced-half guard, so the
   surfaces that source the file pay nothing, and `awake` from a lazy `ui_load`
   its two machine paths never call. Both shapes are correct and the choice is
   local — a script already carrying `@placeholder@` holes takes another one, a
   script read whole takes the line of shell.
 
-  All four check `BASH_VERSINFO` before sourcing, because ui.sh half-loads under
+  All five check `BASH_VERSINFO` before sourcing, because ui.sh half-loads under
   macOS's /bin/bash 3.2 with three `bad substitution` errors and leaves a
-  painter that answers `type` and then draws nothing. Three of the four also
+  painter that answers `type` and then draws nothing. Four of the five also
   carry `#!/usr/bin/env bash`, for two different reasons: for `focus` and
   `haus-secret` the file's own first line IS the interpreter that runs, and a
   launchd caller sets no PATH, so `env` still resolves 3.2 there and the report
-  keeps its plain shape. `awake` is built by `writeShellScriptBin` like
-  `github-signal`, so its first line does not run once installed — it is
-  asserted anyway because the file is ALSO run straight off disk, by
-  `test/awake.sh` and by anybody debugging the coffee pill. `github-signal` is
+  keeps its plain shape. `awake` and `haus-fix` are built by
+  `writeShellScriptBin` like `github-signal`, so their first line does not run
+  once installed — they are asserted anyway because both files are ALSO run
+  straight off disk, by `test/awake.sh` and `test/rebuild-fix-cta.bats` and by
+  anybody debugging the coffee pill. `github-signal` is
   the one `test/phase-painter.bats` deliberately does not assert: its off-disk
   copy at `~/.config/haus/github/signal.sh` is only ever SOURCED, and a sourced
   file's shebang never runs, so the assertion would pass for the wrong reason.
 
-  `haus-secret` is the one of the four that draws **no table**: its `--list` is
+  Two of the five draw **no table**, for opposite reasons. `haus-fix` draws a
+  LIVE REGION and nothing else: two spinner rows, one per silence a headless
+  turn leaves in the pane — the client thinking, and the `nix eval` that checks
+  its work. Print mode buffers its whole answer to the end by design, so there
+  is nothing to stream and `tee`ing it just shows an empty screen and then
+  everything at once; the answer is read back out of `$FIXLOG` from the offset
+  the turn started at and printed under the row. `haus-secret` is the other:
+  its `--list` is
   blocks, because `why` is a paragraph and `obtain` is a URL or another
   sentence, and a column holding either cuts the only part worth reading. What
   it takes from the runtime is the FOLD and the roles.

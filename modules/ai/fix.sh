@@ -59,8 +59,10 @@
 # `command -v haus-fix` is the ONLY thing core has to test — core never reads
 # `config.haus.ai.*`.
 #
-# @client@ and @oneshot@ are substituted at build time from `haus.ai.default`
-# and modules/lib/agent-oneshot.nix.
+# @client@, @oneshot@ and @uiSh@ are substituted at build time from
+# `haus.ai.default`, modules/lib/agent-oneshot.nix and snug's bash painter.
+# All three are assignment right-hand sides, which is why an unsubstituted copy
+# still parses — CI lints this file as a template.
 PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/etc/profiles/per-user/$(id -un 2>/dev/null)/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 export PATH
 
@@ -106,6 +108,118 @@ note() { printf '%s\n' "$*" >&2; }
 
 die2() { note "haus fix: $*"; banner fault "haus fix" "$*"; exit 2; }
 
+# ---- the wait, said in the pane ---------------------------------------------
+# Pressing "Fix it with AI" in a pane used to print NOTHING for the length of a
+# headless turn. That is not a slow client: `claude -p` holds its whole answer
+# to the end (measured), which is what print mode is for, so `tee`ing it live
+# showed an empty screen for a minute and then everything at once.
+# Indistinguishable from a hang, and the one thing feel-testing #592/#626 on a
+# live machine turned up once the rows themselves drew: you press the row, your
+# terminal goes quiet, and the only sign anything is happening is a trill card
+# on the other side of the screen.
+#
+# ⚠️ Measured for `claude` only — it is the one on the machine this was written
+# on, the same limit modules/lib/agent-oneshot.nix states for `codex`. A client
+# that DOES narrate as it works (`codex exec` and `opencode run` both look like
+# they do) trades a live log for a spinner and one dump at the end. Nothing is
+# lost — the transcript is $FIXLOG either way, and it is still the right side
+# of the silence this replaced — but if a client turns out to stream something
+# worth watching, the branch to add is a streaming one, not a redirect.
+#
+# So the two long silences get a spinner row each — the agent turn, and the
+# `nix eval` that checks its work. The banner path pays for none of it: both
+# streams are /dev/null there, `ui_load` is never called, and the verdict was
+# always the banner.
+#
+# Substituted rather than inherited, the way `focus` and `haus-secret` take it:
+# `haus-fix` is its own binary and inherits nobody's environment — the trill
+# pill execs it from a detached holder with no terminal at all. `HAUS_UI_SH`
+# still wins when a caller sets one, so a working copy is one variable away.
+UI_READY=""
+ui_load() {
+  [ -n "${UI_LOADED:-}" ] && return 0
+  UI_LOADED=1
+  # Nothing to paint on, nothing to read: the trill pill runs this from a
+  # detached holder with both streams on /dev/null, and sourcing a thousand
+  # lines of bash to decide not to draw is the cost `focus` made this function
+  # lazy to avoid. fd 2 is the one the region paints, so it is the one asked.
+  [ -t 2 ] || return 0
+  # ui.sh is bash 4+, and this file's shebang is `env bash` for that reason —
+  # it is run straight off disk by test/rebuild-fix-cta.bats even though
+  # `writeShellScriptBin` supplies the interpreter once installed. `env` still
+  # finds macOS's 3.2 on a bare PATH, where sourcing ui.sh half-loads with three
+  # `bad substitution` errors and leaves a painter that answers `type` and then
+  # draws nothing. Checked, never assumed: 3.2 keeps the plain `note` lines.
+  [ "${BASH_VERSINFO[0]:-0}" -ge 4 ] || return 0
+  local sh="${HAUS_UI_SH:-@uiSh@}"
+  if [ -r "$sh" ]; then
+    # shellcheck source=/dev/null
+    source "$sh"
+  fi
+  # Probed rather than assumed, for the same reason `focus` probes: a pin whose
+  # ui.sh predates the live region is a `command not found` in the middle of a
+  # wait, and the plain line is still right for that machine.
+  type ui_row ui_paint ui_live_close >/dev/null 2>&1 && UI_READY=1
+  return 0
+}
+
+# The job `spin_wait` is watching, so the signal handler below can stop it.
+#
+# Backgrounding the turn is what makes this necessary, and the reason is not
+# obvious: bash's `wait` builtin RETURNS on a trapped signal, where a
+# FOREGROUND command defers the trap until it finishes. So the ^C that used to
+# reach the client first now reaches the handler first — and a handler that
+# only dropped the lock and exited would leave an agent that caught the signal
+# itself still editing $CONSUMER, gate open, with the one-at-a-time lock
+# released so the next `haus fix` may start beside it. That is the exact thing
+# the lock exists to prevent, arrived at from the other side. Measured on bash
+# 5.3 against a child that ignores TERM.
+FIX_JOB=""
+
+# spin_wait <pid> <name> <detail> — spin one row until that job ends, leave the
+# row on screen wearing its own verdict, and return the job's exit status.
+#
+# The job is BACKGROUNDED rather than piped, and that is the whole shape of it:
+# a spinner and a live `tee` of the same terminal fight over the cursor, and
+# there is nothing to tee until the client is done anyway. What the caller gets
+# back instead is the byte offset trick haus.sh already uses on its own log —
+# read $FIXLOG from where the run started and print that, once, underneath.
+#
+# Degrades to the `note` line it replaces wherever the painter is absent: no
+# terminal (the banner path, where fd 2 is /dev/null), bash 3.2, or a snug too
+# old to have the live region.
+spin_wait() { # spin_wait <pid> <name> <detail>
+  local pid="$1" name="$2" detail="$3" rc=0
+  FIX_JOB="$pid"
+  if [ -z "$UI_READY" ] || [ ! -t 2 ]; then
+    # Braced, and it has to be: bash takes the ellipsis as part of the
+    # IDENTIFIER, so a bare `$detail…` dies `detail…: unbound variable` under
+    # `set -u`. Only this fallback line concatenates one, so only it was bitten.
+    note "$name — ${detail}…"
+    wait "$pid" || rc=$?
+    FIX_JOB=""
+    return "$rc"
+  fi
+  # `kill -0` and not `wait -n`: bash reaps a background child into its own job
+  # table as it notices SIGCHLD, so the probe goes false on a finished job and
+  # the `wait` below still hands back its recorded status (measured, bash 5.3).
+  while kill -0 "$pid" 2>/dev/null; do
+    ui_row run "$name" "$detail"
+    ui_paint
+    sleep 0.1
+  done
+  wait "$pid" || rc=$?
+  if [ "$rc" = 0 ]; then
+    ui_row ok "$name" "$detail"
+  else
+    ui_row fail "$name" "$detail — exit $rc"
+  fi
+  ui_paint
+  ui_live_close
+  FIX_JOB=""
+  return "$rc"
+}
+
 # ---- the breadcrumb ---------------------------------------------------------
 # Plain KEY=value lines, read into variables by name rather than `eval`'d: this
 # file is written by haus.sh and read here, and a state file that can execute
@@ -138,6 +252,28 @@ command -v "$CLIENT" >/dev/null 2>&1 \
 # that sentence a lie, and every relative path in its answer wrong.
 cd "$consumer" || die2 "cannot enter $consumer."
 
+# The signal handler, and the ORDER inside it is the whole point: stop the turn
+# FIRST, drop the lock second. See FIX_JOB above for why a backgrounded turn
+# needs one at all — cancelling has to mean the agent stopped, not merely that
+# `haus fix` stopped waiting for it.
+fix_cancelled() {
+  if [ -n "$FIX_JOB" ]; then
+    kill -TERM "$FIX_JOB" 2>/dev/null || true
+    # Bounded, then forced. A client that will not go must not keep the lock
+    # alive, and must not outlive the person's cancel either — it is editing
+    # their config flake with its permission prompts off. `_` and not a named
+    # counter: haus.sh's `fault_holder_stop` spells the same wait the same way,
+    # and CI lints this file at --severity=warning where an unused one is red.
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      kill -0 "$FIX_JOB" 2>/dev/null || break
+      sleep 0.1
+    done
+    kill -KILL "$FIX_JOB" 2>/dev/null || true
+  fi
+  rmdir "$LOCK" 2>/dev/null || true
+  exit 130
+}
+
 # One at a time. Two agents editing one flake is how you get a merge conflict
 # with yourself; `mkdir` is the atomic test-and-set every shell has.
 if [ -z "$DRY" ]; then
@@ -147,7 +283,7 @@ if [ -z "$DRY" ]; then
   # behind — after which every later `haus fix` answers "already running" and
   # the button is dead until someone reads this file to find out why.
   trap 'rmdir "$LOCK" 2>/dev/null || true' EXIT
-  trap 'rmdir "$LOCK" 2>/dev/null || true; exit 130' INT TERM HUP
+  trap fix_cancelled INT TERM HUP
 fi
 
 # ---- the evidence -----------------------------------------------------------
@@ -307,12 +443,26 @@ head_before="$(git -C "$consumer" rev-parse HEAD 2>/dev/null || echo none)"
 # stdin from /dev/null so a client that would prompt gets EOF and exits rather
 # than blocking forever on a terminal it does not have.
 export HAUS_DESKTOP_OK=1
+ui_load
+# Where this run's own output starts, so the spinner path can print it after
+# the row rather than during it — `phase_slice` reads haus.sh's log exactly
+# this way, and for the same reason: everything before the offset belongs to
+# somebody else.
+turn_off="$(wc -c <"$FIXLOG" 2>/dev/null | tr -d ' ')"
+case "$turn_off" in '' | *[!0-9]*) turn_off=0 ;; esac
+# ONE path, where there used to be a `tee` for a terminal and a redirect for
+# everything else. The redirect is now both: `spin_wait` degrades to the plain
+# line wherever it cannot paint, and the `tee` had nothing to stream anyway —
+# print mode holds its whole answer to the end, so it drew an empty screen for
+# a minute and then the lot, while fighting the spinner for the cursor.
+"${AGENT[@]}" "$prompt" </dev/null >>"$FIXLOG" 2>&1 &
+rc=0; spin_wait "$!" "$CLIENT" "fixing the $class failure" || rc=$?
+# The answer, once, under the row it was drawn beneath — and only where
+# somebody is looking, which is what the old `tee` branch meant by `-t 1`. On
+# the banner path this is /dev/null and the transcript is $FIXLOG, as it always
+# was.
 if [ -t 1 ]; then
-  "${AGENT[@]}" "$prompt" </dev/null 2>&1 | tee -a "$FIXLOG"
-  rc="${PIPESTATUS[0]}"
-else
-  "${AGENT[@]}" "$prompt" </dev/null >>"$FIXLOG" 2>&1
-  rc=$?
+  tail -c "+$((turn_off + 1))" "$FIXLOG" 2>/dev/null
 fi
 
 # ---- did it take? -----------------------------------------------------------
@@ -320,8 +470,11 @@ fi
 # resolve phase asks, it activates nothing, and an agent that reports success
 # onto a config that no longer evaluates is the one failure mode that would
 # make this feature worse than no feature.
-note "checking the config evaluates…"
-if nix eval --raw "$consumer#darwinConfigurations.$host.system.drvPath" >>"$FIXLOG" 2>&1; then
+# The second silence, and on a cold eval it is not a short one. `spin_wait`
+# prints the line this used to print wherever there is no painter.
+nix eval --raw "$consumer#darwinConfigurations.$host.system.drvPath" >>"$FIXLOG" 2>&1 &
+evalrc=0; spin_wait "$!" "nix eval" "checking the config evaluates" || evalrc=$?
+if [ "$evalrc" = 0 ]; then
   evals=1
 else
   evals=""

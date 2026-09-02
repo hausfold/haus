@@ -60,13 +60,16 @@ let
   # agents, because core must not read `config.haus.ai.*` — so core's whole test
   # is `command -v haus-fix`, and this room's own switch is what decides whether
   # there is one to find. Two substitutions: which client, and the argv that
-  # runs it once with its permission gate open.
+  # runs it once with its permission gate open. A third, @uiSh@, is snug's bash
+  # painter: the pane path spins a row while the client thinks, and a binary
+  # exec'd from a trill pill inherits no `HAUS_UI_SH` to find it by.
   hausFix = pkgs.writeShellScriptBin "haus-fix" (
     builtins.replaceStrings
-      [ "@client@" "@oneshot@" ]
+      [ "@client@" "@oneshot@" "@uiSh@" ]
       [
         cfg.default
         (lib.escapeShellArgs agentOneshot.${cfg.default})
+        "${pkgs.snug}/share/ui.sh"
       ]
       (builtins.readFile ./fix.sh)
   );

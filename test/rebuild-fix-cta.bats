@@ -400,6 +400,19 @@ DRIVE
   wait_for "$FIXED" 60 || fail "the holder died with the window"
 }
 
+# snug's bash painter, wherever this machine keeps it — the same probe
+# awake-ui.bats, haus-secret.bats and phase-painter.bats use. Above
+# `build_fixer` because that bakes the answer into the subject's @uiSh@ hole.
+real_ui_sh() {
+  local q
+  for q in "${HAUS_UI_SH:-}" \
+           "$BATS_TEST_DIRNAME/../../snug/share/ui.sh" \
+           "$HOME/code/workshop/snug/share/ui.sh"; do
+    [ -n "$q" ] && [ -r "$q" ] && { printf '%s' "$q"; return 0; }
+  done
+  return 1
+}
+
 # ---- what haus-fix refuses --------------------------------------------------
 # Only the refusals: every one of them returns before any agent is spawned and
 # before nix is called, so they need nothing but bash and git.
@@ -410,8 +423,15 @@ DRIVE
 # can add — and two cases below turn on what `nix eval` answers. Same seam
 # phase-painter.bats documents for `snug`, cut one line higher up.
 build_fixer() {
-  local sub="$BATS_TEST_TMPDIR/haus-fix"
+  local sub="$BATS_TEST_TMPDIR/haus-fix" ui
+  # @uiSh@ baked in rather than left literal, so the painted cases below drive
+  # the SUBSTITUTED default — which is the path every real machine takes, since
+  # nothing sets HAUS_UI_SH for a binary a trill pill exec'd. An unresolvable
+  # path is a fine value: `[ -r ]` is false and the fallback line is what the
+  # unpainted cases want anyway.
+  ui="$(real_ui_sh || printf '%s' "$BATS_TEST_TMPDIR/no-such-ui.sh")"
   sed -e 's/@client@/stubagent/' -e 's/@oneshot@/stubagent --oneshot --/' \
+    -e "s|@uiSh@|$ui|" \
     -e '/^PATH="\/run\/current-system\/sw\/bin/d' -e '/^export PATH$/d' \
     "$FIXER" >"$sub"
   chmod +x "$sub"
@@ -593,4 +613,203 @@ STUB
   # machine already writes for every client answer that, and a second copy
   # here would drift away from them.
   [[ "$output" != *"commit to main"* ]]
+}
+
+# ---- the wait, said in the pane ---------------------------------------------
+# The gum redirect's lesson, applied one layer down. Pressing "Fix it with AI"
+# in a pane drew the rows and then went SILENT for the whole length of a
+# headless turn — not a slow client, but print mode doing exactly what print
+# mode does: buffer the answer to the end. So the pane got a rebuild that
+# failed, two rows, and then a minute of nothing with the only sign of life a
+# trill card on the other side of the screen. Reported from feel-testing #592
+# on a live machine, the run after the rows themselves started drawing.
+#
+# A pty is fifteen lines of python (awake-ui.bats carries the same helper), so
+# "you have to be sitting at it" is again not a reason to leave it untested.
+
+# A client that takes long enough to spin and says something recognisable, plus
+# a `nix` that answers yes. `sleep` is what makes the case real: an agent that
+# returns instantly never enters the paint loop at all.
+slow_stubs() {
+  mkdir -p "$BATS_TEST_TMPDIR/bin2"
+  cat >"$BATS_TEST_TMPDIR/bin2/stubagent" <<'STUB'
+#!/usr/bin/env bash
+sleep 0.4
+printf 'STUB-ANSWER: fixed the typo\n'
+exit 0
+STUB
+  # Two answers from one stub, because `haus-fix` asks `nix eval` twice and the
+  # two questions are opposites: FIRST the staleness probe (a resolve crumb
+  # whose config already evaluates is refused before anything is spawned —
+  # see the case above), THEN the check on the client's work. So: broken, then
+  # fixed, which is the whole story this suite is telling.
+  cat >"$BATS_TEST_TMPDIR/bin2/nix" <<STUB
+#!/usr/bin/env bash
+sleep 0.2
+printf 'x' >>"$BATS_TEST_TMPDIR/nixcalls"
+[ "\$(wc -c <"$BATS_TEST_TMPDIR/nixcalls" | tr -d ' ')" -gt 1 ]
+STUB
+  chmod +x "$BATS_TEST_TMPDIR/bin2/stubagent" "$BATS_TEST_TMPDIR/bin2/nix"
+}
+
+# Run an argv on a pty and hand back its raw bytes, both streams merged the way
+# a terminal merges them.
+pty_run() { # pty_run <arg…>
+  # PYTHONIOENCODING is not optional, and it is python3's rather than the
+  # subject's: python writes the bytes it read back out through ITS stdout,
+  # whose encoding follows the locale, and everything here is non-ASCII — the
+  # braille spinner, the ✓, the em dash in `note`. A runner without
+  # en_US.UTF-8 generated raises UnicodeEncodeError on the first frame rather
+  # than failing an assertion. awake-ui.bats pins it in `setup()` for this.
+  PYTHONIOENCODING=utf-8 python3 - "$@" <<'PYEOF'
+import os, pty, sys, fcntl, termios, struct, select
+cmd = sys.argv[1:]
+pid, fd = pty.fork()
+if pid == 0:
+    os.execvp(cmd[0], cmd)
+fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 100, 0, 0))
+out = b""
+while True:
+    r, _, _ = select.select([fd], [], [], 20)
+    if not r: break
+    try: chunk = os.read(fd, 65536)
+    except OSError: break
+    if not chunk: break
+    out += chunk
+os.waitpid(pid, 0)
+sys.stdout.write(out.decode("utf-8", "replace"))
+PYEOF
+}
+
+@test "the pane spins a row while the client thinks, and prints its answer under it" {
+  local ui; ui="$(real_ui_sh || true)"
+  [ -n "$ui" ] || skip "no snug share/ui.sh on this machine"
+  write_crumb "$HAUS_CONSUMER"
+  slow_stubs
+  local sub seen; sub="$(build_fixer)"
+  # TERM and LANG pinned for the reason awake-ui.bats pins them: a GitHub runner
+  # sets TERM=dumb for every step, which ui.sh honours absolutely, and an
+  # unpinned locale picks the ASCII marks over the UTF-8 ones.
+  seen="$(pty_run env PATH="$BATS_TEST_TMPDIR/bin2:$PATH" \
+    XDG_STATE_HOME="$BATS_TEST_TMPDIR/xdg" HAUS_NOTIFY=off \
+    TERM=xterm-256color LANG=en_US.UTF-8 "$sub")"
+  # The row, named for the client and for what it is doing — this is the whole
+  # complaint. Red against the pre-spinner script, which drew nothing at all
+  # between the rows and the outcome.
+  [[ "$seen" == *"stubagent"* ]] || { printf 'no client row: %q\n' "$seen"; false; }
+  [[ "$seen" == *"fixing the resolve failure"* ]] \
+    || { printf 'the row does not say what it is waiting on: %q\n' "$seen"; false; }
+  # It really painted a region rather than printing a line: the cursor hide is
+  # ui_live_open's first byte, and only the live path emits one.
+  [[ "$seen" == *$'\033[?25l'* ]] || { printf 'nothing painted: %q\n' "$seen"; false; }
+  # …and gave the cursor back. A terminal left without one is the worst thing a
+  # spinner can do to you, and every path here ends in `ui_live_close`.
+  [[ "$seen" == *$'\033[?25h'* ]] || { printf 'cursor never restored: %q\n' "$seen"; false; }
+  # The second silence gets its own row.
+  [[ "$seen" == *"checking the config evaluates"* ]] \
+    || { printf 'the eval wait is unsaid: %q\n' "$seen"; false; }
+  # The answer still reaches the pane. It is read back out of $FIXLOG from the
+  # offset the turn started at, because the run itself is redirected there — a
+  # spinner and a live `tee` of one terminal fight over the cursor.
+  [[ "$seen" == *"STUB-ANSWER: fixed the typo"* ]] \
+    || { printf 'the client answer never landed: %q\n' "$seen"; false; }
+}
+
+@test "no terminal, no escapes: the banner path keeps the plain line it always had" {
+  # The other half, and the one that must not regress: `haus fix` from the trill
+  # pill runs in a detached holder with both streams on /dev/null, and a CI or a
+  # pipe gets the same. One `note` line per wait, no cursor escape anywhere.
+  local ui; ui="$(real_ui_sh || true)"
+  [ -n "$ui" ] || skip "no snug share/ui.sh on this machine"
+  write_crumb "$HAUS_CONSUMER"
+  slow_stubs
+  fixer PATH="$BATS_TEST_TMPDIR/bin2:$PATH"
+  [[ "$output" != *$'\033['* ]] \
+    || { printf 'escapes reached a pipe: %s\n' "$(printf '%s' "$output" | sed -n l)"; false; }
+  [[ "$output" == *"fixing the resolve failure"* ]] \
+    || { printf 'the wait is unsaid on a pipe too: %s\n' "$output"; false; }
+}
+
+@test "a client that fails still reaches the still-broken verdict" {
+  # `spin_wait` hands back the job's own status, which is the only thing the
+  # outcome lines below it read. A spinner that swallowed it would report a
+  # crashed client as a quiet success.
+  local ui; ui="$(real_ui_sh || true)"
+  [ -n "$ui" ] || skip "no snug share/ui.sh on this machine"
+  write_crumb "$HAUS_CONSUMER"
+  mkdir -p "$BATS_TEST_TMPDIR/bin2"
+  cat >"$BATS_TEST_TMPDIR/bin2/stubagent" <<'STUB'
+#!/usr/bin/env bash
+exit 7
+STUB
+  # a nix whose eval FAILS — the config is still broken after the client ran
+  cat >"$BATS_TEST_TMPDIR/bin2/nix" <<'STUB'
+#!/usr/bin/env bash
+exit 1
+STUB
+  chmod +x "$BATS_TEST_TMPDIR/bin2/stubagent" "$BATS_TEST_TMPDIR/bin2/nix"
+  local sub seen; sub="$(build_fixer)"
+  seen="$(pty_run env PATH="$BATS_TEST_TMPDIR/bin2:$PATH" \
+    XDG_STATE_HOME="$BATS_TEST_TMPDIR/xdg" HAUS_NOTIFY=off \
+    TERM=xterm-256color LANG=en_US.UTF-8 "$sub")"
+  # The row wears the client's own status. A spinner that swallowed it would
+  # leave a crashed client looking like a quiet success on the way past.
+  [[ "$seen" == *"exit 7"* ]] || { printf 'the client status was swallowed: %q\n' "$seen"; false; }
+  [[ "$seen" == *"still broken"* ]] || { printf 'no verdict: %q\n' "$seen"; false; }
+}
+
+@test "cancelling the wait stops the agent, and only then drops the lock" {
+  # The hazard the backgrounded turn introduced, and it is not obvious: bash's
+  # `wait` RETURNS on a trapped signal, where a foreground command defers the
+  # trap until it finishes. So a ^C that used to reach the client now reaches
+  # the handler first — and a handler that merely dropped the lock and exited
+  # would leave an agent that caught the signal itself still editing the config
+  # flake with its permission gate open, while the one-at-a-time lock it was
+  # holding is released for the next `haus fix` to walk into.
+  write_crumb "$HAUS_CONSUMER"
+  mkdir -p "$BATS_TEST_TMPDIR/bin2"
+  # A client that catches the signal for a graceful shutdown — claude and codex
+  # both do — so a TERM the handler sends must not be taken for "it stopped".
+  cat >"$BATS_TEST_TMPDIR/bin2/stubagent" <<STUB
+#!/usr/bin/env bash
+trap '' TERM INT HUP
+printf '%s' \$\$ >"$BATS_TEST_TMPDIR/agentpid"
+while :; do sleep 0.2; done
+STUB
+  cat >"$BATS_TEST_TMPDIR/bin2/nix" <<'STUB'
+#!/usr/bin/env bash
+exit 1
+STUB
+  chmod +x "$BATS_TEST_TMPDIR/bin2/stubagent" "$BATS_TEST_TMPDIR/bin2/nix"
+
+  local sub fixpid agent i
+  sub="$(build_fixer)"
+  env PATH="$BATS_TEST_TMPDIR/bin2:$PATH" XDG_STATE_HOME="$BATS_TEST_TMPDIR/xdg" \
+    HAUS_NOTIFY=off "$sub" >"$BATS_TEST_TMPDIR/cancel-out" 2>&1 &
+  fixpid=$!
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 \
+           21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40; do
+    [ -s "$BATS_TEST_TMPDIR/agentpid" ] && break
+    sleep 0.1
+  done
+  [ -s "$BATS_TEST_TMPDIR/agentpid" ] || fail "the stub client never started"
+  agent="$(cat "$BATS_TEST_TMPDIR/agentpid")"
+  [ -d "$BATS_TEST_TMPDIR/xdg/haus/fix.lock" ] || fail "no lock while a fix runs"
+
+  kill -TERM "$fixpid"
+  wait "$fixpid" || true
+
+  # The agent is gone. It ignored TERM, so only the escalation can have done it
+  # — this case is red against a handler that just released the lock and left.
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    kill -0 "$agent" 2>/dev/null || break
+    sleep 0.1
+  done
+  if kill -0 "$agent" 2>/dev/null; then
+    kill -KILL "$agent" 2>/dev/null || true
+    fail "the agent outlived the cancel — it is still editing the config flake"
+  fi
+  # …and the lock went with it, so the button is not dead afterwards.
+  [ ! -d "$BATS_TEST_TMPDIR/xdg/haus/fix.lock" ] \
+    || fail "the lock survived the cancel — every later haus fix says 'already running'"
 }
