@@ -5,7 +5,7 @@
 #
 # memory.sh — the memory pill: how much RAM is actually spoken for, a rolling
 # graph of it, and a dropdown breaking it down and naming the biggest
-# footprints. A framework widget (docs/bar-framework.md): the header above is
+# footprints. A framework widget (ops/todo/bar-framework.md): the header above is
 # the whole of its wiring, and barlib owns the bar instance, the batching, the
 # tones and the dropdown. cpu.sh is this pill's twin — read it for the graph
 # and the fetch/render split; what is only true here is the colour, below.

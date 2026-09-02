@@ -4,7 +4,7 @@
 # widget: subscribes = mouse.entered, mouse.exited, mouse.exited.global, mouse.scrolled
 #
 # The media pill: what is playing, the gestures that drive it, and the dropdown
-# behind it. A framework widget (docs/bar-framework.md) — the header above is
+# behind it. A framework widget (ops/todo/bar-framework.md) — the header above is
 # the whole of its wiring, and barlib owns the bar instance, the batching, the
 # state diff, the dropdown's rows and every colour. What is left here is the
 # pill's actual subject: what a now-playing session says, what you can do to it

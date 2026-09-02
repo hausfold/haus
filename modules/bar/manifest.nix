@@ -1,4 +1,4 @@
-# The `# widget:` header parser (docs/bar-framework.md). A framework widget
+# The `# widget:` header parser (ops/todo/bar-framework.md). A framework widget
 # declares its wiring — interval, event subscriptions — in its own file, and
 # this is the one reader: default.nix emits the item's block from what it
 # returns, so there is no parallel table to edit and no key that can be set
@@ -15,7 +15,7 @@
 # nothing is the silent ignore this file's whole job is to refuse. There are
 # no keys waiting to be added: `permissions` and `placement` are already
 # `haus.bar.widgets.<name>.*` options, which is the only place a third
-# party's widget could declare either (docs/bar-framework.md).
+# party's widget could declare either (ops/todo/bar-framework.md).
 { lib }:
 let
   knownKeys = [

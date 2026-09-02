@@ -136,7 +136,7 @@
 #   lock/         mkdir-lock, so the update tick and a click can't fetch at once.
 #
 # ── the framework ─────────────────────────────────────────────────────────────
-# A barlib widget (docs/bar-framework.md), and the one the popup components
+# A barlib widget (ops/todo/bar-framework.md), and the one the popup components
 # were designed against. The header below is the whole of this pill's wiring —
 # there is no block for it in modules/bar/default.nix beyond its static look.
 # What that bought, concretely: the pill's two tones, the popup's frame and
@@ -936,7 +936,7 @@ stamp_epoch() {
 }
 
 # ── the dropdown ──────────────────────────────────────────────────────────────
-# Six row kinds and nothing else (docs/bar-framework.md): the runtime owns
+# Six row kinds and nothing else (ops/todo/bar-framework.md): the runtime owns
 # every font, every height, the close-on-click, the batched --add and the
 # barpop arm. What is left here is the only part that is about GitHub.
 popup_rows() {

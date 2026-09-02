@@ -1,5 +1,5 @@
 #!/bin/bash
-# clock.sh — the clock pill, as the first barlib widget (docs/bar-framework.md).
+# clock.sh — the clock pill, as the first barlib widget (ops/todo/bar-framework.md).
 # The item's block is emitted from this header by modules/bar/default.nix's
 # frameworkBlock; only the pill's static look (fonts, the pink icon) stays on
 # the Nix side, because it interpolates options this file cannot see.

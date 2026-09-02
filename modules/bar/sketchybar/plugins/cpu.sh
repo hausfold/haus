@@ -5,7 +5,7 @@
 #
 # cpu.sh — the CPU pill: a number, a rolling graph of that number, and a
 # dropdown splitting it up and naming what is responsible. A framework widget
-# (docs/bar-framework.md): the header above is the whole of its wiring, and
+# (ops/todo/bar-framework.md): the header above is the whole of its wiring, and
 # barlib owns the bar instance, the batching, the tones and the dropdown.
 #
 # The reading comes from `barvitals` (modules/bar/barvitals.swift), because

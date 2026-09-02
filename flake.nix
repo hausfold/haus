@@ -1291,9 +1291,9 @@
 
           # ---- bar-tones ------------------------------------------------------
           # The tone ladder (modules/bar/tones.nix) is the bar's whole colour
-          # vocabulary, and a rung lives in FOUR files. One is GENERATED from
-          # the list (modules/bar/default.nix's colorsSh); the other three are
-          # hand-written, and all three fail SILENTLY when they drift —
+          # vocabulary, and a rung lives in THREE files. One is GENERATED from
+          # the list (modules/bar/default.nix's colorsSh); the other two are
+          # hand-written, and both fail SILENTLY when they drift —
           # `tone()` deliberately does not error on a name it doesn't know,
           # because a typo must cost a grey pill rather than a pill that stops
           # painting, and its warning goes to sketchybar's log where nobody
@@ -1301,17 +1301,23 @@
           # widget painting grey with nothing anywhere saying why.
           #
           # Hence this: the same golden-table shape as theme-variants below,
-          # over the three hand-written copies. Each row is a PAIR, never a
+          # over the two hand-written copies. Each row is a PAIR, never a
           # bare name, because the likeliest hand-edit mistake in a ten-arm
           # case statement is not dropping an arm — it is swapping two bodies,
           # which inverts the severity ladder while leaving the list of names
-          # byte-identical. So barlib and the bats stub are pinned name → the
-          # TONE_* they resolve, and the doc name → the sentence tones.nix
-          # gives it, which is the other copy people edit by hand.
+          # byte-identical. So barlib and the bats stub are both pinned name →
+          # the TONE_* they resolve.
           #
-          # ORDER is pinned too: the doc table is meant to read AS the ladder,
-          # quietest first, and an order that drifts is a table that has
-          # stopped being one.
+          # ORDER is pinned too, because the pairs come out in file order: a
+          # rung moved out of the ladder's own sequence fails this check with
+          # every arm still present, which is what keeps a case statement
+          # readable as the ladder it implements.
+          #
+          # The third copy was the table in the framework doc, and that arm
+          # went with the file when it moved to ops/todo/bar-framework.md —
+          # a private repo this flake cannot read. Nothing checks that table
+          # now; `meaning` below is what it was diffed against and is kept as
+          # the ladder's own wording.
           #
           # It reads the files as TEXT rather than evaluating a configuration,
           # so it runs on every system (CI's Linux runner included) the way
@@ -1346,26 +1352,6 @@
             builtins.readFile ./test/barlib.bats
           );
 
-          # docs/bar-framework.md — the rows of the table under "Tones, not
-          # colors": `| `<name>` | <meaning> |`. Sliced to that ONE section and
-          # then to what precedes the next `##`, because the file has other
-          # tables with the same row shape (the `# widget:` manifest keys are
-          # one) and a check that swept them in would pin a list nobody meant
-          # to write. A renamed heading yields an EMPTY section rather than an
-          # eval error, so it fails as a diff naming the file like everything
-          # else here.
-          barToneDocSection =
-            let
-              parts = nixpkgs.lib.splitString "\n## Tones, not colors\n" (
-                builtins.readFile ./docs/bar-framework.md
-              );
-            in
-            if builtins.length parts < 2 then
-              ""
-            else
-              builtins.head (nixpkgs.lib.splitString "\n## " (builtins.elemAt parts 1));
-          barToneFromDoc = barTonePairs "\n\\| `([a-z]+)` \\| ([^|]*[^| ]) \\|" barToneDocSection;
-
           # Every tone's `key` must be a real nebelung palette key. Checked
           # rather than trusted, and checked HERE rather than in the bar module
           # because `nebelung` reaches that module through the home-manager
@@ -1378,18 +1364,17 @@
           # `modules/lib/checked-ref.nix` exists for, one layer down.
           barToneBadKeys = builtins.filter (t: t.key != null && !(nebelung.palette ? ${t.key})) barTones;
 
-          # What all three are diffed against.
+          # What both are diffed against.
           barToneExpectedTones = nixpkgs.lib.concatMapStrings (
             t: t.name + " -> TONE_" + nixpkgs.lib.toUpper t.name + "\n"
           ) barTones;
           barToneExpectedBats = nixpkgs.lib.concatMapStrings (
             t: nixpkgs.lib.toUpper t.name + " -> " + t.stub + "\n"
           ) barTones;
-          barToneExpectedDoc = nixpkgs.lib.concatMapStrings (t: t.name + " -> " + t.meaning + "\n") barTones;
 
           # ---- bar-marks ------------------------------------------------------
           # The IDENTITY axis (modules/bar/marks.nix), pinned across the same
-          # three hand-written copies as the ladder and for the same reason —
+          # two hand-written copies as the ladder and for the same reason —
           # `mark()` warns to sketchybar's log and paints the catch-all, so a
           # mark added in one file and forgotten in another is a heading in the
           # wrong hue with nothing anywhere saying why.
@@ -1417,17 +1402,6 @@
           barMarkFromBats = barTonePairs "\nexport MARK_([A-Z]+)=(0x[0-9a-f]+)" (
             builtins.readFile ./test/barlib.bats
           );
-          barMarkDocSection =
-            let
-              parts = nixpkgs.lib.splitString "\n## Marks, for what a tone cannot say\n" (
-                builtins.readFile ./docs/bar-framework.md
-              );
-            in
-            if builtins.length parts < 2 then
-              ""
-            else
-              builtins.head (nixpkgs.lib.splitString "\n## " (builtins.elemAt parts 1));
-          barMarkFromDoc = barTonePairs "\n\\| `([a-z]+)` \\| ([^|]*[^| ]) \\|" barMarkDocSection;
 
           barMarkBadKeys = builtins.filter (m: !(nebelung.palette ? ${m.key})) barMarks;
           # A mark on a verdict's hue. `accent` is skipped — see above.
@@ -1441,7 +1415,6 @@
           barMarkExpectedBats = nixpkgs.lib.concatMapStrings (
             m: nixpkgs.lib.toUpper m.name + " -> " + m.stub + "\n"
           ) barMarks;
-          barMarkExpectedDoc = nixpkgs.lib.concatMapStrings (m: m.name + " -> " + m.meaning + "\n") barMarks;
 
           # ---- theme-variants -------------------------------------------------
           # modules/lib/nebelung.nix turns haus.theme.{flavor,contrast} into a
@@ -1922,7 +1895,7 @@
               # the accent". Kept split for that reason rather than folded.
               #
               # `bar` was in the PINNED half until the bar framework
-              # (docs/bar-framework.md) landed: colors.sh is the whole nebelung
+              # (ops/todo/bar-framework.md) landed: colors.sh is the whole nebelung
               # palette, which is accent-independent, but the tone ladder
               # underneath it now ends `export TONE_ACCENT=$<ACCENT>` so that a
               # widget naming the `accent` tone gets haus's own accent
@@ -2846,7 +2819,7 @@
 
           # ---- bar-third-party-widget ------------------------------------------
           # The framework's open half, pinned end to end — third-party framework
-          # widgets, in docs/bar-framework.md's migration order.
+          # widgets, in ops/todo/bar-framework.md's migration order.
           # `haus.bar.widgets.<name>.script` is a barlib widget somebody else
           # wrote, and the whole promise is that it reaches
           # the bar down the same path a bundled pill does — so what this
@@ -3789,7 +3762,7 @@
             touch $out
           '';
 
-          # The ladder, pinned across the three files that hold a hand-written
+          # The ladder, pinned across the two files that hold a hand-written
           # copy of it. See the `bar-tones` block in the `let` above for why a
           # drift here is silent, and modules/bar/tones.nix for the ladder.
           bar-tones = pkgs.runCommand "haus-bar-tones-ok" { } ''
@@ -3801,9 +3774,6 @@
             echo "== modules/bar/sketchybar/barlib.sh (tone() case arms)"
             diff -u ${pkgs.writeText "expected" barToneExpectedTones} \
                     ${pkgs.writeText "barlib" barToneFromBarlib}
-            echo "== docs/bar-framework.md (the table under 'Tones, not colors')"
-            diff -u ${pkgs.writeText "expected" barToneExpectedDoc} \
-                    ${pkgs.writeText "doc" barToneFromDoc}
             echo "== test/barlib.bats (the colors.sh stub in setup())"
             diff -u ${pkgs.writeText "expected" barToneExpectedBats} \
                     ${pkgs.writeText "bats" barToneFromBats}
@@ -3829,9 +3799,6 @@
             echo "== modules/bar/sketchybar/barlib.sh (mark() case arms)"
             diff -u ${pkgs.writeText "expected" barMarkExpectedMarks} \
                     ${pkgs.writeText "barlib" barMarkFromBarlib}
-            echo "== docs/bar-framework.md (the table under 'Marks, for what a tone cannot say')"
-            diff -u ${pkgs.writeText "expected" barMarkExpectedDoc} \
-                    ${pkgs.writeText "doc" barMarkFromDoc}
             echo "== test/barlib.bats (the colors.sh stub in setup())"
             diff -u ${pkgs.writeText "expected" barMarkExpectedBats} \
                     ${pkgs.writeText "bats" barMarkFromBats}
@@ -4132,7 +4099,7 @@
 
             The bar's emission for a widget somebody else wrote has changed.
 
-            docs/bar-framework.md's third-party framework widgets are what this
+            The framework doc's third-party framework widgets are what this
             is about: a declared framework widget reaches the bar down the same
             path a bundled pill does. If the diff shows `script=` pointing into
             `plugins/` for `pomodoro`, that is the regression — a declared

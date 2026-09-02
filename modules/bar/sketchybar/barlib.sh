@@ -1,8 +1,12 @@
 #!/bin/bash
-# barlib.sh — the bar widget runtime (docs/bar-framework.md). A framework
-# widget sources this at the top, defines fetch()/render()/on_*() and calls
-# `barlib_main "$@"` as its last line. Everything the old plugins had to know
-# by hand lives here instead: which bar instance ($SB, via bar.sh), the
+# barlib.sh — the bar widget runtime. Its design is written up in
+# `todo/bar-framework.md` in hausfold/ops, which is private; this file and its
+# comments are the normative half, and `plugins/clock.sh` is the smallest
+# widget written against it.
+#
+# A framework widget sources this at the top, defines fetch()/render()/on_*()
+# and calls `barlib_main "$@"` as its last line. Everything the old plugins had
+# to know by hand lives here instead: which bar instance ($SB, via bar.sh), the
 # drawing=off/updates=on pairing, tone→hex, state caching, and batching every
 # component call into ONE sketchybar invocation.
 #

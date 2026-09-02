@@ -19,7 +19,7 @@
 # sketchybarrc launches it detached, and media.sh restarts it if it ever dies.
 #
 # Rendering itself is media.sh's — it is a framework widget
-# (docs/bar-framework.md), so the paint is its `render()` and barlib owns the
+# (ops/todo/bar-framework.md), so the paint is its `render()` and barlib owns the
 # batching and the state diff. This file's own job is narrower: turn each
 # payload into the `now` record, notice when the TRACK (not the state) changed,
 # and ask for a repaint. `media_paint` (media_lib.sh) is that ask, and it is

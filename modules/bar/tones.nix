@@ -1,27 +1,30 @@
 # THE TONE LADDER — the bar's whole colour vocabulary, in one place.
 #
-# A barlib widget names a TONE and never a hex or a palette key
-# (`docs/bar-framework.md`, "Tones, not colors"). This file is the one
-# definition of what the names are and which nebelung key each resolves to;
-# everything else is generated from it or checked against it:
+# A barlib widget names a TONE and never a hex or a palette key (the framework
+# doc, ops/todo/bar-framework.md, "Tones, not colors"). This file is
+# the one definition of what the names are and which nebelung key each
+# resolves to; everything else is generated from it or checked against it:
 #
 #   modules/bar/default.nix   generates the `TONE_*` exports in colors.sh
 #   modules/bar/sketchybar/barlib.sh   `tone()`'s case arms
-#   docs/bar-framework.md     the table under "Tones, not colors"
 #   test/barlib.bats          the colors.sh stub its setup() writes
 #
-# The FIRST of those four is generated from this list, so it cannot drift. The
-# other three are hand-written, and a rung added to one and forgotten in
+# The FIRST of those three is generated from this list, so it cannot drift. The
+# other two are hand-written, and a rung added to one and forgotten in
 # another does not error — `tone()` warns to stderr, which goes to
 # sketchybar's log where nobody looks, and the pill paints grey. So
-# `bar-tones` in flake.nix diffs those THREE against this list.
+# `bar-tones` in flake.nix diffs those TWO against this list.
 #
-# It diffs PAIRS rather than bare names: barlib and the test stub by what each
-# rung resolves to, the doc by the `meaning` written here. Swapping two
-# `printf` bodies inverts the severity ladder while leaving the list of names
-# byte-identical, and that is the likelier hand-edit mistake than dropping an
-# arm. Order is the ladder's own (quietest first) and is pinned too: the doc
-# table is meant to read top-to-bottom in it.
+# It diffs PAIRS rather than bare names — each by what the rung resolves to.
+# Swapping two `printf` bodies inverts the severity ladder while leaving the
+# list of names byte-identical, and that is the likelier hand-edit mistake
+# than dropping an arm. Order is the ladder's own (quietest first) and is
+# pinned too, because the pairs come out in file order.
+#
+# `meaning` is no longer diffed against anything: the third copy was the doc's
+# own table, and that arm went when the doc moved to a private repo this flake
+# cannot read. It is the ladder's wording, and the doc's table is a hand copy
+# of it now.
 #
 # `stub` is the fake hex `test/barlib.bats`'s `setup()` writes for that rung —
 # here so the fixture is single-sourced with the ladder rather than being ten

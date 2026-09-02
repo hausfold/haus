@@ -6,7 +6,7 @@
 # haus.bar.items). Puts rate-limit gauges for AI providers (Claude Code,
 # Codex, etc.) or token API costs (Opencode, etc.) in the menu bar.
 #
-# A framework widget (docs/bar-framework.md): the header above is the whole of
+# A framework widget (ops/todo/bar-framework.md): the header above is the whole of
 # its wiring, and barlib owns the bar instance, the batching, the state diff,
 # the dropdown and every colour. What is left here is the FEEDS — how a
 # provider reports, which one the pill speaks for, and what a percentage means
