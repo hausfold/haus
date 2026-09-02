@@ -1,15 +1,17 @@
 # The bar framework
 
-> Status: **phases 1–4c shipped, and the framework is open** — `barlib.sh`
-> (the runtime: dispatch, state diff, `pill`, `graph`, tones, marks, the six
-> popup row kinds and their value column, `bar_emit`), the `# widget:` parser
-> (`modules/bar/manifest.nix`), `frameworkBlock` in `modules/bar/default.nix`,
-> `clock` + `github` + `cpu` + `memory` + `ai_usage` + `media` converted,
-> pinned by `test/barlib.bats`, and `haus.bar.widgets.<name>.script` — a widget
-> somebody else wrote, reaching the bar down the same path haus's own pills do.
-> Sections below marked **planned** are what is left: `badge`. The code is
-> normative where the two disagree; a planned key is an EVAL ERROR today, not a
-> silent no-op, so nothing here can be half-used by accident.
+> Status: **the migration list below is ✅ through 9, and the framework is
+> open** — `barlib.sh` (the runtime: dispatch, state diff, `pill`, `graph`,
+> `segments`, tones, marks, the six popup row kinds and their value column,
+> `bar_emit`), the `# widget:` parser (`modules/bar/manifest.nix`),
+> `frameworkBlock` in `modules/bar/default.nix`, `clock` + `github` + `cpu` +
+> `memory` + `ai_usage` + `media` + `agents` converted, pinned by
+> `test/barlib.bats`, and `haus.bar.widgets.<name>.script` — a widget somebody
+> else wrote, reaching the bar down the same path haus's own pills do.
+> Sections below marked **planned** are what is left: `badge`, and a producer
+> for `bar_emit`. The code is normative where the two disagree; a planned key
+> is an EVAL ERROR today, not a silent no-op, so nothing here can be half-used
+> by accident.
 
 ## Why
 
@@ -651,11 +653,19 @@ the `MARK_*` exports from it.
   not one of SketchyBar's own and subscribes the widget. The built-in list
   lives in `manifest.nix` and the split is a **difference against it**, not a
   prefix rule — subscribing to an event nobody declared is silent, and so is
-  `--add event volume_change` shadowing the built-in of that name. Producers
-  fire them with `bar_emit <event> [key=value…]` (a barlib helper that
+  `--add event volume_change` shadowing the built-in of that name.
+  `bar_emit <event> [key=value…]` is the helper for firing one, and it
   triggers BOTH bars — the "anything that pokes a bar pokes both" rule, in
-  code). **Planned**: bridging the remaining producers in — focus changes,
-  `agent-state` — so a widget can subscribe to them by name.
+  code. **It has no producer yet**, and the reason is where it lives: it is
+  defined in `barlib.sh`, which only a framework WIDGET sources, and every
+  producer of a custom event today is outside that runtime — `focus.sh`,
+  `awake.sh` and `aerospace-notify.sh` each hand-roll their own both-bars
+  pair. `github_update` is the one that should not use it at all: github.sh
+  fires it on `$SB` alone on purpose, so a pill on the bottom bar isn't woken
+  by an event sent to the menu bar's mach service. **Planned**: bridging the
+  producers in — focus changes, `agent-state` — which means first deciding
+  whether a non-widget producer sources `barlib.sh` or the helper moves
+  somewhere both can reach.
 - Widgets may `bar_emit` too — inter-widget signaling without knowing names.
 
 ## Why not SbarLua

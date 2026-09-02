@@ -723,7 +723,7 @@ mechanism, say so in one line.
   the one with a dropdown. The runtime (`barlib.sh`, tested by
   `test/barlib.bats` and shellchecked in CI) owns `$SB` routing, the
   `drawing=off`/`updates=on` pairing, tone→hex, the one-batched-call rule,
-  and the whole popup dance (rebuild, batch, `barpop arm &`, the four row
+  and the whole popup dance (rebuild, batch, `barpop arm &`, the six row
   kinds' typography), so the bullets below about those only concern the
   pre-framework plugins — which remain valid and convert on touch.
   - **A widget that is NOT haus's is the same file**, named in
