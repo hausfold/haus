@@ -60,11 +60,19 @@
 #
 # Fields mirror tones.nix so the two read as one system: `name` is what a
 # widget says, `key` is the nebelung palette entry it resolves to, `stub` is
-# the fake hex test/barlib.bats writes, `meaning` is the set's own wording —
-# published as `docs/site-data/bar-marks.json` and held against the page's
-# table by hausfold.co, exactly as the ladder's is. See tones.nix for the
-# split: the names and their order are pinned to the page, the wording is
-# snapshotted.
+# the fake hex test/barlib.bats writes, `fallback` is what the emitted
+# `mark()` arm answers from a shell whose exports predate the mark (tones.nix
+# has the full rule), and `meaning` is the set's own wording — published as
+# `docs/site-data/bar-marks.json` and held against the page's table by
+# hausfold.co, exactly as the ladder's is. See tones.nix for the split: the
+# names and their order are pinned to the page, the wording is snapshotted.
+#
+# Every fallback below is TONE_MUTE, not MARK_PLUM, because the whole set
+# landed in colors.sh together: a shell old enough to miss one mark misses
+# the catch-all too, and grey — the ladder's OFF step — is the honest answer
+# from a generation that had no identity axis at all. The NEXT mark is the
+# first that gets to say "MARK_PLUM", since every colors.sh from the set's
+# landing onward already carries it.
 #
 # A plain value, imported the way tones.nix is: no module system, so flake.nix
 # can read it without evaluating a configuration.
@@ -73,6 +81,7 @@
     name = "warm";
     key = "flamingo";
     stub = "0xff7a0001";
+    fallback = "TONE_MUTE";
     meaning = "Anthropic's clay — Claude, Claude elsewhere, and VLC";
     # The palette's warm clay, and the nearest neighbour to Anthropic's orange
     # that is NOT `peach` — peach is `warn`, and a Claude header wearing it
@@ -84,6 +93,7 @@
     name = "rust";
     key = "maroon";
     stub = "0xff7a0005";
+    fallback = "TONE_MUTE";
     meaning = "a muted red — video in a browser tab";
     # `red` is `bad`, so the pill spent the alarm hue on a YouTube tab for as
     # long as one was open. Maroon is the palette's other red and carries no
@@ -93,6 +103,7 @@
     name = "pink";
     key = "pink";
     stub = "0xff7a0006";
+    fallback = "TONE_MUTE";
     meaning = "music with no app of its own — and media's catch-all kind";
     # The one media hue that never collided: pink is on no rung of the ladder,
     # so the music note the pill draws for Apple Music (and for a source it
@@ -102,12 +113,14 @@
     name = "violet";
     key = "lavender";
     stub = "0xff7a0003";
+    fallback = "TONE_MUTE";
     meaning = "Gemini's blue-violet — and a video file playing locally";
   }
   {
     name = "blue";
     key = "blue";
     stub = "0xff7a0007";
+    fallback = "TONE_MUTE";
     meaning = "music in a browser tab";
     # `sapphire` is `action` and `sky` is `busy`. Blue is the third of the
     # palette's blues and the only one a row can wear without claiming either
@@ -117,6 +130,7 @@
     name = "teal";
     key = "teal";
     stub = "0xff7a0002";
+    fallback = "TONE_MUTE";
     meaning = "OpenAI's green-teal — Codex, GPT elsewhere, and Spotify";
     # `green` is `ok` and `sky` is `busy`, so this is the one green-family
     # hue on the palette that carries no verdict. Spotify's own green is
@@ -126,6 +140,7 @@
     name = "plum";
     key = "mauve";
     stub = "0xff7a0004";
+    fallback = "TONE_MUTE";
     meaning = "a subject with no mark of its own — the catch-all, and podcasts";
     # What an unknown client gets, and what `mark()` falls back to. It is a
     # real mark rather than "no colour" for a reason the dropdown shows: a

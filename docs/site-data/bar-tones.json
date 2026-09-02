@@ -1,59 +1,69 @@
 [
   {
+    "fallback": null,
     "key": "overlay0",
     "meaning": "nothing there — inactive, stale, no verdict",
     "name": "mute",
     "stub": "0xff111111"
   },
   {
+    "fallback": "TONE_MUTE",
     "key": "overlay1",
     "meaning": "present but subordinate — a heading, a row's name, a descriptor",
     "name": "dim",
     "stub": "0xff1a1a1a"
   },
   {
+    "fallback": "TEXT",
     "key": "text",
     "meaning": "a live readout carrying no alarm — the ordinary foreground",
     "name": "text",
     "stub": "0xff777777"
   },
   {
+    "fallback": null,
     "key": "green",
     "meaning": "green, nothing needed",
     "name": "ok",
     "stub": "0xff222222"
   },
   {
+    "fallback": null,
     "key": "sky",
     "meaning": "the machine has it, not you",
     "name": "busy",
     "stub": "0xff333333"
   },
   {
+    "fallback": "TONE_WARN",
     "key": "yellow",
     "meaning": "worth knowing, nothing to do yet",
     "name": "watch",
     "stub": "0xff3a3a3a"
   },
   {
+    "fallback": null,
     "key": "peach",
     "meaning": "wants a human here",
     "name": "warn",
     "stub": "0xff444444"
   },
   {
+    "fallback": null,
     "key": "red",
     "meaning": "the load-bearing thing is broken",
     "name": "bad",
     "stub": "0xff555555"
   },
   {
+    "fallback": "TONE_ACCENT",
     "key": "sapphire",
     "meaning": "a thing you press — an affordance, not a status",
     "name": "action",
     "stub": "0xff5a5a5a"
   },
   {
+    "fallback": null,
     "key": null,
     "meaning": "haus's own mark — identity, never status",
     "name": "accent",

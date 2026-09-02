@@ -1291,33 +1291,37 @@
 
           # ---- bar-tones ------------------------------------------------------
           # The tone ladder (modules/bar/tones.nix) is the bar's whole colour
-          # vocabulary, and a rung lives in THREE files. One is GENERATED from
-          # the list (modules/bar/default.nix's colorsSh); the other two are
-          # hand-written, and both fail SILENTLY when they drift —
+          # vocabulary. Everything shell reads is GENERATED from the list —
+          # modules/bar/default.nix emits the TONE_* exports into colors.sh
+          # and modules/bar/colors-fns.nix emits `tone()` itself right after
+          # them, so the function and its data ride one file and cannot
+          # drift. What CAN drift is the test pair, and it fails SILENTLY —
           # `tone()` deliberately does not error on a name it doesn't know,
-          # because a typo must cost a grey pill rather than a pill that stops
-          # painting, and its warning goes to sketchybar's log where nobody
-          # looks. So a rung added to tones.nix and forgotten in barlib.sh is a
-          # widget painting grey with nothing anywhere saying why.
+          # because a typo must cost a grey pill rather than a pill that
+          # stops painting, and its warning goes to sketchybar's log where
+          # nobody looks. So a rung added to tones.nix and forgotten in the
+          # bats stub is every test painting grey with nothing anywhere
+          # saying why.
           #
-          # Hence this: the same golden-table shape as theme-variants below,
-          # over the two hand-written copies. Each row is a PAIR, never a
-          # bare name, because the likeliest hand-edit mistake in a ten-arm
-          # case statement is not dropping an arm — it is swapping two bodies,
-          # which inverts the severity ladder while leaving the list of names
-          # byte-identical. So barlib and the bats stub are both pinned name →
-          # the TONE_* they resolve.
+          # Hence this, over the two test copies:
           #
-          # ORDER is pinned too, because the pairs come out in file order: a
-          # rung moved out of the ladder's own sequence fails this check with
-          # every arm still present, which is what keeps a case statement
-          # readable as the ladder it implements.
+          #   * the stub exports in test/barlib.bats's setup(), pinned as
+          #     PAIRS in file order — name → the stub hex, never a bare name,
+          #     because the likeliest hand-edit mistake is swapping two
+          #     lines, which inverts the severity ladder while leaving the
+          #     list of names byte-identical; and order is the ladder's own
+          #     (quietest first), so a rung moved out of sequence fails with
+          #     every line still present.
+          #   * test/colors-fns.sh — the committed copy of the emitted
+          #     functions the suite runs against (bats has no Nix, so it
+          #     cannot ask the emitter itself) — byte-diffed against the
+          #     same emitter the module uses. Its failure output IS the
+          #     regenerated file; copy it over and commit, exactly the
+          #     site-data-current story.
           #
-          # The third copy was the table in the framework doc, and that arm
-          # went with the file when it moved to ops/todo/bar-framework.md — a
-          # private repo this flake cannot read. The table came BACK as
+          # The doc's copy is the table on
           # hausfold.co/docs/haus/rooms/bar-widgets, which this flake cannot
-          # read either, so it is checked the way the option reference is:
+          # read, so it is checked the way the option reference is:
           # `site-data` publishes the ladder to `docs/site-data/bar-tones.json`
           # and the site diffs its own page against that file. `meaning` is
           # what the site snapshots, which is why it is still carried here.
@@ -1326,11 +1330,13 @@
           # so it runs on every system (CI's Linux runner included) the way
           # theme-variants does.
           barTones = import ./modules/bar/tones.nix;
+          barColorsFns = import ./modules/bar/colors-fns.nix { lib = nixpkgs.lib; };
+          barColorsFnsExpected = pkgs.writeText "colors-fns.sh" barColorsFns.fixture;
 
           # Pull pairs back out of a file by regex over its text, one
-          # `<a> -> <b>` line per match. Each extractor is anchored on the
-          # SHAPE the real file has rather than on a marker comment — a marker
-          # is something you can move without moving the thing it marks.
+          # `<a> -> <b>` line per match. Anchored on the SHAPE the real file
+          # has rather than on a marker comment — a marker is something you
+          # can move without moving the thing it marks.
           barTonePairs =
             re: text:
             let
@@ -1340,17 +1346,8 @@
               builtins.filter builtins.isList m
             );
 
-          # barlib.sh — `tone()`'s case arms, name → the TONE_* the body reads.
-          # The optional `\{` catches the `''${TONE_X:-…}` generation-skew form
-          # without letting the fallback rung count as the answer. The trailing
-          # `*)` catch-all has no name and doesn't match, which is what we want.
-          barToneFromBarlib = barTonePairs "\n        ([a-z]+)\\) +printf '%s' \"\\$\\{?(TONE_[A-Z]+)" (
-            builtins.readFile ./modules/bar/sketchybar/barlib.sh
-          );
-
-          # test/barlib.bats — the colors.sh stub setup() writes, same pairing
-          # read the other way round: the TONE_* it defines, lower-cased back
-          # to the rung it is for.
+          # test/barlib.bats — the colors.sh stub setup() writes: the TONE_*
+          # it defines, lower-cased back to the rung it is for.
           barToneFromBats = barTonePairs "\nexport TONE_([A-Z]+)=(0x[0-9a-f]+)" (
             builtins.readFile ./test/barlib.bats
           );
@@ -1367,23 +1364,42 @@
           # `modules/lib/checked-ref.nix` exists for, one layer down.
           barToneBadKeys = builtins.filter (t: t.key != null && !(nebelung.palette ? ${t.key})) barTones;
 
-          # What both are diffed against.
-          barToneExpectedTones = nixpkgs.lib.concatMapStrings (
-            t: t.name + " -> TONE_" + nixpkgs.lib.toUpper t.name + "\n"
+          # A rung's `fallback` must be a variable an OLDER colors.sh could
+          # already answer with: `TONE_` + another rung, or an UPPER-cased
+          # nebelung palette key (`text` falls back to $TEXT). Age cannot be
+          # read off the file — the ladder is ordered by loudness, not by
+          # when each rung landed (`action` predates nothing; its fallback
+          # `TONE_ACCENT` sits BELOW it) — so "another rung" is the whole
+          # constraint. A typo here would emit `:-$TONE_MUT`: green at eval,
+          # green through the build, and an empty colour in the one window
+          # the fallback exists for.
+          barToneVarNames = map (t: "TONE_" + nixpkgs.lib.toUpper t.name) barTones;
+          barFallbackOk =
+            own: allowed: fb:
+            builtins.elem fb (nixpkgs.lib.remove own allowed) || nebelung.palette ? ${nixpkgs.lib.toLower fb};
+          barToneBadFallbacks = builtins.filter (
+            t:
+            t.fallback != null
+            && !(barFallbackOk ("TONE_" + nixpkgs.lib.toUpper t.name) barToneVarNames t.fallback)
           ) barTones;
+
+          # What the stub exports are diffed against.
           barToneExpectedBats = nixpkgs.lib.concatMapStrings (
             t: nixpkgs.lib.toUpper t.name + " -> " + t.stub + "\n"
           ) barTones;
 
           # ---- bar-marks ------------------------------------------------------
-          # The IDENTITY axis (modules/bar/marks.nix), pinned across the same
-          # two hand-written copies as the ladder and for the same reason —
-          # `mark()` warns to sketchybar's log and paints the catch-all, so a
-          # mark added in one file and forgotten in another is a heading in the
-          # wrong hue with nothing anywhere saying why.
+          # The IDENTITY axis (modules/bar/marks.nix), pinned the same way as
+          # the ladder and for the same reason — `mark()` warns to
+          # sketchybar's log and paints the catch-all, so a mark added to the
+          # list and forgotten in the stub is a heading in the wrong hue with
+          # nothing anywhere saying why. (The emitted `mark()` rides
+          # test/colors-fns.sh with `tone()` — one file, one byte-diff, run
+          # by bar-tones.)
           #
           # It carries one assertion the ladder's does not, and that assertion
-          # is why the mark set is a FILE rather than four more case arms:
+          # is why the mark set is a FILE of its own rather than four more
+          # rungs on the ladder:
           # **identity and status never share a hue.** ai-provider.sh has said
           # so in prose since it was written, and prose is what it stayed —
           # nothing stopped the next client's mark from landing on `yellow`,
@@ -1399,9 +1415,6 @@
           # stay disjoint.
           barMarks = import ./modules/bar/marks.nix;
 
-          barMarkFromBarlib = barTonePairs "\n        ([a-z]+)\\) +printf '%s' \"\\$\\{?(MARK_[A-Z]+)" (
-            builtins.readFile ./modules/bar/sketchybar/barlib.sh
-          );
           barMarkFromBats = barTonePairs "\nexport MARK_([A-Z]+)=(0x[0-9a-f]+)" (
             builtins.readFile ./test/barlib.bats
           );
@@ -1412,9 +1425,21 @@
             m: builtins.any (t: t.key != null && t.key == m.key) barTones
           ) barMarks;
 
-          barMarkExpectedMarks = nixpkgs.lib.concatMapStrings (
-            m: m.name + " -> MARK_" + nixpkgs.lib.toUpper m.name + "\n"
+          # Same rule as the ladder's, one axis wider: a mark may also fall
+          # back to another mark (the next one lands on `MARK_PLUM`, which
+          # every colors.sh since the set arrived already carries). Never
+          # null — no mark predates the founding ladder — and null is caught
+          # HERE rather than left to `toLower null`'s coercion error, so the
+          # failure names the mark instead of a builtin.
+          barMarkVarNames = map (m: "MARK_" + nixpkgs.lib.toUpper m.name) barMarks;
+          barMarkBadFallbacks = builtins.filter (
+            m:
+            m.fallback == null
+            || !(barFallbackOk ("MARK_" + nixpkgs.lib.toUpper m.name) (
+              barToneVarNames ++ barMarkVarNames
+            ) m.fallback)
           ) barMarks;
+
           barMarkExpectedBats = nixpkgs.lib.concatMapStrings (
             m: nixpkgs.lib.toUpper m.name + " -> " + m.stub + "\n"
           ) barMarks;
@@ -3765,25 +3790,40 @@
             touch $out
           '';
 
-          # The ladder, pinned across the two files that hold a hand-written
-          # copy of it. See the `bar-tones` block in the `let` above for why a
-          # drift here is silent, and modules/bar/tones.nix for the ladder.
+          # The ladder, pinned across the test pair — the only copies left
+          # outside the generation now that colors.sh carries tone() itself.
+          # See the `bar-tones` block in the `let` above for why a drift here
+          # is silent, and modules/bar/tones.nix for the ladder.
           bar-tones = pkgs.runCommand "haus-bar-tones-ok" { } ''
             ${nixpkgs.lib.optionalString (barToneBadKeys != [ ]) (
               "echo 'modules/bar/tones.nix names palette keys nebelung does not have: "
               + nixpkgs.lib.concatMapStringsSep ", " (t: "${t.name} -> ${t.key}") barToneBadKeys
               + "' >&2; exit 1"
             )}
-            echo "== modules/bar/sketchybar/barlib.sh (tone() case arms)"
-            diff -u ${pkgs.writeText "expected" barToneExpectedTones} \
-                    ${pkgs.writeText "barlib" barToneFromBarlib}
+            ${nixpkgs.lib.optionalString (barToneBadFallbacks != [ ]) (
+              "echo 'modules/bar/tones.nix has a fallback no older colors.sh could resolve: "
+              + nixpkgs.lib.concatMapStringsSep ", " (t: "${t.name} -> ${t.fallback}") barToneBadFallbacks
+              + ". A fallback is TONE_<another rung> or an UPPER-cased nebelung"
+              + " palette key.' >&2; exit 1"
+            )}
             echo "== test/barlib.bats (the colors.sh stub in setup())"
             diff -u ${pkgs.writeText "expected" barToneExpectedBats} \
                     ${pkgs.writeText "bats" barToneFromBats}
+            echo "== test/colors-fns.sh (the committed copy of the emitted tone()/mark())"
+            diff -u ${barColorsFnsExpected} \
+                    ${pkgs.writeText "committed" (builtins.readFile ./test/colors-fns.sh)} \
+              || {
+                echo >&2
+                echo "test/colors-fns.sh is stale. Nothing in it is hand-written — copy the" >&2
+                echo "regenerated file over it and commit:" >&2
+                echo "  cp ${barColorsFnsExpected} test/colors-fns.sh" >&2
+                exit 1
+              }
             touch $out
           '';
 
-          # The mark set, across the same two hand-written copies — plus the
+          # The mark set, over the same test pair (its emitted `mark()` rides
+          # test/colors-fns.sh, byte-diffed by bar-tones above) — plus the
           # one thing this axis has that the ladder does not: identity and
           # status may not share a hue. See the `bar-marks` block in the `let`
           # above, and modules/bar/marks.nix for the set.
@@ -3799,9 +3839,15 @@
               + ". Identity and status never share a hue — a heading in that colour"
               + " silently claims a state. Pick another nebelung key.' >&2; exit 1"
             )}
-            echo "== modules/bar/sketchybar/barlib.sh (mark() case arms)"
-            diff -u ${pkgs.writeText "expected" barMarkExpectedMarks} \
-                    ${pkgs.writeText "barlib" barMarkFromBarlib}
+            ${nixpkgs.lib.optionalString (barMarkBadFallbacks != [ ]) (
+              "echo 'modules/bar/marks.nix has a fallback no older colors.sh could resolve: "
+              + nixpkgs.lib.concatMapStringsSep ", " (
+                m: "${m.name} -> ${if m.fallback == null then "null" else m.fallback}"
+              ) barMarkBadFallbacks
+              + ". A fallback is TONE_<a rung>, MARK_<another mark> or an"
+              + " UPPER-cased nebelung palette key — never null, since no mark"
+              + " predates the founding ladder.' >&2; exit 1"
+            )}
             echo "== test/barlib.bats (the colors.sh stub in setup())"
             diff -u ${pkgs.writeText "expected" barMarkExpectedBats} \
                     ${pkgs.writeText "bats" barMarkFromBats}

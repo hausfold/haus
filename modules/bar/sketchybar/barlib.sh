@@ -7,7 +7,8 @@
 # A framework widget sources this at the top, defines fetch()/render()/on_*()
 # and calls `barlib_main "$@"` as its last line. Everything the old plugins had
 # to know by hand lives here instead: which bar instance ($SB, via bar.sh), the
-# drawing=off/updates=on pairing, tone→hex, state caching, and batching every
+# drawing=off/updates=on pairing, tone→hex (tone() and mark() ride the
+# generated colors.sh this file sources), state caching, and batching every
 # component call into ONE sketchybar invocation.
 #
 # Runs under macOS /bin/bash (3.2): no declare -g, no ${var^^}, no
@@ -154,97 +155,56 @@ fi
 _BARLIB_STATE=()
 _BARLIB_ARGS=()
 
-# ---- tones ------------------------------------------------------------------
-# The semantic colour API. Widgets name a tone, never a palette key and never
-# a hex; the names and what each resolves to are `modules/bar/tones.nix`, the
-# generated colors.sh carries them as TONE_* exports (so nebelung stays the
-# only resolver of names to hexes), and `bar-tones` in flake.nix diffs this
-# case statement against that list. An unknown tone is mute, not an error: a
-# typo'd tone must cost a grey pill, never a pill that stops painting — and
-# that leniency is exactly why the check exists, since the warning below goes
-# to sketchybar's log, where nobody looks.
+# ---- tones & marks ----------------------------------------------------------
+# The semantic colour API. Widgets name a TONE ("how is it going" — the
+# ladder, quietest first: mute dim text ok busy watch warn bad action accent)
+# or a MARK ("which one is this" — warm rust pink violet blue teal plum),
+# never a palette key and never a hex. `--tone` is the only thing that may
+# carry a VERDICT, and where a component takes both the two flags are
+# last-wins on purpose — `--mark warm --tone mute` is how a widget greys out
+# a block whose feed died without losing the mark it would draw when the
+# feed comes back.
 #
-# Read tones.nix for what each rung MEANS and which pills earned it. Three
-# things about the shape of the ladder belong here, next to the code:
+# tone() and mark() themselves arrive from colors.sh, sourced above.
+# `modules/bar/tones.nix` and `modules/bar/marks.nix` are the two
+# vocabularies and the whole argument (what each rung means, which pills
+# earned it, why nothing carrying meaning may name `accent`), and
+# `modules/bar/colors-fns.nix` emits both functions into the generated file
+# right after the TONE_*/MARK_* exports they read — so a rung lives in one
+# data file, and the functions can never skew against the exports they ride
+# with. Both are lenient the same way: an unknown tone warns and paints
+# mute, an unknown mark warns and paints plum (grey means STALE, and an
+# unrecognised subject is reporting perfectly well) — a typo must cost the
+# wrong hue, never a pill that stops painting. The warning goes to
+# sketchybar's log, where nobody looks; `bar-tones` and `bar-marks` in
+# flake.nix exist because of exactly that, pinning the two copies that still
+# live outside the generation (test/barlib.bats's stub exports, and
+# test/colors-fns.sh — the committed copy of the emitted functions the
+# suite runs against).
 #
-#   * TWO dim steps. `mute` (overlay0) is OFF — stale, inactive, absent.
-#     `dim` (overlay1) is quiet but present — a heading, a row's name. Six
-#     pills already use both as a hierarchy; one rung cannot say both, and a
-#     widget with only `mute` can only ever get greyer.
-#   * FOUR severity steps, not three: ok → watch → warn → bad. `watch` is
-#     50% CPU and a battery at half — worth knowing, nothing to do yet.
-#   * `action` is a thing you press, and it is NOT `accent`. accent follows
-#     haus.theme.accent, whose enum contains red, peach, yellow, green and
-#     sky — so on some machine accent IS the alarm, and a Refresh row wearing
-#     it is unreadable there and nowhere else. accent is identity only.
-# The arms are in the ladder's order, quietest first, and `bar-tones` pins
-# that too — the tone table on hausfold.co/docs/haus/rooms/bar-widgets is meant
-# to READ as the ladder, and an order that drifts is a table that has stopped
-# being one. (That table is checked against the ladder haus publishes as
-# docs/site-data/bar-tones.json, from the site's own repo.) The check pins each arm's
-# TONE_* as well as its name, because swapping two `printf` bodies inverts the
-# severity ladder while leaving the list of names byte-identical.
-#
-# ⚠️ Every rung whose TONE_* is NEWER than barlib.sh itself falls back with
-# `:-`, and that is the file header's rule at the top rather than caution:
-# colors.sh and this file are separate home.file entries, so a rebuild lands
-# them in some order and there is a window where a widget under `set -u`
-# reads a TONE_* the live colors.sh has never heard of. Not a wrong colour —
-# an unbound-variable abort that takes the whole batched --add with it, and
-# `dim` and `action` are the DEFAULTS for popup_heading and popup_action, so
-# every framework popup would be in it. Each falls back to the rung it
-# replaced, which is also what it looked like one generation ago.
-tone() {
-    case "$1" in
-        mute)   printf '%s' "$TONE_MUTE" ;;
-        dim)    printf '%s' "${TONE_DIM:-$TONE_MUTE}" ;;
-        text)   printf '%s' "${TONE_TEXT:-$TEXT}" ;;
-        ok)     printf '%s' "$TONE_OK" ;;
-        busy)   printf '%s' "$TONE_BUSY" ;;
-        watch)  printf '%s' "${TONE_WATCH:-$TONE_WARN}" ;;
-        warn)   printf '%s' "$TONE_WARN" ;;
-        bad)    printf '%s' "$TONE_BAD" ;;
-        action) printf '%s' "${TONE_ACTION:-$TONE_ACCENT}" ;;
-        accent) printf '%s' "$TONE_ACCENT" ;;
-        *)
-            echo "barlib: unknown tone '$1' (mute|dim|text|ok|busy|watch|warn|bad|action|accent) — using mute" >&2
-            printf '%s' "$TONE_MUTE"
-            ;;
-    esac
-}
-
-# ---- marks ------------------------------------------------------------------
-# The IDENTITY axis, beside the ladder: which subject is this, for one the bar
-# cannot know until it runs. `modules/bar/marks.nix` is the set and the whole
-# argument; `bar-marks` in flake.nix diffs this case statement against it and
-# refuses a mark whose palette key is also a tone's, which is the invariant —
-# identity and status never share a hue.
-#
-# A widget names a mark exactly where it would otherwise have to spell a hex:
-# a popup heading whose subject is chosen at runtime. `--tone` is still the
-# only thing that may carry a VERDICT, and the two flags are last-wins on
-# purpose — `--mark warm --tone mute` is how a widget greys out a block whose
-# feed died without losing the mark it would draw when the feed comes back.
-#
-# The fallback is `plum`, the catch-all mark, and NOT grey: grey is what a
-# dead feed is painted, so an unrecognised subject drawn in it would read as
-# stale rather than as unfamiliar. Same leniency as tone() and for the same
-# reason — a typo costs the wrong hue, never a pill that stops painting.
-mark() {
-    case "$1" in
-        warm)   printf '%s' "${MARK_WARM:-$TONE_MUTE}" ;;
-        rust)   printf '%s' "${MARK_RUST:-$TONE_MUTE}" ;;
-        pink)   printf '%s' "${MARK_PINK:-$TONE_MUTE}" ;;
-        violet) printf '%s' "${MARK_VIOLET:-$TONE_MUTE}" ;;
-        blue)   printf '%s' "${MARK_BLUE:-$TONE_MUTE}" ;;
-        teal)   printf '%s' "${MARK_TEAL:-$TONE_MUTE}" ;;
-        plum)   printf '%s' "${MARK_PLUM:-$TONE_MUTE}" ;;
-        *)
-            echo "barlib: unknown mark '$1' (warm|rust|pink|violet|blue|teal|plum) — using plum" >&2
-            printf '%s' "${MARK_PLUM:-$TONE_MUTE}"
-            ;;
-    esac
-}
+# The guards below are for a shell that reached here without them: a by-hand
+# run whose environment already carried the palette (FLAMINGO set skips the
+# source at the top, and functions, unlike exports, never ride the
+# environment) — one more read of the live file is what fixes that — or the
+# one colors.sh that genuinely predates the functions, the generation being
+# replaced when this change first lands (colors.sh and this file are
+# separate home.file entries, so a rebuild lands them in some order), where
+# the re-source is idempotent and the stubs are the last resort. Without
+# them every widget dies on `command not found` mid-render, taking the
+# whole batched --add with it; with them the bar paints mute/plum until the
+# activation-end reload repaints it, which is the documented failure
+# direction: wrong hue, never a pill that stops. `declare -F`, not `type`:
+# type answers for anything on PATH, and a binary that happens to be named
+# `mark` must not stand in for the resolver.
+if ! declare -F tone >/dev/null 2>&1 && [ -r "$HOME/.config/sketchybar/colors.sh" ]; then
+    source "$HOME/.config/sketchybar/colors.sh"
+fi
+if ! declare -F tone >/dev/null 2>&1; then
+    tone() { printf '%s' "${TONE_MUTE:-}"; }
+fi
+if ! declare -F mark >/dev/null 2>&1; then
+    mark() { printf '%s' "${MARK_PLUM:-${TONE_MUTE:-}}"; }
+fi
 
 # ---- state ------------------------------------------------------------------
 # Emitted keys become shell VARIABLES in render's scope, so a key that names
@@ -826,7 +786,7 @@ _barlib_pop_cap() {
 # the meta row under it, as vitals_lib and ai_usage did before they converted —
 # and `mute` here made the heading read as absent rather than quiet.
 #
-# --mark is the IDENTITY half (see mark() above), for a heading whose subject
+# --mark is the IDENTITY half (modules/bar/marks.nix), for a heading whose subject
 # the bar cannot know until it runs. --tone and --mark are LAST-WINS rather
 # than an error together: `--mark warm --tone mute` is a widget saying "this
 # is Claude, and its feed is dead", which is one heading with two things to

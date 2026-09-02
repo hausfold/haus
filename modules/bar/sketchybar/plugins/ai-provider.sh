@@ -49,9 +49,10 @@
 # shellcheck source=/dev/null
 [ -n "${BAR_FONT:-}" ] || source "$HOME/.config/sketchybar/sizes.sh"
 # No palette guard, and its absence is the point: this file dereferences no
-# colour at all any more. It names marks, and `mark()` in barlib is what turns
-# a name into a hex — with barlib's own `:-` fallbacks around the read, which
-# is where that guard's whole argument (colors.sh and the plugins are separate
+# colour at all any more. It names marks, and `mark()` — emitted into the
+# generated colors.sh from modules/bar/marks.nix, whose per-entry `fallback`
+# wraps each read in `:-` — is what turns a name into a hex, which is where
+# that guard's whole argument (colors.sh and the plugins are separate
 # home.file entries, so a rebuild lands them in some order) now lives once
 # instead of twice.
 
