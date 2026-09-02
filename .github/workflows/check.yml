@@ -36,7 +36,13 @@ jobs:
       #
       #   room-registry            registry vs the evaluated option tree
       #   data-only-surface        a package-typed option a data-only file can't set
-      #   agent-skill              the shipped SKILL.md's frontmatter and shape
+      #   agent-skill              the shipped skill's file inventory — and, by
+      #                            building it, the A4 shape guards that live in
+      #                            modules/ai/agents/skill.nix: frontmatter,
+      #                            `name: haus` against the install directory,
+      #                            the description's length, the 150-line cap,
+      #                            no surviving @placeholder@, no dangling
+      #                            references/ pointer
       #   pounce-item-grammar      modules/launcher/item-grammar.nix vs the LOCKED
       #                            pounce's ItemSettings.swift, so a prefix that
       #                            app learns can't spend a day being refused

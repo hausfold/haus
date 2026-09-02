@@ -147,12 +147,24 @@ modules/
                           #   user terminal writes — home-manager merges the two, and
                           #   a path collision is an error)
     agents/               # the haus agent skill (haus.ai.skill): hand-written
-                          #   SKILL.md + recipes, plus an option reference rendered
-                          #   per-revision — see skill.nix for why it's a package. ONE
-                          #   skill, installed into every client in haus.ai.clients
-                          #   (this room's agentHomes has the paths). Also ships the
-                          #   consumer starter pair (consumer-AGENTS.md + its
-                          #   consumer-CLAUDE.md pointer) `haus doctor` offers to copy
+                          #   SKILL.md + recipes + vm (the headless-VM loop), plus
+                          #   options and rooms rendered per-revision — see skill.nix
+                          #   for why it's a package. ONE skill, installed into every
+                          #   client in haus.ai.clients (this room's agentHomes has
+                          #   the paths). Also ships the consumer starter pair
+                          #   (consumer-AGENTS.md + its consumer-CLAUDE.md pointer)
+                          #   `haus doctor` offers to copy.
+                          #   skill.nix also carries this repo's A4 GUARD — the shape
+                          #   check every other family repo has and haus went without
+                          #   until 2026-09-02: frontmatter, `name: haus` against the
+                          #   directory it installs into, the description's length,
+                          #   the 150-LINE CAP, no surviving @placeholder@, and no
+                          #   references/ pointer the skill doesn't ship. It reads
+                          #   $out, never ./SKILL.md — that file is a template — and
+                          #   is inline rather than a script/check-skills.sh because
+                          #   this repo's CI runs `nix flake check`. Over the cap,
+                          #   detail goes to references/ or behind `haus --help`;
+                          #   never a longer SKILL.md
   core/                   # system: macOS defaults, Homebrew framework, core CLI, GC
                           #   + on-PATH CLIs: haus / haus-activate / awake.
                           #   `haus`'s wrapper hands the script two store paths

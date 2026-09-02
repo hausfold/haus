@@ -40,7 +40,7 @@ setup() {
   echo '{ outputs = _: { }; }' >"$HAUS_CONSUMER/flake.nix"
 
   # A stand-in for what agents/skill.nix builds: the rendered SKILL.md (the
-  # version line already substituted) plus its three reference pages, and the
+  # version line already substituted) plus its four reference pages, and the
   # consumer starter pair that is NOT part of the skill.
   export SKILL="$BATS_TEST_TMPDIR/skill"
   mkdir -p "$SKILL/references"
@@ -48,6 +48,7 @@ setup() {
   echo 'haus.theme.accent — the accent'   >"$SKILL/references/options.md"
   echo '## Focus'                          >"$SKILL/references/rooms.md"
   echo 'recipe: install an app'            >"$SKILL/references/recipes.md"
+  echo 'boot a headless VM'                >"$SKILL/references/vm.md"
   echo 'starter AGENTS.md'                 >"$SKILL/consumer-AGENTS.md"
   echo 'starter CLAUDE.md'                 >"$SKILL/consumer-CLAUDE.md"
 
@@ -205,7 +206,7 @@ haus_sh() { # haus_sh <VAR=val…> <snippet>
   for f in SKILL.md consumer-AGENTS.md consumer-CLAUDE.md; do
     [ -f "$d/$f" ] || fail "no $f"
   done
-  for f in options rooms recipes; do
+  for f in options rooms recipes vm; do
     [ -f "$d/references/$f.md" ] || fail "no references/$f.md"
   done
   # The one exception, and it is not one this can close: modules/ai renders
@@ -243,7 +244,7 @@ haus_sh() { # haus_sh <VAR=val…> <snippet>
   # ALL of them, the way a rebuild leaves them — a fixture that symlinks only
   # some would let this pass while the rest were quietly written over.
   for f in SKILL.md consumer-AGENTS.md consumer-CLAUDE.md; do ln -s "$SKILL/$f" "$d/haus/$f"; done
-  for f in options rooms recipes; do ln -s "$SKILL/references/$f.md" "$d/haus/references/$f.md"; done
+  for f in options rooms recipes vm; do ln -s "$SKILL/references/$f.md" "$d/haus/references/$f.md"; done
 
   haus_sh 'cmd_skill_install --client claude 2>&1'
   [ "$status" -eq 0 ] || fail "a machine in its NORMAL state was reported as a failure: $output"

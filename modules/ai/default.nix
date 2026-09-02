@@ -527,6 +527,10 @@ let
           # system — see agents/skill.nix.
           "${dir}/references/rooms.md".source = "${hausSkill}/references/rooms.md";
           "${dir}/references/recipes.md".source = "${hausSkill}/references/recipes.md";
+          # Seeing a change without taking the user's screen: the headless-VM
+          # loop SKILL.md's own trap sends the reader to. Hand-written like
+          # recipes.md — see agents/skill.nix.
+          "${dir}/references/vm.md".source = "${hausSkill}/references/vm.md";
           "${dir}/references/this-machine.md".text = thisMachine;
           "${dir}/consumer-AGENTS.md".source = "${hausSkill}/consumer-AGENTS.md";
           "${dir}/consumer-CLAUDE.md".source = "${hausSkill}/consumer-CLAUDE.md";

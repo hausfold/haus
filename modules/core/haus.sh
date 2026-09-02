@@ -682,7 +682,8 @@ haus — the everyday CLI for a haus machine.
                       a browser
   haus skill [name]   print haus's own agent skill — the file that teaches a
                       coding agent to change this Mac. With a name, one of its
-                      reference pages instead: options, rooms or recipes. Always
+                      reference pages instead; a name it hasn't got lists the
+                      ones it has, so this help never enumerates them. Always
                       the copy rendered from the revision this machine pinned,
                       so the option names in it are the ones you have
   haus skill install  write that skill into every agent client on this Mac that
@@ -4149,6 +4150,7 @@ cmd_skill_install() {
   local -a pages=(
     SKILL.md
     references/options.md references/rooms.md references/recipes.md
+    references/vm.md
     consumer-AGENTS.md consumer-CLAUDE.md
   )
   for t in "${targets[@]}"; do
