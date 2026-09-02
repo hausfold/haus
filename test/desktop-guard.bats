@@ -222,6 +222,25 @@ silent() {
   asks 'tart run scruff-lane --dir=work:/lane'
 }
 
+# ---- haus report -------------------------------------------------------------
+
+@test "a bug report asks before it opens a browser, and --print does not" {
+  # `haus report` ends in `open <the form>`: a window on the user's display,
+  # from a pane running in permission mode `auto`. `--print` prints the same
+  # block and the same link and opens nothing, which is the only form of it an
+  # agent wants — hand over the link, don't take the screen.
+  asks 'haus report'
+  asks 'haus report -v'
+  silent 'haus report --print'
+  silent 'haus report --print | pbcopy'
+  silent 'haus report --print >/tmp/block.txt'
+  # Segment by segment, like every other unpaired rule: one --print does not
+  # exempt the bare call beside it.
+  asks 'haus report --print; haus report'
+  # And the word in prose is not the command.
+  silent 'git commit -m "haus report opens the real form now"'
+}
+
 # ---- the contract ------------------------------------------------------------
 
 @test "every verdict is ask, on exit 0, and unknown tools are left alone" {

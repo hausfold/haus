@@ -262,6 +262,20 @@ sys.exit(0 if q["diagnostics"][0] == block else 1)
   [ -s "$COPIED" ] || fail "nothing on the clipboard"
   grep -q 'xxxx' "$COPIED" || fail "the clipboard did not get the block"
   grep -q -- '--source haus.report' "$NOTIFIED" || fail "no banner: $(cat "$NOTIFIED" 2>/dev/null)"
+  # The kind is the difference between arriving and not: under a Focus, trill's
+  # standard policy banners `fault` and files everything else in the inbox, so a
+  # `note` here would be silently filed on the machine most likely to be in one.
+  grep -q -- '--kind fault' "$NOTIFIED" || fail "the banner is filable: $(cat "$NOTIFIED")"
+}
+
+@test "the clipboard write is gated on BOTH streams" {
+  # `haus report >out.txt` from a terminal leaves fd 2 in front of a person, so
+  # a clipboard they did not ask for is a clipboard we took. This suite has no
+  # pty to prove that with (bats hands `run` two pipes), so the decision is
+  # pinned where it is written — the same way phase-painter.bats pins the
+  # REPORT arm of the dispatch.
+  grep -qF 'if [ -t 1 ] || [ -t 2 ] || [ -n "$quiet" ]; then' "$SUBJECT" \
+    || fail "the overflow branch no longer asks about both streams"
 }
 
 # ---- opening, and not opening ------------------------------------------------
@@ -286,6 +300,16 @@ sys.exit(0 if q["diagnostics"][0] == block else 1)
 }
 
 # ---- the palette row ---------------------------------------------------------
+
+@test "the verb is discoverable: help, and zsh completion" {
+  # A door nobody can find is the same as no door. haus-completion.zsh's own
+  # header says "an arm missing here is a command nobody discovers", and nothing
+  # in CI checks that list against the dispatch — so at least this arm is pinned
+  # from the side that cares.
+  grep -q "^  haus report " "$SUBJECT" || fail "haus --help does not list report"
+  grep -q "^    'report:" "$BATS_TEST_DIRNAME/../modules/core/haus-completion.zsh" \
+    || fail "zsh completion does not offer report"
+}
 
 @test "the palette row is one exec into the verb, by absolute path" {
   # pounce's daemon inherits launchd's bare PATH, so a bare `haus` there is a

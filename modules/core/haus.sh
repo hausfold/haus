@@ -3746,8 +3746,11 @@ REPORT_URL_MAX=6000
 # glob character stays a literal.
 report_redact() {
   local home="${HOME:-}"
+  # Trailing slashes come off FIRST and all of them: `HOME=//` survives a single
+  # `%/` as `/`, and `/` as a needle rewrites every path in the report — and
+  # every slash in its prose — to `~`.
+  while [ "$home" != "${home%/}" ]; do home="${home%/}"; done
   case "$home" in "" | /) printf '%s' "$1"; return 0 ;; esac
-  home="${home%/}"
   printf '%s' "${1//"$home"/\~}"
 }
 
@@ -3805,14 +3808,18 @@ cmd_report() {
   block="$(REPORT=1; C_OFF=; C_FOG=; C_OK=; C_WARN=; C_ERR=; C_MUT=; report_header; echo; cmd_doctor)" || true
   block="$(report_redact "$block")"
 
-  # Strict percent-encoding: everything that is not RFC 3986 unreserved, UTF-8
-  # byte by byte. `jq @uri` rather than a hand-rolled loop, and not because it is
-  # shorter — an encoder built from a "characters allowed in a query" set (which
-  # is what `URLComponents` and most one-liners use) CONTAINS `+`, so it leaves
-  # it literal and the receiving server reads it back as a space. doctor prints
-  # `Tahoe+` on every Mac running one, and a pounce-style palette report prints
-  # `cmd+space` on nearly every line. jq is already load-bearing here (the
-  # permissions deck is jq), so this adds no dependency.
+  # Strict percent-encoding, UTF-8 byte by byte. `jq @uri` rather than a
+  # hand-rolled loop, and not because it is shorter — an encoder built from a
+  # "characters allowed in a query" set (which is what `URLComponents` and most
+  # one-liners use) CONTAINS `+`, so it leaves it literal and the receiving
+  # server reads it back as a space. doctor prints `Tahoe+` on every Mac running
+  # one, and a pounce-style report prints `cmd+space` on nearly every line.
+  #
+  # What jq keeps unencoded is RFC 2396's unreserved set (3986's, plus
+  # `!~*'()`) — sub-delims, legal in a query and returned verbatim, so the
+  # round trip is exact either way. `+`, `&`, `=`, `#`, `%` and space are all
+  # encoded, which is the whole of what this has to get right. jq is already
+  # load-bearing here (the permissions deck is jq), so it adds no dependency.
   encoded="$(printf '%s' "$block" | jq -sRr @uri)"
   url="$REPORT_FORM&diagnostics=$encoded"
   if [ "${#url}" -gt "$REPORT_URL_MAX" ]; then
@@ -3829,19 +3836,34 @@ cmd_report() {
     # to the reporter's own pasteboard — the door's single write, to their
     # clipboard, and it is still the reporter who presses Submit.
     #
-    # `--print` is excluded from that write deliberately, terminal or not: it
-    # means "hand me the text", and `haus report --print | pbcopy` should not
-    # find the clipboard already taken by a copy it never asked for.
-    if [ -t 1 ] || [ -n "$quiet" ]; then
-      info "too long to prefill — paste the block above into the form's diagnostics field."
+    # The gate is EITHER stream, the same conservative reading of "is a human
+    # watching" the verbose gate up by the rebuild front end takes: with
+    # `haus report >out.txt` from a terminal, fd 1 is a file and fd 2 is still
+    # the person, so a clipboard they did not ask for is a clipboard we took.
+    # `--print` is excluded whatever the streams say, because it means "hand me
+    # the text" — `haus report --print | pbcopy` must not find the clipboard
+    # already taken by a copy it never asked for.
+    if [ -t 1 ] || [ -t 2 ] || [ -n "$quiet" ]; then
+      # 7 KB of scrollback is the truncation problem this door exists to remove,
+      # so name the command that hands it over whole rather than saying "select
+      # the text above".
+      info "too long to prefill — paste the block above into the form's diagnostics field, or: haus report --print | pbcopy"
     elif printf '%s\n' "$block" | pbcopy 2>/dev/null; then
       info "too long to prefill — copied to the clipboard instead."
-      # Reached only from the palette row (no terminal, and a browser about to
-      # open), where this banner is the only way the person learns there is
-      # something to paste — an empty field they were not told about is the
-      # silent failure this whole door exists to stop.
+      # Reached only from the palette row (no terminal on either stream, and a
+      # browser about to open), where this banner is the only way the person
+      # learns there is something to paste — an empty field they were not told
+      # about is the silent failure this whole door exists to stop.
+      #
+      # `--kind fault` rather than `note`, and that is the difference between
+      # arriving and not: under a Focus, trill's standard policy banners `fault`
+      # and files everything else in the inbox (its `FocusPolicy.standard` —
+      # `{fault: banner, ask: ledge}`, fallback `inbox`), so a `note` would be
+      # silently filed on exactly the machine that is most likely to be in one.
+      # Not `--urgency critical`, which would also outrank quiet hours: a bug
+      # report at 3am can wait for the inbox.
       if command -v haus-notify >/dev/null 2>&1; then
-        haus-notify --source haus.report --kind note --symbol ladybug \
+        haus-notify --source haus.report --kind fault --symbol ladybug \
           --title "Paste your haus report" \
           --body "It was too long to fill in for you, so it's on your clipboard — paste it into the form's diagnostics field." \
           >/dev/null 2>&1 || true

@@ -353,6 +353,14 @@ if unpaired '^ *tart +run([[:space:]]|$)' 'tart +run.*--no-graphics'; then
   ask "\`tart run\` without \`--no-graphics\` opens the VM's window on the user's display. Boot it headless — that is what \`scruff runtime up --backend tart\` does."
 fi
 
+# `haus report` ends by opening the bug form in a browser — a window on the
+# user's display, from a pane that runs in permission mode `auto`. `--print`
+# stops before that and prints the block and the link instead, which is also the
+# only form of it any agent wants: hand over the link, don't take the screen.
+if unpaired '^ *haus +report([[:space:]]|$)' 'haus +report.*--print'; then
+  ask "\`haus report\` opens the bug form in the user's browser. \`haus report --print\` prints the same block and the same link and opens nothing — hand them the link."
+fi
+
 m '(darwin-rebuild +switch|haus +rebuild|BENCH_AGENT_SWITCH=[^ ]* +.*try +.*switch)' &&
   ask "Activation is machine-wide and serial — with several lanes running, the last one to switch silently wins."
 
