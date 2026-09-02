@@ -10,9 +10,10 @@
 # session, and — the moment anything is looking at it — a Ghostty window forced
 # to its name, tiled on that repo's own T/<repo> page.
 #
-# Return files it and gets out of your way: the box closes at once, the lane
-# comes up with NO window anywhere, and a banner says so when it is actually
-# running. ⌃↵ is the one that opens the window and brings it to you.
+# Return files it and gets out of your way: the box closes at once, the lane's
+# window is born off-screen and walked to T/<repo> without ever reaching you,
+# and a banner says so when it is actually running — click it and you are taken
+# to that page. ⌃↵ is the one that brings you there in the first place.
 #
 # Why it exists: the same thing by hand is caps→t to a terminal, cd to the repo,
 # ⌃⌘A for a lane, then type the prompt — and the worktree ends up
@@ -88,9 +89,10 @@
 # Backgrounding is the right default because of what a spawn IS: you describe a
 # task in a sentence and hand it to somebody else. Almost none of those are the
 # thing you are about to sit and watch — you keep doing what you were doing and
-# visit the lane when it has something to show (⌃⇥, the Lanes palette, the bar's
-# agents pill). Making the common case the plain Return means the palette can
-# get out of the way completely: box → gone → banner when the lane is up.
+# visit the lane when it has something to show (the banner's own click, ⌃⇥, the
+# Lanes palette, the bar's agents pill). Making the common case the plain Return
+# means the palette can get out of the way completely: box → gone → banner when
+# the lane is up, and that banner is a door rather than a receipt.
 #
 # Nothing else moves while that happens: the lane's Ghostty is exec'd from the
 # app bundle directly, so LaunchServices never activates anything, and the
@@ -728,6 +730,16 @@ if [ "$rc" -ne 0 ]; then
   exit 1
 fi
 
+# trill's lane whitelist, halved: each side of a lane id is a basename, so
+# neither may carry a slash of its own even though the joined target does.
+# Prints the qualified target and succeeds, or prints nothing and fails — a
+# function rather than an inline `case` so the test runs the real one.
+lane_target() {
+  case "$1" in "" | *[!A-Za-z0-9._-]*) return 1 ;; esac
+  case "$2" in "" | *[!A-Za-z0-9._-]*) return 1 ;; esac
+  printf '%s/%s\n' "$1" "$2"
+}
+
 # ── say so, when there is nothing to see ──────────────────────────────────
 # The default spawn puts nothing on any screen — no window, no tile, nothing to
 # glance at — and the palette is already gone by the time scruff finishes, so
@@ -735,13 +747,33 @@ fi
 # at all and you are left wondering whether it took. This banner IS the receipt,
 # and it fires when the lane genuinely exists rather than when the box closed.
 #
-# It is a RECEIPT and nothing more — `haus-notify`'s actions are URL-only, so
-# there is nothing to click here. The clickable door is scruff's own fin, which
-# trill parks when the lane blocks or finishes (`scruff hook notify`, wired in
-# terminal/default.nix): that click runs `scruff focus`, which finds no window,
-# defers, and comes back through lane-open.sh's foreground path with one tiled on
-# T/<repo>. Until the lane says something, the doors are the bar's agents pill
-# and the Lanes palette.
+# It is also the DOOR to the lane it announces. `--action "…=lane:<repo>/<name>"`
+# is trill's `focus_lane`, and trill's own rule is that the first action is what
+# clicking the banner BODY does — so the whole card is the target, not just the
+# pill. The click runs `scruff focus <repo>/<name>`, which goes through
+# lane-focus.sh: the background spawn already has a window tiled on T/<repo>, so
+# the common answer is a plain raise onto that page, and the one case where the
+# window was closed with ⌘W defers back into lane-open.sh and opens a fresh one
+# there. Exactly the path scruff's own fin takes when the lane later blocks or
+# finishes (`scruff hook notify`) — this just stops the FIRST banner being the
+# one that can't take you anywhere.
+#
+# Qualified by repo, and spelled the way scruff spells it everywhere else
+# (`laneID`: the main checkout's basename, then the lane name) — `scruff child`
+# puts one lane name in two repos, and an unqualified name is the ambiguity
+# `scruff focus` refuses to guess at. `$repo_name` IS that basename: the repo
+# list builds it with `basename "$repo"` and `$repo` is what `scruff spawn` was
+# handed, so the two cannot drift.
+#
+# And it is OFFERED rather than assumed, which is the one thing this block has
+# to get right. trill whitelists a lane target ([A-Za-z0-9._-/]) and refuses the
+# WHOLE send when it fails — not just the action — so a repo directory with a
+# space or a `+` in its name would cost this banner its trill rendering
+# altogether: haus-notify catches the refusal and falls through to Apple's, and
+# the spawn receipt quietly loses its threading, its symbol and its `rules.json`
+# routing over a character in a folder name. So the action goes in only when it
+# would be accepted, and an oddly-named repo keeps exactly the banner it had
+# before and loses only the click.
 #
 # ⌃↵ gets none: the lane window is what you are looking at when it lands, and a
 # banner about the thing on your screen is noise.
@@ -753,9 +785,12 @@ if [ -n "${background:-}" ]; then
   # Through haus-notify, so trill draws it when it can and `rules.json` can
   # route it — this is the one banner here that is news rather than a failure,
   # so it is a `pulse` and it threads on the lane name.
-  /run/current-system/sw/bin/haus-notify --source haus.lane --kind pulse --symbol play.circle \
-    --thread "$name" --title "haus · agent lane" \
-    --body "$repo_name — $name is working" >/dev/null 2>&1
+  banner=(--source haus.lane --kind pulse --symbol play.circle
+          --thread "$name" --title "haus · agent lane"
+          --body "$repo_name — $name is working")
+  target="$(lane_target "$repo_name" "$name")" \
+    && banner+=(--action "Go to lane=lane:$target")
+  /run/current-system/sw/bin/haus-notify "${banner[@]}" >/dev/null 2>&1
 fi
 # Explicitly, so the spawn's exit status is the spawn's and not a notification's.
 exit 0
