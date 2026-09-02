@@ -11,10 +11,11 @@
 # `subscribes` is a pill that stops updating with nothing on any stream.
 #
 # knownKeys is exactly the set frameworkBlock CONSUMES, grown only in the
-# same change that implements a key. `permissions` and `movable` are planned
-# (docs/bar-framework.md) but deliberately absent until then: a key that
-# parses green and wires nothing is the silent ignore this file's whole job
-# is to refuse.
+# same change that implements a key — a key that parses green and wires
+# nothing is the silent ignore this file's whole job is to refuse. There are
+# no keys waiting to be added: `permissions` and `placement` are already
+# `haus.bar.widgets.<name>.*` options, which is the only place a third
+# party's widget could declare either (docs/bar-framework.md).
 { lib }:
 let
   knownKeys = [

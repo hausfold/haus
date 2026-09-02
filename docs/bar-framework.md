@@ -122,7 +122,7 @@ underneath it: `haus.bar.widgets.<name>.permissions` and `.placement` are
 already OPTIONS, which is the only place a third party's widget could declare
 either, and for the bundled pills `widgets.nix` has to keep both columns while
 thirty-odd hand-written plugins still feed the permission deck from it. A
-header key would have been a second source for the four converted pills and
+header key would have been a second source for the converted pills and
 nothing else — and `movable` would have read `= true` in every header ever
 written, since `claudeUsage` (an alias, not a pill) is the sole `false`.
 
