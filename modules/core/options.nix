@@ -740,9 +740,12 @@ in
           and a code preview stay mono, because a column that shifts is harder
           to read rather than easier.
 
-          Name a family the machine has, or one `package` / `packageName`
-          installs. A family that isn't there falls back to the system font
-          silently — there is no tofu to see, which is why haus warns instead.
+          Name a family the machine has — macOS ships plenty, and `haus.roster`
+          installs more — or one `package` / `packageName` puts there. A family
+          that isn't there falls back to the system font **silently**: there is
+          no tofu to see, and every surface goes on looking exactly as it did,
+          so a misspelling reads as "the option does nothing". Check the
+          spelling against Font Book if nothing moves.
         '';
       };
 
@@ -758,7 +761,9 @@ in
           Set this whenever you set `name` to something the machine doesn't
           already have, or the family simply won't exist and every surface
           falls back to the system font — which looks exactly like the setting
-          not working. haus warns if it spots that combination.
+          not working. Unlike `fonts.mono`, haus does NOT warn about the
+          combination: naming a proportional family the Mac already has is the
+          ordinary case, so the warning would fire on correct configurations.
 
           A shared desktop can't set this one — it needs `pkgs`, and a
           data-only desktop has no arguments. Use `packageName` there.

@@ -536,20 +536,20 @@ let
 
   # Naming a family haus was never given a package for is silent tofu:
   # Ghostty just falls back and the powerline/icon glyphs vanish. Cheap to spot.
+  #
+  # ⚠️ NO SANS TWIN, and that is a decision rather than an omission. For mono,
+  # naming a family with no package is nearly always a mistake — the default is
+  # a package haus installs, and the fallback is visibly broken. For sans it is
+  # the ORDINARY case: the default family is macOS's own, every Mac ships
+  # dozens more, `haus.roster` installs fonts by cask, and the option's own
+  # description tells you to name one the machine has. A warning on every
+  # rebuild of a correct configuration, with no way to say "I know", is worse
+  # than the failure it would report.
   fontFamilyUnprovided =
     fontsCfg.mono.package == null
     && fontsCfg.mono.packageName == null
     && fontsCfg.mono.name != options.haus.fonts.mono.name.default;
 
-  # The same mistake on the proportional side, and it is HARDER to see rather
-  # than easier: there is no tofu, because the fallback is the system UI font
-  # every one of these surfaces was drawing before. The bar, the launcher, the
-  # shelf and the banners all look exactly as they did, so the reading is "that
-  # option does nothing" rather than "that font isn't installed".
-  sansFamilyUnprovided =
-    fontsCfg.sans.package == null
-    && fontsCfg.sans.packageName == null
-    && fontsCfg.sans.name != options.haus.fonts.sans.name.default;
 in
 {
   system.primaryUser = username;
@@ -574,19 +574,7 @@ in
   # advance. Drop this once upstream guards the writes.
   #   https://github.com/nix-darwin/nix-darwin/issues/1049
   warnings =
-    lib.optional sansFamilyUnprovided ''
-      haus: fonts.sans.name is "${fontsCfg.sans.name}" but neither
-      fonts.sans.package nor fonts.sans.packageName is set.
-
-      haus only installs the font it's given. If that family isn't already on
-      this Mac, the clock pill, pounce, perch and trill all fall back to the
-      system UI font — which is what they drew before you set this, so the
-      symptom is "the option did nothing" rather than anything visibly broken.
-      Name the matching package: fonts.sans.packageName =
-      "atkinson-hyperlegible" (or fonts.sans.package = pkgs.atkinson-hyperlegible,
-      outside a data-only desktop).
-    ''
-    ++ lib.optional fontFamilyUnprovided ''
+    lib.optional fontFamilyUnprovided ''
       haus: fonts.mono.name is "${fontsCfg.mono.name}" but neither
       fonts.mono.package nor fonts.mono.packageName is set.
 

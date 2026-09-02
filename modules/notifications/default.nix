@@ -104,13 +104,22 @@ lib.mkIf config.haus.notifications.compositor {
   # in there from its own Settings window, and replacing the file would throw
   # those away on every rebuild.
   #
-  # Guarded three ways, because this is somebody's settings file. A file that
-  # isn't valid JSON is left ALONE rather than replaced with a fresh one — it is
-  # more likely mid-edit than corrupt, and "haus deleted my settings" is not a
-  # recovery. The write is atomic (jq to a temp, then `mv`), so a reader — trill's
-  # own watcher included — never sees half a file. And it is skipped entirely
-  # when the value is already there, so a rebuild that changes nothing rewrites
-  # nothing and trill's watcher stays quiet.
+  # THIS IS SOMEBODY'S SETTINGS FILE, so every branch below is about not
+  # damaging it. A symlink is stepped over entirely — a store one because trill
+  # would then refuse every toggle in Settings (its `isManagedExternally`), and
+  # any OTHER one because it is somebody's dotfiles link and `mv` would replace
+  # the link with a regular file, orphaning the source and silently ending every
+  # future edit to it. A file that isn't valid JSON is left alone rather than
+  # replaced with a fresh one: mid-edit is likelier than corrupt, and "haus
+  # deleted my settings" is not a recovery. The write goes through `mktemp` and
+  # a rename, so it is atomic against a reader — trill's own watcher included —
+  # and against a second rebuild racing this one, which is not hypothetical in
+  # this room (see the install lock below). The mode is carried across, because
+  # a `mv` would otherwise hand a 0600 config the umask's 0644.
+  #
+  # And it is skipped entirely when the value is already there, so a rebuild
+  # that changes nothing rewrites nothing and trill's watcher stays quiet.
+  #
   # A module FUNCTION so it gets home-manager's extended lib — the outer
   # nix-darwin `lib` has no `hm`, and `lib.hm.dag` is what orders an activation
   # step. Same shape ../shelf uses for its theme drop.
@@ -121,36 +130,49 @@ lib.mkIf config.haus.notifications.compositor {
         run sh -c '
           config="$0"
           family="$1"
-          mkdir -p "''${config%/*}"
-          # A store symlink here would be trill refusing every toggle in Settings
-          # (its `isManagedExternally`), which no key of haus'"'"'s is worth. If some
-          # other generation left one, step over it rather than writing through it.
+          jq="$2"
+          mkdir -p "''${config%/*}" || exit 0
+          # Any symlink, not just a store one: see the note above.
           if [ -L "$config" ]; then
-            case "$(readlink "$config")" in
-              /nix/store/*)
-                echo "trill: ~/.config/trill/config.json is a store symlink; leaving it alone (trill would refuse every toggle in Settings)." >&2
-                exit 0
-                ;;
-            esac
+            echo "trill: $config is a symlink; leaving it alone rather than replacing it with a file." >&2
+            exit 0
           fi
           if [ -s "$config" ]; then
-            if ! ${pkgs.jq}/bin/jq -e . "$config" >/dev/null 2>&1; then
-              echo "trill: ~/.config/trill/config.json is not valid JSON; leaving it alone rather than replacing it." >&2
+            if ! "$jq" -e "type == \"object\"" "$config" >/dev/null 2>&1; then
+              echo "trill: $config is not a JSON object (or cannot be read); leaving it alone." >&2
               exit 0
             fi
-            if [ "$(${pkgs.jq}/bin/jq -r ".fontFamily // empty" "$config")" = "$family" ]; then
+            if [ "$("$jq" -r ".fontFamily // empty" "$config")" = "$family" ]; then
               exit 0
             fi
             base="$config"
+            mode="$(stat -f %Lp "$config" 2>/dev/null || echo 644)"
           else
-            base="$config.haus-seed"
-            printf "{}" > "$base"
+            base=""
+            mode=644
           fi
-          tmp="$config.haus-tmp"
-          ${pkgs.jq}/bin/jq --arg family "$family" ".fontFamily = \$family" "$base" > "$tmp" \
-            && mv "$tmp" "$config"
-          rm -f "$config.haus-seed" "$tmp"
-        ' "$HOME/.config/trill/config.json" ${lib.escapeShellArg config.haus.fonts.sans.name}
+          tmp="$(mktemp "$config.haus.XXXXXX")" || {
+            echo "trill: could not write beside $config — haus.fonts.sans.name has not reached trill." >&2
+            exit 0
+          }
+          if [ -n "$base" ]; then
+            "$jq" --arg family "$family" ".fontFamily = \$family" "$base" > "$tmp"
+          else
+            printf "{}" | "$jq" --arg family "$family" ".fontFamily = \$family" > "$tmp"
+          fi || {
+            echo "trill: could not write $config — haus.fonts.sans.name has not reached trill." >&2
+            rm -f "$tmp"
+            exit 0
+          }
+          chmod "$mode" "$tmp" 2>/dev/null || true
+          mv "$tmp" "$config" || {
+            echo "trill: could not replace $config — haus.fonts.sans.name has not reached trill." >&2
+            rm -f "$tmp"
+          }
+          exit 0
+        ' "$HOME/.config/trill/config.json" ${
+          lib.escapeShellArg config.haus.fonts.sans.name
+        } ${pkgs.jq}/bin/jq
       '';
     };
 
