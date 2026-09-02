@@ -542,15 +542,14 @@ let
       pillItems = [ name ] ++ segIds;
       addOrder = if side == "right" then lib.reverseList pillItems else pillItems;
       bracketId = "${name}.pill";
-      # The runtime has to know it is segmented, and the HEADER is the single
-      # source for that — so the emitter hands it over in the one channel a
-      # sketchybar script has, its own command line. barlib reads
-      # $BARLIB_SEGMENTS to find the bracket (its popup) and to strip a
-      # segment's id back to the head on the way in. A second declaration in
-      # the script would be a second source, which is the whole thing the
-      # manifest exists to avoid.
-      scriptCmd =
-        if segmented then "BARLIB_SEGMENTS='${lib.concatStringsSep " " m.segments}' ${run}" else run;
+      # The runtime learns it is segmented from the same HEADER this parsed, by
+      # reading the widget's own file — not from anything the emitter puts on
+      # the command line. `script=` and `click_script=` are the only argv
+      # sketchybar controls, and they are not the only ways a widget runs: a
+      # push path that invokes the reader DIRECTLY (agents-hook.sh does, on
+      # every agent state change) would arrive without it, and every segment
+      # would be silently dropped while the state cache was written anyway.
+      # See barlib.sh's own note beside the parse.
       setArgs = lib.filter (s: s != "") (
         [ (lib.optionalString (m.interval != null) "update_freq=${toString m.interval}") ]
         ++ lib.mapAttrsToList (k: v: "${k}=${v}") (
@@ -571,7 +570,7 @@ let
           // graphArgs
           // style
         )
-        ++ [ ''script="${scriptCmd}"'' ]
+        ++ [ ''script="${run}"'' ]
       );
       # A segment is a mark and a count in ONE colour, and it carries no
       # background of its own for the reason above. `SENDER=mouse.clicked`
@@ -590,7 +589,7 @@ let
         "label.padding_left=0"
         "label.padding_right=10"
         ''label.font="${barFont}:Bold:${sizes.label}"''
-        ''click_script="SENDER=mouse.clicked ${scriptCmd}"''
+        ''click_script="SENDER=mouse.clicked ${run}"''
       ];
       # The pill itself. `drawing=off` to match its members: an all-hidden
       # bracket still paints its own background, so it would park an empty
@@ -811,14 +810,6 @@ let
               click_script="open -a 'System Settings' 'x-apple.systempreferences:com.apple.wifi-settings-extension'" \
               update_freq=10
     '';
-    # Agent-pane status, for whichever client the pane runs (Claude Code, Codex,
-    # Opencode). The refresh is push, not poll: agents-hook.sh invokes
-    # agents.sh directly on every agent state change, so the pill updates even
-    # while hidden (a drawing=off item's own update_freq never ticks, and custom
-    # --trigger events are delivered inconsistently across --reload — neither can
-    # revive a hidden pill). update_freq is only a while-visible backstop to reap
-    # stale files. Starts hidden; agents.sh flips it on when a pane is live.
-    # Popup styling mirrors the apple-logo menu.
     # The agent lanes pill — four items under a bracket, which is what
     # `# widget: segments = ready, working, done` in agents.sh buys: SketchyBar
     # colours a label exactly once, and this pill says three counts in three
@@ -839,6 +830,30 @@ let
       "icon.padding_left" = "10";
       "icon.padding_right" = "8";
     };
+    # AI rate-limit gauges (5-hour session + 7-day weekly) and API spend, one row
+    # per reporting client. Two feed shapes, both ending in
+    # ~/.cache/claude-statusline/usage-*.tsv:
+    #   • pushed — modules/ai/statusline.sh stashes the percentages Claude Code
+    #     hands every statusline render, then invokes ai_usage.sh when one moves.
+    #   • pulled — Codex and Claude (account API calls) and Opencode (a sqlite
+    #     read), fetched by claude-statusline-refresh --usage-only. The plugin
+    #     kicks that itself on a TTL, which is what keeps this pill honest on a
+    #     machine driving a client that pushes nothing — including Claude Code's
+    #     own macOS app, which renders no statusline and so pushes nothing either.
+    # Each row carries TWO stamps, and the difference is the pill's whole model of
+    # itself: column 5 is when the row was WRITTEN (what greys it) and column 9 is
+    # when quota was last USED (what `latest` picks on). One column doing both
+    # meant a feed's poll rate decided which provider the pill showed.
+    # update_freq is the while-visible backstop that rolls a window over to 0% at
+    # its reset. Starts hidden until the first row lands.
+    # What is left here is IDENTITY and the one thing a widget cannot say about
+    # itself: it starts HIDDEN. `updates=on` is the other half of that pair and
+    # is load-bearing — both bars default to `updates=when_shown`, under which a
+    # hidden item is not dispatched to at all, so its own update_freq would
+    # never tick and nothing would ever reveal it. With the pairing, the pill
+    # ticks while invisible and shows itself the moment a feed lands; that is
+    # what retired the one-shot kick this block used to carry, and it is the
+    # same door `pill --hide` closes from the script side.
     aiUsage = frameworkBlock sb side "ai_usage" {
       "drawing" = "off";
       "updates" = "on";

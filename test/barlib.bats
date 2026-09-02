@@ -1114,3 +1114,69 @@ on_click() { popup_open; }'
   ! grep -q 'click_script=; ' "$SB_LOG"
   grep -q 'click_script=.* --set w popup.drawing=off' "$SB_LOG"
 }
+
+# ---- the segment list has to survive a DIRECT invocation --------------------
+# The pill's primary update path is not sketchybar's. agents-hook.sh runs the
+# reader itself (`SENDER=refresh NAME=agents "$reader"`) on every agent state
+# change, so anything carried on `script=`'s command line is absent exactly
+# where the pill learns the most. These pin the file-read that replaced it.
+
+@test "a direct invocation still finds segments, from the widget's own header" {
+  # No BARLIB_SEGMENTS in the environment — the hook's shape.
+  NAME=agents SENDER=refresh widget '
+# widget: segments = ready, working, done
+    fetch() { emit n=1; }
+    render() { pill --icon B --tone ok; segment ready --icon "?" --label "$n" --tone bad; }
+  '
+  grep -q -- '--set agents.pill drawing=on' "$SB_LOG"
+  grep -q -- '--set agents.ready drawing=on' "$SB_LOG"
+  grep -q -- '--set agents.ready label=1' "$SB_LOG"
+}
+
+@test "a direct invocation reaches the bracket's popup too" {
+  NAME=agents SENDER=mouse.clicked widget '
+# widget: segments = ready, working, done
+    popup_rows() { popup_heading --label Agents; }
+    on_click() { popup_open; }
+  '
+  grep -q -- '--add item agents.pill.popup.0 popup.agents.pill' "$SB_LOG"
+}
+
+@test "the hide path takes the bracket down on a direct invocation" {
+  # The failure this pins: head hidden, bracket and its stale counts left
+  # drawn — an empty capsule with numbers in it and no bot.
+  NAME=agents SENDER=refresh widget '
+# widget: segments = ready, working, done
+    fetch() { emit n=0; }
+    render() { pill --hide; segment ready --hide; }
+  '
+  grep -q -- '--set agents drawing=off updates=on' "$SB_LOG"
+  grep -q -- '--set agents.pill drawing=off' "$SB_LOG"
+  grep -q -- '--set agents.ready drawing=off' "$SB_LOG"
+}
+
+@test "a header with no segments key leaves the pill unsegmented" {
+  NAME=w SENDER=routine widget '
+# widget: interval = 10
+    fetch() { emit n=1; }
+    render() { pill --hide; }
+  '
+  ! grep -q 'w.pill' "$SB_LOG"
+}
+
+@test "an explicit BARLIB_SEGMENTS still overrides the file" {
+  NAME=agents BARLIB_SEGMENTS="ready" SENDER=refresh widget '
+# widget: segments = ready, working, done
+    fetch() { emit n=1; }
+    render() { segment working --icon x --label 1 --tone ok; }
+  ' 2>"$BATS_TEST_TMPDIR/err"
+  grep -q "is not in segments" "$BATS_TEST_TMPDIR/err"
+}
+
+@test "--name-tone without a --value warns instead of doing nothing" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_row --label plain --name-tone busy; }
+    on_click() { popup_open; }
+  ' 2>"$BATS_TEST_TMPDIR/err"
+  grep -q -- "--name-tone needs a --value" "$BATS_TEST_TMPDIR/err"
+}

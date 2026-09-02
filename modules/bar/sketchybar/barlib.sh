@@ -85,11 +85,37 @@ case "${NAME:-}" in
 esac
 
 # ---- segmented pills: which item is the widget, and which holds the popup ----
-# $BARLIB_SEGMENTS is set by the emitter, off the `segments =` header, and is
-# the only thing that tells a running script its pill is a BRACKET over N+1
-# items (modules/bar/default.nix, `frameworkItem`). Two ids have to come back
-# to the head from it, and both arrive as $NAME because sketchybar exports
-# whichever item was actually touched:
+# A pill whose header carries `segments =` is a BRACKET over N+1 items
+# (modules/bar/manifest.nix). The running script has to know that, and it
+# learns it from THE SAME HEADER the emitter reads — parsed out of $0, the
+# widget's own file, because barlib is SOURCED and so $0 is the widget.
+#
+# ⚠️ It is read from the file rather than handed over on the command line, and
+# that is not a preference. A script= and a click_script= are the only two
+# argv sketchybar controls, and they are not the only ways this widget runs:
+# agents-hook.sh invokes the reader DIRECTLY (`SENDER=refresh NAME=agents`)
+# on every agent state change, and that push path is how the agents pill
+# learns almost everything. A variable that rode the command line would be
+# absent exactly there — every `segment` call dropped, the bracket left
+# undrawn, and `_barlib_tick` writing the new state to the cache anyway, so
+# the next tick would find no diff and never repaint. The counts would freeze
+# until a reload. The header travels with the file, so it reaches every
+# caller.
+#
+# Nix validates, the shell reads: manifest.nix refuses a bad `segments =` at
+# EVAL, so anything that gets this far has already passed. $BARLIB_SEGMENTS
+# stays as an override for a harness (test/barlib.bats sets it) and for a
+# by-hand run of a file whose header you want to ignore.
+if [ -z "${BARLIB_SEGMENTS:-}" ] && [ -n "${0:-}" ] && [ -r "${0:-}" ]; then
+    BARLIB_SEGMENTS=$(
+        sed -n 's/^#[[:space:]]*widget:[[:space:]]*segments[[:space:]]*=[[:space:]]*//p' "$0" \
+            | head -1 | tr ',' ' ' | tr -s '[:space:]' ' '
+    )
+    BARLIB_SEGMENTS="${BARLIB_SEGMENTS#"${BARLIB_SEGMENTS%%[![:space:]]*}"}"
+    BARLIB_SEGMENTS="${BARLIB_SEGMENTS%"${BARLIB_SEGMENTS##*[![:space:]]}"}"
+fi
+# Two ids have to come back to the head, and both arrive as $NAME because
+# sketchybar exports whichever item was actually touched:
 #
 #   * a SEGMENT's click_script — `agents.ready`. Stripped by name rather than
 #     at the first dot, because the head's own id may contain one and a blind
@@ -900,11 +926,11 @@ popup_heading() {
 # something; it is the glyph that is subordinate, not the sentence.
 popup_row() {
     local label='' icon='' icon_tone=mute action='' value='' have_value=0 tone_set=0
-    local cap=0 marquee=0 name_tone=dim
+    local cap=0 marquee=0 name_tone=dim name_tone_set=0
     while [ $# -gt 0 ]; do
         case "$1" in
             --label) label=$2; shift 2 ;;
-            --name-tone) name_tone=$2; shift 2 ;;
+            --name-tone) name_tone=$2; name_tone_set=1; shift 2 ;;
             --icon) icon=$2; shift 2 ;;
             --tone) icon_tone=$2; tone_set=1; shift 2 ;;
             --value) value=$2; have_value=1; shift 2 ;;
@@ -915,6 +941,13 @@ popup_row() {
             *) echo "barlib: popup_row: unknown flag '$1' — dropped" >&2; shift ;;
         esac
     done
+    # --name-tone only means anything in the two-column shape: without a
+    # --value there is no name column to tone, `--tone` already paints the
+    # glyph, and a flag that quietly does nothing is the silent ignore this
+    # runtime refuses everywhere else.
+    if [ "$name_tone_set" = 1 ] && [ "$have_value" = 0 ]; then
+        echo "barlib: popup_row: --name-tone needs a --value (there is no name column without one)" >&2
+    fi
     if [ "$have_value" = 1 ]; then
         # ⚠️ With a --value the tone follows the NUMBER, not the glyph. That is
         # the row saying which half carries the verdict: the name is the

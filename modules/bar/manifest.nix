@@ -155,9 +155,11 @@ in
       # puts the popup on the BRACKET, whose rect is the whole pill at
       # whatever width it currently has, and barlib addresses it there.
       #
-      # Four refusals, each a thing that fails silently otherwise:
+      # Five refusals, each a thing that fails silently otherwise:
       #   * fewer than two — a bracket over one member is a pill, and the
       #     runtime would spend an extra item and a bracket to draw one.
+      #   * the same name twice — one `--add item` emitted twice, and a
+      #     bracket that lists the member twice.
       #   * a name that is not a bare lower-case identifier: these become
       #     sketchybar item ids by concatenation, and an id with a dot or a
       #     space in it is one the runtime's own `<item>.popup.<n>` strip
@@ -176,6 +178,8 @@ in
           throw "bar widget manifest ${pathStr}: segments needs two or more names — a bracket over one member is a pill"
         else if graph != null then
           throw "bar widget manifest ${pathStr}: segments and graph together — a bracket head has no rolling window of its own"
+        else if lib.length (lib.unique segments) != lib.length segments then
+          throw "bar widget manifest ${pathStr}: segments has a name twice — that is one item added twice and a bracket listing it twice"
         else
           map (
             seg:

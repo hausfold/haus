@@ -54,9 +54,10 @@
 # and position without reading a number.
 #
 # SketchyBar can colour a label exactly once, so three colours means three
-# items: `agents` (the bot and the popup) plus agents.ready / .working / .done,
-# with a `bracket` drawing the one pill background behind whichever are
-# visible. That is why the segments carry no background of their own and no
+# items: `agents` (the bot) plus agents.ready / .working / .done, with a
+# `bracket` — `agents.pill` — drawing the one pill background behind whichever
+# are visible AND carrying the dropdown. The framework emits all five off the
+# `segments =` header; none of these ids is spelled in this file. That is why the segments carry no background of their own and no
 # background padding — the bracket owns both, and a segment that kept its own
 # would draw a second pill inside the first and space the marks like separate
 # items. They ARE clickable: each one's click_script is this script, so the
@@ -387,15 +388,6 @@ if [ "${1:-}" = "row" ] && [ "${2:-}" = "zmx" ]; then
   fi
   exit 0
 fi
-
-# ── the 12h backstop ─────────────────────────────────────────────────────────
-# Only `.desk` rows can go stale now: a zmx row's labels die with its session,
-# and there are no `.state` files left (the prune_dead_panes reaper that asked
-# zellij which panes still existed went with them). A desktop row's only reaper
-# is the client's own SessionEnd, which never fires on a force-quit, a crash, a
-# logout or an app update — desktop_records' lsappinfo check catches the common
-# case, and this catches the rest. Live agents re-stamp their epoch on every hook.
-[ -d "$DIR" ] && find "$DIR" -name '*.desk' -mmin +720 -delete 2>/dev/null
 
 # Iterate the glob with a -e guard rather than an array: macOS bash 3.2 under
 # `set -u` throws on "${arr[@]}" when the array is empty, and "no agents" is the

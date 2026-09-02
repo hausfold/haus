@@ -148,11 +148,9 @@ unknown-key error, naming their file.
 
 A framework widget sources `barlib.sh` at its top and calls
 `barlib_main "$@"` as its last line — the file itself is the `script=`, so
-running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story. A
-SEGMENTED pill wants its segment names too (`BARLIB_SEGMENTS='ready working
-done' BAR_ITEM=agents ./agents.sh`), because that variable is how the emitter
-tells the script it is a bracket; without it the head still paints and each
-`segment` call warns and drops, naming the variable.
+running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story — for
+a segmented pill too, because the runtime reads `segments =` out of the
+widget's own file, so a by-hand run is a bracket exactly as the bar's is.
 `barlib_main`:
 
 1. has `bar.sh` → `$SB` already sourced (the existing router, absorbed
@@ -861,9 +859,18 @@ Lua (or Go daemon) runtime would consume, so nothing built now is thrown away.
    queries it, barpop arms it, and two ids now have to strip back to the head
    on the way in — a segment's click (`agents.ready`) and a popup row
    (`agents.pill.popup.3`, one suffix past what the existing `.popup.*` strip
-   left). The emitter hands the segment names to the script on its own command
-   line rather than the script declaring them a second time, so the header
-   stays the single source. Two smaller things came with it, both because the
+   left). The script learns it is segmented by reading `segments =` out of its
+   OWN file — the same header the emitter parsed — rather than being handed
+   the list on a command line, and that is the one thing the first cut of this
+   got wrong. `script=` and `click_script=` are the only argv sketchybar
+   controls, and they are not the only ways this widget runs: `agents-hook.sh`
+   invokes the reader DIRECTLY on every agent state change, and that push path
+   is how the pill learns almost everything. A variable riding argv would have
+   been absent exactly there — every `segment` dropped, the bracket left
+   undrawn, and `_barlib_tick` writing the new state to its cache anyway, so
+   the next tick would find no diff and never repaint. The counts would have
+   frozen until a reload. The header travels with the file; Nix validates it
+   and the shell reads it. Two smaller things came with it, both because the
    pill had them written by hand: `--run` on a heading, so a BLOCK of rows can
    share one click target (an agent's block is a name line and a detail line
    that both mean "this pane", and a heading a few pixels tall is a bad target
@@ -908,7 +915,9 @@ Lua (or Go daemon) runtime would consume, so nothing built now is thrown away.
    never. That is what buys it the ability to re-show itself, which is the
    door `agents-hook.sh` names in its own comment and works around by invoking
    the reader directly. The hook still does, and should: a `.desk` write wants
-   the bar to say so now rather than within the interval.
+   the bar to say so now rather than within the interval — which is exactly
+   why the segment list has to be readable from that invocation and not only
+   from sketchybar's.
 10. Long tail: convert on touch. A converted pill's entry in `mkPluginBlocks`
     shrinks to a `frameworkBlock` call carrying only what is IDENTITY — its
     hue, its padding — because the ladder deliberately has no rung for "this
