@@ -35,7 +35,7 @@ setup() {
   local lifted="$BATS_TEST_TMPDIR/readers.sh"
   : >"$lifted"
   local fn
-  for fn in action_of payload_of dial_agent dial_payload resolve_agents; do
+  for fn in action_of payload_of dial_agent dial_payload resolve_agents lane_target; do
     awk -v fn="$fn" '
       $0 ~ "^" fn "\\(\\) \\{" { inside = 1 }
       inside { print }
@@ -207,5 +207,136 @@ stub_default() {
   stub_clients
   stub_default claude
   run resolve_agents
+  [ "$status" -ne 0 ]
+}
+
+# ── the spawn receipt's click target ─────────────────────────────────────────
+#
+# The background spawn's banner carries `--action "…=lane:<repo>/<name>"`, which
+# is trill's `focus_lane`: it runs `scruff focus <repo>/<name>` and nothing else,
+# and because it is the FIRST action it is also what clicking the banner body
+# does. Three ways to get it wrong, all of them silent — trill's ActionRouter
+# logs a refusal and the click does nothing at all:
+#
+#   * unqualified (`lane:$name`) — right until `scruff child` puts one lane name
+#     in two repos, then it is the ambiguity `scruff focus` refuses to guess at.
+#   * `$repo` rather than `$repo_name` — an absolute path, whose first slash is
+#     at index 0, so `registryLane` reads an EMPTY repo and takes the whole
+#     remainder as the lane name. It never looks for a repo at all.
+#     `lane_target` refuses it now, which turns that one into a lost click.
+#   * dropped in a later edit, which is the state this test was written to leave.
+#
+# Text assertions rather than a run: the banner is `haus-notify` at an absolute
+# path, and firing it would draw on the machine's screen.
+@test "spawn receipt: the banner's first action focuses the lane, qualified by repo" {
+  # The action exists, is the lane action, and its target is what `lane_target`
+  # vetted — never `$repo_name/$name` spliced in a second time behind the guard.
+  grep -qF -- '--action "Go to lane=lane:$target"' "$SUBJECT"
+  grep -qF 'target="$(lane_target "$repo_name" "$name")"' "$SUBJECT"
+  # And it is the only one this script SENDS, so the "first action is what the
+  # body click does" property can't be lost by something else being added above
+  # it. Prose about it doesn't count, and neither does pounce's own `--actions`
+  # bar three steps up — hence the trailing space, which only trill's flag has.
+  [ "$(grep -v '^[[:space:]]*#' "$SUBJECT" | grep -c -- '--action ')" -eq 1 ]
+}
+
+# The lane id scruff builds (`laneID`: the main checkout's basename, then the
+# lane name) has to be the one this script spells, byte for byte, or the click
+# lands on nothing. `$repo_name` is that basename only because the repo list
+# builds it with `basename "$repo"` — pin that too, since it is one `cut -f`
+# away from being any other column of the row.
+@test "spawn receipt: repo_name is the main checkout's basename" {
+  # The basename is emitted as column 2 of the repo row...
+  grep -qF '"$(basename "$repo")"' "$SUBJECT"
+  # ...and read back out of column 2. Both halves, or this passes while the
+  # printf fields are reordered and the click targets the description string.
+  grep -qF 'repo_name="$(field "$repo_sel" 2)"' "$SUBJECT"
+}
+
+# The guard in front of it. trill refuses the WHOLE send when a lane target
+# fails its whitelist — not just the action — so an unspellable name must cost
+# the click and nothing else: without this the banner falls through to Apple's,
+# losing its threading, its symbol and its `rules.json` routing over a character
+# in somebody's folder name.
+@test "lane_target: an ordinary lane is qualified by its repo" {
+  run lane_target haus focus-spawn-banner
+  [ "$status" -eq 0 ]
+  [ "$output" = "haus/focus-spawn-banner" ]
+}
+
+@test "lane_target: dots, underscores and digits are all trill accepts beside them" {
+  run lane_target hausfold.co fix_bug-2
+  [ "$status" -eq 0 ]
+  [ "$output" = "hausfold.co/fix_bug-2" ]
+}
+
+@test "lane_target: a character trill would refuse takes the action, not the banner" {
+  run lane_target "my repo" lane
+  [ "$status" -ne 0 ]
+  [ -z "$output" ]
+  run lane_target repo "lane+1"
+  [ "$status" -ne 0 ]
+  [ -z "$output" ]
+}
+
+# Each half is a basename, so a slash inside one is not a lane id with an extra
+# level — it is `scruff focus` splitting on the wrong slash and looking for a
+# repo that isn't there. The joined target carries the only slash there is.
+@test "lane_target: neither half may carry a slash of its own" {
+  run lane_target "code/haus" lane
+  [ "$status" -ne 0 ]
+  run lane_target haus "a/b"
+  [ "$status" -ne 0 ]
+}
+
+@test "lane_target: an empty half is a refusal, not a bare slash" {
+  run lane_target "" lane
+  [ "$status" -ne 0 ]
+  run lane_target haus ""
+  [ "$status" -ne 0 ]
+}
+
+# The other three refusals in trill's `focusesLane`, which a character-class-only
+# guard would sail straight past — and each of them costs the WHOLE send, not
+# the action, which is the fall this guard exists to catch.
+@test "lane_target: a target over 100 characters is refused, and 100 exactly is not" {
+  local long
+  long="$(printf '%095d' 0)"   # 95 characters, no `seq` needed
+  [ "${#long}" -eq 95 ]
+  # 100 exactly: repo(4) + slash(1) + name(95).
+  run lane_target haus "$long"
+  [ "$status" -eq 0 ]
+  # 101, by one character of repo name.
+  run lane_target hausf "$long"
+  [ "$status" -ne 0 ]
+}
+
+# Only the repo half: trill reads the leading `-` off the JOINED target, and a
+# dash inside it is an ordinary character. `scruff focus` takes the whole thing
+# as one argv element, so a lane called `-x` is not a flag to anybody.
+@test "lane_target: a leading dash is refused on the repo half only" {
+  run lane_target -repo lane
+  [ "$status" -ne 0 ]
+  run lane_target repo -lane
+  [ "$status" -eq 0 ]
+  [ "$output" = "repo/-lane" ]
+}
+
+# The one refusal that is not about the pattern but about who READS it.
+# `[!A-Za-z0-9._-]` is a collation range, and /bin/bash 3.2 under the pounce
+# daemon's `LANG=en_US.UTF-8` (modules/launcher/default.nix, no `LC_ALL`) reads
+# it wide enough to let `café` through — where trill, whose `laneCharacters` is
+# a codepoint-exact CharacterSet, refuses it and drops the whole send. Pinned
+# here in the locale that exposes it, since bash 5 gets this right and a suite
+# run under it would pass either way.
+@test "lane_target: a non-ASCII half is refused in the locale the daemon runs in" {
+  local probe
+  probe="$(declare -f lane_target)"
+  run env -u LC_ALL LANG=en_US.UTF-8 /bin/bash -c \
+    "$probe"$'\n''lane_target "café" lane'
+  [ "$status" -ne 0 ]
+  [ -z "$output" ]
+  run env -u LC_ALL LANG=en_US.UTF-8 /bin/bash -c \
+    "$probe"$'\n''lane_target haus "réparer"'
   [ "$status" -ne 0 ]
 }
