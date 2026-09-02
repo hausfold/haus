@@ -686,7 +686,8 @@ haus — the everyday CLI for a haus machine.
                       the copy rendered from the revision this machine pinned,
                       so the option names in it are the ones you have
   haus skill install  write that skill into every agent client on this Mac that
-                      hasn't got it. --client claude|codex|opencode|pi picks one,
+                      hasn't got it. --client picks one — a wrong name lists the
+                      clients this build knows, and the flag tab-completes —
                       --dir PATH writes somewhere else. On a normal haus machine
                       there is nothing to do: haus.ai.skill already installed it,
                       as read-only Nix symlinks, and it says so rather than
@@ -3718,14 +3719,16 @@ cmd_doctor() {
   # saying out loud, since the agent keybind can spawn any of them.
   echo
   say "Agents"
-  # The skill lands once per installed client, each in the directory that client
-  # scans (the AI room's agentHomes). Report the first one found rather than the
-  # Claude path alone: on a codex-only machine that path is legitimately absent,
-  # and saying "no skill" there sent people to set an option already true.
+  # The skill lands once per installed client, each in the directory that
+  # client scans — the same table `skill install` writes by
+  # (HAUS_AGENT_SKILL_DIRS, rendered from modules/ai/agents/homes.nix). Report
+  # the first one found rather than the Claude path alone: on a codex-only
+  # machine that path is legitimately absent, and saying "no skill" there sent
+  # people to set an option already true.
   local skilldir=""
-  local d
-  for d in "$HOME/.claude/skills/haus" "$HOME/.codex/skills/haus" \
-           "$HOME/.config/opencode/skills/haus" "$HOME/.pi/agent/skills/haus"; do
+  local c d
+  for c in $(skill_clients); do
+    d="$(skill_client_dir "$c")/haus" || continue
     if [ -f "$d/SKILL.md" ]; then
       skilldir="$d"
       break
@@ -3733,6 +3736,11 @@ cmd_doctor() {
   done
   if [ -n "$skilldir" ]; then
     ok "the haus skill is installed ($skilldir)"
+  elif [ -z "$HAUS_AGENT_SKILL_DIRS" ]; then
+    # Off the wrapper the loop above scanned NOTHING — say that, rather than
+    # advising an option that may already be true on the one output people
+    # paste into bug reports.
+    info "no client table in this shell (HAUS_AGENT_SKILL_DIRS is empty) — run the 'haus' on PATH to check for the skill"
   else
     info "no haus skill — set haus.ai.skill = true to let an agent change this machine"
   fi
@@ -4028,6 +4036,14 @@ cmd_report() {
 # haus CLI, not of a room a desktop can turn off.
 HAUS_SKILL_DIR="${HAUS_SKILL_DIR:-}"
 
+# The client table — which agent clients exist and where each keeps its skills
+# directory — handed in the same way and from the same room: the wrapper
+# renders modules/ai/agents/homes.nix into `claude=.claude/skills:codex=…`
+# (home-relative, colon-separated). PARSED here, never restated: this file
+# used to carry the table as a bash case, and test/agent-surface.bats was the
+# only thing holding the two spellings equal.
+HAUS_AGENT_SKILL_DIRS="${HAUS_AGENT_SKILL_DIRS:-}"
+
 # Sets SKILL_DIR rather than printing it, so its refusal happens in the
 # CALLER's shell. A `dir="$(skill_dir)"` would run the check in a subshell,
 # where `die`'s exit ends the subshell alone: the message reaches stderr, the
@@ -4059,26 +4075,36 @@ skill_names() {
 # for it by name gets a path rather than "no such page".
 skill_this_machine() {
   local c d
-  for c in claude codex opencode pi; do
+  for c in $(skill_clients); do
     d="$(skill_client_dir "$c")/haus/references/this-machine.md"
     [ -f "$d" ] && { printf '%s\n' "$d"; return 0; }
   done
   return 1
 }
 
-# `skill install` needs the same client table twice, so it is written once here.
-# One directory each, and the layout inside is the same for all of them —
-# `<dir>/<skill name>/…`. It is modules/ai's `agentHomes` said again in bash,
-# which is the price of core not reading that room: the two lists move together
-# or `haus skill install` starts writing where nothing reads.
+# The two halves of the table's parse. One directory per client, and the
+# layout inside is the same for all of them — `<dir>/<skill name>/…`. The
+# variable is home-relative; this function is where the `$HOME/` join lives,
+# so no caller re-derives it.
+#
+# `skill_clients` degrades to an empty list off the wrapper (the loops over it
+# simply find no clients), while asking for a NAMED client's directory with no
+# table is the same broken invocation `skill_dir` refuses, in the same words.
+# The die's subshell caveat from `skill_dir` does not bite here: every caller
+# already handles this function returning nothing.
+skill_clients() {
+  local pair
+  for pair in ${HAUS_AGENT_SKILL_DIRS//:/ }; do printf '%s\n' "${pair%%=*}"; done
+  return 0
+}
 skill_client_dir() {
-  case "$1" in
-    claude)   echo "$HOME/.claude/skills" ;;
-    codex)    echo "$HOME/.codex/skills" ;;
-    opencode) echo "$HOME/.config/opencode/skills" ;;
-    pi)       echo "$HOME/.pi/agent/skills" ;;
-    *) return 1 ;;
-  esac
+  [ -n "$HAUS_AGENT_SKILL_DIRS" ] || die \
+    "no client table — HAUS_AGENT_SKILL_DIRS names nothing. Run the 'haus' on PATH rather than the script."
+  local pair
+  for pair in ${HAUS_AGENT_SKILL_DIRS//:/ }; do
+    [ "${pair%%=*}" = "$1" ] && { printf '%s/%s\n' "$HOME" "${pair#*=}"; return 0; }
+  done
+  return 1
 }
 
 cmd_skill() {
@@ -4130,6 +4156,10 @@ cmd_skill() {
 }
 
 cmd_skill_install() {
+  # The refusals name what the table actually holds, so off the wrapper they
+  # name an empty list — the honest answer, and the next line the user reads
+  # (`skill_client_dir`'s die) says why.
+  local clients; clients="$(skill_clients | xargs)"
   local dir="" client="" wrote=0 nixed=0 skipped=0
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -4138,8 +4168,8 @@ cmd_skill_install() {
       # with one positional left, which returns 1 and — under `set -e` — ends
       # the command with no message on either stream.
       --dir)    dir="${2:-}";    [ -n "$dir" ]    || die "--dir needs a path"; shift 2 ;;
-      --client) client="${2:-}"; [ -n "$client" ] || die "--client needs one of: claude codex opencode pi"; shift 2 ;;
-      *) die "unknown flag '$1' — usage: haus skill install [--client claude|codex|opencode|pi] [--dir PATH]" ;;
+      --client) client="${2:-}"; [ -n "$client" ] || die "--client needs one of: $clients"; shift 2 ;;
+      *) die "unknown flag '$1' — usage: haus skill install [--client ${clients// /|}] [--dir PATH]" ;;
     esac
   done
 
@@ -4149,11 +4179,11 @@ cmd_skill_install() {
   if [ -n "$dir" ]; then
     targets=("$dir")
   elif [ -n "$client" ]; then
-    local d; d="$(skill_client_dir "$client")" || die "unknown client '$client' — one of: claude codex opencode pi"
+    local d; d="$(skill_client_dir "$client")" || die "unknown client '$client' — one of: $clients"
     targets=("$d")
   else
     local c d
-    for c in claude codex opencode pi; do
+    for c in $(skill_clients); do
       d="$(skill_client_dir "$c")"
       [ -d "$(dirname "$d")" ] && targets+=("$d")
     done

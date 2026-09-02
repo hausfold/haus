@@ -35,6 +35,18 @@ let
   # without `modules/ai/agents/` beside it.
   hausSkill = import ../ai/agents/skill.nix { inherit pkgs; };
 
+  # The client table — which agent clients exist and where each keeps its
+  # skills — under the same rule as `hausSkill` above: an import of PURE DATA
+  # (modules/ai/agents/homes.nix takes nothing), never a `config.haus.ai.*`
+  # read. Rendered flat for the wrapper below, `claude=.claude/skills:codex=…`,
+  # so `haus skill install`'s bash is a PARSE of that room's table rather than
+  # a second spelling of it — the copy test/agent-surface.bats used to hold
+  # equal by hand.
+  agentHomes = import ../ai/agents/homes.nix;
+  agentSkillDirs = lib.concatStringsSep ":" (
+    lib.mapAttrsToList (client: home: "${client}=${home.skills}") agentHomes
+  );
+
   # The both-bars poke, as a binary — "anything that pokes a bar pokes both"
   # (AGENTS.md) in ONE place instead of four. See the script's header for why it
   # is a CLI rather than a function, and for the two trigger shapes it is
@@ -971,6 +983,11 @@ in
       # pinned to this revision, which is what makes the version that answers
       # `--help` the version that answers `skill`.
       #
+      # `HAUS_AGENT_SKILL_DIRS` is the third of the set: the client table
+      # (`agentSkillDirs` above), rendered from modules/ai/agents/homes.nix so
+      # `haus skill install` parses the table that room installs by, rather
+      # than carrying its own copy.
+      #
       # The two tools: `gum` draws `haus set`'s picker and is in nixpkgs
       # but in nobody's profile — bootstrap.sh fetches it ad-hoc with `nix build
       # nixpkgs#gum`, which is exactly the sort of thing an end-user command must
@@ -998,7 +1015,8 @@ in
             ]
           } \
             --set-default HAUS_UI_SH ${snug}/share/ui.sh \
-            --set-default HAUS_SKILL_DIR ${hausSkill}
+            --set-default HAUS_SKILL_DIR ${hausSkill} \
+            --set-default HAUS_AGENT_SKILL_DIRS ${lib.escapeShellArg agentSkillDirs}
         '';
       })
 
@@ -1014,9 +1032,17 @@ in
       (writeTextFile {
         name = "haus-zsh-completion";
         destination = "/share/zsh/site-functions/_haus";
-        text = builtins.replaceStrings [ "@jq@" "@skill@" ] [ (lib.getExe jq) "${hausSkill}" ] (
-          builtins.readFile ./haus-completion.zsh
-        );
+        text =
+          builtins.replaceStrings
+            [ "@jq@" "@skill@" "@skillClients@" ]
+            [
+              (lib.getExe jq)
+              "${hausSkill}"
+              # `skill install --client <TAB>` offers the same clients the
+              # wrapper's HAUS_AGENT_SKILL_DIRS carries, from the same table.
+              (lib.concatStringsSep " " (lib.attrNames agentHomes))
+            ]
+            (builtins.readFile ./haus-completion.zsh);
       })
 
       # `haus-activate <system>` — the privileged half of a rebuild, split out

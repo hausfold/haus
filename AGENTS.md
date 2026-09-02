@@ -999,10 +999,14 @@ mechanism, say so in one line.
     knowingly: a machine with the AI room off now builds that one small
     derivation, and `darwinModules.core` no longer stands alone without
     `modules/ai/agents/` beside it.
-  - **`haus skill install`'s client table is modules/ai's `agentHomes` said
-    again in bash**, because core may not read that room to ask. The two move
-    together or the command writes where nothing reads; `test/agent-surface.bats`
-    diffs them so a drift is a red test rather than a silent one.
+  - **`haus skill install`'s client table exists once**:
+    `modules/ai/agents/homes.nix`, pure data the same way `skill.nix` is a pure
+    derivation, because core may not read that room's config to ask. modules/ai
+    imports it as `agentHomes`; core renders it into the wrapper as
+    `HAUS_AGENT_SKILL_DIRS` (`claude=.claude/skills:codex=…`), which haus.sh
+    PARSES — there is deliberately no bash copy left to rot, so off the wrapper
+    the script refuses in words rather than guessing.
+    `test/agent-surface.bats` asserts that wiring, end to end.
 
   Five more live in **`modules/ai`**, which writes the system profile they land
   in, because the room that owns a capability owns its payload:
