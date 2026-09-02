@@ -59,8 +59,11 @@
 #
 # Fields mirror tones.nix so the two read as one system: `name` is what a
 # widget says, `key` is the nebelung palette entry it resolves to, `stub` is
-# the fake hex test/barlib.bats writes, `meaning` is the set's own wording
-# (nothing diffs it — see tones.nix on the arm that went with the doc).
+# the fake hex test/barlib.bats writes, `meaning` is the set's own wording —
+# published as `docs/site-data/bar-marks.json` and held against the page's
+# table by hausfold.co, exactly as the ladder's is. See tones.nix for the
+# split: the names and their order are pinned to the page, the wording is
+# snapshotted.
 #
 # A plain value, imported the way tones.nix is: no module system, so flake.nix
 # can read it without evaluating a configuration.

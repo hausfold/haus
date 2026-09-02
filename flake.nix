@@ -1314,10 +1314,13 @@
           # readable as the ladder it implements.
           #
           # The third copy was the table in the framework doc, and that arm
-          # went with the file when it moved to ops/todo/bar-framework.md —
-          # a private repo this flake cannot read. Nothing checks that table
-          # now; `meaning` below is what it was diffed against and is kept as
-          # the ladder's own wording.
+          # went with the file when it moved to ops/todo/bar-framework.md — a
+          # private repo this flake cannot read. The table came BACK as
+          # hausfold.co/docs/haus/rooms/bar-widgets, which this flake cannot
+          # read either, so it is checked the way the option reference is:
+          # `site-data` publishes the ladder to `docs/site-data/bar-tones.json`
+          # and the site diffs its own page against that file. `meaning` is
+          # what the site snapshots, which is why it is still carried here.
           #
           # It reads the files as TEXT rather than evaluating a configuration,
           # so it runs on every system (CI's Linux runner included) the way
@@ -4433,6 +4436,16 @@
           # Bound once: two outputs below ship it, and `haus show` is only
           # honest if both hand the script the SAME rules.
           desktopCheck = import ./modules/desktop-check.nix { inherit pkgs; };
+
+          # The bar's two colour vocabularies, imported again here rather than
+          # reached for across the `checks` let that already reads them — they
+          # are plain values with no module system behind them, which is the
+          # whole reason both this and `modules/bar/default.nix` can import the
+          # same file without evaluating a configuration. `site-data` publishes
+          # them; the `bar-tones` / `bar-marks` blocks in `checks` are what pin
+          # the copies inside this repo.
+          barTones = import ./modules/bar/tones.nix;
+          barMarks = import ./modules/bar/marks.nix;
         in
         {
           # `nix build .#wm-bindings-json` — the static tiling/workspace/service
@@ -4538,7 +4551,7 @@
           # nixpkgs fetch to check its own reference page — see
           # modules/site-data.nix.
           site-data = import ./modules/site-data.nix {
-            inherit pkgs;
+            inherit pkgs barTones barMarks;
             optionsJson = self.packages.${system}.options-json;
             wmBindingsJson = self.packages.${system}.wm-bindings-json;
             launchKeysJson = self.packages.${system}.launch-keys-json;

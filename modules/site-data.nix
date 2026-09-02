@@ -12,7 +12,7 @@
 # of the repo that owns it.*
 # This derivation is the output; `docs/site-data/` in this repo is the committed
 # copy of it, and the `site-data-current` flake check is the pin. The site then
-# reads three plain files out of a checkout, and the drift check stays here,
+# reads five plain files out of a checkout, and the drift check stays here,
 # next to the derivation that defines the truth.
 #
 # Two deliberate differences from the raw derivations:
@@ -23,11 +23,21 @@
 #   * everything is `jq -S`'d: sorted keys, two-space indent. The raw
 #     options.json is one 148 KB line, which is unreviewable as a diff. The
 #     whole point of committing it is that a human can read what moved.
+#
+# The two bar tables are the newest members and arrive a third way: not a
+# derivation to filter, but the plain Nix VALUES `modules/bar/{tones,marks}.nix`
+# already are, serialised straight out. They are here because the tables on
+# hausfold.co's bar-widgets page were hand-copied and nothing checked them —
+# the arm that used to diff `meaning` pointed at `docs/bar-framework.md`, which
+# left for hausfold/ops. Publishing the list is what lets the site check its
+# own page against it, which is the same trade the option reference made.
 {
   pkgs,
   optionsJson,
   wmBindingsJson,
   launchKeysJson,
+  barTones,
+  barMarks,
 }:
 
 pkgs.runCommand "haus-site-data"
@@ -62,4 +72,18 @@ pkgs.runCommand "haus-site-data"
     # NOT -S: this one is a list, and its order is the order the keys are bound
     # in. Sorting it would be sorting the answer.
     jq . ${launchKeysJson} > "$out/launch-keys.json"
+
+    # The bar's two colour vocabularies. `-S` is safe on both despite each
+    # being an ordered list — it sorts an object's KEYS, never an array's
+    # elements, so the ladder's own sequence (quietest first, which the site's
+    # table is meant to read top-to-bottom in) survives it. The site pins that
+    # order; see modules/bar/tones.nix on why order is part of the answer.
+    #
+    # `stub` rides along even though it is a `test/barlib.bats` fixture and no
+    # page will ever render it. Filtering here would make this file an EDITED
+    # view of the ladder rather than the ladder, and the next field added to
+    # tones.nix would silently not be published — the site can select the
+    # columns it draws, which is a thing a reader of its snapshot can see.
+    jq -S . ${pkgs.writeText "bar-tones.json" (builtins.toJSON barTones)} > "$out/bar-tones.json"
+    jq -S . ${pkgs.writeText "bar-marks.json" (builtins.toJSON barMarks)} > "$out/bar-marks.json"
   ''
