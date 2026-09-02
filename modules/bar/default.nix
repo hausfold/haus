@@ -911,101 +911,51 @@ let
               script="$HOME/.config/sketchybar/plugins/volume.sh" \
               click_script="open -a 'System Settings' 'x-apple.systempreferences:com.apple.Sound-Settings.extension'"
     '';
-    # The one meeting you have to be at next, with a click-dropdown that lays the
-    # day out as a timeline (done · now · next). No popup children are declared
-    # here any more: this pill used to add a fixed `calendar.event.1..5` and hide
-    # the unused ones, which is why the dropdown could only ever be five identical
-    # one-line rows. calendar.sh now builds `calendar.row.N` per open, the way the
-    # AI-usage pill does, so a row can be a section rule, a title or a dim meta
-    # line and the popup is exactly as tall as the day is full.
+    # The one meeting you have to be at next, with a click-dropdown that lays
+    # the day out as a timeline (done · now · next). A framework widget: the
+    # header in calendar.sh carries the popup and the hover subscriptions, the
+    # runtime owns the per-open row build, the close-on-click and the barpop
+    # arm, and the click dispatch (right-click joins the meeting) is
+    # barlib_main's rather than a hand-parsed $BUTTON.
     #
-    # click_script rather than a mouse.clicked subscription, and NOT popToggle:
-    # the plugin has to see $BUTTON (right-click joins the meeting) and it has to
-    # rebuild the rows before revealing them, so it owns the whole gesture and
-    # arms barpop itself once the popup is up. `mouse.clicked` is deliberately
-    # absent from the subscribe list — with click_script set, subscribing would
-    # run this plugin twice per click.
-    #
-    # label.max_chars is the settled width; scroll_texts is NOT set on here. The
-    # plugin turns it on only while the pointer is on the pill — a marquee that
-    # armed itself whenever the next event changed is what this replaced, because
-    # a bar that moves on its own is a bar you stop reading. That also retired the
-    # hover flag file this block used to clear at every bar start; there is no
-    # timer left to strand. The `rm` below is what became of that clear — the two
-    # files the old marquee kept are dead state now, and nothing else would ever
-    # reap them off a machine that has been drawing this pill for months.
+    # update_freq is written from the STYLE rather than the header, because it
+    # is owned by `haus.bar.calendar.refresh` — the option that shipped first
+    # and the one a person already found (widgets.nix declares no interval for
+    # exactly this reason). label.max_chars is the settled width;
+    # scroll_texts is NOT set on here — the widget turns it on only while the
+    # pointer is on the pill, because a bar that moves on its own is a bar you
+    # stop reading. The `rm` below reaps the two files the pre-hover-only
+    # marquee kept; they are dead state now, and nothing else would ever
+    # collect them off a machine that has been drawing this pill for months.
     calendar = ''
       rm -f "$HOME/.local/state/haus/calendar/hover" \
             "$HOME/.local/state/haus/calendar/last-event" 2>/dev/null || true
-      ${sb} --add item calendar ${side} \
-          --set calendar \
-              update_freq=${toString cfg.calendar.refresh} \
-              icon="󰃭" \
-              icon.color=$MAUVE \
-              background.color=$SURFACE0 \
-              label.max_chars=${toString cfg.calendar.width} \
-              popup.background.border_width=2 \
-              popup.background.corner_radius=10 \
-              popup.background.border_color=$SURFACE0 \
-              popup.background.color=$MANTLE \
-              ${popupAlign side} \
-              script="$HOME/.config/sketchybar/plugins/calendar.sh" \
-              click_script="$HOME/.config/sketchybar/plugins/calendar.sh click" \
-          --subscribe calendar mouse.entered mouse.exited mouse.exited.global system_woke
-    '';
+    ''
+    + frameworkBlock sb side "calendar" {
+      "update_freq" = toString cfg.calendar.refresh;
+      "icon" = ''"󰃭"'';
+      "icon.color" = "$MAUVE";
+      "label.max_chars" = toString cfg.calendar.width;
+    };
     # Keep-awake controller. The haus-level `awake` CLI + launchd job own the
     # assertion; this popup only chooses a duration and renders state. A bar
     # reload therefore cannot accidentally release an active assertion.
-    caffeinate = ''
-      ${sb} --add event caffeinate_change
-      ${sb} --add item caffeinate ${side} \
-          --set caffeinate \
-              update_freq=30 \
-              icon="󰅶" \
-              icon.padding_left=10 \
-              icon.padding_right=10 \
-              label.padding_right=10 \
-              label.font="${barFont}:Bold:${sizes.small}" \
-              background.color=$SURFACE0 \
-              popup.background.border_width=2 \
-              popup.background.corner_radius=10 \
-              popup.background.border_color=$SURFACE0 \
-              popup.background.color=$MANTLE \
-              ${popupAlign side} \
-              script="$HOME/.config/sketchybar/plugins/caffeinate.sh" \
-          --subscribe caffeinate mouse.clicked caffeinate_change system_woke
-
-      CAFFEINATE_POPUP=(
-          icon.padding_left=10
-          label.padding_right=10
-          background.height=30
-          background.padding_left=0
-          background.padding_right=0
-          background.color=0x00000000
-          background.drawing=off
-      )
-      ${sb} --add item caffeinate.1h popup.caffeinate \
-          --set caffeinate.1h "''${CAFFEINATE_POPUP[@]}" icon="1" label="1 hour" \
-              click_script="/run/current-system/sw/bin/awake 1h >/dev/null; ${sb} --set caffeinate popup.drawing=off"
-      ${sb} --add item caffeinate.2h popup.caffeinate \
-          --set caffeinate.2h "''${CAFFEINATE_POPUP[@]}" icon="2" label="2 hours" \
-              click_script="/run/current-system/sw/bin/awake 2h >/dev/null; ${sb} --set caffeinate popup.drawing=off"
-      ${sb} --add item caffeinate.4h popup.caffeinate \
-          --set caffeinate.4h "''${CAFFEINATE_POPUP[@]}" icon="4" label="4 hours" \
-              click_script="/run/current-system/sw/bin/awake 4h >/dev/null; ${sb} --set caffeinate popup.drawing=off"
-      ${sb} --add item caffeinate.8h popup.caffeinate \
-          --set caffeinate.8h "''${CAFFEINATE_POPUP[@]}" icon="8" label="8 hours" \
-              click_script="/run/current-system/sw/bin/awake 8h >/dev/null; ${sb} --set caffeinate popup.drawing=off"
-      ${sb} --add item caffeinate.custom popup.caffeinate \
-          --set caffeinate.custom "''${CAFFEINATE_POPUP[@]}" icon="󰅐" label="Custom hours…" \
-              click_script="$HOME/.config/sketchybar/plugins/caffeinate.sh custom"
-      ${sb} --add item caffeinate.indefinite popup.caffeinate \
-          --set caffeinate.indefinite "''${CAFFEINATE_POPUP[@]}" icon="∞" label="Until stopped" \
-              click_script="/run/current-system/sw/bin/awake indefinitely >/dev/null; ${sb} --set caffeinate popup.drawing=off"
-      ${sb} --add item caffeinate.stop popup.caffeinate \
-          --set caffeinate.stop "''${CAFFEINATE_POPUP[@]}" icon="󰅖" icon.color=$RED label="Allow sleep" \
-              click_script="/run/current-system/sw/bin/awake off >/dev/null; ${sb} --set caffeinate popup.drawing=off"
-    '';
+    #
+    # A framework widget: the header in caffeinate.sh carries the interval, the
+    # popup and the caffeinate_change subscription (frameworkItem `--add event`s
+    # it, so `awake`'s haus-bar-poke still lands), and the seven hand-written
+    # popup items this block used to add are the widget's popup_rows() now —
+    # rebuilt on every open, which is what lets the "Allow sleep" row wear the
+    # state it acts on. What is left here is the pill's IDENTITY: the coffee
+    # glyph, the symmetric resting padding the script tightens while a
+    # countdown is drawing, and the small label face a duration reads best in.
+    caffeinate = frameworkBlock sb side "caffeinate" {
+      "icon" = ''"󰅶"'';
+      "icon.padding_left" = "10";
+      "icon.padding_right" = "10";
+      "label.padding_right" = "10";
+      "label.font" = ''"${barFont}:Bold:${sizes.small}"'';
+    };
     elgato = ''
       ${sb} --add item elgato ${side} \
           --set elgato \
@@ -1045,14 +995,13 @@ let
       "icon.color" = "$TEXT";
       "icon.font" = ''"${barFont}:Bold:${sizes.iconWide}"'';
     };
-    harvest = ''
-      ${sb} --add event harvest_update
-      ${sb} --add item harvest ${side} \
-          --set harvest \
-              update_freq=3 \
-              script="$HOME/.config/sketchybar/plugins/harvest.sh" \
-          --subscribe harvest mouse.clicked harvest_update system_woke
-    '';
+    # A framework widget: the header in harvest.sh carries the 3 s tick and the
+    # harvest_update subscription. What is left here is the pill's IDENTITY —
+    # the hourglass, which the script used to repaint on every tick and now
+    # never touches.
+    harvest = frameworkBlock sb side "harvest" {
+      "icon" = ''"󰔟"'';
+    };
     # The bell that opens trill's inbox. It is drawn with an icon and no label
     # because it has no count to carry (see widgets.nix), and the plugin turns
     # its own drawing off on a Mac with no Trill.app — which is most of them,
