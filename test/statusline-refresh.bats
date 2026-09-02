@@ -30,7 +30,7 @@ setup() {
   export HOME="$TMP/home"
   export CLAUDE_WT_BASE="$TMP/wtbase"
   export CLAUDE_STATUSLINE_CACHE="$TMP/cache"
-  # No flake.lock here, so the stale-rice nag short-circuits before its curl.
+  # No flake.lock here, so the stale-haus nag short-circuits before its curl.
   # Every test would otherwise reach the network on a cold cache.
   export HAUS_CONSUMER="$TMP/no-consumer"
   REG="$CLAUDE_WT_BASE/registry.tsv"
@@ -456,7 +456,7 @@ EOF
 
 mkcreds() { # mkcreds [expiry-epoch] — Claude Code logged in, as the keychain has it
   # The opt-in: `projects/` is written by the CLIENT when it actually runs,
-  # unlike ~/.claude itself, which this rice writes for every machine.
+  # unlike ~/.claude itself, which haus writes for every machine.
   mkdir -p "$HOME/.claude/projects"
   export FAKE_KEYCHAIN
   FAKE_KEYCHAIN=$(printf '{"claudeAiOauth":{"accessToken":"AT-CLAUDE","refreshToken":"RT-CLAUDE","expiresAt":%s000,"subscriptionType":"max"}}' \
@@ -672,7 +672,7 @@ CLAUDE_USAGE='{"five_hour":{"utilization":41,"resets_at":"2026-08-20T03:00:00Z"}
   [ "$(clrow 6)" = claude ]
   grep -q 'Bearer AT-CLAUDE' "$CURL_LOG" || fail "polled without the keychain's token"
   # usage.tsv is the pre-per-provider name statusline.sh still copies to; the two
-  # must not drift, or a rice mid-upgrade reads the older of them.
+  # must not drift, or a machine mid-upgrade reads the older of them.
   [ "$(cat "$CLAUDE_STATUSLINE_CACHE/usage.tsv")" = "$(cat "$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv")" ]
 }
 
@@ -733,7 +733,7 @@ CLAUDE_USAGE='{"five_hour":{"utilization":41,"resets_at":"2026-08-20T03:00:00Z"}
   return 0
 }
 
-@test "claude: the rice's own ~/.claude files are not an opt-in" {
+@test "claude: haus's own ~/.claude files are not an opt-in" {
   # The AI room WRITES ~/.claude/CLAUDE.md and ~/.claude/skills/haus for any
   # machine whose haus.ai.clients names claude, so the directory's existence
   # says nothing about whether Claude Code was ever installed. Gating on it
@@ -745,7 +745,7 @@ CLAUDE_USAGE='{"five_hour":{"utilization":41,"resets_at":"2026-08-20T03:00:00Z"}
   : >"$HOME/.claude/CLAUDE.md"
   refresh
   [ "$status" -eq 0 ]
-  [ ! -s "$SECURITY_LOG" ] || fail "a rice-written CLAUDE.md was read as a Claude Code login"
+  [ ! -s "$SECURITY_LOG" ] || fail "a haus-written CLAUDE.md was read as a Claude Code login"
 }
 
 @test "claude: a keychain that says no goes quiet for an hour" {
@@ -985,7 +985,7 @@ thaw() { # let the next pass past the TTL without waiting a quarter of an hour
   [ "$(tok 4)" = 1500 ]
 }
 
-@test "tokens: an index from an older rice is discarded, not read one column over" {
+@test "tokens: an index from an older haus is discarded, not read one column over" {
   # The columns have grown once already. A short row must send its transcript
   # back for a re-read rather than have its size land in the day bucket.
   mktranscript a "$(utc 0)" 100 200 400 800 >/dev/null
@@ -993,7 +993,7 @@ thaw() { # let the next pass past the TTL without waiting a quarter of an hour
   [ "$(tok 4)" = 1500 ]
 
   local idx="$CLAUDE_STATUSLINE_CACHE/tokens-claude.index"
-  cut -f1-5 "$idx" >"$idx.old"          # the shape this file had one rice ago
+  cut -f1-5 "$idx" >"$idx.old"          # the shape this file had one haus version ago
   mv "$idx.old" "$idx"
   thaw; refresh
   [ "$(tok 4)" = 1500 ] || fail "misread a short index row instead of rescanning"

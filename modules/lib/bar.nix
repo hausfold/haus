@@ -11,7 +11,7 @@
 # — and the previous arrangement had windows reserving a magic `40` with no link to
 # what bar actually drew.
 #
-# THE CEILING, and why there is one at all. The bar is the one rice surface that
+# THE CEILING, and why there is one at all. The bar is the one haus surface that
 # cannot grow proportionally, and the limit is macOS's rather than ours:
 # sketchybarrc pins 36pt of bar with 28pt pills so the pills sit inside the 32pt
 # menu-bar band that macOS's own hover-reveal covers (core forces that reveal
@@ -24,7 +24,7 @@
 # what a point MEANS rather than how many of them the bar gets.
 #
 # So the bar's HEIGHT never scales, its TYPE scales to the largest that still fits
-# a 28pt pill, and a rice past that point silently gets the ceiling. A bar that
+# a 28pt pill, and a desktop past that point silently gets the ceiling. A bar that
 # quietly stops growing beats one whose pills clip against a band it doesn't own.
 {
   lib,
@@ -43,9 +43,9 @@ rec {
   # What the bar actually scales by — ui.scale, held between the two limits.
   typeScale = lib.min ceiling (lib.max floor' scale);
 
-  # True when the rice asked for more than the band can give. Not currently
+  # True when haus asked for more than the band can give. Not currently
   # surfaced as a warning: hitting the ceiling is a fine, quiet outcome, and a
-  # large-print rice hits it by design. Exposed so a future `haus doctor` can say
+  # large-print desktop hits it by design. Exposed so a future `haus doctor` can say
   # "your bar is at its limit; the display is the lever that isn't" rather than
   # leaving someone to wonder why the bar stopped growing with everything else.
   atCeiling = scale > ceiling;
@@ -72,7 +72,7 @@ rec {
   # Point sizes by role, rendered with the `.0` sketchybar writes everywhere so a
   # generated size is indistinguishable from a hand-tuned one. At typeScale = 1.0
   # these are byte-identical to the values sketchybarrc carried before any of this
-  # existed, which is what makes the whole feature a no-op for a rice that doesn't
+  # existed, which is what makes the whole feature a no-op for a desktop that doesn't
   # scale.
   fontSize = base: "${toString (round (base * typeScale))}.0";
   sizes = {

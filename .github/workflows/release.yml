@@ -1,7 +1,7 @@
 name: release
 
-# Tag v<date> (CalVer, e.g. v2026.07.18) -> a GitHub release of the rice. The tag is what
-# hausfold.co/hacker.sh (and ?ref=) resolve to for a pinned installer; the rice
+# Tag v<date> (CalVer, e.g. v2026.07.18) -> a GitHub release of haus. The tag is what
+# hausfold.co/hacker.sh (and ?ref=) resolve to for a pinned installer; haus
 # itself is consumed as a flake input, so there's no build artifact to attach —
 # the release is just a named, reviewed point in the history.
 #

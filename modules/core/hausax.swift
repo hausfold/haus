@@ -1,5 +1,5 @@
 // hausax — effective appearance + accessibility state, per AppKit, not a plist
-// read-back. Plus the two things activation needs that nothing else in the rice
+// read-back. Plus the two things activation needs that nothing else in haus
 // can reach: posting a distributed notification, and the Text Input Sources API.
 //
 //   hausax                                  the JSON state below
@@ -36,7 +36,7 @@
 // keyboard layout by writing com.apple.HIToolbox DOES work, but the entry
 // resolves by an English display name ("Swiss French", not the "SwissFrench" in
 // its input-source id) beside a numeric `KeyboardLayout ID` that is required
-// and never validated — a name/id table the rice would have to hardcode and
+// and never validated — a name/id table haus would have to hardcode and
 // would get wrong for exactly the layouts nobody here tests. TISEnableInputSource
 // is documented, live, and writes the canonical entry itself.
 import AppKit
@@ -73,7 +73,7 @@ func sourceID(_ s: TISInputSource) -> String {
 }
 
 /// Keyboard LAYOUTS only. The two always-present input methods (the emoji
-/// picker, press-and-hold) are not layouts and are never the rice's business —
+/// picker, press-and-hold) are not layouts and are never haus's business —
 /// disabling one would take the ⌃⌘Space palette away from a machine that never
 /// asked.
 func layouts(includeDisabled: Bool) -> [TISInputSource] {

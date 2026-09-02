@@ -7,9 +7,9 @@
 # and wait for a logout unless something restarts them.
 #
 # This is that something, as DATA rather than one-off fixes scattered through
-# postActivation. rice#181 hand-rolled the Finder case alone; core/default.nix
+# postActivation. haus#181 hand-rolled the Finder case alone; core/default.nix
 # now derives every restart it fires from this table instead, and WARNS if any
-# plist domain it actually writes into has no entry here — a rice module
+# plist domain it actually writes into has no entry here — a haus module
 # missing a domain is a bug worth fixing in this file, but a host's own
 # `haus capture <domain>` (which can name ANY plist domain, not just ones this
 # repo knows about) must never be turned into a hard build failure over it, so
@@ -69,7 +69,7 @@
   # ---- always written (mkDefault, every rebuild) ---------------------------
   "com.apple.dock" = "Dock"; # nix-darwin restarts Dock itself whenever this domain is set — see core's postActivation, which skips it to avoid bouncing the Dock twice
   "com.apple.finder" = "Finder";
-  # activateSettings covers every NSGlobalDomain key the rice writes — with ONE
+  # activateSettings covers every NSGlobalDomain key haus writes — with ONE
   # measured exception, and no value in this table can express it, because the
   # problem is not which restart to fire. `AppleInterfaceStyle` (macOS
   # Light/Dark) is INERT as a `defaults` write in BOTH directions on macOS 26.6
@@ -125,7 +125,7 @@
   # live Zoom session for as long as launchd takes to bring it back. Domain
   # membership can't express that gate — `com.apple.universalaccess` sits in core's
   # `typedDomainsWritten` unconditionally so the lookups here find an answer,
-  # while the rice writes the domain only when something opts in. Same split
+  # while haus writes the domain only when something opts in. Same split
   # NSGlobalDomain's locale notification already needed, and the same rule:
   # **"which restart" is data; "does this rebuild need one" sometimes isn't.**
   # core's `restartDeclaredBy` holds the trigger.
@@ -182,7 +182,7 @@
   # Detail in options-roadmap.md §5.6.
   "com.apple.screensaver" = "none"; # haus.lock — no persistent process to restart; read at next lock
   "com.apple.menuExtraClock" = "SystemUIServer"; # haus.menuBar.clock
-  "com.apple.controlcenter" = "ControlCenter"; # haus.menuBar.controlCenter — the first actual write into this domain; the old `restartProcesses` list had carried "ControlCenter" unused since rice#249 (that list is gone, #255)
+  "com.apple.controlcenter" = "ControlCenter"; # haus.menuBar.controlCenter — the first actual write into this domain; the old `restartProcesses` list had carried "ControlCenter" unused since haus#249 (that list is gone, #255)
 
   # ---- logout-only, and now BUILT ON ---------------------------------------
   # Both were declared here ahead of any write, and both stayed unbuilt for the

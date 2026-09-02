@@ -245,7 +245,7 @@ desktop_records() {
   # The app not running is that answer, and it is total: every desktop session
   # lives in the one process, so no app means no session, whatever the files
   # say. Asked through LaunchServices by BUNDLE ID rather than pgrep'ing a
-  # process name — `Claude` matches this rice's own `claude` CLI and anything
+  # process name — `Claude` matches haus's own `claude` CLI and anything
   # else named for it, and the bundle id is the same string the row's click
   # handler raises. Bundle-id-specific because the hook's desktop branch is
   # too: Claude Code is the only client with a desktop front end today, and a

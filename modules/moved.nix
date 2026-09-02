@@ -13,9 +13,9 @@
   imports = [
     # 2026-08-11 — the `claude` room became part of `agents`.
     #
-    # Both options describe a file the rice ships into a coding agent's home:
+    # Both options describe a file haus ships into a coding agent's home:
     # the always-on instructions, and the `haus` skill. Neither is about Claude
-    # Code — the rice installs three clients (`haus.ai.clients`) and every
+    # Code — haus installs three clients (`haus.ai.clients`) and every
     # one of them reads both kinds of file, at its own path. Named for the
     # client, they wrote only Claude's copy, which made `ai.default =
     # "codex"` a half-truth: the pane spawned with none of the operating context
@@ -114,7 +114,7 @@
 
     # 2026-08-13 — the whole coding-agent capability became `haus.ai.*`, and
     # deliberately got NO alias here. `haus.agents.*` and
-    # `haus.developer.agents.enable` are gone rather than deprecated: the rice
+    # `haus.developer.agents.enable` are gone rather than deprecated: haus
     # has one consumer, its host moved in the same change, and an alias set for
     # a five-day-old spelling would be permanent furniture bought to protect
     # nobody.

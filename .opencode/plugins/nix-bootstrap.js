@@ -6,8 +6,8 @@
  * SessionStart hooks; OpenCode's equivalent is a plugin, which loads once when
  * the session starts, so the factory body IS the session-start hook.
  *
- * This is the plugin for people HACKING on the rice. The agent-state plugin the
- * rice writes into a user's ~/.config/opencode/plugin/ is a different thing —
+ * This is the plugin for people HACKING on haus. The agent-state plugin haus
+ * writes into a user's ~/.config/opencode/plugin/ is a different thing —
  * a product feature, see modules/terminal.
  *
  * Deliberately unfailing: a bootstrap that breaks the client is worse than no

@@ -1,6 +1,6 @@
 #!/bin/bash
 # The optional keep-awake pill. All process/state ownership lives in the
-# rice-level `awake` command; this script only relays clicks and paints status.
+# haus-level `awake` command; this script only relays clicks and paints status.
 
 source "$HOME/.config/sketchybar/colors.sh"
 # $SB — which bar this pill lives on. haus.bar.bottom.items can move it to

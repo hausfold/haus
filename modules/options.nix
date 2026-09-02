@@ -1,5 +1,5 @@
 # Host-provided identity. These are the values that are personal to YOU rather
-# than part of the rice — a host file (see hosts/example) sets them.
+# than part of haus — a host file (see hosts/example) sets them.
 {
   lib,
   config,
@@ -604,7 +604,7 @@ in
     };
 
     # ---- ui: one scale, fanned out ----
-    # The missing abstraction. Before this, making the rice bigger meant finding
+    # The missing abstraction. Before this, making haus bigger meant finding
     # and tuning every size by hand in a different file each time.
     #
     # Honest scope, and it is narrower than "everything": this scales the things
@@ -685,7 +685,7 @@ in
     # documenting it come from the same row.
     #
     # Until this existed the keymap was closed: Caps Lock, ⌥, and ⌘Space were
-    # baked in. That made three whole categories of rice unexpressible — mouse-
+    # baked in. That made three whole categories of desktop unexpressible — mouse-
     # first (no leader at all), one-handed, and any NON-US KEYBOARD LAYOUT, where
     # ⌥+letter is how you type accented characters and so cannot belong to a
     # window manager.

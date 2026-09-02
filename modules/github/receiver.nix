@@ -2,8 +2,8 @@
 # is bytes rather than events.
 #
 # Compiled with the system Swift via xcrun, exactly like barpop, floatring,
-# hausrect, hausax and hausdisp: the Xcode CLT is already a prerequisite of this
-# rice, and building a Swift toolchain from source to compile 400 lines against
+# hausrect, hausax and hausdisp: the Xcode CLT is already a prerequisite of
+# haus, and building a Swift toolchain from source to compile 400 lines against
 # Foundation and CryptoKit would cost hours. Kept out of the room's default.nix
 # so a comment there doesn't recompile the binary — `src` is the one .swift file.
 {

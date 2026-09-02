@@ -46,7 +46,7 @@ source "$HOME/.config/sketchybar/colors.sh"
 BAR_ITEM=calendar
 source "$HOME/.config/sketchybar/bar.sh"
 source "$HOME/.config/sketchybar/sizes.sh"
-# GENERATED from haus.bar.calendar.* — absent on a rice that predates it, hence
+# GENERATED from haus.bar.calendar.* — absent on a desktop that predates it, hence
 # the defaults below rather than a hard `source`.
 [ -f "$HOME/.config/sketchybar/calendar_config.sh" ] &&
   source "$HOME/.config/sketchybar/calendar_config.sh"
@@ -321,7 +321,7 @@ function emit(line,   n, f, i, v, dt, title, att, loc, url, notes, rest, r,
     else if (v ~ /^notes: /)     notes = substr(v, 8)
     # Unnamed: the datetime is the one with a datetime SHAPE, the other is the
     # title. Shape-tested rather than position-tested because icalBuddy honours
-    # -po for these two and a rice that reorders them would otherwise file every
+    # -po for these two and a desktop that reorders them would otherwise file every
     # meeting name as a date and print an empty bar.
     else if (v ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] at [0-9][0-9]:[0-9][0-9]/) dt = v
     else if (title == "") title = trim(v)

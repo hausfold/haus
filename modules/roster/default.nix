@@ -19,11 +19,11 @@
 # read the resolved list too, and neither should need the tiler evaluated to get
 # it. windows keeps exactly what is windows's: aerospace.toml.
 #
-# The rice's OWN apps are entries too — core declares ghostty's cask here, windows
+# haus's OWN apps are entries too — core declares ghostty's cask here, windows
 # aerospace's, bar sketchybar's, pounce/perch their bundles. That's what
 # makes this list complete rather than "the apps the host happened to add", and
-# it's what removes the trap it replaces: a host used to have to KNOW that the
-# rice already installs Ghostty and Perch, and write `cask = null` plus a comment
+# it's what removes the trap it replaces: a host used to have to KNOW that
+# haus already installs Ghostty and Perch, and write `cask = null` plus a comment
 # saying so. Now the field is already filled in by whoever installs it, the host
 # just adds a key, and `installedBy` answers "who put this here" in the data
 # instead of in a comment.
@@ -56,7 +56,9 @@ let
     // {
       app =
         entry.app
-        // { id = entry.id; }
+        // {
+          id = entry.id;
+        }
         // lib.optionalAttrs (entry.app.package == null && entry.app.packageName != null) {
           package = import ../lib/pkg-by-name.nix {
             inherit lib pkgs;
@@ -118,7 +120,8 @@ let
   rosterCasks = lib.filter (c: c != null) (map (a: a.cask) apps);
   rosterBrews = lib.filter (b: b != null) (map (a: a.brew) apps);
 
-  packagesFor = scope: map (a: a.package) (lib.filter (a: a.package != null && a.scope == scope) apps);
+  packagesFor =
+    scope: map (a: a.package) (lib.filter (a: a.package != null && a.scope == scope) apps);
 
   # ---- installed twice, silently ------------------------------------------
   # Homebrew list options concatenate and `brew bundle` is idempotent, so naming
@@ -145,10 +148,9 @@ let
     let
       names = map nameOf xs;
     in
-    map (x: "${what} `${x}`") (
-      lib.unique (lib.filter (x: lib.count (y: y == x) names > 1) names)
-    );
-  duplicateSources = duplicatesIn "cask" config.homebrew.casks ++ duplicatesIn "formula" config.homebrew.brews;
+    map (x: "${what} `${x}`") (lib.unique (lib.filter (x: lib.count (y: y == x) names > 1) names));
+  duplicateSources =
+    duplicatesIn "cask" config.homebrew.casks ++ duplicatesIn "formula" config.homebrew.brews;
 
   # The same app from two DIFFERENT package managers — a cask and a nixpkgs
   # build of the same thing. Undetectable by name (a cask's string vs a
@@ -262,8 +264,9 @@ in
   # neither prompts nor wedges. Failures are reported and stepped over — an app
   # you haven't bought must not be able to fail a rebuild.
   system.activationScripts.postActivation.text =
-    lib.optionalString (config.haus.appStore.install && appStoreEntries != [ ]) ''
-      # --- apps: Mac App Store (haus.appStore.install) --------------------
-      ${appStoreCmds}
-    '';
+    lib.optionalString (config.haus.appStore.install && appStoreEntries != [ ])
+      ''
+        # --- apps: Mac App Store (haus.appStore.install) --------------------
+        ${appStoreCmds}
+      '';
 }

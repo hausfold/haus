@@ -770,7 +770,7 @@ mechanism, say so in one line.
   SketchyBar, espanso) belongs to that room.
   - **It does not get to claim a file type.** `haus.terminal.hijackFileAssociations`
     is the only list of types haus binds, and keeping it the only one is the
-    rule: two rice-owned apps claiming one type never settles, because both
+    rule: two haus-owned apps claiming one type never settles, because both
     claims re-run on every activation and macOS stops to ask which app wins —
     every rebuild, forever. That is measured. The video player pick claimed
     thirteen extensions until 2026-08-31, and because `.mts` and `.m2ts` resolve

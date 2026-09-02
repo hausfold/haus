@@ -91,7 +91,7 @@ let
     scale = ui.scale;
   };
   # Gaps are points; a picture is pixels. Two per point on every Retina display,
-  # which is every display this rice targets — haus.wallpaper.debug.inset is the
+  # which is every display haus targets — haus.wallpaper.debug.inset is the
   # way out for one that isn't.
   retina = 2;
 
@@ -167,11 +167,11 @@ let
           # The rev is the content, the repo name is the label, so the name takes
           # the dimmer of the two. surface2 is the stronger tone against the
           # field in BOTH flavours (mocha's ladder runs up from black, latte's
-          # down from white), so the emphasis doesn't invert when the rice goes
+          # down from white), so the emphasis doesn't invert when haus goes
           # light.
           keyColor = palette.surface1;
           valueColor = palette.surface2;
-          # core's resolution, not the raw option: `package` is null on a rice
+          # core's resolution, not the raw option: `package` is null on a desktop
           # that named its font as `packageName` or left the default.
           fontPackage = import ../lib/mono-font.nix { inherit lib pkgs fonts; };
         }

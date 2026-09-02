@@ -1,6 +1,6 @@
 # Secrets — declared like everything else, valued nowhere in the repo.
 #
-# The rice ships secretspec (secretspec.dev): a committable secretspec.toml
+# haus ships secretspec (secretspec.dev): a committable secretspec.toml
 # declares WHICH secrets a project needs — names and descriptions, never
 # values — and a provider supplies the values at runtime. `secretspec run --
 # cmd` injects them as env vars into just that process, so nothing lives as

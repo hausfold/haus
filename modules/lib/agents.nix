@@ -1,4 +1,4 @@
-# The coding-agent clients the rice knows about. Imported the same way as
+# The coding-agent clients haus knows about. Imported the same way as
 # gui-wait.nix / keys.nix / nebelung.nix — a plain value, no module system
 # involved.
 #
@@ -26,7 +26,7 @@
 # because their values are per-client facts this list can't hold. Two are in the
 # AI room (modules/ai/default.nix): `agentHomes` (where that client keeps its
 # instructions file and its skills dir) and `clientScopeNote` (which of its own
-# files the rice does NOT own). The third is modules/lib/agent-oneshot.nix — how
+# files haus does NOT own). The third is modules/lib/agent-oneshot.nix — how
 # to run that client for ONE headless turn, which is what `haus fix` needs.
 #
 # The oneshot table CHECKS ITSELF against this file and throws by name; the two

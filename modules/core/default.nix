@@ -100,7 +100,7 @@ let
 
   # ---- restart map (`docs/macos-settings.md`) ----------------------
   # See modules/lib/restart-map.nix for what each value means and why. The
-  # typed domains here are unconditional because the rice writes every one of
+  # typed domains here are unconditional because haus writes every one of
   # them via mkDefault on every rebuild (dock.autohide, the finder block,
   # NSGlobalDomain's key-repeat pair, the trackpad trio, screencapture) —
   # unlike CustomUserPreferences, whose top-level domains genuinely vary by
@@ -143,14 +143,14 @@ let
   # ../lib/restart-map.nix exists to close.
   #
   #   "Dock"             nix-darwin already restarts Dock itself whenever the
-  #                      dock domain is set (which the rice always does), so
+  #                      dock domain is set (which haus always does), so
   #                      repeating it here just bounces the Dock twice per
   #                      rebuild for no benefit.
   #   "activateSettings" handled by the unconditional activateSettings call below.
   #   "notify:<name>"    a distributed notification, posted below — not a
   #                      process, so it is subtracted here by prefix rather
   #                      than by name (the name varies per domain).
-  #   "none" / "logout"  no restart to give (or none this rice can give).
+  #   "none" / "logout"  no restart to give (or none haus can give).
   notProcesses = [
     "Dock"
     "activateSettings"
@@ -169,7 +169,7 @@ let
   # This is the same split `fdaDeclaredBy` below already needed, and the same
   # rule the locale notification wrote down: **"which restart" is data, "does
   # this rebuild need one" sometimes isn't.** A domain absent here defaults to
-  # true, which is right for the ones the rice writes on every rebuild.
+  # true, which is right for the ones haus writes on every rebuild.
   #
   # The trigger is per-KEY, not per-option-family, and that distinction is the
   # whole value of it. Only the `by-eye` three need the daemon bounced; the four
@@ -295,7 +295,7 @@ let
   # like the locale notification's trigger a few lines up, it cannot come from the
   # table, for the same reason: domain membership isn't the question.
   # `com.apple.universalaccess` sits in `typedDomainsWritten` above so the restart
-  # lookup finds an answer for it, but the rice writes it only when something opts
+  # lookup finds an answer for it, but haus writes it only when something opts
   # in, so keying on membership alone would announce a Full Disk Access
   # requirement on every machine — including the overwhelming majority with no
   # accessibility opinion at all, which is exactly the "signal that fires always
@@ -315,7 +315,7 @@ let
   # The distinction the whole section turns on, and the reason this is two lists
   # rather than one. Both need the grant; only one of them is dangerous.
   #
-  #   GUARDED   — the rice writes the domain itself, through a shell writer that
+  #   GUARDED   — haus writes the domain itself, through a shell writer that
   #               tolerates a refusal (hausAccessibility, below). No grant
   #               costs you the setting and nothing else.
   #   UNGUARDED — the domain reaches activation only through nix-darwin's own
@@ -336,7 +336,7 @@ let
   ) needsFdaDomains;
   fdaUnguardedDomains = builtins.filter (d: !(builtins.elem d fdaGuardedDomains)) needsFdaDomains;
 
-  # Domains whose writes are known to land and do nothing. Nothing in the rice
+  # Domains whose writes are known to land and do nothing. Nothing in haus
   # writes one; a host's own `haus capture` can, and a plist that reads back
   # correct on a machine that never moved is the one failure `haus diff` cannot
   # catch by comparison alone.
@@ -344,7 +344,7 @@ let
 
   # The third verb (see ../lib/restart-map.nix): domains whose consumers are
   # every running app rather than one daemon. `hausax post-notification` does
-  # the posting; nothing else in the rice can reach DistributedNotificationCenter.
+  # the posting; nothing else in haus can reach DistributedNotificationCenter.
   #
   # The map supplies the NAME — the load-bearing half, since a made-up
   # notification does nothing — but not the trigger. NSGlobalDomain is written
@@ -471,7 +471,7 @@ let
     fonts = fontsCfg;
   };
 
-  # Naming a family the rice was never given a package for is silent tofu:
+  # Naming a family haus was never given a package for is silent tofu:
   # Ghostty just falls back and the powerline/icon glyphs vanish. Cheap to spot.
   fontFamilyUnprovided =
     fontsCfg.mono.package == null
@@ -695,7 +695,7 @@ in
     # ---- haus.locale.inputSources → the Text Input Sources API --------------
     # THE ONE EXHAUSTIVE OPTION in §5.6's groups: a non-null list is the whole
     # set of keyboard layouts, so anything enabled and unnamed gets disabled.
-    # "Add and never remove" would make a rice that can only ever accumulate
+    # "Add and never remove" would make a desktop that can only ever accumulate
     # layouts. Non-keyboard input methods (emoji picker, press-and-hold) are
     # not layouts and hausax never touches them.
     #
@@ -780,7 +780,7 @@ in
     #
     # `processesToRestart` is generated from modules/lib/restart-map.nix
     # against whatever plist domains this configuration actually writes —
-    # not hardcoded to Finder the way rice#181 first shipped this, so a
+    # not hardcoded to Finder the way haus#181 first shipped this, so a
     # future domain (Control Center, say) restarts correctly the day
     # something starts writing into it, with no second fix needed here.
     (lib.optionalString (processesToRestart != [ ]) ''
@@ -823,12 +823,12 @@ in
     # everything the WindowServer, HIToolbox or the input stack caches sits in
     # the plist until the next login: key repeat, the trackpad trio,
     # _HIHideMenuBar and SLSMenuBarUseBlurredAppearance (both of which bar
-    # depends on). Changing the rice and being told "log out to see it" is the
+    # depends on). Changing haus and being told "log out to see it" is the
     # single most confusing thing a rebuild can do.
     #
     # activateSettings is the private binary System Settings itself calls to
     # broadcast a preference change. Upstream has declined to run it for years
-    # (nix-darwin#658, #967, #1475), so the rice does it. It must run AS THE
+    # (nix-darwin#658, #967, #1475), so haus does it. It must run AS THE
     # USER — activation is root, and root's preference domain is not the one we
     # just wrote — hence the same launchctl-asuser shape as the block above.
     #
@@ -875,7 +875,7 @@ in
   programs.zsh.enable = true;
 
   # Core CLI tools. The shell *experience* (aliases, starship, git, yazi, …) is
-  # yours to add in your host file; these are the baseline binaries the rice and
+  # yours to add in your host file; these are the baseline binaries haus and
   # its commands lean on.
   # Split by the developer pack. What stays unconditional is the PRODUCT — the
   # tools a haus machine needs to be a haus machine even if its owner
@@ -1045,7 +1045,7 @@ in
       # Installs App Store apps for the roster; nothing to do with writing code.
       mas
     ]
-    # The themed CLI toolbelt the rice's shell is built around.
+    # The themed CLI toolbelt haus's shell is built around.
     ++ lib.optionals devCfg.toolbelt.enable [
       bat
       fzf
@@ -1062,7 +1062,7 @@ in
       fastfetch
     ]
     # Git and its surroundings. gnupg is here rather than in the product set
-    # because the only thing the rice uses it for is commit signing.
+    # because the only thing haus uses it for is commit signing.
     ++ lib.optionals devCfg.git.enable [
       delta
       gh
@@ -1182,7 +1182,7 @@ in
   };
 
   # The job is intentionally always present, even when the opt-in Bar pill is
-  # hidden: `awake` is a rice-level capability usable from any shell. RunAtLoad
+  # hidden: `awake` is a haus-level capability usable from any shell. RunAtLoad
   # resumes an unexpired timed assertion (with only its remaining duration), or
   # an explicit indefinite one, after login/rebuild. With no saved state it
   # exits immediately and launchd does not restart it.
@@ -1209,7 +1209,7 @@ in
     onActivation = {
       # Policy is host-tunable (see modules/options.nix). Safe defaults: never
       # auto-update/upgrade (keeps rebuilds reproducible) and never delete
-      # undeclared casks (cleanup = "none") so the rice can't eat an app you
+      # undeclared casks (cleanup = "none") so haus can't eat an app you
       # installed yourself. A declarative-minded host can opt into "zap".
       inherit (config.haus.homebrew) autoUpdate upgrade cleanup;
       # No `--adopt` here: current Homebrew's `brew bundle install` no longer
@@ -1223,12 +1223,12 @@ in
 
     # No casks here on purpose. core's own (ghostty) is a roster entry below,
     # like every other app on the machine — a host adding a leader key for the
-    # terminal shouldn't have to know whether the rice already installed it. A
+    # terminal shouldn't have to know whether haus already installed it. A
     # raw `homebrew.casks = [ ... ]` still merges in from anywhere, for the rare
     # cask that isn't an app at all.
   };
 
-  # The terminal the rice is themed for. mkDefault so a host can point the entry
+  # The terminal haus is themed for. mkDefault so a host can point the entry
   # at a different build — or null the cask and install ghostty its own way — by
   # app id, without touching this file. windows adds the leader key and workspace
   # when tiling is on; with windows off this is just an install.
@@ -1238,7 +1238,7 @@ in
   };
 
   # ---- Fonts ----------------------------------------------------------------
-  # The rice's terminal font, from haus.fonts.mono. JetBrains Mono Nerd
+  # haus's terminal font, from haus.fonts.mono. JetBrains Mono Nerd
   # Font is the default because a Nerd Font is load-bearing here: starship's
   # powerline prompt, lsd's icons, and yazi all draw with patched glyphs that a
   # stock font renders as tofu. terminal points Ghostty at whatever this resolves
@@ -1254,7 +1254,7 @@ in
   # requirement globally via a brew.env that `bin/brew` reads on every call.
   #
   # HOMEBREW_API_AUTO_UPDATE_SECS only bites hosts that set
-  # `haus.homebrew.autoUpdate = true` (the rice default is false, which
+  # `haus.homebrew.autoUpdate = true` (the haus default is false, which
   # disables the check outright). For those, brew re-downloads its ~15 MB
   # formula/cask JSON API whenever the last check is older than the window —
   # and the stock window is 450 s, so any two rebuilds more than 7½ minutes
@@ -1277,24 +1277,24 @@ in
   '';
 
   # ---- macOS defaults -------------------------------------------------------
-  # These are the rice's OPINIONS, so every value is lib.mkDefault: a host file
+  # These are haus's OPINIONS, so every value is lib.mkDefault: a host file
   # can override any of them with a plain value and win, no conflict. That's how
   # the bootstrap's "keep your current settings" capture works — it writes your
   # existing values into the host's system.defaults, overriding these. The
   # exceptions are the two menu-bar keys below (_HIHideMenuBar and
   # SLSMenuBarUseBlurredAppearance): not opinions but functions of Bar (the bar
   # must be hidden for Bar to replace it, and opaque so its hover-reveal covers
-  # Bar), so they track bar.enable and stay rice-controlled.
+  # Bar), so they track bar.enable and stay haus-controlled.
   system.defaults = {
     dock = {
       # The one macOS-side size ui.scale can move honestly. Set ONLY when you've
-      # actually asked for scaling: at scale 1.0 the rice writes nothing, so a
+      # actually asked for scaling: at scale 1.0 haus writes nothing, so a
       # Dock you sized by hand is left alone rather than snapped back to Apple's
       # 48 — don't move what wasn't asked about. (This used to cite
       # wallpaper.style = "none" as the precedent; that default has since flipped
       # to "minimal", so the principle stands but the wallpaper is now the
       # counterexample rather than the example — a Dock tilesize is a size you
-      # chose, a desktop is a look the rice is for.)
+      # chose, a desktop is a look haus is for.)
       tilesize = lib.mkIf (config.haus.ui.scale != 1.0) (
         lib.mkDefault (builtins.floor (48 * config.haus.ui.scale + 0.5))
       );
@@ -1321,18 +1321,18 @@ in
     }
     # ---- hot corners -------------------------------------------------------
     # Emitted ONLY for the corners the host actually named. Not mkDefault and
-    # not a rice opinion: hacker ships every corner at null, so this block is
-    # empty on a stock rice and the corners you set in System Settings years ago
+    # not a haus opinion: hacker ships every corner at null, so this block is
+    # empty on a stock desktop and the corners you set in System Settings years ago
     # survive a rebuild untouched. Naming one is the whole opt-in.
     #
     # Lands in the same com.apple.dock domain the block above writes, which
     # means it inherits nix-darwin's Dock restart for free — that restart fires
-    # whenever ANY typed dock option is set, and the rice always sets autohide.
+    # whenever ANY typed dock option is set, and haus always sets autohide.
     # So a corner is live the moment activation finishes, no logout.
     // lib.mapAttrs' (
       n: k: lib.nameValuePair "wvous-${k}-corner" hotCornerValue.${config.haus.hotCorners.${n}}
     ) hotCornersSet;
-    # The rice's Finder is aimed at someone who thinks in paths: everything
+    # haus's Finder is aimed at someone who thinks in paths: everything
     # visible, sorted the way a Linux file manager sorts, navigable from the
     # keyboard, and never guessing where you meant to look.
     finder = {
@@ -1366,7 +1366,7 @@ in
       FXEnableExtensionChangeWarning = lib.mkDefault false;
 
       # macOS's default: no ⌘Q in Finder. We used to turn it on — Finder does
-      # relaunch the instant you open a folder — but the rice's GUI agents key
+      # relaunch the instant you open a folder — but haus's GUI agents key
       # off Finder as the "is the Aqua session up" signal, so a hand-quit Finder
       # is a session state nothing else produces, and it only ever surfaced as
       # something else being broken (pounce's hotkey going dead). Not worth a
@@ -1425,7 +1425,7 @@ in
       NSTableViewDefaultSizeMode = lib.mkDefault (if config.haus.ui.scale > 1.0 then 3 else 1);
 
       # Hide the stock menu bar only when Bar draws its own; otherwise keep it.
-      # Rice-controlled (not mkDefault): it tracks bar.enable, not user taste.
+      # haus-controlled (not mkDefault): it tracks bar.enable, not user taste.
       _HIHideMenuBar = config.haus.bar.enable;
 
       # ---- haus.sound → the two typed beep keys --------------------------
@@ -1471,7 +1471,7 @@ in
     # ---- haus.screenshots → com.apple.screencapture ---------------------
     # The gentlest domain on the Mac: no TCC grant, no restart (screencapture
     # re-reads its preferences on every capture), every key typed upstream. So
-    # unlike Finder or the menu bar there is nothing for the rice to own here —
+    # unlike Finder or the menu bar there is nothing for haus to own here —
     # the values simply pass through, null for null.
     #
     # Two renames on the way, both so the option states an intent rather than a
@@ -1550,14 +1550,14 @@ in
         DSDontWriteUSBStores = lib.mkDefault true;
       };
 
-      # Clear the modifier on every corner the rice claims. macOS keeps "hold ⌘
+      # Clear the modifier on every corner haus claims. macOS keeps "hold ⌘
       # for this corner" in a SEPARATE key (wvous-*-modifier, a Carbon modifier
       # mask; 0 means none), and nix-darwin types the corner but not the
-      # modifier — so without this a corner set by the rice inherits whatever
+      # modifier — so without this a corner set by haus inherits whatever
       # modifier the machine already had. The failure is silent and reads as the
       # option not working: the corner is correct, you just aren't holding the
       # key nobody mentioned. Corners left at null are untouched here too, so
-      # this never erases a modifier the rice didn't ask to own.
+      # this never erases a modifier haus didn't ask to own.
       "com.apple.dock" = lib.mapAttrs' (_: k: lib.nameValuePair "wvous-${k}-modifier" 0) hotCornersSet;
 
       # Two Finder keys nix-darwin has no typed option for.

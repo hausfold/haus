@@ -268,7 +268,7 @@ EOF
   rm -f "$TMP/refreshed"
   # Named explicitly rather than found on PATH: statusline.sh prepends the
   # system profile, where a REAL claude-statusline-refresh lives on any machine
-  # running this rice, so a stub could never win the lookup.
+  # running haus, so a stub could never win the lookup.
   export CLAUDE_STATUSLINE_REFRESHER="$TMP/bin/claude-statusline-refresh"
 
   printf 'hausfold/haus\tx\t1\t0\t0\t0\t#1 open\t%s\n' "$TMP" \

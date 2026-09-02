@@ -1,4 +1,4 @@
-# The AI room — coding agents, and everything the rice does to make them a
+# The AI room — coding agents, and everything haus does to make them a
 # first-class part of the machine rather than three binaries you happen to have.
 #
 # This is the first room declared as a CROSS-ROOM CAPABILITY (the contract is
@@ -119,7 +119,7 @@ let
   # installs none, and must not be refused for it.
   clients = config.haus._ai.clients;
 
-  # nixpkgs ships all three for aarch64-darwin only. That is the whole rice's
+  # nixpkgs ships all three for aarch64-darwin only. That is haus's whole
   # platform since 26.11 dropped x86_64-darwin, so this never fires today
   # — but it is the difference between a named refusal and an install that
   # silently does nothing, which is exactly the dead-pane failure `ai.clients`
@@ -130,14 +130,14 @@ let
   ) clients;
 
   # Whether this machine actually SPAWNS agents. The room being on is not enough:
-  # `ai.clients = [ ]` is a machine the rice installs no client on, and a
+  # `ai.clients = [ ]` is a machine haus installs no client on, and a
   # chord that spawns nothing is the dead-pane failure again, one layer up. So
   # this is what the terminal's chords and the launcher's Spawn Agent follow —
   # the same gate both used before this room existed.
   spawnable = cfg.enable && clients != [ ];
 
   # The bar is a different question, and answering it with `spawnable` was
-  # wrong: `ai.clients = [ ]` means the RICE installs no client, not that no
+  # wrong: `ai.clients = [ ]` means haus installs no client, not that no
   # agent runs here. `agent-state` — the pill's only writer — follows
   # `ai.enable` alone (modules/core), and terminal writes every client's
   # instructions and hooks on exactly that machine, by name, for exactly this
@@ -167,7 +167,7 @@ let
         checkout on a `worktree-<name>` branch, in its own window, so parallel
         agents never fight over a single checkout.'';
 
-  # One client id → where that client keeps the two files the rice ships into a
+  # One client id → where that client keeps the two files haus ships into a
   # home: the always-on instructions (`haus.ai.instructions`) and the `haus`
   # skill (`haus.ai.skill`). Every client has both slots under a different
   # name, which is the whole reason those options are named for the room and not
@@ -217,7 +217,7 @@ let
     };
   };
 
-  # Rice-owned preamble for each client's instructions file. The rice ships
+  # haus-owned preamble for each client's instructions file. It ships
   # `scruff` (core) on PATH to every machine, and agent worktrees live OUTSIDE the
   # repo tree (~/.cache/claude-worktrees/…), so a worktree agent's instructions
   # walk never reaches the project/workshop AGENTS.md — only THIS file + the
@@ -393,10 +393,10 @@ let
   # both of which the next rebuild overwrites, or invents a `haus.*` option
   # that doesn't exist.
   #
-  # So the rice ships the knowledge with itself. The option reference inside the
+  # So haus ships the knowledge with itself. The option reference inside the
   # skill is RENDERED from this revision's module system (agents/skill.nix), and
   # `this-machine.md` below is rendered from this host's own evaluated config —
-  # neither can drift, and `haus update` refreshes both along with the rice.
+  # neither can drift, and `haus update` refreshes both along with haus.
   #
   # ONE derivation, installed into each client's own skills directory (see
   # agentHomes): the knowledge is about this machine, not about who's reading.
@@ -410,9 +410,9 @@ let
   # spawned with none of the context the same machine hands Claude.
   #
   # Empty instructions = nothing written for anyone, so a hand-managed
-  # instructions file is never clobbered just to inject the rice's note.
+  # instructions file is never clobbered just to inject haus's note.
   # Who the two files below are written for. Normally `ai.clients` — but an
-  # EMPTY list doesn't mean "no agent ever runs here", it means the rice installs
+  # EMPTY list doesn't mean "no agent ever runs here", it means haus installs
   # none — either nothing named any client, or the AI room is switched off, which
   # empties the resolved list whatever a desktop wrote (`haus._ai.clients`). A
   # machine like that can still have Claude Code from npm or Codex from brew, and
@@ -498,7 +498,7 @@ let
   );
 
   # The skill, installed file-by-file rather than as one directory symlink so
-  # this-machine.md — rendered from THIS host, not from the rice — can sit inside
+  # this-machine.md — rendered from THIS host, not from haus — can sit inside
   # the same skill alongside the store-built parts.
   #
   # The starter instruction pair for ~/.config/nix rides along INSIDE the skill
@@ -677,7 +677,7 @@ let
   # often no `name` that id is the only handle an edit can grab.
   launcherRoster = lib.sort (a: b: a.order < b.order) config.haus._launchers;
   # Where an entry comes from, in one clause — the question a comment in the host
-  # file used to answer badly. Four sources plus `installedBy` for the rice's own
+  # file used to answer badly. Four sources plus `installedBy` for haus's own
   # bundles; "· cask x" alone would quietly describe everything else as unmanaged.
   sourceOf =
     a:
@@ -996,7 +996,7 @@ in
     with pkgs;
     [
       # scruff — agent worktrees, its own product now (hausfold/scruff, taken as
-      # a flake input). Every caller the rice owns is on it: terminal's
+      # a flake input). Every caller haus owns is on it: terminal's
       # ⌘↵ runs `scruff new --open` (bare `scruff new` only prints the path since
       # scruff 0.2.94), pounce's Spawn Agent goes through `scruff spawn`, and
       # the Claude Code WorktreeCreate/WorktreeRemove hooks — which terminal

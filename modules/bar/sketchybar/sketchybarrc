@@ -110,7 +110,7 @@ sketchybar --default \
 
 ##### LEFT SIDE #####
 
-# The haus logo — the rice's own mark, on a SURFACE0 pill matching the other
+# The haus logo — our own mark, on a SURFACE0 pill matching the other
 # left-side pills. A GLYPH, not an image: haus.bar.logo.icon picks it,
 # haus.bar.logo.size sizes it, and everything else this pill does (the state
 # colour, the hover sweep, leader mode) is a colour change — which SketchyBar

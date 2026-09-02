@@ -1,7 +1,7 @@
 # The retired `presets` format, kept working for one release.
 #
-# A preset was a data-only rice a consumer stacked into `extraModules` beside
-# whichever whole rice they had. The rooms model retires that vocabulary
+# A preset was a data-only desktop a consumer stacked into `extraModules` beside
+# whichever whole desktop they had. The rooms model retires that vocabulary
 # (`docs/model.md`, "What a desktop is") for one reason: whole selections
 # do not stack. Two presets that disagree about an option stop the build with
 # nothing to arbitrate them, and the docs were teaching people to compose

@@ -171,8 +171,8 @@ cmd_launch() {
     # "this window" search would just look broken.
     [ -n "$target" ] || scope="session"
 
-    # A FLOATING window, and its SIZE follows its SCOPE — the one place in the
-    # rice where two chords of the same script want different geometry:
+    # A FLOATING window, and its SIZE follows its SCOPE — the one place in
+    # haus where two chords of the same script want different geometry:
     #
     #   ⌘F  (pane)     matched to the frame of the window that summoned it, so
     #                  find reads as that terminal switching into a search. The

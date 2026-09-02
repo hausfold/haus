@@ -23,7 +23,7 @@
 #               statusline shows a session only the rows whose parent == its cwd.
 #   Only IN-FLIGHT rows are written (ahead>0, or dirty, or has a PR).
 #
-# It also writes lock-nag.tsv (see below): how far this machine's pinned rice is
+# It also writes lock-nag.tsv (see below): how far this machine's pinned haus is
 # behind upstream, on its own much longer TTL. Same reason it lives here — it
 # needs the network, and the network must never be in the render path.
 #
@@ -111,7 +111,7 @@ if ! mkdir "$LOCK" 2>/dev/null; then
 fi
 trap 'rmdir "$LOCK" 2>/dev/null || true' EXIT
 
-# --- stale-rice nag: how far this machine's pinned haus is behind --------
+# --- stale-pin nag: how far this machine's pinned haus is behind ---------
 # There is no "latest" in Nix — a flake input is whatever flake.lock pinned, and
 # it only moves when `haus update` moves it. So the bar carries the one number
 # that makes that pin visible: how many commits `haus update` would bring in.
@@ -675,7 +675,7 @@ if [ -f "$CLAUDE_BLOCK" ]; then
   [ "$age" -lt "$CLAUDE_BLOCK_TTL" ] && cl_blocked=1
 fi
 
-# The opt-in, and it is deliberately NOT `~/.claude`: this rice writes
+# The opt-in, and it is deliberately NOT `~/.claude`: haus writes
 # `~/.claude/CLAUDE.md` and `~/.claude/skills/haus/` itself for any machine whose
 # `haus.ai.clients` names claude, so that directory exists whether or not Claude
 # Code was ever installed — and a Codex-only machine with an old
@@ -766,7 +766,7 @@ if [ "$cl_fresh" = 0 ] && [ "$cl_blocked" = 0 ] && command -v jq >/dev/null 2>&1
     mv "$CLAUDE_TSV.tmp" "$CLAUDE_TSV"
     # usage.tsv is the pre-per-provider filename, still copied by statusline.sh
     # and still read by the pill when no usage-*.tsv exists. Keep the two in step
-    # from here too, or a rice mid-upgrade reads the older of the two.
+    # from here too, or a machine mid-upgrade reads the older of the two.
     cp "$CLAUDE_TSV" "$CACHE_DIR/usage.tsv" 2>/dev/null || true
     rm -f "$CLAUDE_BLOCK"
     fed=1
@@ -841,7 +841,7 @@ fi
 #   tokens-claude.index:  path <TAB> size <TAB> all <TAB> day <TAB> d <TAB> w <TAB> m
 #   tokens-claude.tsv:    d <TAB> w <TAB> m <TAB> all <TAB> written
 # Both are read back with a strict field count, so a cache written by an older
-# rice is discarded rather than misread one column over.
+# haus is discarded rather than misread one column over.
 TOKENS_TTL=${TOKENS_TTL:-900}
 PROJECTS_DIR="${CLAUDE_PROJECTS_DIR:-$HOME/.claude/projects}"
 TOK_TSV="$CACHE_DIR/tokens-claude.tsv"
@@ -921,7 +921,7 @@ if [ "$tok_fresh" = 0 ] && [ -d "$PROJECTS_DIR" ]; then
   # on the first pass a machine ever runs the index is EMPTY, and with an empty
   # first file NR==FNR stays true straight through the second one — every size
   # row would be read as an index row and nothing would ever be scanned. NF is
-  # checked for the same class of reason: an index left by an older rice has
+  # checked for the same class of reason: an index left by an older haus has
   # fewer columns, and reading it anyway would file its numbers one bucket over.
   awk -F'\t' -v OFS='\t' -v IDX="$TOK_IDX" -v KEEP="$TOK_IDX.keep" -v SCAN="$TOK_IDX.scan" \
       -v DAY="$tok_day" -v WEEK="$tok_weekday" -v MONTH="$tok_month" '

@@ -1,7 +1,7 @@
 # everyday — a Mac for someone who doesn't write code.
 #
 # The desktop `presets/everyday.nix` became. As a preset it was a LAYER: four
-# lines you stacked on top of whichever whole rice you had selected, which under
+# lines you stacked on top of whichever whole desktop you had selected, which under
 # the rooms model is exactly the thing that no longer exists — a host chooses
 # exactly one desktop, and a desktop is a complete answer rather than a diff
 # against another one. So the selection it implied is written out here.

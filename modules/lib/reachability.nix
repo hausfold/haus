@@ -38,9 +38,9 @@
 #                 one property in the whole option surface that can differ between
 #                 two machines running byte-identical config.
 #
-# ---- route: how the rice writes an FDA-gated domain -------------------------
+# ---- route: how haus writes an FDA-gated domain -----------------------------
 #   guardedBy = "<option namespace>"
-#     — the rice offers its own writer for this domain, one that tolerates a
+#     — haus offers its own writer for this domain, one that tolerates a
 #       refusal: on failure it says why and activation carries on. A missing grant
 #       costs you the setting and nothing else. That is the ONLY acceptable way to
 #       write a `needs-fda` domain, and the reason those options exist at all.
@@ -49,7 +49,7 @@
 #       generator, which emits an UNGUARDED `defaults write` into an activation
 #       script running under `set -e`, roughly two thirds of the way in. Without
 #       the grant that write exits 1 and takes the REST OF ACTIVATION with it —
-#       every launchd daemon and user agent the rice installs (the bar, the
+#       every launchd daemon and user agent haus installs (the bar, the
 #       tiling, the palette) is silently skipped, with the symptom nowhere near
 #       the cause. nix-darwin#1049.
 #

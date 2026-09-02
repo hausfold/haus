@@ -228,7 +228,7 @@ in
     theme.ports.enable = lib.mkOption {
       type = lib.types.bool;
       # Carved out, unlike the accent/flavor/contrast above it: those decide how
-      # the rice draws ITSELF, while this one writes theme files into apps you
+      # haus draws ITSELF, while this one writes theme files into apps you
       # installed. A side effect reaching outside the layer is a choice a
       # desktop makes, not one the bare catalogue makes for you.
       default = false;

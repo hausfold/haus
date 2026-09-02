@@ -30,7 +30,7 @@
 }:
 
 {
-  # Output name; the accent/palette ride in it so two rices don't share a path.
+  # Output name; the accent/palette ride in it so two desktops don't share a path.
   name ? "haus-wallpaper",
   width,
   height,
@@ -58,7 +58,7 @@ let
 
   # ---- the mark ---------------------------------------------------------
   # ⌂ U+2302 HOUSE, drawn rather than set. A font glyph would follow whatever
-  # haus.fonts.mono happens to be — a different house on every rice, and tofu on
+  # haus.fonts.mono happens to be — a different house on every desktop, and tofu on
   # a font without the codepoint — where the mark is meant to be the one thing
   # that looks the same everywhere. Unit box is 100x100.
   #
@@ -230,7 +230,7 @@ let
   # `+noise` draws from an UNSEEDED RNG by default, so the same command run
   # twice produces different bytes — measured, not assumed. Nix would not notice
   # (a store path is fixed by its inputs, not its output), which is exactly what
-  # makes it worth pinning: two machines on the same rice would quietly hold two
+  # makes it worth pinning: two machines on the same desktop would quietly hold two
   # different pictures, `nix build --check` would report the derivation as
   # non-deterministic, and a content-addressed store would treat every rebuild as
   # a new object. The value is arbitrary — it is U+2302, the mark's codepoint —

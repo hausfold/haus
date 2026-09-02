@@ -3,7 +3,7 @@
 # See hausax.swift for why a plist read isn't enough. Compiled with the system
 # Swift via xcrun, the same way modules/displays/package.nix builds hausdisp —
 # building the Swift toolchain from source to compile a few dozen lines against
-# AppKit would cost hours, and the CLT is already a prerequisite for this rice.
+# AppKit would cost hours, and the CLT is already a prerequisite for haus.
 {
   lib,
   stdenvNoCC,

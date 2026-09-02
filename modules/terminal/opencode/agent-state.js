@@ -1,4 +1,4 @@
-// agent-state.js — Opencode's half of the rice's agent status.
+// agent-state.js — Opencode's half of haus's agent status.
 //
 // Installed by terminal as ~/.config/opencode/plugin/haus-agent-state.js,
 // with BIN below rendered to core's `agent-state` by absolute path (a plugin gets

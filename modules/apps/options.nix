@@ -2,8 +2,8 @@
 # lives next to the code that implements it; modules/default.nix imports them all.
 # Cross-cutting options (the app roster) stay in modules/options.nix.
 #
-# apps' options — the picks the rice makes for you. One knob per pick: turn it
-# off and the rice installs nothing, leaving that job to you (or to a roster
+# apps' options — the picks haus makes for you. One knob per pick: turn it
+# off and haus installs nothing, leaving that job to you (or to a roster
 # entry of your own).
 { lib, ... }:
 
@@ -60,7 +60,7 @@
 
     # ---- packs ----------------------------------------------------------
     # A saved app collection, named. `pack` used to be a top-level concept a
-    # consumer stacked beside a whole rice; it is something this room offers
+    # consumer stacked beside a whole desktop; it is something this room offers
     # now, because "what's on this machine" is the question the Apps room
     # already answers (`docs/model.md`).
     #

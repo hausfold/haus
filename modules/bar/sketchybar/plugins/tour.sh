@@ -6,7 +6,7 @@
 # it) walks the four moves (launch / navigate / resize / palette): no focus
 # steal, no key logging, and no window of its own — except the "haus tour"
 # buddy Finder window steps 2-3 spawn when the workspace is too empty to
-# demonstrate on (see buddy_open). Completion is detected from signals the rice
+# demonstrate on (see buddy_open). Completion is detected from signals haus
 # already fires — the leader-mode scripts and aerospace-notify.sh call
 # `tour.sh event <name>`, each guarded by a single `[ -f $STATE ]`, so an idle
 # machine pays one stat per mode change and nothing else. We verify the
@@ -32,7 +32,7 @@
 # Setting haus.tour.steps replaces that lap with community-authored
 # { hint, detect } rows. tour_config.sh contains those rows as shell-safe case
 # functions; the state becomes c1, c2, ... and the same event funnel advances
-# them. No executable code crosses the data-only rice boundary.
+# them. No executable code crosses the data-only desktop boundary.
 #
 # The leader and palette GLYPHS come from tour_config.sh, generated from
 # haus.keys.* — the built-in prompts have to name the key this machine
@@ -142,7 +142,7 @@ step() { cat "$STATE" 2>/dev/null; }
 # Changing from the built-in lap to authored steps (or shortening an authored
 # list) can leave yesterday's state file naming a step the new tour does not
 # have. Treat that as a fresh dormant tour rather than rendering a blank or,
-# worse, resuming a built-in instruction the rice no longer declares.
+# worse, resuming a built-in instruction haus no longer declares.
 state_is_valid() {
     local current index
     current=$(step)
@@ -161,8 +161,8 @@ state_is_valid() {
     fi
 }
 
-# An authored hint is a literal string in someone else's rice, so it cannot name
-# the keys THIS machine resolved — the rice importing it may have moved
+# An authored hint is a literal string in someone else's desktop, so it cannot name
+# the keys THIS machine resolved — the desktop importing it may have moved
 # `keys.palette` or `keys.leader`. The built-in lap interpolates them; a shared
 # tour gets the same thing through placeholders, expanded here from the very
 # values tour_config.sh already carries. Without this, the only way to author

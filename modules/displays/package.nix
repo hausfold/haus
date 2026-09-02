@@ -1,10 +1,10 @@
-# hausdisp — the rice's display-mode helper. See hausdisp.swift for what it does
+# hausdisp — haus's display-mode helper. See hausdisp.swift for what it does
 # and why the mode ladder is derived rather than tabulated.
 #
 # Compiled with the system Swift via xcrun, exactly like the pounce package does
 # (pkgs/pounce/default.nix in the pounce repo): building the Swift toolchain from
 # source to compile 150 lines against CoreGraphics would cost hours, and the CLT
-# is already a prerequisite for this rice. Kept out of the room's default.nix so a
+# is already a prerequisite for haus. Kept out of the room's default.nix so a
 # comment change there doesn't recompile the binary — `src` is the one .swift file.
 {
   lib,

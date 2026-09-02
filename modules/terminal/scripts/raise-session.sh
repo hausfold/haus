@@ -45,7 +45,7 @@ fi
 sess="${1:-}"
 [ -n "$sess" ] || exit 1
 # Both backends put this name inside a quoted string (an AppleScript literal,
-# or Ghostty's shell-split initial-command). zmx session names the rice writes
+# or Ghostty's shell-split initial-command). zmx session names haus writes
 # are `term.<n>` and `scruff.<repo>.<lane>`; anything else is a bug rather than
 # an input, so refuse it instead of escaping it.
 case "$sess" in
@@ -196,7 +196,7 @@ case "$backend" in
     # The label goes into an AppleScript string literal below. Ghostty's ids
     # are `window-<hex>`, so rather than escape a value that should never need
     # it, refuse anything that isn't shaped like one — a label is written by
-    # this rice, and one that isn't is a bug, not an input.
+    # haus, and one that isn't is a bug, not an input.
     case "$gw" in
       *[!A-Za-z0-9._-]*) exit 1 ;;
     esac

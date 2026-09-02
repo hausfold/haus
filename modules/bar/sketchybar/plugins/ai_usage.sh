@@ -24,7 +24,7 @@
 # Five columns, and `read_tokens` takes all five or none: the four buckets are
 # computed INDEPENDENTLY rather than nested (statusline-refresh.sh), so a week
 # that started before the 1st holds tokens the month does not, and a file left
-# by an older rice has a different shape that would file the week under the day.
+# by an older haus has a different shape that would file the week under the day.
 #
 # ── written vs used, and why they are two columns ─────────────────────────────
 # Column 5 answers "how old are these NUMBERS" and column 9 answers "when did
@@ -38,7 +38,7 @@
 #
 # So: staleness (the grey, the `as of N ago` footnote) reads column 5, and the
 # `latest` provider selection reads column 9. A row with no column 9 — an older
-# rice, or a client whose writer this repo doesn't own — falls back to column 5,
+# haus, or a client whose writer this repo doesn't own — falls back to column 5,
 # which for a PUSHED feed is what it always meant.
 #
 # ── how the dropdown says what it says ────────────────────────────────────────
@@ -228,7 +228,7 @@ read_tokens() { # read_tokens <file> — T_D/T_W/T_M/T_ALL, false if there's no 
   [ -s "$1" ] || return 1
   local at=""
   IFS=$'\t' read -r T_D T_W T_M T_ALL at <"$1" || true
-  # All five columns or none: a file left by an older rice has a different shape,
+  # All five columns or none: a file left by an older haus has a different shape,
   # and reading it anyway would file the week's tokens under the day.
   [ -n "$at" ] || return 1
   T_D=${T_D:-0}; T_W=${T_W:-0}; T_M=${T_M:-0}; T_ALL=${T_ALL:-0}

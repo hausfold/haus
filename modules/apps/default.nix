@@ -1,8 +1,8 @@
-# Apps — the picks the rice makes for you.
+# Apps — the picks haus makes for you.
 #
 # Every other room installs an app because it needs one: windows brings AeroSpace
 # because it IS the tiler, bar brings SketchyBar because it IS the bar. This
-# room is the other kind — the editorial ones, the apps a machine the rice calls
+# room is the other kind — the editorial ones, the apps a machine haus calls
 # finished has rather than the ones a room needs to do its job. They live here
 # rather than wherever they happened to get installed: a pick that drifts into
 # the room whose code was next door is how the shell room ended up owning a

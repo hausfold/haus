@@ -8,7 +8,7 @@
 #   };
 #
 # This is a plain nix-darwin module — anything nix-darwin or home-manager
-# accepts goes here, and it merges with what the rice modules already declare.
+# accepts goes here, and it merges with what haus's modules already declare.
 # `pkgs` is here for haus.roster entries that install from Nixpkgs.
 { username, pkgs, ... }:
 
@@ -65,7 +65,7 @@
   #   "Library/Mobile Documents/iCloud~md~obsidian/Documents/notes"
   # ];
 
-  # The rice's own app picks — a GUI editor, or a whole saved collection in one
+  # haus's own app picks — a GUI editor, or a whole saved collection in one
   # line. Each is a roster entry like any other once it's on, so you can give it
   # a leader letter or pin a different build from here:
   # haus.apps.vscode.enable = true;

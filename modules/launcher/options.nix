@@ -630,7 +630,7 @@ in
       '';
     };
 
-    # Where this rice's own palette commands (modules/launcher/commands) landed in
+    # Where haus's own palette commands (modules/launcher/commands) landed in
     # the store. Internal, and the same shape as _roster: one resolved value
     # every room reads instead of each recomputing it. Empty when the launcher is off.
     #
@@ -639,7 +639,7 @@ in
     # own — and the alternative to handing it this one is a second copy of
     # rebuild.sh and reload-bar.sh living inside the bar. Only the palette's BUILT-IN
     # commands get a `pounce-<id>` bin on PATH (pkgs/pounce-commands wraps
-    # `builtinIds`); a rice command arrives through `extraCommandDirs`, which
+    # `builtinIds`); a haus command arrives through `extraCommandDirs`, which
     # the palette discovers at runtime and nothing puts a launcher in front of.
     # No `readOnly`, unlike _roster: readOnly counts the option's own `default`
     # as a definition, so an option that has both can never be assigned.

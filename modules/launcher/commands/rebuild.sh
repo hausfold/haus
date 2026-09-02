@@ -4,8 +4,8 @@
 # pounce: icon = arrow.triangle.2.circlepath
 # Rebuild nix system configuration in a small centered ghostty window.
 #
-# The build/switch itself is `haus rebuild` — the same end-user CLI the whole
-# rice hands people (and that add-app.sh already reuses), so the palette and the
+# The build/switch itself is `haus rebuild` — the same end-user CLI
+# haus hands people (and that add-app.sh already reuses), so the palette and the
 # terminal agree on exactly one rebuild path. haus resolves the flake's host attr
 # at runtime, so this command no longer bakes in a `@hostname@`. The flake lives
 # at ~/.config/nix by convention; override with $HAUS_FLAKE (mapped to

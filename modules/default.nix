@@ -65,7 +65,7 @@
     # browser is a different job from theming the browser's chrome.
     ./terminal/zen.nix
     # And split out of THAT, one level further down: zen.nix deploys add-ons
-    # other people wrote, this one BUILDS the rice's own — a Swift host, an .xpi
+    # other people wrote, this one BUILDS haus's own — a Swift host, an .xpi
     # and a native-messaging manifest — and is gated on its own option again.
     ./terminal/zen-tabs
     ./windows

@@ -149,7 +149,7 @@
     name = "accent";
     key = null; # follows haus.theme.accent
     stub = "0xff666666";
-    meaning = "the rice's own mark — identity, never status";
+    meaning = "haus's own mark — identity, never status";
     # 🚨 The one rung that is not a fixed palette key, and the one nothing
     # carrying MEANING may name. `haus.theme.accent` is an enum of fourteen
     # names (modules/lib/accents.nix) and it contains `red`, `peach`,

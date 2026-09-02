@@ -1,7 +1,7 @@
 // floatring — draw a thin rounded outline just outside ANOTHER process's window,
 // and keep it there until that process exits.
 //
-// It exists for the rice's floating Ghostty popups (Super-y peek, the Rebuild
+// It exists for haus's floating Ghostty popups (Super-y peek, the Rebuild
 // System palette command, the bar's agent peek), which land on top of a tiled
 // desktop with nothing separating their edge from whatever is behind them.
 // Ghostty can't draw the edge itself: 1.3.1's only padding-colour knob is

@@ -1,7 +1,7 @@
-# floatring — the outline around the rice's floating Ghostty popups. See
+# floatring — the outline around haus's floating Ghostty popups. See
 # floatring.swift for why Ghostty, aerospace and JankyBorders each can't do it.
 # Compiled with the system Swift via xcrun, exactly like modules/core's hausax and
-# modules/bar's barpop: the CLT is already a prerequisite of this rice, and
+# modules/bar's barpop: the CLT is already a prerequisite of haus, and
 # building a Swift toolchain from source to compile ~150 lines against AppKit
 # would cost hours. Kept out of default.nix so a comment there doesn't recompile
 # the binary — `src` is the one .swift file.

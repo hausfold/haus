@@ -3,7 +3,7 @@
 # that works, and why the request has to be an Apple event addressed by pid.
 # Compiled with the system Swift via xcrun, exactly like its sibling
 # package-floatring.nix and modules/core's hausax: the CLT is already a
-# prerequisite of this rice, and building a Swift toolchain from source to
+# prerequisite of haus, and building a Swift toolchain from source to
 # compile ~180 lines against AppKit would cost hours. Kept out of default.nix so
 # a comment there doesn't recompile the binary — `src` is the one .swift file.
 {

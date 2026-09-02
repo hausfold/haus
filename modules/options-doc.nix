@@ -73,7 +73,7 @@ let
   #
   # Pruning here rather than in each renderer means every consumer — the docs
   # page, the agent skill, anything added later — is fed the same public
-  # surface. The rice's convention is a leading underscore on the room segment.
+  # surface. haus's convention is a leading underscore on the room segment.
   visible = optionsEval.options // {
     haus = lib.filterAttrs (name: _: !(lib.hasPrefix "_" name)) optionsEval.options.haus;
   };
@@ -92,7 +92,8 @@ let
   # Keep the old top-level namespace lookups during the cross-repo rollout.
   # The versioned registry lives under `namespaces`; these aliases let an older
   # workshop renderer continue to read `groups.json` if haus lands first.
-  publishedRegistry = registry // lib.mapAttrs (_: meta: { inherit (meta) order blurb; }) registry.namespaces;
+  publishedRegistry =
+    registry // lib.mapAttrs (_: meta: { inherit (meta) order blurb; }) registry.namespaces;
 in
 # Copied rather than symlinked so `groups.json` lands in the SAME directory as
 # `options.json` — every consumer already knows that path, and a renderer that

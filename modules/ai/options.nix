@@ -14,7 +14,7 @@
 { lib, config, ... }:
 
 let
-  # Every coding-agent client the rice knows how to install, spawn and resume —
+  # Every coding-agent client haus knows how to install, spawn and resume —
   # read by ai.clients, ai.default, and bar's aiUsage.provider, so none
   # of the three can drift apart. modules/lib/agents.nix says why it lives there
   # rather than here, and names the one copy that can't be folded in.
@@ -102,7 +102,7 @@ in
       '';
     };
 
-    # The list as the rest of the rice must read it. `ai.clients` is what
+    # The list as the rest of haus must read it. `ai.clients` is what
     # somebody WROTE; this is what this machine actually installs, which is the
     # same thing gated on the room being on at all. Internal, because it is a
     # resolution rather than a setting — see modules/lib/contrib.nix for the
@@ -424,7 +424,7 @@ in
       '';
     };
 
-    # The two files the rice ships into an agent's home, one option each. Both
+    # The two files haus ships into an agent's home, one option each. Both
     # were `haus.claude.*` until 2026-08-11 and wrote only Claude Code's copy —
     # which made `ai.default = "codex"` a half-truth: the client spawned,
     # with none of the operating context or the option knowledge the same

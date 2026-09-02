@@ -1,4 +1,4 @@
-# The rice's public surface, as flat JSON a docs site can read without Nix.
+# haus's public surface, as flat JSON a docs site can read without Nix.
 #
 # `options-json` and `wm-bindings-json` already exist and are already what the
 # docs render from — but reading them means running `nix build`, which means the

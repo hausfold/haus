@@ -1,5 +1,5 @@
 /**
- * agent-state.ts — pi's half of the rice's agent status AND its lane banners.
+ * agent-state.ts — pi's half of haus's agent status AND its lane banners.
  *
  * Installed by terminal as ~/.pi/agent/extensions/haus-agent-state.ts (pi's
  * global auto-discovery dir), with the three @PLACEHOLDER@ paths below rendered

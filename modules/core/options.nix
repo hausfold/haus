@@ -513,7 +513,7 @@ in
     # It was briefly drafted the other way
     # round, defaulting to "fast", and the argument against that is the one hot
     # corners already made: these keys land on machines that have been running
-    # for years, macOS keeps no memory of a prior value, and a rice that speeds
+    # for years, macOS keeps no memory of a prior value, and a desktop that speeds
     # up a Dock nobody asked it about can't put it back. Opting in is one line.
     animations = lib.mkOption {
       type = lib.types.enum [
@@ -584,7 +584,7 @@ in
     };
 
     # ---- fonts ----
-    # Honest scope: this is the rice's type FAMILY — Ghostty's, and (since the
+    # Honest scope: this is haus's type FAMILY — Ghostty's, and (since the
     # bar stopped hardcoding one of its own) bar's. `size` is the terminal's
     # alone: the bar's sizes come from ui.scale against the menu-bar band's
     # ceiling, because its pill geometry is built around them (../lib/bar.nix).
@@ -1250,7 +1250,7 @@ in
     #
     # The reason `alertVolume` is 0–100 rather than the raw float upstream
     # types: macOS stores the alert volume as `e^(fraction − 1)`, so 0.5 is 31%
-    # and anything at or below e⁻¹ ≈ 0.368 is silence. A rice that exposed the
+    # and anything at or below e⁻¹ ≈ 0.368 is silence. A desktop that exposed the
     # float would ship a number that reads like a percentage and isn't.
     sound = {
       alertVolume = lib.mkOption {
