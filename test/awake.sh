@@ -33,19 +33,16 @@ while [ -n "${AWAKE_TEST_GATE:-}" ] && [ -e "$AWAKE_TEST_GATE" ]; do
 done
 EOF
 
-cat >"$TMP/bin/sketchybar" <<'EOF'
+# `awake` no longer knows there are two bars: it calls `haus-bar-poke`, which
+# owns that pair for every producer (modules/core/haus-bar-poke.sh, and
+# test/bar-poke.bats is where the both-bars behaviour itself is asserted). So
+# ONE stub stands where two used to. It is still a stub rather than the real
+# binary for the reason the two were: without one the default is a store path
+# that, on a dev Mac, fires a real --trigger at the live bar, and CI (Linux, no
+# such path) would never see it.
+cat >"$TMP/bin/haus-bar-poke" <<'EOF'
 #!/usr/bin/env bash
-printf 'sketchybar %s\n' "$*" >>"$AWAKE_TEST_LOG"
-EOF
-
-# bar's optional second bar (haus.bar.bottom.enable) is a second SketchyBar
-# instance under a second name, and `awake` pokes BOTH — so it needs a stub too.
-# Without one the default path is /run/current-system/sw/bin/bar-bottom, which
-# on a dev Mac running that bar means this suite fires a real --trigger at the
-# live bottom bar; CI (Linux, no such path) would never see it.
-cat >"$TMP/bin/bar-bottom" <<'EOF'
-#!/usr/bin/env bash
-printf 'bar-bottom %s\n' "$*" >>"$AWAKE_TEST_LOG"
+printf 'haus-bar-poke %s\n' "$*" >>"$AWAKE_TEST_LOG"
 EOF
 
 chmod +x "$TMP/bin/"*
@@ -54,8 +51,7 @@ export HOME="$TMP/home"
 export AWAKE_STATE_DIR="$TMP/state"
 export AWAKE_LAUNCHCTL_BIN="$TMP/bin/launchctl"
 export AWAKE_CAFFEINATE_BIN="$TMP/bin/caffeinate"
-export AWAKE_SKETCHYBAR_BIN="$TMP/bin/sketchybar"
-export AWAKE_BAR_BOTTOM_BIN="$TMP/bin/bar-bottom"
+export AWAKE_BAR_POKE_BIN="$TMP/bin/haus-bar-poke"
 export AWAKE_TEST_LOG="$TMP/log"
 export AWAKE_NOW=1000000
 
@@ -76,8 +72,7 @@ out=$("$AWAKE" 2h)
 assert_eq "$out" "awake for 2h 00m"
 assert_eq "$("$AWAKE" status --raw)" "$(printf 'timed\t7200\t1007200')"
 assert_contains "$TMP/log" "kickstart -k gui/$(id -u)/com.hausfold.awake"
-assert_contains "$TMP/log" "sketchybar --trigger caffeinate_change"
-assert_contains "$TMP/log" "bar-bottom --trigger caffeinate_change"
+assert_contains "$TMP/log" "haus-bar-poke caffeinate_change"
 
 out=$("$AWAKE" indefinitely)
 assert_eq "$out" "awake indefinitely"

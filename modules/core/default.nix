@@ -35,14 +35,42 @@ let
   # without `modules/ai/agents/` beside it.
   hausSkill = import ../ai/agents/skill.nix { inherit pkgs; };
 
-  # `awake` is both an end-user CLI and the program behind its launchd-owned
-  # caffeinate assertion. Keeping one derivation here means the optional bar
-  # pill is only a view/controller; the wake lock survives bar/shell restarts.
+  # The both-bars poke, as a binary — "anything that pokes a bar pokes both"
+  # (AGENTS.md) in ONE place instead of four. See the script's header for why it
+  # is a CLI rather than a function, and for the two trigger shapes it is
+  # deliberately wrong for.
+  #
   # `@sketchybar@` is haus.roster.sketchybar.binPath — where the ROSTER put the
   # bar's binary, rather than a profile path this room guesses at. core does not
   # depend on the bar room for it: the roster is the cross-room registry, and the
-  # `or ""` is the machine with no bar at all, which awake.sh's own `[ -x ]`
-  # guard already handles. See options-roadmap.md §5.4.
+  # empty string is the machine with no bar at all, which the script's own
+  # `[ -x ]` guard already handles. See options-roadmap.md §5.4.
+  #
+  # `or` catches a MISSING attribute, not a null value, and `replaceStrings`
+  # throws on a null replacement — so a host that declares a metadata-only
+  # `haus.roster.sketchybar` with the bar off (no assertion to catch it) would
+  # fail the whole eval with a type error naming no option. Both halves are
+  # real: no entry at all, and an entry with nothing to install.
+  #
+  # Core owns it for the same reason core owns `awake`: it reads the roster
+  # rather than the bar room, so it ships on a machine with no bar, finds
+  # nothing and exits 0. In modules/bar it would be absent precisely where every
+  # producer's guard already expects it to be a no-op.
+  hausBarPoke = pkgs.writeShellScriptBin "haus-bar-poke" (
+    let
+      p = config.haus.roster.sketchybar.binPath or null;
+    in
+    builtins.replaceStrings [ "@sketchybar@" ] [ (if p == null then "" else p) ] (
+      builtins.readFile ./haus-bar-poke.sh
+    )
+  );
+
+  # `awake` is both an end-user CLI and the program behind its launchd-owned
+  # caffeinate assertion. Keeping one derivation here means the optional bar
+  # pill is only a view/controller; the wake lock survives bar/shell restarts.
+  # `@barPoke@` is `haus-bar-poke` above, by STORE PATH rather than through the
+  # system profile: this room builds both, so the exact binary is in hand and
+  # needs no indirection through a generation that may not have switched yet.
   #
   # `HAUS_UI_SH` is PREPENDED rather than substituted or wrapped — the same
   # shape modules/github uses for `github-signal`, and for the same reason: the
@@ -54,19 +82,8 @@ let
     ''
       HAUS_UI_SH="''${HAUS_UI_SH:-${pkgs.snug}/share/ui.sh}"
     ''
-    + (
-      let
-        # `or` catches a MISSING attribute, not a null value, and
-        # `replaceStrings` throws on a null replacement — so a host that
-        # declares a metadata-only `haus.roster.sketchybar` with the bar off (no
-        # assertion to catch it) would fail the whole eval with a type error
-        # naming no option. Both halves are real: no entry at all, and an entry
-        # with nothing to install.
-        p = config.haus.roster.sketchybar.binPath or null;
-      in
-      builtins.replaceStrings [ "@sketchybar@" ] [ (if p == null then "" else p) ] (
-        builtins.readFile ./awake.sh
-      )
+    + builtins.replaceStrings [ "@barPoke@" ] [ "${hausBarPoke}/bin/haus-bar-poke" ] (
+      builtins.readFile ./awake.sh
     )
   );
 
@@ -1018,6 +1035,15 @@ in
       # line, and haus-notify silently falls through to Apple's banner.
       trill
       hausNotify
+
+      # `haus-bar-poke <event>` — the both-bars trigger, on PATH because two of
+      # its producers are a `writeShellScript` and a launchd argv that can
+      # source nothing, and a third (`bar_emit`) lives in a file only a bar
+      # widget reads. Unconditional beside `haus-notify` and for the same
+      # reason: it is addressed absolutely from launchd-spawned scripts across
+      # three rooms, and on a machine with no bar it finds nothing and exits 0
+      # rather than being a path those scripts have to test for.
+      hausBarPoke
 
       # `snug` — the one binary every bash script in the family draws through.
       # Unconditional for exactly the reason `trill` above is: what a haus

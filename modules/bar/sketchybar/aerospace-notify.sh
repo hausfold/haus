@@ -16,8 +16,9 @@
 # top bar's binary is named once, where the roster's `scope` decided it, and
 # never spelled here. It used to be written out three times in this file alone,
 # and the count grew by one in haus#484 without anybody noticing (§5.4).
-# Sourced up front rather than beside the bottom-bar poke at the end, because
-# every branch below needs $BAR_TOP.
+# Sourced up front because the two top-bar-only arms below need $BAR_TOP, and
+# because the guard beneath this is what makes "no bar deployed" one exit
+# rather than a test in every branch.
 if [ -r "$HOME/.config/sketchybar/bar.sh" ]; then
     # shellcheck source=/dev/null
     . "$HOME/.config/sketchybar/bar.sh"
@@ -42,13 +43,18 @@ if [ "$1" = tiling ]; then
     exit 0
 fi
 
-"$BAR_TOP" --trigger aerospace_workspace_change
-
-# The SECOND bar is a separate SketchyBar instance with its own mach service, so
-# the trigger above never reaches it — a pill placed there (the `page` one) would
-# only ever repaint on its own tick, which for a hidden item is never. $BAR_BOTTOM
-# comes from the same bar.sh sourced at the top; skip it when the bottom bar
-# isn't installed.
-[ -x "${BAR_BOTTOM:-}" ] && "$BAR_BOTTOM" --trigger aerospace_workspace_change
+# BOTH instances, and the one arm of this file that is: the SECOND bar is a
+# separate SketchyBar instance with its own mach service, so a `$BAR_TOP`
+# trigger never reaches it — a pill placed there (the `page` one) would only
+# ever repaint on its own tick, which for a hidden item is never.
+#
+# `haus-bar-poke` is where that pair lives, for every producer on the machine
+# (modules/core/haus-bar-poke.sh). Absolute, because this script is spawned by
+# AeroSpace and by the leader-mode scripts, on a PATH that names nothing of
+# ours — the same reason barlib.sh addresses `barpop` that way. It resolves
+# both bar binaries itself, which is why the `$BAR_BOTTOM` that used to be
+# read here is gone; `$BAR_TOP` stays for the two arms above, which are NOT
+# this shape.
+/run/current-system/sw/bin/haus-bar-poke aerospace_workspace_change
 # Haus-tour hook — one stat when no tour is mid-flight (plugins/tour.sh).
 { [ -f "$HOME/.local/state/haus/tour" ] && "$HOME/.config/sketchybar/plugins/tour.sh" event workspace; } >/dev/null 2>&1 &

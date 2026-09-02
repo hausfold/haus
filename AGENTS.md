@@ -771,6 +771,19 @@ mechanism, say so in one line.
     which runs the palette's `reload-bar.sh` rather than carrying a second copy;
     and the `.haus-stamp` onChange). A bare `sketchybar --reload` reaches one
     mach service and leaves the other bar a generation behind, silently.
+    **A TRIGGER spells that as `haus-bar-poke <event> [key=value…]`**
+    (`modules/core/haus-bar-poke.sh`, on PATH, pinned by `test/bar-poke.bats`)
+    rather than writing the pair out — `focus`, `awake`, the focus watcher's
+    launchd argv, the AI room's `agentAwakePoke`, `aerospace-notify.sh`'s
+    `workspace` arm and barlib's `bar_emit` are all one call to it now. It is a
+    binary and not a shell helper because two of those are a `writeShellScript`
+    and a launchd `ProgramArguments`, which can source nothing, and `bar_emit`
+    lives in a file only a framework widget reads; core owns it because it reads
+    the ROSTER for the bar's binary, so it ships and exits 0 on a machine with no
+    bar. Two trigger shapes are deliberately NOT this, and
+    `docs/bar-framework.md`'s Pubsub section says which: one that only wakes
+    `aerospace_watcher.sh` on the top bar (the OTHER two arms of that same
+    file), and one that repaints a single pill on `$SB` alone.
   - **Every reload names its rc** (`--reload
     ~/.config/sketchybar/bar-bottomrc`). `--reload` with no path re-runs the
     config path the instance resolved AT STARTUP, and SketchyBar resolves it
@@ -952,9 +965,13 @@ mechanism, say so in one line.
   `darwin-rebuild switch --flake` builds again, against root's separate caches
   under `/var/root/.cache/nix`, costing ~3 s after a host edit and ~15 s
   whenever a flake input moved. Its stable `/run/current-system/sw/bin` path is
-  load-bearing: security's NOPASSWD rule must name a literal path), and
+  load-bearing: security's NOPASSWD rule must name a literal path),
   **`awake.sh`** (launchd-owned timed/indefinite macOS caffeinate assertions;
-  bar's optional coffee pill is only its controller).
+  bar's optional coffee pill is only its controller), and
+  **`haus-bar-poke.sh`** (`haus-bar-poke <event> [key=value…]` — the both-bars
+  trigger, the one copy of the pill-repaint rule above. Core's for the same
+  reason `awake` is: it reads `haus.roster.sketchybar.binPath` rather than the
+  bar room, so three rooms call it without knowing whether a bar exists).
   - **`haus skill` is core's, and it is the one place core names a path inside
     another room.** A3 of the family agent-surface standard (the workshop's
     `docs/agent-surface.md`) says every tool prints its own skill and can
