@@ -3783,7 +3783,7 @@
             touch $out
           '';
 
-          # The mark set, across the same three hand-written copies — plus the
+          # The mark set, across the same two hand-written copies — plus the
           # one thing this axis has that the ladder does not: identity and
           # status may not share a hue. See the `bar-marks` block in the `let`
           # above, and modules/bar/marks.nix for the set.

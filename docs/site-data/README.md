@@ -1,12 +1,13 @@
 # `docs/site-data/` — generated, do not edit
 
-Five files, none of them hand-written:
+Six files, none of them hand-written:
 
 | File | What it is |
 |---|---|
 | `options.json` | every `haus.*` option — type, default, example, description, and the file that declares it |
 | `groups.json` | the export/namespace registry (`modules/options-groups.nix`): ownership, reading order, blurbs and per-option desktop safety (each host-only option naming a reason out of the `hostOnlyReasons` table beside it, the way a `recursive` one names a validator) — plus a `rooms` catalogue, the thirteen rooms a person meets, each with a title, a sentence, and its derived namespaces, exports and option count. Two of its entries carry `kind = "shared"` / `"host"` instead of `"room"`, for the namespaces that belong to no single room; a catalogue filters on that. Top-level namespace aliases temporarily preserve the previous renderer contract |
 | `wm-bindings.json` | the static tiling/workspace/service binding table, resolved for the **default** keymap |
+| `launch-keys.json` | launch mode's own keys — the leader actions that exist before any roster letter, plus three chords per numbered workspace. **A list whose order is the order they are bound in** |
 | `bar-tones.json` | the bar's tone ladder (`modules/bar/tones.nix`) — each rung's `name`, the nebelung `key` it resolves to (`null` for `accent`, which follows `haus.theme.accent`), the `stub` hex `test/barlib.bats` writes, and its `meaning`. **A list whose order is part of the answer**: the ladder runs quietest first, and the page that renders it reads top-to-bottom in that order |
 | `bar-marks.json` | the identity axis beside it (`modules/bar/marks.nix`), same four fields. Every `key` here is disjoint from every fixed tone `key` — identity and status never share a hue, which `bar-marks` in `flake.nix` enforces |
 
@@ -33,7 +34,7 @@ lived in a repo that had Nix anyway, and not fine once it moved to its own
 repo (`hausfold/hausfold.co`, 2026-08-08).
 
 So haus publishes the data and keeps the drift check next to the derivation
-that defines it. The site reads five plain files out of a checkout.
+that defines it. The site reads six plain files out of a checkout.
 
 `modules/site-data.nix` has the rest of the reasoning, including why the option
 set is filtered to `haus.*` and why everything is `jq -S`'d.

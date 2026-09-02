@@ -178,8 +178,10 @@ _BARLIB_ARGS=()
 #     sky — so on some machine accent IS the alarm, and a Refresh row wearing
 #     it is unreadable there and nowhere else. accent is identity only.
 # The arms are in the ladder's order, quietest first, and `bar-tones` pins
-# that too — the doc table is meant to READ as the ladder, and an order that
-# drifts is a table that has stopped being one. The check pins each arm's
+# that too — the tone table on hausfold.co/docs/haus/rooms/bar-widgets is meant
+# to READ as the ladder, and an order that drifts is a table that has stopped
+# being one. (That table is checked against the ladder haus publishes as
+# docs/site-data/bar-tones.json, from the site's own repo.) The check pins each arm's
 # TONE_* as well as its name, because swapping two `printf` bodies inverts the
 # severity ladder while leaving the list of names byte-identical.
 #
