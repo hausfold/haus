@@ -139,6 +139,20 @@ url() { printf '%s\n' "$output" | grep '^https://' | tail -1; }
   [[ "$output" == *"desktop: hacker"* ]] || fail "no desktop: $output"
 }
 
+@test "a missing config flake is reported, not refused" {
+  # The door has to survive the thing it exists to report. A bootstrap that
+  # stopped half way leaves no consumer flake, and every other verb dies at the
+  # guard above the dispatch — so `report` is exempt there, and the header says
+  # "unknown" rather than desktop_selected's `hacker`, which would be a guess
+  # dressed as a fact in a public issue.
+  grep -qE '^  show \| report\) ;;$' "$SUBJECT" \
+    || fail "report is no longer exempt from the config-flake guard"
+  haus_sh 'FLAKE=/nope/flake.nix; cmd_report --print'
+  [ "$status" -eq 0 ] || fail "$output"
+  [[ "$output" == *"desktop: unknown"* ]] || fail "claimed a desktop it could not read: $output"
+  [[ "$output" == *"diagnostics="* ]] || fail "no link at all: $output"
+}
+
 @test "a pinned FORK is named, and hausfold/haus is not" {
   # A bug in a fork is not a bug here, and the only place that shows is the
   # lock. Silent on the usual machine, so the usual report carries no noise.

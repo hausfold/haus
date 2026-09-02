@@ -289,12 +289,20 @@ bad()  { printf '  %s%s%s %s\n' "$C_ERR" "$G_BAD" "$C_OFF" "$*"; }
 info() { printf '  %s%s%s %s\n' "$C_FOG" "$G_INFO" "$C_OFF" "$*"; }
 
 # Every verb here drives THIS machine's config, so the config has to exist —
-# with one exception. `haus show` reads a desktop someone is about to publish or
+# with two exceptions. `haus show` reads a desktop someone is about to publish or
 # about to trust — a local file, or a source it fetches into the store; it
 # touches no machine at all, and a publisher checking a desktop in CI has no
 # consumer flake to point it at. Guarding it here would
 # make the one command with an audience outside this Mac the one command that
 # cannot run outside it.
+#
+# `haus report` is exempt for the opposite reason: a missing or moved config
+# flake is not a state to refuse in, it is a state to REPORT. That is a
+# bootstrap that stopped half way, and the person meeting it is the reporter
+# haus most needs to hear from — refusing them the door because the thing they
+# are reporting is missing is the whole failure in one line. Everything the
+# block reads from the consumer degrades on its own (an unpinned revision, an
+# unknown desktop), so there is nothing here to protect.
 #
 # The verb is the first argument that isn't `-v`, for the same reason the
 # dispatch strips it below: `haus -v show …` is a legal spelling, and keying
@@ -310,7 +318,7 @@ for a in "$@"; do
   esac
 done
 case "$haus_verb" in
-  show) ;;
+  show | report) ;;
   *) [ -e "$CONSUMER/flake.nix" ] || die "no config flake at $CONSUMER — set HAUS_CONSUMER, or run the bootstrap first." ;;
 esac
 unset haus_verb a
@@ -3749,7 +3757,7 @@ report_redact() {
 # deliberately absent, because it tells a maintainer nothing and on a stock Mac
 # it is a person's name.
 report_header() {
-  local lock="$CONSUMER/flake.lock" rev="" when="" from="" head
+  local lock="$CONSUMER/flake.lock" rev="" when="" from="" ident
   if [ -f "$lock" ]; then
     rev="$(jq -r '.nodes.haus.locked.rev // "" | .[0:12]' "$lock" 2>/dev/null || true)"
     when="$(jq -r '.nodes.haus.locked.lastModified // empty' "$lock" 2>/dev/null || true)"
@@ -3757,15 +3765,23 @@ report_header() {
     # said only when it isn't ours, so the usual report carries no noise.
     from="$(jq -r '.nodes.haus.original | select(.owner and .repo) | "\(.owner)/\(.repo)"' "$lock" 2>/dev/null || true)"
   fi
-  head="haus ${rev:-unpinned}"
-  [ -n "$when" ] && head="$head ($(date -r "$when" '+%Y-%m-%d' 2>/dev/null || echo '?'))"
-  case "$from" in "" | "$REPORT_REPO") ;; *) head="$head from $from" ;; esac
-  printf '%s\n' "$head"
+  ident="haus ${rev:-unpinned}"
+  [ -n "$when" ] && ident="$ident ($(date -r "$when" '+%Y-%m-%d' 2>/dev/null || echo '?'))"
+  case "$from" in "" | "$REPORT_REPO") ;; *) ident="$ident from $from" ;; esac
+  printf '%s\n' "$ident"
   printf 'macOS %s (%s)\n' \
     "$(sw_vers -productVersion 2>/dev/null || echo '?')" \
     "$(sw_vers -buildVersion 2>/dev/null || echo '?')"
   printf '%s\n' "$(sysctl -n hw.model 2>/dev/null || echo 'unknown Mac')"
-  printf 'desktop: %s\n' "$(desktop_selected)"
+  # A missing flake is a legal state for this verb (see the guard above the
+  # dispatch), and `hacker` — desktop_selected's answer for a flake with no
+  # `desktop =` line, which is what mkHaus would really install — would be a
+  # guess dressed as a fact in a bug report.
+  if [ -r "$FLAKE" ]; then
+    printf 'desktop: %s\n' "$(desktop_selected)"
+  else
+    printf 'desktop: unknown — no config flake at %s\n' "$CONSUMER"
+  fi
 }
 
 cmd_report() {
