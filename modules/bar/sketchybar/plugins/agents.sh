@@ -1,4 +1,8 @@
 #!/bin/bash
+# widget: interval = 10
+# widget: popup = true
+# widget: segments = ready, working, done
+#
 # agents.sh — the reader half of the `agents` bar item (opt-in via
 # haus.bar.items.agents). Surfaces the state of your agent windows in the menu
 # bar so you never have to hunt the workspaces for the one that's blocked on
@@ -58,22 +62,27 @@
 # items. They ARE clickable: each one's click_script is this script, so the
 # popup opens from anywhere on the pill.
 #
-# ── the popup: the framework's grammar, still written out by hand ────────────
-# Borrowed from the aiUsage pill rather than reinvented: a brand-coloured MARK
-# identifies WHO and a ladder-coloured value says WHAT STATE. Both halves are
-# vocabulary now — modules/bar/marks.nix and modules/bar/tones.nix — and
-# ai_usage says them through `popup_heading --mark` since it converted, which
-# is what this pill's rows become when it does. One thing this popup adds that
-# aiUsage's doesn't need: every row in an agent's block shares one click target
-# (go-to/peek), not just one — a header a few pixels tall is a bad target for
-# "this is the pane I meant".
+# ── the popup ────────────────────────────────────────────────────────────────
+# A brand-coloured MARK identifies WHO and a ladder-coloured value says WHAT
+# STATE — the same two axes the aiUsage pill draws on, said through the same
+# vocabulary (modules/bar/marks.nix, modules/bar/tones.nix) now that both
+# pills are framework widgets. The shared table under them is ai-provider.sh,
+# whose `P_COLOR` half existed only for as long as one of its two readers
+# could not resolve a mark; this pill was that reader.
 #
-# TWO of aiUsage's rules this popup deliberately drops, because an agent block
-# is two rows and aiUsage's is many. Its "dim descriptors never carry colour"
-# assumes a descriptor column; there is none here — the detail line IS the
-# value, so it takes the state's colour, repo and all. And its "footnotes are
-# for staleness, never data" yields to the overflow count, which is the one
-# number that has to be legible as an aside rather than as another agent.
+# Every row in an agent's block shares ONE click target (go-to/peek), which is
+# what `popup_heading --run` is for: a heading a few pixels tall is a bad
+# target for "this is the pane I meant", so the name line and the detail line
+# are given the same command and the block becomes one hit area.
+#
+# TWO of aiUsage's rules this popup drops, because an agent block is two rows
+# and aiUsage's is many. Its "dim descriptors never carry colour" assumes a
+# descriptor column; there is none here — the detail line is two ANSWERS side
+# by side, this lane's state and its PR's, so the left half carries the state
+# tone (`popup_row --name-tone`, which exists for exactly this row) rather
+# than the dim a descriptor would get. And its "footnotes are for staleness,
+# never data" yields to the overflow count, which is the one number that has
+# to be legible as an aside rather than as another agent.
 #
 # ── the scruff join ──────────────────────────────────────────────────────────────
 # `agents-hook.sh` only ever knew state + a checkout basename, which is NOT
@@ -94,16 +103,13 @@ set -u
 # it). Set USER before PATH since PATH interpolates it.
 export USER="${USER:-$(id -un)}"
 export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:$PATH"
-source "$HOME/.config/sketchybar/colors.sh"
-# $SB — which bar this pill lives on (haus.bar.bottom.items can move it to
-# the bottom bar, a separate SketchyBar instance addressed by its own
-# binary). BAR_ITEM is the fallback bar.sh needs on the HOOK path: invoked
-# from outside SketchyBar there is no $BAR_NAME to route on, and not every
-# caller sets $NAME either.
+# BAR_ITEM is the fallback bar.sh and barlib need on the HOOK path: agents-hook.sh
+# invokes this file directly (`SENDER=refresh NAME=agents`) from outside
+# SketchyBar, where there is no $BAR_NAME to route on, and the `row` modes below
+# run from a popup click. The pill is movable via haus.bar.bottom.items, so a
+# bare `sketchybar` would keep talking to a top-bar item that is no longer there.
 BAR_ITEM=agents
-source "$HOME/.config/sketchybar/bar.sh"
-
-source "$HOME/.config/sketchybar/sizes.sh"
+source "$HOME/.config/sketchybar/barlib.sh"
 # provider_style() — the same client icon table the aiUsage pill draws from, so
 # a Codex pane wears the same mark in both pills.
 # shellcheck source=./ai-provider.sh
@@ -111,15 +117,12 @@ source "$HOME/.config/sketchybar/plugins/ai-provider.sh"
 
 DIR=/tmp/haus-agents
 PLUGINS="$HOME/.config/sketchybar/plugins"
-# Which item owns the dropdown, and it is the BRACKET, not the bot. SketchyBar
-# aligns a popup to the item that carries it, and the bot is now a third of the
-# pill's width — anchored there, a right-aligned popup (every pill on the menu
-# bar is right-side) would hang off to the left of the pill it belongs to by
-# however many segments happened to be drawn. A bracket answers `--query` with
-# the whole pill's rect and takes `popup.*` like any item, so the dropdown
-# lines up with the pill on either side and at any width. barpop is told the
-# same name.
-POPUP=agents.pill
+# Which item owns the dropdown is the RUNTIME's answer, not this file's: a
+# `segments =` header makes the pill a bracket, and barlib puts the popup on
+# it (see modules/bar/manifest.nix for why the bot cannot carry it — a popup
+# aligns to the item holding it, and the bot is a third of this pill's width).
+# So there is no $POPUP here any more; `popup_toggle` and the row builders
+# already know.
 # The pill's identity mark: a robot head, drawn as raw UTF-8 bytes because
 # /bin/bash is 3.2 and its printf has no \u. It is the one part of the pill
 # that is not a count — it says "this pill is about agents" and, by taking
@@ -155,18 +158,23 @@ SCRUFF_TTL=20                     # scruff itself keeps forge answers cached for
 SCRUFF_MAX_AGE=900                # persistent failure eventually drops stale PR rows
 SCRUFF_TIMEOUT=60                 # bound a wedged git/gh call before lock recovery
 
-# state → colour + human tag. waiting (a permission prompt) is the urgent one,
+# state → tone + human tag. waiting (a permission prompt) is the urgent one,
 # and is worded "ready" throughout the UI — it means "ready for your turn",
 # which is the reading that actually matters when you glance at the bar.
+#
+# These are the LADDER's rungs, named (modules/bar/tones.nix), and they say
+# what they say everywhere else in the bar. The three hexes they replace were
+# picked here and mapped one to one: `bad` is red, `busy` is sky, `ok` is
+# green — so nothing about this pill changed colour on the way through.
 state_style() {
   case "$1" in
-    # RED, not PEACH. This is the one state on the whole bar that is asking
+    # `bad`, not `warn`. This is the one state on the whole bar that is asking
     # you to stop what you are doing, and peach was reading as a warning about
     # the agent rather than a request from it.
-    waiting) COL=$RED;   TAG="ready";   MARK=$MARK_WAITING ;;
-    working) COL=$SKY;   TAG="working"; MARK=$MARK_WORKING ;;
-    idle)    COL=$GREEN; TAG="done";    MARK=$MARK_IDLE    ;;
-    *)       COL=$TEXT;  TAG="$1";      MARK=""            ;;
+    waiting) TONE=bad;  TAG="ready";   MARK=$MARK_WAITING ;;
+    working) TONE=busy; TAG="working"; MARK=$MARK_WORKING ;;
+    idle)    TONE=ok;   TAG="done";    MARK=$MARK_IDLE    ;;
+    *)       TONE=text; TAG="$1";      MARK=""            ;;
   esac
 }
 
@@ -302,7 +310,6 @@ if [ "${1:-}" = "row" ] && [ "${2:-}" = "desktop" ]; then
   else
     open -b com.anthropic.claudefordesktop 2>/dev/null
   fi
-  "$SB" --set "$POPUP" popup.drawing=off
   exit 0
 fi
 
@@ -378,7 +385,6 @@ if [ "${1:-}" = "row" ] && [ "${2:-}" = "zmx" ]; then
       fi
     fi
   fi
-  "$SB" --set "$POPUP" popup.drawing=off
   exit 0
 fi
 
@@ -408,108 +414,6 @@ ago() { # ago <seconds> — "4m" / "1h 12m" / "2d", how long an agent has sat in
   }'
 }
 
-# ── the column grid — the same math barlib's value column does, and the last
-# hand-written copy of it. See `_barlib_name_pad` / `_barlib_unpad` in
-# barlib.sh for why a label can't be indented with leading spaces (sketchybar
-# trims on size and draws untrimmed, so a leading run of spaces buys a clipped
-# row, not a margin). ai_usage.sh carried the other copy until it converted;
-# this one goes the same way when this pill does.
-ROW_INDENT=22                    # left margin of a value row, under its header
-DESC_COLS=4                      # widest descriptor still in use. Only the
-                                  # summary row has one now (and it is empty),
-                                  # so this buys that row its left margin; the
-                                  # per-agent rows lost their descriptors with
-                                  # the two-row block below.
-DESC_GAP=12                      # descriptor → value gutter
-ADV_M=$(awk -v s="${FS_SMALL:-13}" 'BEGIN { printf "%.0f", s * 602 }')
-px() { printf '%s' $((($1 + 500) / 1000)); }
-desc_pad() { # desc_pad <descriptor> [extra columns]
-  px $(((DESC_COLS - ${#1} + ${2:-0}) * ADV_M + DESC_GAP * 1000))
-}
-LEAD=0
-UNPADDED=""
-unpad() { # unpad <value> → sets UNPADDED (blanks stripped) and LEAD (how many)
-  UNPADDED="${1#"${1%%[! ]*}"}"
-  LEAD=$(( ${#1} - ${#UNPADDED} ))
-}
-
-H_HEADER=32
-H_ROW=25
-H_META=20
-
-# Every agent's block gets one click target across BOTH its rows (name and
-# detail) — a taller hit area than aiUsage needs, since aiUsage's rows all
-# close the popup while these route to go-to/peek. pop_add's default falls
-# back to closing, for the summary header and the footer hint, which belong to
-# no single agent.
-ROW_CLICK=""
-pop_add() { # pop_add <property=value…>
-  ARGS+=(--add item "agents.popup.$i" "popup.$POPUP"
-    --set "agents.popup.$i"
-      icon="" icon.padding_left=0 icon.padding_right=0
-      label="" label.padding_left=0 label.padding_right=14
-      background.drawing=off background.height="$H_ROW"
-      click_script="${ROW_CLICK:-$SB --set $POPUP popup.drawing=off}"
-    "$@")
-  i=$((i + 1))
-}
-
-header() { # header <icon> <font> <color> <name> [name-color]
-  pop_add icon="$1" icon.font="$2" icon.color="$3" \
-    icon.padding_left=10 icon.padding_right=8 \
-    label="$4" label.color="${5:-$TEXT}" label.font="${BAR_FONT}:Bold:${FS_LABEL}" \
-    background.height="$H_HEADER"
-}
-
-row() { # row <descriptor> <value> <color> [weight]
-  unpad "$2"
-  pop_add icon="$1" icon.color="$OVERLAY1" \
-    icon.font="${BAR_FONT}:Regular:${FS_SMALL}" \
-    icon.padding_left="$ROW_INDENT" icon.padding_right="$(desc_pad "$1" "$LEAD")" \
-    label="$UNPADDED" label.color="$3" label.font="${BAR_FONT}:${4:-Bold}:${FS_SMALL}"
-}
-
-meta() { # meta <text> — a footnote. Smallest, dimmest, shortest row there is.
-  pop_add label="$1" label.color="$OVERLAY0" \
-    label.font="${BAR_FONT}:Italic:${FS_TINY}" \
-    label.padding_left="$ROW_INDENT" background.height="$H_META"
-}
-
-# ── the two-row block ─────────────────────────────────────────────────────────
-# An agent is a NAME line and a DETAIL line, and nothing else. It used to be
-# four rows (five when dirty), each repeating a `repo` or `PR` descriptor down
-# the left margin — which put eleven agents well off the top of a screen and
-# made it genuinely hard to see which detail belonged to which name. Now the
-# descriptors are gone (a lane name and a state word don't need labelling), the
-# PR verdict is right-locked on the detail line instead of owning a row, and a
-# lane with nothing landed says NOTHING rather than "no PR yet".
-#
-# Right-locking is done with the file's own advance-width math rather than
-# sketchybar's `align`: `px`/`ADV_M` are already how this popup builds columns,
-# and they need no property this bar hasn't been drawing with for months.
-BLOCK_COLS=58                    # the column the right-hand text ends on —
-                                  # wide enough for the longest real row
-                                  # (`ready · 12m · qnap-mediastack ●` beside
-                                  # ` +2 unshipped` is 50), since anything
-                                  # past it silently falls back to the
-                                  # minimum gutter and reads as ragged next to
-                                  # the rows that did lock.
-rlock() { # rlock <left-text> <right-text> → the gutter between them
-  # Nothing on the right means no column to reach: pad the minimum instead, or
-  # every lane with nothing landed pays the full width in whitespace and the
-  # popup stays as wide as the rows it just stopped drawing.
-  if [ -z "$2" ]; then px $((DESC_GAP * 1000)); return; fi
-  local gap=$(((BLOCK_COLS - ${#1} - ${#2}) * ADV_M))
-  [ "$gap" -lt $((DESC_GAP * 1000)) ] && gap=$((DESC_GAP * 1000))
-  px "$gap"
-}
-
-detail() { # detail <left> <left-color> <right> <right-color>
-  pop_add icon="$1" icon.color="$2" \
-    icon.font="${BAR_FONT}:Bold:${FS_SMALL}" \
-    icon.padding_left="$ROW_INDENT" icon.padding_right="$(rlock "$1" "$3")" \
-    label="$3" label.color="$4" label.font="${BAR_FONT}:Regular:${FS_SMALL}"
-}
 
 # ── the scruff join, in ONE jq ──────────────────────────────────────────────────
 # This used to be five `jq` invocations per agent — lane lookup, repo, verdict,
@@ -567,26 +471,26 @@ lane_lookup() { # lane_lookup <path-key> <name-key> → 0 and sets L_* on a hit
 }
 
 # ── what a lane's PR is doing, as a glyph and a word ──────────────────────────
-# Sets PR_TEXT (empty = draw nothing) and PR_COL. The ladder colours mean here
-# what they mean everywhere else on the bar: PEACH is the one that wants you.
+# Sets PR_TEXT (empty = draw nothing) and PR_TONE. The ladder means here what
+# it means everywhere else on the bar: `warn` is the one that wants you.
 GIT_PR=$(printf '\xEF\x90\x87')     # nf-oct-git_pull_request
 GIT_MERGE=$(printf '\xEF\x90\x99')  # nf-oct-git_merge
-PR_TEXT="" PR_COL=""
+PR_TEXT="" PR_TONE=""
 pr_style() {
-  PR_TEXT="" PR_COL="$OVERLAY1"
+  PR_TEXT="" PR_TONE=dim
   # `+N unshipped` is keyed on the AHEAD COUNT, not on the landed verdict, and
   # that is the whole point of the row. A lane that genuinely outran its merged
   # PR has diverged from main, so its verdict is "no" — the old `verdict == yes`
   # gate meant this case could never draw, and the single most actionable state
   # scruff knows about rendered as its exact opposite, "no PR yet".
   if [ "$L_AHEAD" -gt 0 ] && [ "$L_PR" -gt 0 ]; then
-    PR_TEXT="$GIT_PR +$L_AHEAD unshipped"; PR_COL="$PEACH"; return
+    PR_TEXT="$GIT_PR +$L_AHEAD unshipped"; PR_TONE=warn; return
   fi
   case "$L_VERDICT" in
-    yes) PR_TEXT="$GIT_MERGE merged"; PR_COL="$GREEN" ;;
+    yes) PR_TEXT="$GIT_MERGE merged"; PR_TONE=ok ;;
     # scruff's own advisory verdict (merge-tree-empty): the tree matches main,
     # but that can't tell a squash-merge from a branch that never diverged.
-    contained) PR_TEXT="$GIT_MERGE maybe merged"; PR_COL="$OVERLAY1" ;;
+    contained) PR_TEXT="$GIT_MERGE maybe merged"; PR_TONE=dim ;;
     # Nothing landed and nothing to ship. Drawing "no PR yet" on every fresh
     # lane was a row per agent that said only "this is a normal branch".
     #
@@ -601,203 +505,235 @@ pr_style() {
   esac
 }
 
-# ── click: rebuild the popup as one block per agent, then toggle it ───────────
-# Two ways in, because the pill is four items now. `agents` (the bot) is
-# SUBSCRIBED to mouse.clicked and so arrives with $SENDER set; the three count
-# segments carry a click_script alone, which SketchyBar runs with no sender at
-# all — hence the literal `click`, the same argument the calendar, github and
-# media pills take for the same reason. Either way one click anywhere on the
-# pill lands here.
-if [ "${SENDER:-}" = "mouse.clicked" ] || [ "${1:-}" = "click" ]; then
-  # Closing is just hiding: a click while the popup is UP must not rebuild it
-  # first — this pill had the same rebuild-then-toggle flash before this. It is
-  # `popup_toggle` in barlib.sh now, for every converted pill at once; ai_usage
-  # carried the twin of this guard until it converted.
-  if [ "$("$SB" --query "$POPUP" 2>/dev/null | jq -r '.popup.drawing')" = "on" ]; then
-    "$SB" --set "$POPUP" popup.drawing=off
-    exit 0
-  fi
+# ── the dropdown: one block per agent ────────────────────────────────────────
+# Read again here rather than from the tick's state: popup_rows runs on a
+# CLICK, where fetch never ran and the framework's emitted variables do not
+# exist. One pass over both stores serves every row, so no two rows are
+# describing different moments.
+#
+# ── the two-row block ─────────────────────────────────────────────────────────
+# An agent is a NAME line and a DETAIL line, and nothing else. It used to be
+# four rows (five when dirty), each repeating a `repo` or `PR` descriptor down
+# the left margin — which put eleven agents well off the top of a screen and
+# made it genuinely hard to see which detail belonged to which name. Now the
+# descriptors are gone (a lane name and a state word don't need labelling), the
+# PR verdict is the detail row's `--value` instead of owning a row, and a lane
+# with nothing landed says NOTHING rather than "no PR yet".
+#
+# Both rows carry the same `--run`, which is what makes an agent's block one
+# click target rather than two adjacent ones.
 
-  "$SB" --remove '/agents.popup\..*/' 2>/dev/null
-  ARGS=()
-  i=0
+# Even at two rows an agent, a busy day runs off the screen edge — and a popup
+# that overflows can't be scrolled, only truncated by the display. Show the
+# most urgent MAX_BLOCKS (the sort is priority-then-longest-waiting) and SAY
+# what was dropped: a silent cut reads as "that's everyone", which is the one
+# thing this pill must never imply.
+MAX_BLOCKS=8
 
-  # Build the sort key up front: priority (waiting=0 … idle=2), then epoch
-  # ascending — within a tier, the one that's been sitting longest is the one
-  # that most needs a glance. Panes and lanes land in one array, already in the
-  # shape the render loop reads (see zmx_records above).
+popup_rows() {
+  local rec entry lanes_json shown dropped now click left summary p
+  local _pr epoch kind st target label client cwd namekey
+  local waiting=0 working=0 idle=0
+
+  # Panes and lanes land in one array, already in the shape the render loop
+  # reads (see zmx_records above).
   files=()
   while IFS= read -r rec; do
     [ -n "$rec" ] && files+=("$rec")
-  done < <(zmx_records; desktop_records)
+  done < <(
+    zmx_records
+    desktop_records
+  )
 
   if [ ${#files[@]} -eq 0 ]; then
-    "$SB" --add item agents.popup.0 "popup.$POPUP" 2>/dev/null \
-      --set agents.popup.0 icon.drawing=off label="no active agents" label.color="$SUBTEXT0"
-  else
-    # Never run `scruff --json` here: landed-verdict checks can block on the
-    # network for seconds. The update path below keeps this cache warm; a first
-    # click before it lands deliberately gets the existing no-lane fallback.
-    lanes_json="$(scruff-cache read "$SCRUFF_MAX_AGE" 2>/dev/null)"
-    [ -n "$lanes_json" ] || lanes_json="{}"
+    popup_row --label "no active agents" --tone dim
+    return 0
+  fi
 
-    waiting=0 working=0 idle=0
-    for entry in "${files[@]}"; do
-      case "${entry%%$'\t'*}" in 0) waiting=$((waiting+1)) ;; 1) working=$((working+1)) ;; 2) idle=$((idle+1)) ;; esac
+  # Never run `scruff --json` here: landed-verdict checks can block on the
+  # network for seconds. The tick keeps this cache warm; a first click before
+  # it lands deliberately gets the existing no-lane fallback.
+  lanes_json="$(scruff-cache read "$SCRUFF_MAX_AGE" 2>/dev/null)"
+  [ -n "$lanes_json" ] || lanes_json="{}"
+
+  for entry in "${files[@]}"; do
+    case "${entry%%$'\t'*}" in
+      0) waiting=$((waiting + 1)) ;;
+      1) working=$((working + 1)) ;;
+      2) idle=$((idle + 1)) ;;
+    esac
+  done
+
+  # Summary block, only when there's more than one agent to summarise — the
+  # same "no total for a total of one" rule ai_usage's ∑ row follows.
+  if [ ${#files[@]} -gt 1 ]; then
+    popup_heading --icon "$BOT" --label "Agents"
+    parts=()
+    [ "$waiting" -gt 0 ] && parts+=("$waiting ready")
+    [ "$working" -gt 0 ] && parts+=("$working working")
+    [ "$idle" -gt 0 ] && parts+=("$idle done")
+    # Never index parts[0] directly — waiting+working+idle can fall short of
+    # the file count (a record carrying something other than the three words
+    # agents-hook.sh writes), and under `set -u` indexing an empty array is a
+    # hard error, not an empty string.
+    summary=""
+    for p in "${parts[@]:-}"; do
+      [ -n "$p" ] || continue
+      summary="${summary:+$summary  ·  }$p"
     done
+    # A continuation row: the name column is left blank and the value lands on
+    # it, which is what puts the total under its own heading.
+    [ -n "$summary" ] && popup_row --label "" --value "$summary" --tone text
+  fi
 
-    # Summary block, only when there's more than one agent to summarise — the
-    # same "no total for a total of one" rule ai_usage's ∑ row follows.
-    if [ ${#files[@]} -gt 1 ]; then
-      ROW_CLICK=""
-      header "$BOT" "${BAR_FONT}:Bold:${FS_ICON:-$FS_LABEL}" "$TEXT" "Agents"
-      parts=()
-      [ "$waiting" -gt 0 ] && parts+=("$waiting ready")
-      [ "$working" -gt 0 ] && parts+=("$working working")
-      [ "$idle" -gt 0 ]    && parts+=("$idle done")
-      # Never index parts[0] directly — waiting+working+idle can fall short of
-      # the file count (a state file carrying something other than the three
-      # words agents-hook.sh writes), and under `set -u` indexing an empty
-      # array is a hard error, not an empty string.
-      summary=""
-      for p in "${parts[@]:-}"; do
-        [ -n "$p" ] || continue
-        summary="${summary:+$summary  ·  }$p"
-      done
-      [ -n "$summary" ] && row "" "$summary" "$TEXT" Regular
+  lane_table "$lanes_json"
+
+  shown=0
+  dropped=$((${#files[@]} - MAX_BLOCKS))
+  [ "$dropped" -lt 0 ] && dropped=0
+
+  now=$(date +%s)
+  while IFS=$'\t' read -r _pr epoch kind st target label client cwd; do
+    [ -n "$kind" ] || continue
+    [ "$shown" -lt "$MAX_BLOCKS" ] || break
+    shown=$((shown + 1))
+    state_style "$st"
+
+    # Two joins, one table (see lane_lookup). A zmx session named
+    # `scruff.<repo>.<lane>` (terminal/lanes/lane-open.sh) joins on that name
+    # QUALIFIED BY REPO, which is why it carries the repo at all: `scruff
+    # child` gives a child lane its parent's NAME, so two live lanes in
+    # different repos share one and a cwd join would send a child to the
+    # parent's row. Everything else joins on the checkout path.
+    # `scruff.<repo>.<lane>` minus its prefix IS the table's name key
+    # (`<repo>.<name>`, built the same way), so no splitting — and that is
+    # not just brevity: splitting on the FIRST dot read `hausfold.co` as
+    # `hausfold`, so every lane in this family's dotted repo missed the name
+    # join entirely and silently fell through to the cwd one.
+    namekey=""
+    if [ "$kind" = zmx ]; then
+      case "$target" in
+        scruff.*.*) namekey="${target#scruff.}" ;;
+      esac
     fi
 
-    lane_table "$lanes_json"
+    provider_style "${client:-}" "" "$FS_LABEL"
+    click="$PLUGINS/agents.sh row $kind $target"
 
-    # Even at two rows an agent, a busy day runs off the screen edge — and a
-    # popup that overflows can't be scrolled, only truncated by the display.
-    # Show the most urgent MAX_BLOCKS (the sort below is already priority-then-
-    # longest-waiting) and SAY what was dropped: a silent cut reads as "that's
-    # everyone", which is the one thing this pill must never imply.
-    MAX_BLOCKS=8
-    shown=0
-    dropped=$(( ${#files[@]} - MAX_BLOCKS ))
-    [ "$dropped" -lt 0 ] && dropped=0
+    popup_heading --icon "$P_ICON" --icon-font "$P_FONT" --label "$label" \
+      --mark "$P_MARK" --run "$click"
 
-    now=$(date +%s)
-    while IFS=$'\t' read -r _pr epoch kind st target label client cwd; do
-      [ -n "$kind" ] || continue
-      [ "$shown" -lt "$MAX_BLOCKS" ] || break
-      shown=$((shown + 1))
-      state_style "$st"
+    # The detail line: what this agent is doing, then where. The repo joins
+    # the state word rather than owning a row — at one repo per lane it was
+    # never worth a descriptor and a line of its own.
+    left="$TAG  ·  $(ago $((now - ${epoch:-now})))"
+    if lane_lookup "$cwd" "$namekey"; then
+      [ -n "$L_REPO" ] && left="$left  ·  ${L_REPO##*/}"
+      # A dot, not a footnote row. It sits with the state because that is
+      # what it qualifies: this agent, right now, has uncommitted work.
+      [ -n "$L_DIRTY" ] && left="$left  ●"
+      pr_style
+    else
+      PR_TEXT="" PR_TONE=dim
+    fi
+    # --name-tone, because both halves are ANSWERS: the left is this lane's
+    # state and the right is its PR's, and neither is labelling the other.
+    popup_row --label "$left" --name-tone "$TONE" \
+      --value "$PR_TEXT" --tone "$PR_TONE" --run "$click"
+  done < <(printf '%s\n' "${files[@]}" | sort -t $'\t' -k1,1n -k2,2n)
 
-      # Two joins, one table (see lane_lookup). A zmx session named
-      # `scruff.<repo>.<lane>` (terminal/lanes/lane-open.sh) joins on that name
-      # QUALIFIED BY REPO, which is why it carries the repo at all: `scruff
-      # child` gives a child lane its parent's NAME, so two live lanes in
-      # different repos share one and a cwd join would send a child to the
-      # parent's row. Everything else joins on the checkout path.
-      # `scruff.<repo>.<lane>` minus its prefix IS the table's name key
-      # (`<repo>.<name>`, built the same way), so no splitting — and that is
-      # not just brevity: splitting on the FIRST dot read `hausfold.co` as
-      # `hausfold`, so every lane in this family's dotted repo missed the name
-      # join entirely and silently fell through to the cwd one.
-      namekey=""
-      if [ "$kind" = zmx ]; then
-        case "$target" in
-          scruff.*.*) namekey="${target#scruff.}" ;;
-        esac
-      fi
+  [ "$dropped" -gt 0 ] && popup_note --label "… $dropped more, quieter than these"
+  popup_note --label "click: go to  ·  ⌥/right-click: peek"
+  return 0
+}
 
-      provider_style "${client:-}" "" "$FS_LABEL"
-      ROW_CLICK="$PLUGINS/agents.sh row $kind $target"
+# One click anywhere on the pill lands here — the bot arrives through its
+# mouse.clicked subscription and each segment through the click_script the
+# emitter gives it, which sets SENDER to the same thing. The rebuild-then-
+# toggle flash this pill used to have is `popup_toggle`'s guard now.
+on_click() { popup_toggle; }
 
-      header "$P_ICON" "$P_FONT" "$P_COLOR" "$label"
-
-      # The detail line: what this agent is doing, then where. The repo joins
-      # the state word rather than owning a row — at one repo per lane it was
-      # never worth a descriptor and a line of its own.
-      left="$TAG  ·  $(ago $((now - ${epoch:-now})))"
-      if lane_lookup "$cwd" "$namekey"; then
-        [ -n "$L_REPO" ] && left="$left  ·  ${L_REPO##*/}"
-        # A dot, not a footnote row. It sits with the state because that is
-        # what it qualifies: this agent, right now, has uncommitted work.
-        [ -n "$L_DIRTY" ] && left="$left  ●"
-        pr_style
-      else
-        PR_TEXT="" PR_COL="$OVERLAY1"
-      fi
-      detail "$left" "$COL" "$PR_TEXT" "$PR_COL"
-    done < <(printf '%s\n' "${files[@]}" | sort -t $'\t' -k1,1n -k2,2n)
-
-    ROW_CLICK=""
-    [ "$dropped" -gt 0 ] && meta "… $dropped more, quieter than these"
-    meta "click: go to  ·  ⌥/right-click: peek"
-  fi
-
-  # One message: every row, then reveal — not `toggle`, the state was already
-  # settled above (see the early-exit guard), so toggling here would flip a
-  # popup we just rebuilt right back off on a stray double-fire.
-  [ ${#ARGS[@]} -gt 0 ] && "$SB" "${ARGS[@]}" 2>/dev/null
-  "$SB" --set "$POPUP" popup.drawing=on
-  # SKETCHYBAR_BIN is what barpop resolves its own client from: unset, it
-  # queries the TOP bar, finds no such item on a pill that moved to the
-  # bottom one, and exits before it ever arms — leaving a dropdown nothing
-  # closes but a second click on the pill.
-  SKETCHYBAR_BIN="$SB" /run/current-system/sw/bin/barpop arm "$POPUP" 2>/dev/null &
-  exit 0
-fi
-
-# ── update: count states, paint the pill by the most-urgent one present ───────
+# ── the tick: count states, paint the pill by the most urgent one present ─────
 # Same two sources as the popup, through the same records — a pill that counted
 # only panes would read "2 working" while a third lane sat waiting on you.
-working=0 waiting=0 idle=0
-while IFS=$'\t' read -r _pr _epoch _kind st _rest; do
-  case "$st" in
-    working) working=$((working + 1)) ;;
-    waiting) waiting=$((waiting + 1)) ;;
-    idle)    idle=$((idle + 1)) ;;
-  esac
-done < <(zmx_records; desktop_records)
+fetch() {
+  local st _pr _epoch _kind _rest
+  local waiting=0 working=0 idle=0
 
-# Hiding is all four items plus the bracket: a bracket whose members are all
-# hidden still draws its own background, so leaving it on would park an empty
-# pill in the bar exactly when there is nothing to report.
-hide_pill() {
-  "$SB" --set agents drawing=off \
-    --set agents.ready drawing=off \
-    --set agents.working drawing=off \
-    --set agents.done drawing=off \
-    --set agents.pill drawing=off
+  # The 12h backstop. Only `.desk` rows can go stale: a zmx row's labels die
+  # with its session. A desktop row's only reaper is the client's own
+  # SessionEnd, which never fires on a force-quit, a crash, a logout or an app
+  # update — desktop_records' lsappinfo check catches the common case, and this
+  # catches the rest. Live agents re-stamp their epoch on every hook.
+  [ -d "$DIR" ] && find "$DIR" -name '*.desk' -mmin +720 -delete 2>/dev/null
+
+  while IFS=$'\t' read -r _pr _epoch _kind st _rest; do
+    case "$st" in
+      working) working=$((working + 1)) ;;
+      waiting) waiting=$((waiting + 1)) ;;
+      idle) idle=$((idle + 1)) ;;
+    esac
+  done < <(
+    zmx_records
+    desktop_records
+  )
+
+  # `scruff --json` computes landed verdicts live and can spend seconds in
+  # git/gh. Kick it from the tick, never from a click. `scruff-cache kick` owns
+  # the throttle, the one-winner election and the reparenting that keeps
+  # SketchyBar from reaping the slow work with its script process — this line
+  # is the whole of the bar's half. Nothing running means nothing to look up.
+  if [ $((working + waiting + idle)) -gt 0 ]; then
+    scruff-cache kick "$SCRUFF_TTL" "$SCRUFF_TIMEOUT" >/dev/null 2>&1
+  fi
+
+  emit waiting="$waiting" working="$working" idle="$idle"
+  return 0
 }
 
-# seg <item> <state> <count> — one segment of the pill, hidden at zero.
-seg() {
+# seg_draw <segment> <state> <count> — one segment of the pill, hidden at zero.
+# Positions are FIXED: a state with a count of 0 draws nothing, but the ones
+# that remain never reorder, so "is the red one there" is answerable by shape
+# and position without reading a number.
+seg_draw() {
   if [ "$3" -gt 0 ]; then
     state_style "$2"
-    "$SB" --set "$1" drawing=on icon="$MARK" icon.color="$COL" \
-      label="$3" label.color="$COL"
+    segment "$1" --icon "$MARK" --label "$3" --tone "$TONE"
   else
-    "$SB" --set "$1" drawing=off
+    segment "$1" --hide
   fi
 }
 
-if [ $((working + waiting + idle)) -eq 0 ]; then
-  hide_pill                        # nothing running → no clutter
-  exit 0
-fi
+render() {
+  # Nothing running → no clutter. `pill --hide` takes the bracket down with the
+  # bot (an all-hidden bracket still paints its own background), and pairs the
+  # drawing=off with updates=on, so the pill keeps ticking while invisible and
+  # can re-show itself — which is the door agents-hook.sh had to work around by
+  # invoking this file directly. It still does, because a `.desk` write wants
+  # the bar to say so NOW rather than within the interval.
+  if [ $((waiting + working + idle)) -eq 0 ]; then
+    pill --hide
+    seg_draw ready waiting 0
+    seg_draw working working 0
+    seg_draw done idle 0
+    return 0
+  fi
 
-# `scruff --json` computes landed verdicts live and can spend seconds in git/gh.
-# Kick it from the normal update path (push events plus the 10s visible tick),
-# never from mouse.clicked. `scruff-cache kick` owns the throttle, the one-winner
-# election and the reparenting that keeps SketchyBar from reaping the slow work
-# with its script process — this line is the whole of the bar's half now.
-scruff-cache kick "$SCRUFF_TTL" "$SCRUFF_TIMEOUT" >/dev/null 2>&1
+  # The bot takes the most urgent state's tone — the same ranking the label
+  # used to encode on its own, kept because it is the one thing that reads
+  # without focusing on the pill at all.
+  if [ "$waiting" -gt 0 ]; then
+    state_style waiting
+  elif [ "$working" -gt 0 ]; then
+    state_style working
+  else
+    state_style idle
+  fi
+  pill --icon "$BOT" --tone "$TONE"
 
-# The bot takes the most urgent state's colour — the same ranking the label
-# used to encode on its own, kept because it is the one thing that reads
-# without focusing on the pill at all.
-if   [ "$waiting" -gt 0 ]; then state_style waiting
-elif [ "$working" -gt 0 ]; then state_style working
-else                           state_style idle
-fi
-"$SB" --set agents drawing=on icon="$BOT" icon.color="$COL" \
-  --set agents.pill drawing=on
-seg agents.ready   waiting "$waiting"
-seg agents.working working "$working"
-seg agents.done    idle    "$idle"
+  seg_draw ready waiting "$waiting"
+  seg_draw working working "$working"
+  seg_draw done idle "$idle"
+}
+
+barlib_main "$@"

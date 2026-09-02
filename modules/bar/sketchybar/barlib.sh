@@ -84,6 +84,43 @@ case "${NAME:-}" in
         ;;
 esac
 
+# ---- segmented pills: which item is the widget, and which holds the popup ----
+# $BARLIB_SEGMENTS is set by the emitter, off the `segments =` header, and is
+# the only thing that tells a running script its pill is a BRACKET over N+1
+# items (modules/bar/default.nix, `frameworkItem`). Two ids have to come back
+# to the head from it, and both arrive as $NAME because sketchybar exports
+# whichever item was actually touched:
+#
+#   * a SEGMENT's click_script — `agents.ready`. Stripped by name rather than
+#     at the first dot, because the head's own id may contain one and a blind
+#     `%%.*` would turn `media_lib.foo` into `media_lib`. The list is exact,
+#     so the strip is exact.
+#   * a popup ROW on a segmented pill — `agents.pill.popup.3`. The `.popup.*`
+#     strip above leaves `agents.pill`, one suffix short, because the rows
+#     hang off the BRACKET here rather than off the head.
+#
+# The popup owner is then the bracket, and every popup_* below addresses it
+# instead of $NAME. A widget never says either name: it calls `popup_open`
+# and the runtime knows where its dropdown lives.
+_BARLIB_POPUP="$NAME"
+if [ -n "${BARLIB_SEGMENTS:-}" ]; then
+    case "$NAME" in
+        *.pill) NAME="${NAME%.pill}" ;;
+        *)
+            for _blib_seg in $BARLIB_SEGMENTS; do
+                case "$NAME" in
+                    *".$_blib_seg")
+                        NAME="${NAME%".$_blib_seg"}"
+                        break
+                        ;;
+                esac
+            done
+            ;;
+    esac
+    unset _blib_seg
+    _BARLIB_POPUP="${NAME}.pill"
+fi
+
 _BARLIB_STATE=()
 _BARLIB_ARGS=()
 
@@ -222,6 +259,16 @@ sb_set() {
     _BARLIB_ARGS+=(--set "$NAME" "$@")
 }
 
+# _barlib_set_on <item> <prop>=<val>… — sb_set aimed somewhere other than the
+# widget's own item, on the same batch. The two callers are the runtime's own
+# extra items: a segment (`<name>.<seg>`) and the bracket behind them
+# (`<name>.pill`), neither of which a widget names for itself.
+_barlib_set_on() {
+    local item=$1
+    shift
+    _BARLIB_ARGS+=(--set "$item" "$@")
+}
+
 # barlib_flush — apply everything accumulated so far, as one call, and empty
 # the batch. barlib_main calls it last; popup_open calls it early because barpop
 # has to arm against rows that already exist. Calling it twice is harmless — the
@@ -289,11 +336,24 @@ pill() {
                 ;;
         esac
     done
+    # The bracket follows the head, and it has to be said rather than
+    # inferred: an all-hidden bracket still paints its own background, so a
+    # segmented pill that hid every member would leave an empty capsule in
+    # the bar exactly when the widget has nothing to report. Hiding the
+    # members is the widget's job (a segment at zero draws nothing); hiding
+    # the pill BEHIND them is the runtime's, because the widget never names
+    # that item.
     if [ "$hide" = 1 ]; then
         sb_set drawing=off updates=on
+        if [ -n "${BARLIB_SEGMENTS:-}" ]; then
+            _barlib_set_on "$_BARLIB_POPUP" drawing=off
+        fi
         return 0
     fi
     sb_set drawing=on
+    if [ -n "${BARLIB_SEGMENTS:-}" ]; then
+        _barlib_set_on "$_BARLIB_POPUP" drawing=on
+    fi
     if [ "$have_label" = 1 ]; then
         if [ -n "$label" ]; then
             sb_set label="$label" label.drawing=on
@@ -321,6 +381,88 @@ pill() {
         sb_set icon.color="$(tone "$icon_tone")"
     fi
     if [ -n "$label_tone" ]; then sb_set label.color="$(tone "$label_tone")"; fi
+    return 0
+}
+
+# segment <name> --icon <glyph> --label <text> [--tone <tone>] [--mark <mark>]
+#         [--hide]
+# ONE member of a segmented pill (`segments =` in the header). The pill is a
+# bracket over a head item and these; the widget names them by their bare
+# suffix and never spells the item id.
+#
+# ⚠️ ONE tone paints BOTH halves, and that is the component's whole opinion.
+# A segment is a single reading — a mark and its count — that sketchybar
+# forces into two colourable fields because it colours a label exactly once.
+# Splitting the tone across them would put the item's implementation detail
+# on screen as a design: the glyph and the number are the same answer, and a
+# `--label-tone` here would let them disagree. A widget that wants two
+# readings side by side wants two segments.
+#
+# --hide is drawing=off ALONE, unlike `pill --hide`. The `updates=on` half of
+# that pair exists so a hidden item keeps ticking and can re-show itself, and
+# a segment has neither a script nor an update_freq to tick with — the head
+# is what wakes the pill up, and it is the head that carries the door.
+segment() {
+    local seg='' icon='' label='' tone_name='' mark_name='' hide=0
+    local have_icon=0 have_label=0
+    if [ $# -gt 0 ]; then
+        case "$1" in
+            --*) ;;
+            *)
+                seg=$1
+                shift
+                ;;
+        esac
+    fi
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --icon) icon=$2; have_icon=1; shift 2 ;;
+            --label) label=$2; have_label=1; shift 2 ;;
+            --tone) tone_name=$2; mark_name=''; shift 2 ;;
+            --mark) mark_name=$2; tone_name=''; shift 2 ;;
+            --hide) hide=1; shift ;;
+            *)
+                echo "barlib: segment: unknown flag '$1' — dropped" >&2
+                shift
+                ;;
+        esac
+    done
+    if [ -z "$seg" ]; then
+        echo "barlib: segment: no name — nothing to set" >&2
+        return 0
+    fi
+    # A name that is not one of this pill's declared segments is a typo, and
+    # it must not reach sketchybar: `--set agents.redy` on an item that does
+    # not exist is accepted in silence, so the segment simply never draws and
+    # nothing anywhere says why.
+    case " ${BARLIB_SEGMENTS:-} " in
+        *" $seg "*) ;;
+        *)
+            echo "barlib: segment: '$seg' is not in segments (${BARLIB_SEGMENTS:-none}) — dropped" >&2
+            return 0
+            ;;
+    esac
+    local item="${NAME}.${seg}"
+    if [ "$hide" = 1 ]; then
+        _barlib_set_on "$item" drawing=off
+        return 0
+    fi
+    local color=''
+    if [ -n "$mark_name" ]; then
+        color=$(mark "$mark_name")
+    elif [ -n "$tone_name" ]; then
+        color=$(tone "$tone_name")
+    fi
+    _barlib_set_on "$item" drawing=on
+    if [ "$have_icon" = 1 ]; then
+        _barlib_set_on "$item" icon="$icon"
+    fi
+    if [ "$have_label" = 1 ]; then
+        _barlib_set_on "$item" label="$label"
+    fi
+    if [ -n "$color" ]; then
+        _barlib_set_on "$item" icon.color="$color" label.color="$color"
+    fi
     return 0
 }
 
@@ -554,15 +696,15 @@ _barlib_pop_add() { # _barlib_pop_add <kind> <height> <font> <action> <set-args�
             kind=slider
             ;;
     esac
-    POPUP_ID="${NAME}.popup.${_BARLIB_POP_I}"
-    local close="$SB --set $NAME popup.drawing=off"
+    POPUP_ID="${_BARLIB_POPUP}.popup.${_BARLIB_POP_I}"
+    local close="$SB --set $_BARLIB_POPUP popup.drawing=off"
     local click="$close"
     if [ -n "$action" ]; then click="$action; $close"; fi
     if [ "$kind" = slider ]; then
         click="$action"
-        _BARLIB_ARGS+=(--add slider "$POPUP_ID" "popup.${NAME}" "$width")
+        _BARLIB_ARGS+=(--add slider "$POPUP_ID" "popup.${_BARLIB_POPUP}" "$width")
     else
-        _BARLIB_ARGS+=(--add item "$POPUP_ID" "popup.${NAME}")
+        _BARLIB_ARGS+=(--add item "$POPUP_ID" "popup.${_BARLIB_POPUP}")
     fi
     _BARLIB_ARGS+=(
         --set "$POPUP_ID"
@@ -632,8 +774,15 @@ _barlib_pop_cap() {
 
 # popup_heading --label <text> [--icon <glyph>] [--icon-font <font>]
 #               [--tone <tone>] [--mark <mark>] [--label-tone <tone>]
-#               [--count <n>] [--value <text>]
+#               [--count <n>] [--value <text>] [--run <command>]
 #               [--max-chars <n>] [--marquee]
+# --run makes the heading CLICKABLE, on the same terms as a row: the command,
+# then the popup closes. It is for a block whose rows all mean one thing —
+# the agents pill's per-agent block is a name line and a detail line that
+# both mean "this pane", and a heading a few pixels tall is a bad target for
+# "this is the one I meant". Give both rows the same --run and the block
+# becomes one hit area, which is what a widget is really asking for when it
+# wants a clickable heading.
 # --count appends " · n" when n is above zero: a section that says "open PRs"
 # over eight rows leaves you counting them to find out whether eight is all of
 # them, and the rows below may be a truncation.
@@ -667,10 +816,11 @@ _barlib_pop_cap() {
 # lives in, which is a fact about the glyph and not a choice about the row.
 popup_heading() {
     local label='' icon='' icon_font='' tone_name=dim mark_name='' count=0
-    local value='' have_value=0 label_tone='' cap=0 marquee=0
+    local value='' have_value=0 label_tone='' cap=0 marquee=0 action=''
     while [ $# -gt 0 ]; do
         case "$1" in
             --label) label=$2; shift 2 ;;
+            --run) action=$2; shift 2 ;;
             --icon) icon=$2; shift 2 ;;
             --icon-font) icon_font=$2; shift 2 ;;
             --tone) tone_name=$2; mark_name=''; shift 2 ;;
@@ -720,7 +870,7 @@ popup_heading() {
         fi
         _barlib_unpad "$value"
         _barlib_name_pad "$label" "$((_blib_cols - _BARLIB_LEAD))" "${FS_LABEL:-13}"
-        _barlib_pop_add heading "$_BARLIB_H_HEADING" "${BAR_FONT:-}:Bold:${FS_LABEL:-}" '' \
+        _barlib_pop_add heading "$_BARLIB_H_HEADING" "${BAR_FONT:-}:Bold:${FS_LABEL:-}" "$action" \
             icon="$_blib_name" icon.color="$icon_color" \
             icon.font="${BAR_FONT:-}:Bold:${FS_LABEL:-}" \
             icon.padding_left=10 \
@@ -733,7 +883,7 @@ popup_heading() {
     # code path instead of two: it is byte-identical to the icon.font every
     # popup row already gets from sketchybarrc's `--default`, so a heading
     # that names no font draws exactly as it did before this flag existed.
-    _barlib_pop_add heading "$_BARLIB_H_HEADING" "${BAR_FONT:-}:Bold:${FS_LABEL:-}" '' \
+    _barlib_pop_add heading "$_BARLIB_H_HEADING" "${BAR_FONT:-}:Bold:${FS_LABEL:-}" "$action" \
         icon="$icon" icon.color="$icon_color" \
         icon.font="${icon_font:-${BAR_FONT:-}:Bold:${FS_ICON:-}}" \
         label="$label" label.color="$label_color"
@@ -741,7 +891,8 @@ popup_heading() {
 }
 
 # popup_row --label <text> [--icon <glyph>] [--tone <tone>] [--value <text>]
-#           [--open <url>] [--run <command>] [--max-chars <n>] [--marquee]
+#           [--name-tone <tone>] [--open <url>] [--run <command>]
+#           [--max-chars <n>] [--marquee]
 # A `mute` row loses a shade of its TEXT too, not only its glyph colour:
 # otherwise a list of eight reads as eight equal claims on you when two of
 # them are their author saying "not yet". Only `mute` — a `dim` row keeps its
@@ -749,10 +900,11 @@ popup_heading() {
 # something; it is the glyph that is subordinate, not the sentence.
 popup_row() {
     local label='' icon='' icon_tone=mute action='' value='' have_value=0 tone_set=0
-    local cap=0 marquee=0
+    local cap=0 marquee=0 name_tone=dim
     while [ $# -gt 0 ]; do
         case "$1" in
             --label) label=$2; shift 2 ;;
+            --name-tone) name_tone=$2; shift 2 ;;
             --icon) icon=$2; shift 2 ;;
             --tone) icon_tone=$2; tone_set=1; shift 2 ;;
             --value) value=$2; have_value=1; shift 2 ;;
@@ -771,6 +923,16 @@ popup_row() {
         # whose name climbed to `bad` with it would be one row shouting twice.
         # `text` is the default rather than `mute`, because a measurement with
         # no verdict is a live readout, not an absence.
+        #
+        # --name-tone is the exception, and it is narrow on purpose: a row
+        # whose two halves are two ANSWERS rather than a question and an
+        # answer. The agents pill's detail line is the one — "working · 12m ·
+        # haus" on the left is this lane's state, "+2 unshipped" on the right
+        # is its PR's, and neither is labelling the other. Dim would say the
+        # left half is a descriptor, which is exactly the reading that is
+        # wrong. Everything with a descriptor column keeps the default and
+        # should: naming this flag to save a shade is how the "one row
+        # shouting twice" rule above gets lost.
         if [ "$tone_set" = 0 ]; then icon_tone=text; fi
         local _blib_name="$label" _blib_cols=0
         if [ -n "$icon" ]; then
@@ -785,7 +947,7 @@ popup_row() {
         _barlib_unpad "$value"
         _barlib_name_pad "$label" "$((_blib_cols - _BARLIB_LEAD))" "${FS_SMALL:-12}"
         _barlib_pop_add row "$_BARLIB_H_ROW" "${BAR_FONT:-}:Bold:${FS_SMALL:-}" "$action" \
-            icon="$_blib_name" icon.color="$(tone dim)" \
+            icon="$_blib_name" icon.color="$(tone "$name_tone")" \
             icon.font="${BAR_FONT:-}:Regular:${FS_SMALL:-}" \
             icon.padding_left="$_BARLIB_ROW_INDENT" \
             icon.padding_right="$_BARLIB_PAD" \
@@ -997,12 +1159,12 @@ popup_note() {
 # dropdown the user was closing.
 _barlib_popup_drawing() {
     local ans
-    ans=$("$SB" --query "$NAME" 2>/dev/null | jq -r '.popup.drawing // empty' 2>/dev/null)
+    ans=$("$SB" --query "$_BARLIB_POPUP" 2>/dev/null | jq -r '.popup.drawing // empty' 2>/dev/null)
     printf '%s' "$ans"
 }
 
 popup_close() {
-    sb_set popup.drawing=off
+    _barlib_set_on "$_BARLIB_POPUP" popup.drawing=off
     return 0
 }
 
@@ -1014,12 +1176,12 @@ popup_close() {
 # barpop reads the popup's row rects at arm time — arming before the rows
 # exist would guard a popup of the wrong shape.
 popup_open() {
-    "$SB" --remove "/${NAME}\.popup\..*/" 2>/dev/null
+    "$SB" --remove "/${_BARLIB_POPUP}\.popup\..*/" 2>/dev/null
     _BARLIB_POP_I=0
     if declare -F popup_rows >/dev/null 2>&1; then popup_rows; fi
-    sb_set popup.drawing=on
+    _barlib_set_on "$_BARLIB_POPUP" popup.drawing=on
     barlib_flush
-    SKETCHYBAR_BIN="$SB" /run/current-system/sw/bin/barpop arm "$NAME" 2>/dev/null &
+    SKETCHYBAR_BIN="$SB" /run/current-system/sw/bin/barpop arm "$_BARLIB_POPUP" 2>/dev/null &
     return 0
 }
 

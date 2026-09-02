@@ -112,6 +112,7 @@ the single source for wiring — no parallel table edit. Keys:
 | `popup` | `true`/`false` | `false` | the dropdown frame + align; unlocks `popup_*` |
 | `subscribes` | list | `system_woke` | bar events and haus signals (see Pubsub) |
 | `graph` | points | none | makes the item an `--add graph` of that width, and needs an `interval` (see `graph` under Components) |
+| `segments` | list | none | makes the pill a BRACKET over a head item plus `<name>.<seg>` for each (see `segment` under Components) |
 
 There are no planned keys. `permissions` and `movable` were listed here until
 `ai_usage` converted and the list was checked against what had shipped
@@ -191,6 +192,36 @@ running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
   `--label` is `label.drawing=off` *and* re-centres the icon (the bar's
   defaults are 8/4 + 4/8, which reads left-heavy the moment the label goes —
   and for a pill that hides a zero, that is its resting state).
+- `segment <name> --icon --label [--tone] [--mark] [--hide]` — ONE member of a
+  pill whose header carries `segments =`. That pill is a bracket over a head
+  item and these, because **SketchyBar colours a label exactly once** and a
+  pill saying three counts in three tones therefore cannot be one item; a
+  bracket is the only way to put one background behind items that must colour
+  themselves independently. The widget names a segment by its bare suffix and
+  never spells the item id, and a name not in the header is dropped with a
+  warning rather than sent — a `--set` at an item that does not exist is
+  accepted in silence, so the segment would simply never draw.
+
+  **One tone paints both halves, and that is the component's whole opinion.**
+  A segment is a single reading — a mark and its count — that sketchybar
+  forces into two colourable fields; splitting the tone across them would put
+  that implementation detail on screen as a design. A widget wanting two
+  readings side by side wants two segments. For the same reason `--hide` is
+  `drawing=off` ALONE, unlike `pill --hide`: the `updates=on` half exists so a
+  hidden item keeps ticking and can re-show itself, and a segment has neither
+  a script nor an interval to tick with. The head carries that door, and
+  `pill` takes the BRACKET up and down with it — an all-hidden bracket still
+  paints its own background, so hiding every member is not enough.
+
+  Three things move to the bracket when a pill is segmented, each a property
+  that would otherwise be drawn twice or in the wrong place: the background (a
+  member's draws inside the bracket's, so a head that kept `$SURFACE0` paints
+  a second pill inside the first); the popup (it aligns to the item carrying
+  it, and the head is a fraction of the pill's width — anchored there a
+  right-aligned dropdown hangs off to the left of its own pill by however many
+  segments are drawn); and, on the `right` side only, the ADD ORDER, because a
+  right group packs outward from the screen edge and four items added
+  head-first would draw the pill backwards.
 - `graph <percent>` — push one point onto the rolling window drawn behind the
   pill's text, for a widget whose header carries `graph = <width>`. The value
   is clamped to 0…1 by the runtime: sketchybar scales a pushed value against
@@ -271,8 +302,8 @@ running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
 
   | kind | weight/size | height | for |
   |---|---|---|---|
-  | `popup_heading --label [--icon] [--icon-font] [--tone] [--mark] [--label-tone] [--count] [--value] [--max-chars] [--marquee]` | Bold, label | 32 | a section title; `--count` appends ` · n` when above zero |
-  | `popup_row --label [--icon] [--tone] [--value] [--open <url>] [--run <cmd>] [--max-chars] [--marquee]` | Regular, small | 25 | a thing you can act on; a `mute` tone dims the text too |
+  | `popup_heading --label [--icon] [--icon-font] [--tone] [--mark] [--label-tone] [--count] [--value] [--run <cmd>] [--max-chars] [--marquee]` | Bold, label | 32 | a section title; `--count` appends ` · n` when above zero |
+  | `popup_row --label [--icon] [--tone] [--value] [--name-tone] [--open <url>] [--run <cmd>] [--max-chars] [--marquee]` | Regular, small | 25 | a thing you can act on; a `mute` tone dims the text too |
   | `popup_action --label [--icon] [--tone] [--run <cmd>] [--copy <text>]` | Bold, small | 25 | a verb — Refresh, a command to copy |
   | `popup_note --label` | Italic, tiny | 20 | an aside — "nothing", "+4 more" |
   | `popup_slider --percentage [--width] [--icon] [--label] [--tone] [--mark] [--run <cmd>]` | tiny captions | 25 | a track you AIM — media's scrubber |
@@ -283,6 +314,27 @@ running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
   naming `":Bold:${FS_SMALL}"` itself is the hardcoded-hex mistake one layer
   up, so the seventh kind someone needs is a kind to **add**, not a `--font`
   to add to the signature.
+
+  **A BLOCK of rows can share one click target, and that is what `--run` on a
+  heading is for.** The agents pill's per-agent block is a name line and a
+  detail line that both mean "this pane"; a heading a few pixels tall is a bad
+  target for "this is the one I meant", so the two rows are given the same
+  `--run` and become one hit area. It is the same close-after-acting contract
+  every other row has — a heading with no `--run` still just closes, exactly
+  as before the flag existed.
+
+  **`--name-tone` is the narrow exception to "with a `--value` the tone
+  follows the NUMBER".** That rule is the row saying which half carries the
+  verdict: the name is the question ("user", "load", "Safari") and is always
+  dim, the value is the answer and is the only thing on the ladder — a
+  two-column row whose name climbed to `bad` with it would be one row shouting
+  twice. The exception is a row whose two halves are two ANSWERS. The agents
+  pill's detail line is the one: "working · 12m · haus" on the left is this
+  lane's state and "+2 unshipped" on the right is its PR's, and neither is
+  labelling the other, so dim would say the left half is a descriptor —
+  exactly the reading that is wrong. Everything with a descriptor column keeps
+  the default and should; naming this flag to save a shade is how the rule
+  above gets lost.
 
   **`popup_slider` is the one CONTROL among them, and the one row that does
   not close the popup.** Everything else in a dropdown is a menu item — you
@@ -785,8 +837,76 @@ Lua (or Go daemon) runtime would consume, so nothing built now is thrown away.
    `haus.bar.widgets.<n>.interval` overrides on a declared widget is the
    `interval` in that script's own header, which is the same relationship a
    bundled pill's `widgets.nix` entry has to its block.
-9. Long tail: convert on touch. A converted pill's entry in `mkPluginBlocks`
-   shrinks to a `frameworkBlock` call carrying only what is IDENTITY — its
-   hue, its padding — because the ladder deliberately has no rung for "this
-   widget's own colour". The framework wins when every entry in
-   `mkPluginBlocks` is one of those.
+9. ✅ **agents** — the first MULTI-ITEM pill, and the conversion whose design
+   question was not how to paint anything but WHERE A PILL'S IDENTITY LIVES
+   when the pill is four items. SketchyBar colours a label exactly once, and
+   this one says three counts in three tones, so it had always been a bracket
+   over a head item plus `agents.ready` / `.working` / `.done` — a shape the
+   emitter could not express at all, since `frameworkItem` added exactly one
+   item. `segments = ready, working, done` is what it earned, and the three
+   things that move with it are each a property that would otherwise be drawn
+   twice or in the wrong place: the background (a member's draws INSIDE the
+   bracket's, so a head that kept `$SURFACE0` paints a second pill inside the
+   first), the popup (it aligns to the item carrying it, and the head is a
+   third of this pill's width), and the add order on the `right` side, where a
+   group packs outward from the screen edge and four items added head-first
+   would draw the pill backwards.
+
+   The runtime's half is a POPUP OWNER that is not `$NAME`, which is the first
+   time those two have come apart: rows hang off `agents.pill`, `popup_toggle`
+   queries it, barpop arms it, and two ids now have to strip back to the head
+   on the way in — a segment's click (`agents.ready`) and a popup row
+   (`agents.pill.popup.3`, one suffix past what the existing `.popup.*` strip
+   left). The emitter hands the segment names to the script on its own command
+   line rather than the script declaring them a second time, so the header
+   stays the single source. Two smaller things came with it, both because the
+   pill had them written by hand: `--run` on a heading, so a BLOCK of rows can
+   share one click target (an agent's block is a name line and a detail line
+   that both mean "this pane", and a heading a few pixels tall is a bad target
+   for "this is the one I meant"), and `popup_row --name-tone`, for the row
+   whose two halves are two ANSWERS rather than a question and an answer.
+
+   **It is the conversion that changed no colour at all, and that is the
+   finding.** Media's four hues were the ladder's spent on a healthy track;
+   this pill's three were the ladder's spent CORRECTLY — `$RED`/`$SKY`/`$GREEN`
+   map one to one onto `bad`/`busy`/`ok`, and the PR verdict's `$PEACH` onto
+   `warn`. So what the tone table replaced here was not a bug but a spelling:
+   the pill had been naming the right rungs in hex, which is the case for the
+   ladder that a re-hued pill cannot make.
+
+   What it took away: the column grid and every number in it (`ROW_INDENT`,
+   `DESC_COLS`, `DESC_GAP`, `ADV_M`, `px`, `desc_pad`, `unpad`/`LEAD`, the
+   three row heights), `pop_add`, `header`, `row`, `meta`, `detail`, `rlock`
+   and `BLOCK_COLS`, the popup's drawing query and its rebuild-then-toggle
+   guard, the `--remove`/`--add` batch, the barpop arming, `hide_pill`, `seg`,
+   and the two `popup.drawing=off` lines the row handlers carried because the
+   runtime now appends the close itself. Its Nix block went from 128 lines to
+   six of identity. And in a file it does not own: `ai-provider.sh`'s
+   `P_COLOR`, exactly as `vitals_lib`'s `vitals_color` went when memory
+   converted — a hex half kept alive only while one reader of a shared table
+   was a framework widget and the other was not. That file's own comment had
+   named this conversion as the trigger, and with it goes the palette source
+   beside it, because the table now dereferences no colour at all.
+
+   **What moved, visibly.** The summary row is Bold where it was Regular — a
+   `--value` row is Bold, full stop. Its value lands on barlib's 16-column
+   name gutter rather than this pill's own right-lock at column 58, so a
+   detail line's PR verdict sits where every other framework popup's value
+   does instead of flush to a per-pill margin. The "Agents" heading glyph is
+   `dim` rather than `text`, the heading default. And the head item lost a
+   redundant `click_script`: it was subscribed to `mouse.clicked` AND carried
+   one, so every click on the bot ran the plugin twice — the pill's own
+   comment had said as much and kept both anyway.
+
+   **What it costs.** `pill --hide` pairs `drawing=off` with `updates=on`, so
+   the pill now ticks while invisible — one `zmx ls` and a glob every ten
+   seconds on a machine with nothing running, where a hidden item used to tick
+   never. That is what buys it the ability to re-show itself, which is the
+   door `agents-hook.sh` names in its own comment and works around by invoking
+   the reader directly. The hook still does, and should: a `.desk` write wants
+   the bar to say so now rather than within the interval.
+10. Long tail: convert on touch. A converted pill's entry in `mkPluginBlocks`
+    shrinks to a `frameworkBlock` call carrying only what is IDENTITY — its
+    hue, its padding — because the ladder deliberately has no rung for "this
+    widget's own colour". The framework wins when every entry in
+    `mkPluginBlocks` is one of those.

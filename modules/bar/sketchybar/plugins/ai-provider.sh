@@ -21,22 +21,17 @@
 # The size is the caller's, because the same table is drawn at pill size in the
 # bar and one step down in a popup row. Callers pass $FS_LABEL / $FS_SMALL
 # (sizes.sh) rather than a number, so both follow haus.ui.scale.
-#     → sets P_ICON, P_FONT, P_NAME, P_MARK, P_COLOR
+#     → sets P_ICON, P_FONT, P_NAME, P_MARK
 #
 # The sketchybar-app-font glyphs (:claude:, :openai:) are monochrome and take
 # icon.color like any other, so the caller stays free to paint them by state.
 #
-# ── P_MARK and P_COLOR are the same answer, twice ─────────────────────────────
+# ── P_MARK is the answer, once ────────────────────────────────────────────────
 # P_MARK is a barlib MARK NAME (modules/bar/marks.nix) — the identity axis
 # beside the tone ladder — and it is what a framework widget passes straight to
-# `popup_heading --mark`. P_COLOR is that same mark already resolved to a hex,
-# for a caller that has no barlib to resolve it: agents.sh, which is still
-# hand-written. Both come off the one case below, so the two cannot disagree.
-#
-# ⚠️ P_COLOR goes when agents.sh converts, exactly as vitals_lib's
-# `vitals_color` went when memory did — a hex half kept alive only while one
-# reader of a shared table is a framework widget and the other is not. Do not
-# add a caller to it; add one to P_MARK.
+# `popup_heading --mark`. There is no hex spelling beside it: this file names a
+# colour and barlib resolves one, which is the same split every converted pill
+# has. Both readers are framework widgets, so neither needs the other half.
 #
 # The rule both spellings serve, and the reason the mark set exists at all:
 # **a hue on a mark means identity, a hue on a number means state.** Every mark
@@ -53,14 +48,12 @@
 # complaint and draws as nothing. So source it here too; it only sets values.
 # shellcheck source=/dev/null
 [ -n "${BAR_FONT:-}" ] || source "$HOME/.config/sketchybar/sizes.sh"
-# Same story for the palette, now that the table names brand accents: under
-# `set -u` an unsourced colours.sh is not a wrong colour, it is the caller
-# exiting mid-repaint. Tested on MARK_WARM rather than on any old key because
-# that is the first thing this file dereferences — the guard should fail on
-# the same variable the code would, and the MARK_* block is the newest half of
-# colors.sh, so a stale generated file fails here rather than three lines in.
-# shellcheck source=/dev/null
-[ -n "${MARK_WARM:-}" ] || source "$HOME/.config/sketchybar/colors.sh"
+# No palette guard, and its absence is the point: this file dereferences no
+# colour at all any more. It names marks, and `mark()` in barlib is what turns
+# a name into a hex — with barlib's own `:-` fallbacks around the read, which
+# is where that guard's whole argument (colors.sh and the plugins are separate
+# home.file entries, so a rebuild lands them in some order) now lives once
+# instead of twice.
 
 provider_style() {
   local prov="${1:-}" model="${2:-}" size="${3:-${FS_LABEL:-14.0}}"
@@ -115,32 +108,5 @@ provider_style() {
       # named none. Draw the generic writing-hand and say what it called itself.
       P_ICON="󰏫"; P_FONT="$nerd"; P_NAME="${prov:-agent}"
       ;;
-  esac
-  # The hex half, for the reader that has no barlib. One block at the end
-  # rather than a second column beside each arm, so P_MARK stays the single
-  # answer and this is visibly DERIVED from it — and so deleting it when
-  # agents.sh converts is deleting these lines and nothing else.
-  #
-  # ⚠️ Every read carries a `:-`, and that is barlib.sh's rule (its header,
-  # and every `MARK_*`/`TONE_*` read in `mark()` and `tone()`) rather than
-  # caution: colors.sh and the plugins are separate home.file entries, so a
-  # rebuild lands them in some order and there is a window where this file
-  # reads a MARK_* the live colors.sh has never heard of. Under `set -u` that
-  # is not a wrong colour — it is an abort, mid-repaint, that takes the whole
-  # batched --add with it and leaves NO sketchybar traffic at all. Both
-  # readers `set -u`, so an unguarded read here silently kills two pills at
-  # once. OVERLAY1 is the fallback because it is the grey a stale mark wears
-  # anyway, and it predates every name in this block.
-  #
-  # A `case` rather than an `eval` on an upper-cased name: it forks nothing,
-  # where `printf | tr` cost ~2.5 ms measured — once per tick, and once per
-  # feed on the click path, whose whole budget is ~12 ms to open the popup.
-  # (It also sidesteps `${P_MARK^^}`, which macOS's bash 3.2 takes as a
-  # syntax error rather than a no-op.)
-  case "$P_MARK" in
-    warm)   P_COLOR="${MARK_WARM:-${OVERLAY1:-}}" ;;
-    teal)   P_COLOR="${MARK_TEAL:-${OVERLAY1:-}}" ;;
-    violet) P_COLOR="${MARK_VIOLET:-${OVERLAY1:-}}" ;;
-    *)      P_COLOR="${MARK_PLUM:-${OVERLAY1:-}}" ;;
   esac
 }

@@ -519,18 +519,101 @@ let
           throw "bar widget ${name}: graph.color = ${graphColor} is not a colors.sh name, so the fill cannot be derived — name one, or set graph.fill_color too"
         else
           true;
+      # ---- segments: one pill, N+1 items, one bracket ------------------------
+      # `segments = a, b, c` in the header (manifest.nix says why) makes this a
+      # BRACKET pill. Three things move when it does, and each is a property
+      # that would be drawn twice or in the wrong place otherwise:
+      #
+      #   * the BACKGROUND moves to the bracket. A member's background draws
+      #     inside the bracket's, so a head item that kept `$SURFACE0` would
+      #     paint a second pill inside the first.
+      #   * the POPUP moves to the bracket. It aligns to the item that carries
+      #     it, and the head is a fraction of the pill's width — anchored
+      #     there, a right-aligned dropdown hangs off to the left of its own
+      #     pill by however many segments are drawn. A bracket answers
+      #     `--query` with the WHOLE pill's rect at whatever width it has.
+      #   * the ORDER reverses on the right. A `right` group packs outward
+      #     from the screen edge, so four items added head-first would draw
+      #     `c b a head` — the pill backwards. Adding them reversed there puts
+      #     the head on the leading edge on every side, and the per-item
+      #     paddings below stay physical left/right with no mirroring.
+      segmented = m.segments != [ ];
+      segIds = map (sg: "${name}.${sg}") m.segments;
+      pillItems = [ name ] ++ segIds;
+      addOrder = if side == "right" then lib.reverseList pillItems else pillItems;
+      bracketId = "${name}.pill";
+      # The runtime has to know it is segmented, and the HEADER is the single
+      # source for that — so the emitter hands it over in the one channel a
+      # sketchybar script has, its own command line. barlib reads
+      # $BARLIB_SEGMENTS to find the bracket (its popup) and to strip a
+      # segment's id back to the head on the way in. A second declaration in
+      # the script would be a second source, which is the whole thing the
+      # manifest exists to avoid.
+      scriptCmd =
+        if segmented then "BARLIB_SEGMENTS='${lib.concatStringsSep " " m.segments}' ${run}" else run;
       setArgs = lib.filter (s: s != "") (
         [ (lib.optionalString (m.interval != null) "update_freq=${toString m.interval}") ]
         ++ lib.mapAttrsToList (k: v: "${k}=${v}") (
-          {
-            "background.color" = "$SURFACE0";
+          (
+            if segmented then
+              {
+                "background.drawing" = "off";
+                "background.padding_left" = "0";
+                "background.padding_right" = "0";
+              }
+            else
+              { "background.color" = "$SURFACE0"; }
+          )
+          // {
             "label.font" = ''"${barFont}:Bold:${sizes.label}"'';
           }
-          // popupArgs
+          // (if segmented then { } else popupArgs)
           // graphArgs
           // style
         )
-        ++ [ ''script="${run}"'' ]
+        ++ [ ''script="${scriptCmd}"'' ]
+      );
+      # A segment is a mark and a count in ONE colour, and it carries no
+      # background of its own for the reason above. `SENDER=mouse.clicked`
+      # rather than an argument the script parses: a click_script does not
+      # arrive with a sender (only a subscription buys that), and the runtime
+      # already routes on exactly this — so a segment click reaches the
+      # widget's `on_click` through the same door the head's does, and no
+      # converted widget needs a CLI mode to tell them apart.
+      segArgs = [
+        "drawing=off"
+        "background.drawing=off"
+        "background.padding_left=0"
+        "background.padding_right=0"
+        "icon.padding_left=0"
+        "icon.padding_right=3"
+        "label.padding_left=0"
+        "label.padding_right=10"
+        ''label.font="${barFont}:Bold:${sizes.label}"''
+        ''click_script="SENDER=mouse.clicked ${scriptCmd}"''
+      ];
+      # The pill itself. `drawing=off` to match its members: an all-hidden
+      # bracket still paints its own background, so it would park an empty
+      # pill in the bar exactly when the widget has nothing to report —
+      # which is why `pill --hide` reaches the bracket too.
+      #
+      # background.padding 0, and this is the one place a framework pill
+      # cannot match the others: a member's padding draws INSIDE the bracket
+      # (widening the pill rather than the gap) and a bracket's own padding
+      # moves nothing at all, so the gutter to the neighbouring pill is
+      # whatever that pill contributes. 0 here keeps the pill's own inner
+      # padding honest; anything else is spent on invisible spacers.
+      bracketArgs = lib.filter (s: s != "") (
+        [
+          "drawing=off"
+          "background.color=$SURFACE0"
+          "background.corner_radius=12"
+          "background.height=28"
+          "background.padding_left=0"
+          "background.padding_right=0"
+        ]
+        ++ lib.mapAttrsToList (k: v: "${k}=${v}") popupArgs
+        ++ lib.optional m.popup "popup.horizontal=off"
       );
       # `--add graph <name> <side> <width>` rather than `--add item`. Every
       # other property behaves identically — icon, label, popup, click_script
@@ -544,14 +627,36 @@ let
     in
     # seq, so the checks above fire with their own message rather than as a
     # `head: empty list` from the fill derivation below them.
-    builtins.seq graphChecked ''
-      ${lib.concatMapStrings (e: ''
-        ${sb} --add event ${e}
-      '') customEvents}
-      ${sb} ${addCmd} \
-          --set ${name} ${lib.concatStringsSep " " setArgs} \
-          --subscribe ${name} ${lib.concatStringsSep " " m.subscribes} mouse.clicked
-    '';
+    builtins.seq graphChecked (
+      let
+        events = lib.concatMapStrings (e: ''
+          ${sb} --add event ${e}
+        '') customEvents;
+        head = ''
+          ${sb} ${addCmd} \
+              --set ${name} ${lib.concatStringsSep " " setArgs} \
+              --subscribe ${name} ${lib.concatStringsSep " " m.subscribes} mouse.clicked
+        '';
+      in
+      if !segmented then
+        ''
+          ${events}
+          ${head}
+        ''
+      else
+        ''
+          ${events}
+          ${lib.concatMapStringsSep "\n" (n: "${sb} --add item ${n} ${side}") addOrder}
+
+          ${sb} --set ${name} ${lib.concatStringsSep " " setArgs} \
+              --subscribe ${name} ${lib.concatStringsSep " " m.subscribes} mouse.clicked
+
+          ${lib.concatMapStringsSep "\n" (n: "${sb} --set ${n} ${lib.concatStringsSep " " segArgs}") segIds}
+
+          ${sb} --add bracket ${bracketId} ${lib.concatStringsSep " " pillItems} \
+              --set ${bracketId} ${lib.concatStringsSep " " bracketArgs}
+        ''
+    );
 
   # A pill haus ships, converted. The script is this repo's own, so both paths
   # are derived from the name and the call sites in `mkPluginBlocks` below say
@@ -714,134 +819,26 @@ let
     # revive a hidden pill). update_freq is only a while-visible backstop to reap
     # stale files. Starts hidden; agents.sh flips it on when a pane is live.
     # Popup styling mirrors the apple-logo menu.
-    agents =
-      let
-        # The pill is FOUR items — the bot, then one segment per state — and
-        # they have to be ADDED in the order the group packs, not the order
-        # they read. A `right` group fills outward from the right edge (the
-        # menu bar's clock is furthest right because it is emitted first), so
-        # on that side the same four added left-to-right would draw
-        # `done working ready bot`: the urgency ladder backwards with the bot
-        # on the trailing edge. Adding them reversed there puts the bot at the
-        # pill's leading edge and the marks in ready → working → done order on
-        # every side. The per-item paddings below are physical left/right and
-        # need no mirroring once the order is right.
-        pillItems = [
-          "agents"
-          "agents.ready"
-          "agents.working"
-          "agents.done"
-        ];
-        addOrder = if side == "right" then lib.reverseList pillItems else pillItems;
-      in
-      ''
-        ${lib.concatMapStringsSep "\n" (n: "${sb} --add item ${n} ${side}") addOrder}
-
-        ${sb} --set agents \
-              update_freq=10 \
-              drawing=off \
-              label.drawing=off \
-              background.drawing=off \
-              background.padding_left=0 \
-              background.padding_right=0 \
-              icon.padding_left=10 \
-              icon.padding_right=8 \
-              script="$HOME/.config/sketchybar/plugins/agents.sh" \
-              click_script="$HOME/.config/sketchybar/plugins/agents.sh" \
-          --subscribe agents mouse.clicked system_woke
-
-        # One segment per state — ready, working, done — each a mark and a
-        # count in that state's colour, and agents.sh hides the ones sitting at
-        # zero. Three items rather than one label because SketchyBar colours a
-        # label once, and three colours is the whole point (see agents.sh's
-        # "the pill" comment). They carry no background and no background
-        # padding: the bracket below draws the single pill behind all four, and
-        # a segment with its own would both double the background and space the
-        # marks apart like separate items. Only the LAST visible one wants the
-        # pill's right padding, but every segment carries it: with the same
-        # number on both sides of a gap the eye reads the run as one field
-        # either way, and a trailing-padding fixup would have to run on every
-        # repaint.
-        #
-        # `agents.sh click`, not a bare invocation: a click_script does NOT
-        # arrive with SENDER=mouse.clicked (that is what the subscription on
-        # `agents` above buys), and the plugin's popup branch keys on it. The
-        # argument is the same shape the calendar, github and media pills use
-        # for exactly this. Subscribing instead would work too and cost a
-        # second run of the plugin per click.
-        for seg in ready working done; do
-          ${sb} --set "agents.$seg" \
-                  drawing=off \
-                  background.drawing=off \
-                  background.padding_left=0 \
-                  background.padding_right=0 \
-                  icon.padding_left=0 \
-                  icon.padding_right=3 \
-                  label.padding_left=0 \
-                  label.padding_right=10 \
-                  label.font="${barFont}:Bold:${sizes.label}" \
-                  click_script="$HOME/.config/sketchybar/plugins/agents.sh click"
-        done
-
-        # The pill itself. A bracket is the only way to put one background behind
-        # items that must colour themselves independently; it is also what keeps
-        # the bot and the counts reading as one control rather than four pills
-        # that happen to be adjacent. drawing=off to match the members — an
-        # all-hidden bracket still paints, so agents.sh turns this off too.
-        # It also carries the POPUP, which the bot used to. A popup aligns to the
-        # item holding it, and the bot is now a third of this pill's width — a
-        # right-aligned dropdown (which is every pill on the menu bar) would hang
-        # off to the left of its own pill by however many segments were drawn.
-        # The bracket's rect is the whole pill at whatever width it currently is,
-        # so the dropdown lines up on either side. agents.sh's $POPUP and the
-        # barpop hand-off both name this item.
-        #
-        # background.padding 0 explicitly, and it is the one place this pill
-        # cannot match the others: a member's padding is drawn INSIDE the
-        # bracket (it widens the pill rather than the gap) and a bracket's own
-        # padding moves nothing at all, so the gutter to the neighbouring pill
-        # is whatever THAT pill contributes — 4pt, where every other pair on the
-        # bar has 8. 0 here at least keeps the pill's own 10pt inner padding
-        # honest; anything else spends it on invisible spacer items.
-        ${sb} --add bracket agents.pill agents agents.ready agents.working agents.done \
-            --set agents.pill \
-                drawing=off \
-                background.color=$SURFACE0 \
-                background.corner_radius=12 \
-                background.height=28 \
-                background.padding_left=0 \
-                background.padding_right=0 \
-                popup.background.border_width=2 \
-                popup.background.corner_radius=10 \
-                popup.background.border_color=$SURFACE0 \
-                popup.background.color=$MANTLE \
-                ${popupAlign side} \
-                popup.horizontal=off
-      '';
-    # AI rate-limit gauges (5-hour session + 7-day weekly) and API spend, one row
-    # per reporting client. Two feed shapes, both ending in
-    # ~/.cache/claude-statusline/usage-*.tsv:
-    #   • pushed — modules/ai/statusline.sh stashes the percentages Claude Code
-    #     hands every statusline render, then invokes ai_usage.sh when one moves.
-    #   • pulled — Codex and Claude (account API calls) and Opencode (a sqlite
-    #     read), fetched by claude-statusline-refresh --usage-only. The plugin
-    #     kicks that itself on a TTL, which is what keeps this pill honest on a
-    #     machine driving a client that pushes nothing — including Claude Code's
-    #     own macOS app, which renders no statusline and so pushes nothing either.
-    # Each row carries TWO stamps, and the difference is the pill's whole model of
-    # itself: column 5 is when the row was WRITTEN (what greys it) and column 9 is
-    # when quota was last USED (what `latest` picks on). One column doing both
-    # meant a feed's poll rate decided which provider the pill showed.
-    # update_freq is the while-visible backstop that rolls a window over to 0% at
-    # its reset. Starts hidden until the first row lands.
+    # The agent lanes pill — four items under a bracket, which is what
+    # `# widget: segments = ready, working, done` in agents.sh buys: SketchyBar
+    # colours a label exactly once, and this pill says three counts in three
+    # tones. The emitter adds the members in pack order, moves the background
+    # and the dropdown onto the bracket, and barlib addresses all of it.
+    #
     # What is left here is IDENTITY and the one thing a widget cannot say about
     # itself: it starts HIDDEN. `updates=on` is the other half of that pair and
     # is load-bearing — both bars default to `updates=when_shown`, under which a
     # hidden item is not dispatched to at all, so its own update_freq would
-    # never tick and nothing would ever reveal it. With the pairing, the pill
-    # ticks while invisible and shows itself the moment a feed lands; that is
-    # what retired the one-shot kick this block used to carry, and it is the
-    # same door `pill --hide` closes from the script side.
+    # never tick and nothing would ever reveal it. That is the door
+    # agents-hook.sh names in its own comment and works around by invoking the
+    # reader directly; with the pairing the pill can now also re-show itself.
+    agents = frameworkBlock sb side "agents" {
+      "drawing" = "off";
+      "updates" = "on";
+      "label.drawing" = "off";
+      "icon.padding_left" = "10";
+      "icon.padding_right" = "8";
+    };
     aiUsage = frameworkBlock sb side "ai_usage" {
       "drawing" = "off";
       "updates" = "on";

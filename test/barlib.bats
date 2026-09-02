@@ -959,3 +959,158 @@ on_click() { popup_open; }'
   [ "$status" -eq 0 ]
   grep -q -- '--set w label.drawing=off' "$SB_LOG"
 }
+
+# ---- segmented pills --------------------------------------------------------
+# A `segments =` header makes the pill a BRACKET over a head item and N
+# segments (modules/bar/manifest.nix). $BARLIB_SEGMENTS is how the emitter
+# tells the running script, and everything below is what changes when it is
+# set. Each of these fails silently on a real bar: a --set at an item that
+# does not exist is accepted without a word, and a popup on the wrong item
+# opens hanging off the side of its own pill.
+
+@test "segment paints icon and label on <name>.<seg> in ONE tone" {
+  NAME=agents BARLIB_SEGMENTS="ready working done" SENDER=routine widget '
+    fetch() { emit n=2; }
+    render() { segment ready --icon "?" --label "$n" --tone bad; }
+  '
+  grep -q -- '--set agents.ready drawing=on' "$SB_LOG"
+  grep -q -- '--set agents.ready icon=?' "$SB_LOG"
+  grep -q -- '--set agents.ready label=2' "$SB_LOG"
+  # One tone, both halves: the glyph and the count are the same answer.
+  grep -q -- '--set agents.ready icon.color=0xff555555 label.color=0xff555555' "$SB_LOG"
+}
+
+@test "segment --hide is drawing=off ALONE — the updates door is the head's" {
+  NAME=agents BARLIB_SEGMENTS="ready working done" SENDER=routine widget '
+    fetch() { emit n=0; }
+    render() { segment working --hide; }
+  '
+  grep -q -- '--set agents.working drawing=off' "$SB_LOG"
+  ! grep -q -- '--set agents.working drawing=off updates=on' "$SB_LOG"
+}
+
+@test "a segment name not in the header is dropped, not sent" {
+  NAME=agents BARLIB_SEGMENTS="ready working done" SENDER=routine widget '
+    fetch() { emit n=1; }
+    render() { segment redy --icon x --label 1 --tone ok; }
+  ' 2>"$BATS_TEST_TMPDIR/err"
+  ! grep -q 'agents.redy' "$SB_LOG"
+  grep -q "is not in segments" "$BATS_TEST_TMPDIR/err"
+}
+
+@test "pill takes the bracket up and down with the head" {
+  NAME=agents BARLIB_SEGMENTS="ready working done" SENDER=routine widget '
+    fetch() { emit n=1; }
+    render() { pill --hide; }
+  '
+  # An all-hidden bracket still paints its own background, so hiding the
+  # members is not enough — the pill behind them has to go too.
+  grep -q -- '--set agents drawing=off updates=on' "$SB_LOG"
+  grep -q -- '--set agents.pill drawing=off' "$SB_LOG"
+}
+
+@test "a shown pill shows its bracket" {
+  NAME=agents BARLIB_SEGMENTS="ready working done" SENDER=routine widget '
+    fetch() { emit n=1; }
+    render() { pill --icon B --tone ok; }
+  '
+  grep -q -- '--set agents drawing=on' "$SB_LOG"
+  grep -q -- '--set agents.pill drawing=on' "$SB_LOG"
+}
+
+@test "an unsegmented pill never mentions a bracket" {
+  NAME=w SENDER=routine widget 'fetch() { emit n=1; }; render() { pill --hide; }'
+  ! grep -q 'w.pill' "$SB_LOG"
+}
+
+@test "popup rows hang off the BRACKET, not the head" {
+  NAME=agents BARLIB_SEGMENTS="ready working done" SENDER=mouse.clicked widget '
+    popup_rows() { popup_heading --label Agents; }
+    on_click() { popup_open; }
+  '
+  grep -q -- '--add item agents.pill.popup.0 popup.agents.pill' "$SB_LOG"
+  grep -q -- '--set agents.pill popup.drawing=on' "$SB_LOG"
+  ! grep -q -- 'popup.agents ' "$SB_LOG"
+}
+
+@test "a row's close targets the bracket too" {
+  NAME=agents BARLIB_SEGMENTS="ready working done" SENDER=mouse.clicked widget '
+    popup_rows() { popup_row --label go --run "true"; }
+    on_click() { popup_open; }
+  '
+  grep -q 'click_script=true; .* --set agents.pill popup.drawing=off' "$SB_LOG"
+}
+
+@test "a segment's click arrives as the HEAD, not as the segment" {
+  # sketchybar exports the item that was touched, and the emitter gives each
+  # segment a click_script. Every --set after that would land on a segment.
+  NAME=agents.ready BARLIB_SEGMENTS="ready working done" SENDER=mouse.clicked widget '
+    on_click() { sb_set label=clicked; }
+  '
+  grep -q -- '--set agents label=clicked' "$SB_LOG"
+  ! grep -q -- '--set agents.ready label=clicked' "$SB_LOG"
+}
+
+@test "a popup row on a segmented pill strips back past the bracket" {
+  NAME=agents.pill.popup.3 BARLIB_SEGMENTS="ready working done" SENDER=mouse.clicked widget '
+    on_click() { sb_set label=row; }
+  '
+  grep -q -- '--set agents label=row' "$SB_LOG"
+}
+
+@test "the head's own id survives a segment-shaped suffix it does not own" {
+  # Stripped by NAME, not at the first dot: a blind %%.* would eat a head id
+  # that legitimately carries one.
+  NAME=media_lib.foo BARLIB_SEGMENTS="ready working done" SENDER=mouse.clicked widget '
+    on_click() { sb_set label=x; }
+  '
+  grep -q -- '--set media_lib.foo label=x' "$SB_LOG"
+}
+
+@test "popup_toggle asks the bracket whether the dropdown is up" {
+  SB_POPUP_DRAWING=on NAME=agents BARLIB_SEGMENTS="ready working done" \
+    SENDER=mouse.clicked widget '
+    popup_rows() { popup_heading --label Agents; }
+    on_click() { popup_toggle; }
+  '
+  # Open → it must CLOSE, and never rebuild the rows on the way out.
+  grep -q -- '--set agents.pill popup.drawing=off' "$SB_LOG"
+  ! grep -q 'agents.pill.popup.0' "$SB_LOG"
+}
+
+# ---- the two-answer row and the clickable heading ---------------------------
+
+@test "popup_row --name-tone colours the name half" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_row --label "working · 12m" --name-tone busy --value "+2" --tone warn; }
+    on_click() { popup_open; }
+  '
+  # name in busy, value in warn — two answers, not a question and an answer.
+  grep -q 'icon.color=0xff333333' "$SB_LOG"
+  grep -q 'label.color=0xff444444' "$SB_LOG"
+}
+
+@test "a --value row still dims its name by default" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_row --label user --value 42 --tone ok; }
+    on_click() { popup_open; }
+  '
+  grep -q 'icon.color=0xff1a1a1a' "$SB_LOG"
+}
+
+@test "popup_heading --run makes the heading a click target" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_heading --label Lane --run "do-thing"; }
+    on_click() { popup_open; }
+  '
+  grep -q 'click_script=do-thing; ' "$SB_LOG"
+}
+
+@test "a heading with no --run still just closes" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_heading --label Lane; }
+    on_click() { popup_open; }
+  '
+  ! grep -q 'click_script=; ' "$SB_LOG"
+  grep -q 'click_script=.* --set w popup.drawing=off' "$SB_LOG"
+}
