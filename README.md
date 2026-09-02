@@ -48,6 +48,7 @@ Changing your Mac by asking an agent is
 - [`docs/model.md`](docs/model.md) — the contract the modules are written against: layer, room, desktop, host, and what each one may own
 - [`docs/macos-settings.md`](docs/macos-settings.md) — what a desktop can actually set, measured domain by domain
 - [`docs/focus.md`](docs/focus.md) — how the focus room flips a real macOS Focus with no public API, and what it deliberately won't do
+- [`docs/night-shift.md`](docs/night-shift.md) — the four levers an unattended merge shift reaches for here: the lid, the fixer lane, the usage feed it meters against, and what a night puts on screen
 
 ---
 
