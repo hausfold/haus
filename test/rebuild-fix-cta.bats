@@ -28,9 +28,14 @@
 # is authoritative in `trill_bin`, including pointed at nothing.
 #
 # What is NOT here, and was verified by hand instead: the three OUTCOME banners
-# of a completed fix (fixed / nothing changed / still broken) and the in-pane
-# `gum` rows. The first needs a real flake and a nix evaluation, the second a
-# pty; neither is worth a CI dependency for a courtesy surface.
+# of a completed fix (fixed / nothing changed / still broken). Those need a real
+# flake and a nix evaluation, which is not worth a CI dependency.
+#
+# The in-pane `gum` rows used to be on that list too, on the grounds that they
+# need a pty. They needed no such thing: what broke them was a redirect that
+# threw away the stream gum draws on, and a stub that draws where gum draws
+# catches it without a terminal at all. "Only testable by hand" was the reason
+# it shipped invisible — see the rows section below.
 
 bats_require_minimum_version 1.5.0
 
@@ -165,6 +170,37 @@ wait_gone() { # wait_gone <pid> [tries] — polled, because the holder exits onl
 @test "fault_surface: none under HAUS_NO_BANNER, the same gate the card keeps" {
   haus_sh HAUS_NO_BANNER=1 'fault_surface'
   [ "$output" = none ]
+}
+
+# ---- the in-pane rows -------------------------------------------------------
+
+# gum draws the picker on STDERR, so that `$( )` can take the selection off
+# stdout. Redirecting stderr away therefore does not quiet gum — it deletes the
+# only thing the person is meant to see, while gum still blocks for its whole
+# timeout. That shipped once (hausfold/haus#592): a failed rebuild, thirty
+# seconds of nothing, prompt back, indistinguishable from the feature being
+# off. No pty is needed to hold the line, only a stub that draws where gum
+# draws — and a function, for the PATH reason at the top of this file.
+@test "fault_rows: gum's UI reaches the terminal rather than /dev/null" {
+  haus_sh "gum() { printf 'ROWS-DREW\n' >&2; printf 'Fix it with AI\n'; }
+    fault_rows"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *ROWS-DREW* ]] || fail "gum's picker was swallowed — the rows never render"
+  [ -s "$FIXED" ]
+}
+
+@test "fault_rows: 'Not now' and an expired timeout both leave haus-fix alone" {
+  haus_sh "gum() { printf 'Not now\n'; }
+    fault_rows"
+  [ "$status" -eq 0 ]
+  [ ! -s "$FIXED" ]
+
+  # gum 0.17 returns 124 with no selection when --timeout expires, rather than
+  # committing the row under the cursor. A walked-away prompt must not fix.
+  haus_sh "gum() { return 124; }
+    fault_rows"
+  [ "$status" -eq 0 ]
+  [ ! -s "$FIXED" ]
 }
 
 # ---- the four gates ---------------------------------------------------------
