@@ -526,12 +526,30 @@ let
     fonts = fontsCfg;
   };
 
+  # The proportional family, resolved the same three ways — except that the
+  # third answer is null rather than a package of haus's own, because the
+  # default family is macOS's and nothing installs it. See ../lib/sans-font.nix.
+  sansPackage = import ../lib/sans-font.nix {
+    inherit lib pkgs;
+    fonts = fontsCfg;
+  };
+
   # Naming a family haus was never given a package for is silent tofu:
   # Ghostty just falls back and the powerline/icon glyphs vanish. Cheap to spot.
+  #
+  # ⚠️ NO SANS TWIN, and that is a decision rather than an omission. For mono,
+  # naming a family with no package is nearly always a mistake — the default is
+  # a package haus installs, and the fallback is visibly broken. For sans it is
+  # the ORDINARY case: the default family is macOS's own, every Mac ships
+  # dozens more, `haus.roster` installs fonts by cask, and the option's own
+  # description tells you to name one the machine has. A warning on every
+  # rebuild of a correct configuration, with no way to say "I know", is worse
+  # than the failure it would report.
   fontFamilyUnprovided =
     fontsCfg.mono.package == null
     && fontsCfg.mono.packageName == null
     && fontsCfg.mono.name != options.haus.fonts.mono.name.default;
+
 in
 {
   system.primaryUser = username;
@@ -636,6 +654,15 @@ in
       assertion = !(fontsCfg.mono.package != null && fontsCfg.mono.packageName != null);
       message = ''
         haus: fonts.mono.package and fonts.mono.packageName are both set.
+        They are the same setting written two ways — `package` for a module
+        that has `pkgs`, `packageName` for a data-only desktop that doesn't.
+        Keep one.
+      '';
+    }
+    {
+      assertion = !(fontsCfg.sans.package != null && fontsCfg.sans.packageName != null);
+      message = ''
+        haus: fonts.sans.package and fonts.sans.packageName are both set.
         They are the same setting written two ways — `package` for a module
         that has `pkgs`, `packageName` for a data-only desktop that doesn't.
         Keep one.
@@ -1322,7 +1349,11 @@ in
   # this package is now the one the menu bar draws in too. `fonts.packages` is a
   # list option, so it merges with the one font bar still installs for itself:
   # sketchybar-app-font, for the workspace logos.
-  fonts.packages = [ monoPackage ];
+  # `sansPackage` is null on every desktop that leaves fonts.sans.name alone —
+  # its default is macOS's own family, which is already there — so the
+  # proportional half installs nothing unless somebody named a family AND the
+  # package for it.
+  fonts.packages = [ monoPackage ] ++ lib.optional (sansPackage != null) sansPackage;
 
   # Homebrew's tap-trust check is flaky under sudo-driven activation (the
   # per-user trust store gets bypassed), so third-party taps fail with "Refusing

@@ -223,6 +223,8 @@ let
       "mono.packageName"
       "mono.size"
       "sans.name"
+      "sans.package"
+      "sans.packageName"
     ];
     git = [
       "email"
@@ -572,6 +574,7 @@ let
       "slack.tokenCommand" = "secret";
     };
     fonts."mono.package" = "needs-pkgs";
+    fonts."sans.package" = "needs-pkgs";
     # `git` is the one namespace `wholeNamespace` cannot answer alone: four of
     # its five leaves name you, and `shellAliases` is a set of shell command
     # strings that names nobody. Overriding the one member is the point of
@@ -833,7 +836,7 @@ let
     };
     fonts = {
       order = 40;
-      blurb = "The machine's type. One mono family drives the terminal AND the bar — the bar stopped keeping a hardcoded font of its own, though it keeps its own tuned sizes. The proportional family is one label's: the clock pill, when it opts out of mono.";
+      blurb = "The machine's type. One mono family drives the terminal AND the bar — the bar stopped keeping a hardcoded font of its own, though it keeps its own tuned sizes. One proportional family drives everything else haus draws: the clock pill when it opts out of mono, and the text in pounce, perch and trill.";
     };
     ui = {
       order = 50;

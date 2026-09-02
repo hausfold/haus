@@ -136,6 +136,14 @@ lib.mkIf config.haus.shelf.enable {
             themeDark = if followAppearance then nb.darkVariant else nb.variant;
             themeLight = if followAppearance then nb.lightVariant else nb.variant;
             accent = config.haus.theme.accent;
+            # haus.fonts.sans, the proportional family — the shelf, its Settings
+            # window and the pairing window. Written unconditionally, including
+            # at its default: `.AppleSystemUIFont` is macOS's own family under
+            # its own name, and perch resolves that name back to "the system
+            # font" rather than freezing a copy of it, so the default value and
+            # an absent key render identically. A perch that predates the key
+            # ignores it, like the accent before it.
+            fontFamily = config.haus.fonts.sans.name;
           }
           // screenshotsKey
         )

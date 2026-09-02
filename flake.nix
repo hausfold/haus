@@ -2302,10 +2302,13 @@
             builtins.length (builtins.filter (l: builtins.match ".*[A-Za-z] Nerd Font:.*" l != null) lines);
           fontA = fontAt { haus.fonts.mono.name = "JetBrainsMono Nerd Font Mono"; };
           fontB = fontAt { haus.fonts.mono.name = "FiraCode Nerd Font"; };
-          # The third pair: the branch the two above never enter. Both keys move
-          # together on purpose — `fonts.sans.name` has exactly one reader and it
-          # is behind `clock.monoFont = false`, so a pair that varied only the
-          # family would produce two identical machines and call that a reach.
+          # The third pair: the branch the two above never enter. Both keys still
+          # move together, though the reason has narrowed — the clock pill was
+          # once `fonts.sans.name`'s ONLY reader, so a pair varying just the
+          # family produced two identical machines and called that a reach.
+          # pounce's generated config reads it now too, so the family alone would
+          # show a difference; `clock.monoFont = false` stays because the pill's
+          # other branch is still the row nothing else enters.
           sansAt =
             name:
             fontAt {
@@ -2338,9 +2341,17 @@
             ) (builtins.attrNames (sansA.files // sansB.files))
           );
           # One name row and the file rows under it: the family the clock draws,
-          # and the complete list of files a proportional family reaches. That
-          # list being short IS the claim — `fonts.sans` is one label, and the
-          # option's own description says so.
+          # and every GENERATED FILE a proportional family reaches.
+          #
+          # ⚠️ Generated file, which is not the same as "every surface". perch's
+          # and trill's halves of `fonts.sans` are activation scripts — the shelf
+          # installs a real file because its sandbox refuses a store symlink, and
+          # the notifications room merges one key into a settings file that stays
+          # the user's — and neither is a `home.file`, so this table cannot see
+          # them however loudly they move. Two rows here, three apps and a pill
+          # out there. Change one of those writes and this check stays green;
+          # `modules/shelf/default.nix` and `modules/notifications/default.nix`
+          # are where the claim actually lives.
           sansNameRow = "sans gen bar clock label ${sansA.names."gen bar clock label"} | ${
             sansB.names."gen bar clock label"
           }";
@@ -2366,6 +2377,7 @@
             file .config/sketchybar/workspaces.sh moves
             file Library/Application Support/com.mitchellh.ghostty/config moves
             sans gen bar clock label .AppleSystemUIFont | Atkinson Hyperlegible
+            sans file .config/pounce/config.json moves
             sans file .config/sketchybar/top_items.sh moves
           '';
 

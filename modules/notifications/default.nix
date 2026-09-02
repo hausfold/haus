@@ -50,13 +50,28 @@
 # activation stops trill on purpose before the swap and puts it back after, but
 # only if it was up: a deliberately-quit trill is not resurrected by a rebuild.
 #
-# NOT THEMED FROM HERE, and not yet configured from here either. trill's own
+# NOT THEMED FROM HERE, AND EXACTLY ONE KEY IS CONFIGURED FROM HERE. trill's own
 # rule is that ~/.config/trill/config.json is the source of truth for every
 # app-level switch and that it REFUSES to move a toggle when the file is a
 # symlink into the Nix store (it says so in Settings rather than moving a switch
-# a rebuild would revert). Writing that file is therefore a real design decision
-# about which keys haus owns and which stay the user's, not a copy of the
-# shelf's theme drop — so it is deliberately not in this room's first version.
+# a rebuild would revert). So this room does NOT own that file: it MERGES one
+# key into it and leaves it a real, writable file, the same shape ../terminal
+# uses for ~/.claude/settings.json.
+#
+# The key is `fontFamily`, from haus.fonts.sans.name — the proportional family
+# every banner, the ledge and the inbox are set in, so that the one option that
+# moves the launcher and the shelf moves the third app too rather than two of
+# three. Nothing else here is haus's: every other switch in that file stays the
+# user's, and their clicks survive a rebuild because the file is theirs to
+# write.
+#
+# THE COST, STATED PLAINLY: the font row in trill's Settings is the one row a
+# rebuild can move back. trill can only refuse a write it can SEE is generated
+# (a store symlink), and this file deliberately isn't one — so a click there
+# sticks until the next `haus rebuild` and is then re-asserted from the desktop.
+# That is what a declared setting means everywhere else on this Mac; it is worth
+# knowing that here it looks like an ordinary text field.
+#
 # `~/.config/trill/rules.json` stays entirely the user's: it is the dial for
 # every `haus-notify --source`, and a second dial in front of it would be worse
 # (../../AGENTS.md's rule).
@@ -83,6 +98,83 @@ lib.mkIf config.haus.notifications.compositor {
     name = lib.mkDefault "Trill";
     installedBy = lib.mkDefault "haus.notifications";
   };
+
+  # The one key this room owns inside a file that stays the user's (see the
+  # header). Merged rather than written whole: trill writes every other switch
+  # in there from its own Settings window, and replacing the file would throw
+  # those away on every rebuild.
+  #
+  # THIS IS SOMEBODY'S SETTINGS FILE, so every branch below is about not
+  # damaging it. A symlink is stepped over entirely — a store one because trill
+  # would then refuse every toggle in Settings (its `isManagedExternally`), and
+  # any OTHER one because it is somebody's dotfiles link and `mv` would replace
+  # the link with a regular file, orphaning the source and silently ending every
+  # future edit to it. A file that isn't valid JSON is left alone rather than
+  # replaced with a fresh one: mid-edit is likelier than corrupt, and "haus
+  # deleted my settings" is not a recovery. The write goes through `mktemp` and
+  # a rename, so it is atomic against a reader — trill's own watcher included —
+  # and against a second rebuild racing this one, which is not hypothetical in
+  # this room (see the install lock below). The mode is carried across, because
+  # a `mv` would otherwise hand a 0600 config the umask's 0644.
+  #
+  # And it is skipped entirely when the value is already there, so a rebuild
+  # that changes nothing rewrites nothing and trill's watcher stays quiet.
+  #
+  # A module FUNCTION so it gets home-manager's extended lib — the outer
+  # nix-darwin `lib` has no `hm`, and `lib.hm.dag` is what orders an activation
+  # step. Same shape ../shelf uses for its theme drop.
+  home-manager.users.${username} =
+    { lib, pkgs, ... }:
+    {
+      home.activation.trillFontFamily = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        run sh -c '
+          config="$0"
+          family="$1"
+          jq="$2"
+          mkdir -p "''${config%/*}" || exit 0
+          # Any symlink, not just a store one: see the note above.
+          if [ -L "$config" ]; then
+            echo "trill: $config is a symlink; leaving it alone rather than replacing it with a file." >&2
+            exit 0
+          fi
+          if [ -s "$config" ]; then
+            if ! "$jq" -e "type == \"object\"" "$config" >/dev/null 2>&1; then
+              echo "trill: $config is not a JSON object (or cannot be read); leaving it alone." >&2
+              exit 0
+            fi
+            if [ "$("$jq" -r ".fontFamily // empty" "$config")" = "$family" ]; then
+              exit 0
+            fi
+            base="$config"
+            mode="$(stat -f %Lp "$config" 2>/dev/null || echo 644)"
+          else
+            base=""
+            mode=644
+          fi
+          tmp="$(mktemp "$config.haus.XXXXXX")" || {
+            echo "trill: could not write beside $config — haus.fonts.sans.name has not reached trill." >&2
+            exit 0
+          }
+          if [ -n "$base" ]; then
+            "$jq" --arg family "$family" ".fontFamily = \$family" "$base" > "$tmp"
+          else
+            printf "{}" | "$jq" --arg family "$family" ".fontFamily = \$family" > "$tmp"
+          fi || {
+            echo "trill: could not write $config — haus.fonts.sans.name has not reached trill." >&2
+            rm -f "$tmp"
+            exit 0
+          }
+          chmod "$mode" "$tmp" 2>/dev/null || true
+          mv "$tmp" "$config" || {
+            echo "trill: could not replace $config — haus.fonts.sans.name has not reached trill." >&2
+            rm -f "$tmp"
+          }
+          exit 0
+        ' "$HOME/.config/trill/config.json" ${
+          lib.escapeShellArg config.haus.fonts.sans.name
+        } ${pkgs.jq}/bin/jq
+      '';
+    };
 
   system.activationScripts.postActivation.text = ''
     # --- trill: install the notarized app at a fixed /Applications path -------

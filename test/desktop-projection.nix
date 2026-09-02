@@ -294,5 +294,19 @@ in
         };
       in
       package.pname or package.name;
+
+    # The same three ways for the proportional family, and one difference that
+    # has to be projected rather than assumed: `sans` may resolve to NOTHING —
+    # its default family is macOS's own, which haus installs no package for. So
+    # "none" is a real value here, not an absent row, and a desktop that starts
+    # installing a proportional font has to show up as a change.
+    effective.sansFontPackage =
+      let
+        package = import ../modules/lib/sans-font.nix {
+          inherit lib pkgs;
+          fonts = config.haus.fonts;
+        };
+      in
+      if package == null then "none" else package.pname or package.name;
   };
 }

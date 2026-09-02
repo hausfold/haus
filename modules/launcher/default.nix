@@ -1494,6 +1494,14 @@ lib.mkIf config.haus.launcher.enable {
           # failing on it — same lenient parse as `themeLight`.
           windowMode = config.haus.launcher.windowMode;
           scale = config.haus.launcher.scale;
+          # haus.fonts.sans, the proportional family — scale picks how big the
+          # launcher is drawn, this picks what it is drawn IN. Written
+          # unconditionally, including at its default: `.AppleSystemUIFont` is
+          # macOS's own family under its own name, and pounce resolves that name
+          # back to "the system font" rather than freezing a copy of it, so the
+          # default value and an absent key render identically. An older pounce
+          # ignores the key, same as it ignores `scale`.
+          fontFamily = config.haus.fonts.sans.name;
           # The selected nebelung variant, following theme.{flavor,contrast}. The
           # default variant's name ("nebelung") matches pounce's compiled-in
           # palette, and an older pounce without runtime themes falls back to that

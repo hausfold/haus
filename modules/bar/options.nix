@@ -791,9 +791,11 @@ in
         is easier to distinguish from an 8 at a glance. The calendar icon
         remains in the Nerd Font either way.
 
-        This pill is the only place `haus.fonts.sans.name` is read, so the two
-        options are really one switch: this one chooses the family, that one
-        says which.
+        This pill is the only place in the BAR that reads
+        `haus.fonts.sans.name` — so within Bar the two options are really one
+        switch: this one chooses the family, that one says which. Elsewhere on
+        the machine that family also sets the text in pounce, perch and trill,
+        and this switch has nothing to say about those.
       '';
     };
 

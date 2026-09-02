@@ -1,6 +1,7 @@
 {
   "effective": {
-    "monoFontPackage": "nerd-fonts-jetbrains-mono"
+    "monoFontPackage": "nerd-fonts-jetbrains-mono",
+    "sansFontPackage": "none"
   },
   "schema": 1,
   "values": {

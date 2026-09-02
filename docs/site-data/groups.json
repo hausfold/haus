@@ -87,7 +87,7 @@
     "order": 170
   },
   "fonts": {
-    "blurb": "The machine's type. One mono family drives the terminal AND the bar — the bar stopped keeping a hardcoded font of its own, though it keeps its own tuned sizes. The proportional family is one label's: the clock pill, when it opts out of mono.",
+    "blurb": "The machine's type. One mono family drives the terminal AND the bar — the bar stopped keeping a hardcoded font of its own, though it keeps its own tuned sizes. One proportional family drives everything else haus draws: the clock pill when it opts out of mono, and the text in pounce, perch and trill.",
     "order": 40
   },
   "git": {
@@ -697,9 +697,9 @@
       "owner": "focus"
     },
     "fonts": {
-      "blurb": "The machine's type. One mono family drives the terminal AND the bar — the bar stopped keeping a hardcoded font of its own, though it keeps its own tuned sizes. The proportional family is one label's: the clock pill, when it opts out of mono.",
+      "blurb": "The machine's type. One mono family drives the terminal AND the bar — the bar stopped keeping a hardcoded font of its own, though it keeps its own tuned sizes. One proportional family drives everything else haus draws: the clock pill when it opts out of mono, and the text in pounce, perch and trill.",
       "kind": "room",
-      "optionCount": 6,
+      "optionCount": 8,
       "options": {
         "haus.fonts.mono.baseSize": {
           "desktopSafe": true
@@ -718,6 +718,13 @@
           "desktopSafe": true
         },
         "haus.fonts.sans.name": {
+          "desktopSafe": true
+        },
+        "haus.fonts.sans.package": {
+          "desktopSafe": false,
+          "reason": "needs-pkgs"
+        },
+        "haus.fonts.sans.packageName": {
           "desktopSafe": true
         }
       },
@@ -1720,7 +1727,7 @@
         "screenshots",
         "sound"
       ],
-      "optionCount": 50,
+      "optionCount": 52,
       "order": 20,
       "title": "Appearance"
     },
