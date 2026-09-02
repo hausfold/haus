@@ -2187,10 +2187,19 @@ fault_surface() { # -> pane | banner | none
 # The in-pane door. Timed out on purpose: a picker that waits forever holds a
 # prompt you may have walked away from, and gum returns 124 with no selection
 # rather than committing the row under the cursor (measured, gum 0.17).
+#
+# stderr is deliberately NOT redirected, and that is the whole reason there is
+# anything to look at: gum draws the picker on STDERR precisely so that `$( )`
+# can take the SELECTION off stdout. A `2>/dev/null` here — which is what the
+# first cut of this shipped — silences the rows while gum still blocks for its
+# full timeout, so pressing nothing looks identical to the feature being off:
+# a rebuild that fails, then thirty seconds of nothing, then your prompt back.
+# Measured under a pty, gum 0.17. If a future gum needs quieting, quiet its
+# diagnostics by name; never the stream it renders on.
 fault_rows() {
   local pick
   pick="$(gum choose --timeout=30s --header='Fix it with AI?' \
-    'Fix it with AI' 'Not now' 2>/dev/null)" || return 0
+    'Fix it with AI' 'Not now')" || return 0
   [ "$pick" = 'Fix it with AI' ] || return 0
   haus-fix || true
   return 0
