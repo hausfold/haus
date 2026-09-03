@@ -1766,10 +1766,11 @@ in
   #
   # Through `haus-nix-gc`, NOT `nix-collect-garbage` directly: a single app
   # bundle macOS refuses to release aborts the rest of that week's collection,
-  # and goes on doing it for as long as the bundle is there. The wrapper pins
-  # those paths and gets on with the rest of the store, and it is also what
-  # keeps this log from being a megabyte of `deleting '...'` now that one run
-  # can be several collections. See nix-gc.sh's header.
+  # and goes on doing it for as long as the bundle is there. The wrapper roots
+  # those bundles BEFORE the collection runs — after the fact is too late, nix
+  # having already invalidated the path it then failed to delete — and it is
+  # also what keeps this log from being a megabyte of `deleting '...'`. See
+  # nix-gc.sh's header, which argues the ordering.
   nix.enable = false;
   launchd.daemons.nix-gc = {
     serviceConfig = {
