@@ -35,6 +35,14 @@
 # That is why $CONSUMER being a git repo is a hard requirement here and a gate
 # on the CTA in haus.sh: without it there is no undo, so there is no offer.
 #
+# One shape of fix has no commit to revert, and the ending says so rather than
+# printing that line anyway: a break that was never COMMITTED is repaired by
+# returning the tree to HEAD, so HEAD never moves. `git revert HEAD` there would
+# undo whatever you last committed, which is the one thing that was fine. The
+# repo is still the bound — the tree is still recoverable, and the agent still
+# could not leave $CONSUMER — the *undo command* is just not that one. See the
+# `dirty_before` branch at the bottom of this file.
+#
 # ── which evidence, per failure class ───────────────────────────────────────
 #   resolve   evaluation failed. run_phase already captured it — the slice of
 #             $HAUS_LOG from the offset the breadcrumb recorded.
@@ -453,6 +461,12 @@ mkdir -p "$STATE"
 banner pulse "haus fix · $host" "$CLIENT is reading the $class failure…"
 
 head_before="$(git -C "$consumer" rev-parse HEAD 2>/dev/null || echo none)"
+# Snapshotted before the agent runs, so the ending can tell "the tree was
+# already clean at HEAD" from "the break WAS the uncommitted diff, and fixing
+# it means undoing it" — both land on an untouched HEAD and a clean tree
+# afterward, and only this tells them apart.
+dirty_before=""
+git -C "$consumer" diff --quiet HEAD 2>/dev/null || dirty_before=1
 
 # HAUS_DESKTOP_OK: the desktop guard's whole job is to put a question on screen
 # before an agent touches the pointer or focus. This run is headless and started
@@ -510,23 +524,35 @@ committed=""
 [ "$head_before" != "$head_after" ] && committed=1
 
 if [ -n "$evals" ] && [ -n "$committed" ]; then
-  body="$(git -C "$consumer" log -1 --format=%s 2>/dev/null)"
+  body="$(git -C "$consumer" log -1 --format=%s 2>/dev/null) (${head_after:0:7})"
   [ -n "$dirty" ] && body="$body · uncommitted changes left in the tree"
   banner "done" "fixed — \`haus rebuild\` to apply" "$body"
-  note "fixed — run \`haus rebuild\` to apply. Undo: git -C $consumer revert HEAD"
+  note "fixed — run \`haus rebuild\` to apply (${head_after:0:7}). Undo: git -C $consumer revert HEAD"
   exit 0
 fi
 
 if [ -n "$evals" ]; then
-  # Evaluates, but nothing was COMMITTED. Two very different situations, and
-  # they must not read alike: an untouched tree means the config was already
-  # fine or the agent decided against a change, while a dirty one means the fix
-  # may well be sitting there unsaved — which `git revert` cannot undo and a
-  # "nothing changed" banner would send you right past.
+  # Evaluates, but nothing was COMMITTED. Three situations land here, and they
+  # must not read alike:
+  #   dirty              the fix may well be sitting there unsaved — which
+  #                       `git revert` cannot undo and "nothing changed" would
+  #                       send you right past.
+  #   clean, was dirty   the BREAK was the uncommitted diff, and the agent's
+  #                       fix was undoing it — HEAD never moved because there
+  #                       was nothing to commit a fix onto. Reads exactly like
+  #                       "nothing changed" unless dirty_before says otherwise,
+  #                       and `git revert` here would revert the wrong commit.
+  #   clean, was clean   the config was already fine, or the agent decided
+  #                       against a change. The only case "nothing changed" is
+  #                       true for.
   if [ -n "$dirty" ]; then
     banner note "haus fix · uncommitted" \
       "$CLIENT left changes in $consumer without committing them — the config evaluates. Read them before \`haus rebuild\`; see $FIXLOG"
     note "uncommitted changes left in $consumer — see $FIXLOG"
+  elif [ -n "$dirty_before" ]; then
+    banner "done" "haus fix · fixed — reverted your uncommitted change" \
+      "$CLIENT undid the break in $consumer rather than committing a fix — see $FIXLOG"
+    note "fixed — $CLIENT reverted your uncommitted change in $consumer. Nothing to \`git revert\`: nothing was committed. See $FIXLOG"
   else
     banner note "haus fix · nothing changed" \
       "the config evaluates and $CLIENT committed nothing — see $FIXLOG"

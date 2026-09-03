@@ -1317,7 +1317,16 @@ in
     ++ lib.optionals devCfg.toolbelt.enable [
       bat
       fzf
-      glow
+      # glow is NOT here, and the omission is load-bearing: terminal ships it
+      # wrapped, with the per-user Nebelung glamour style baked in (`glowThemed`
+      # there, hausfold/haus#666). A second, stock copy in this list would put
+      # two `bin/glow` on the machine in different profiles — no collision, no
+      # error, just PATH order deciding whether your markdown is themed, and
+      # anything running off a `/run/current-system/sw/bin`-first PATH (this
+      # room's own `haus.sh` preamble, the launcher's commands) silently getting
+      # the stock one. A style chosen per user does not belong in a system
+      # profile anyway. Nothing here invokes the binary; the callers are yazi,
+      # the `mdcat` alias, and a person at a prompt, all in the user profile.
       jq
       lsd
       # ripgrep isn't just a nicer grep here: terminal's ⌘F overlay

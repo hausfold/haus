@@ -27,9 +27,10 @@
 # one seam that actually shadows them. trill needs no such trick: `HAUS_TRILL`
 # is authoritative in `trill_bin`, including pointed at nothing.
 #
-# What is NOT here, and was verified by hand instead: the three OUTCOME banners
-# of a completed fix (fixed / nothing changed / still broken). Those need a real
-# flake and a nix evaluation, which is not worth a CI dependency.
+# What is NOT here, and was verified by hand instead: the four OUTCOME banners
+# of a completed fix (fixed / fixed-by-reverting-uncommitted / nothing changed /
+# still broken). Those need a real flake and a nix evaluation, which is not
+# worth a CI dependency.
 #
 # The in-pane `gum` rows used to be on that list too, on the grounds that they
 # need a pty. They needed no such thing: what broke them was a redirect that
@@ -356,6 +357,135 @@ STUB
   # — killed -9, or a reboot — and only trill still remembers.
   run grep -c 'resolve haus-rebuild-fault' "$ASKED"
   [ "$output" = 1 ]
+}
+
+@test "a rebuild that succeeds leaves a DIFFERENT consumer's offer alone" {
+  # HAUS_LOG_DIR is one machine-global path, so an unscoped fault_clear would
+  # wipe whichever failure is parked, however unrelated — a scruff worktree's
+  # parked fin taken down by an unrelated successful rebuild of a different
+  # $CONSUMER (most often $HOME/.config/nix) minutes later, with nothing said.
+  # A LIVE tree, created rather than merely named: a crumb pointing at a
+  # directory that is gone is deliberately cleared (see the reaped-worktree case
+  # below), so a fixture that skipped the mkdir would pass this test for the
+  # wrong reason and stop testing ownership at all.
+  local other="$BATS_TEST_TMPDIR/other-consumer"
+  mkdir -p "$other"
+  cat >"$CRUMB" <<EOF
+class=resolve
+host=mbp
+consumer=$other
+log=$STATE/rebuild.log
+offset=0
+drv=
+gen=418
+when=2026-08-31 14:02:11
+EOF
+  # A pid that cannot exist, so a wrongly-fired kill -TERM is a silent no-op
+  # rather than a false pass.
+  printf '999999999\n' >"$STATE/fault-holder.pid"
+
+  haus_sh 'fault_clear'
+  [ "$status" -eq 0 ]
+  [ -e "$CRUMB" ]
+  [ -e "$STATE/fault-holder.pid" ]
+  [ ! -e "$ASKED" ]
+}
+
+@test "a rebuild that succeeds still clears its own consumer's crumb" {
+  cat >"$CRUMB" <<EOF
+class=resolve
+host=mbp
+consumer=$HAUS_CONSUMER
+log=$STATE/rebuild.log
+offset=0
+drv=
+gen=418
+when=2026-08-31 14:02:11
+EOF
+  haus_sh 'fault_clear'
+  [ "$status" -eq 0 ]
+  [ ! -e "$CRUMB" ]
+  run grep -c 'resolve haus-rebuild-fault' "$ASKED"
+  [ "$output" = 1 ]
+}
+
+@test "fault_clear survives having no crumb at all, which is the ordinary case" {
+  # The ownership check reads the crumb with `sed`, and haus.sh runs under
+  # `set -e`: a missing file makes sed exit non-zero, and a bare assignment from
+  # a failed command substitution takes the whole process down. Every SUCCESSFUL
+  # rebuild with no failure parked hits this — so the regression it guards
+  # against is not "the clear is skipped" but "the tail of `haus rebuild` never
+  # runs and it exits non-zero", which is invisible until `bench` reads $?.
+  # The three cases above all pre-create $CRUMB, so none of them can see it.
+  [ ! -e "$CRUMB" ]
+  haus_sh 'fault_clear; echo REACHED-THE-END'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"REACHED-THE-END"* ]]
+}
+
+@test "the owner test survives a trailing slash and a symlinked spelling" {
+  # $CONSUMER is whatever the environment said, so the failing run and the
+  # later successful one can spell one tree two ways. A raw string compare then
+  # reads its OWN crumb as a stranger's and never clears it — and the ask has no
+  # timeout, so the fin sits there until someone presses it and spawns an agent
+  # against a log rotated days ago. Both spellings, because they fail the same
+  # way and are fixed by the same `cd + pwd -P`.
+  local link="$BATS_TEST_TMPDIR/consumer-by-another-name"
+  ln -sfn "$HAUS_CONSUMER" "$link"
+
+  local spelling
+  for spelling in "$HAUS_CONSUMER/" "$link"; do
+    cat >"$CRUMB" <<EOF
+class=resolve
+host=mbp
+consumer=$spelling
+log=$STATE/rebuild.log
+offset=0
+drv=
+gen=418
+when=2026-08-31 14:02:11
+EOF
+    haus_sh 'fault_clear'
+    [ "$status" -eq 0 ]
+    [ ! -e "$CRUMB" ] || fail "a crumb spelled '$spelling' was not recognised as ours"
+  done
+}
+
+@test "a crumb whose consumer is gone clears rather than parking forever" {
+  # A reaped worktree. haus-fix refuses a consumer that is not there ("nothing
+  # to fix"), so leaving that fin up offers something nobody can take — and
+  # nothing else on the machine would ever take it down.
+  cat >"$CRUMB" <<EOF
+class=resolve
+host=mbp
+consumer=$BATS_TEST_TMPDIR/reaped-worktree-that-never-existed
+log=$STATE/rebuild.log
+offset=0
+drv=
+gen=418
+when=2026-08-31 14:02:11
+EOF
+  haus_sh 'fault_clear'
+  [ "$status" -eq 0 ]
+  [ ! -e "$CRUMB" ]
+}
+
+@test "a crumb with no consumer= line clears as before" {
+  # An older haus's crumb, or hand-written state: no consumer= line means no
+  # ownership to check, so fault_clear falls back to the unscoped behaviour it
+  # always had rather than refusing to clear anything.
+  cat >"$CRUMB" <<EOF
+class=resolve
+host=mbp
+log=$STATE/rebuild.log
+offset=0
+drv=
+gen=418
+when=2026-08-31 14:02:11
+EOF
+  haus_sh 'fault_clear'
+  [ "$status" -eq 0 ]
+  [ ! -e "$CRUMB" ]
 }
 
 @test "no surface still says the offer exists" {
