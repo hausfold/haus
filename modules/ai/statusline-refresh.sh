@@ -253,17 +253,25 @@ branch_birth() { # $1=main $2=branch -> epoch this branch came into being, or ""
   # three times before still dates the incarnation in front of you. (scruff's own
   # `neverDiverged` reads the same log for the same reason.)
   #
-  # Every step is || true'd: this runs under `set -euo pipefail`, and a branch
-  # with no reflog must cost this ROW its PR pill, never the whole pass.
+  # Both git calls are || true'd, and the cost of a surprise is worth stating
+  # exactly: this returns into a plain assignment, so a non-zero here aborts
+  # panel_row — and panel_row is called `… || true`, so the loss is this LANE's
+  # whole row, not merely its PR pill. Never the pass. The `tail | sed` steps
+  # after them cannot fail (sed -n prints nothing and exits 0 on no match),
+  # which is why they are bare.
   local main="$1" b="$2" raw t
   raw=$(git -C "$main" reflog show --date=unix "$b" 2>/dev/null || true)
   t=$(printf '%s\n' "$raw" | tail -1 | sed -n 's/.*@{\([0-9][0-9]*\)}.*/\1/p')
   # Reflogs can be off (core.logAllRefUpdates=false) or aged out by gc. Then the
-  # oldest commit the branch carries of its OWN is the next-best "not before":
-  # committer date, not author date, so a cherry-pick or a rebase dates when it
-  # landed here rather than when it was first written elsewhere.
+  # oldest commit the branch carries of its OWN is the next-best "not before" —
+  # AUTHOR date, which survives a rebase, not committer date, which a rebase
+  # rewrites to now. The difference decides a real case: a lane that merged and
+  # then rebased (CLAUDE.md's own advice for a branch that has to catch up) has
+  # a head SHA that is no longer reachable either, so it reaches this date test
+  # — and committer dates would put its birth AFTER its own merge and drop the
+  # PR that is genuinely its own. Every arm of this gate errs toward keeping.
   if [ -z "$t" ]; then
-    raw=$(git -C "$main" log --format=%ct "$(git_default "$main")..$b" 2>/dev/null || true)
+    raw=$(git -C "$main" log --format=%at "$(git_default "$main")..$b" 2>/dev/null || true)
     t=$(printf '%s\n' "$raw" | tail -1)
   fi
   case "$t" in '' | *[!0-9]*) return 0 ;; esac
@@ -314,8 +322,21 @@ pr_state_for_branch() { # $1=main $2=branch -> "#N open|merged|closed|merged+K" 
   # facts it actually has.
   if [ -z "$oid" ] || ! git -C "$main" merge-base --is-ancestor "$oid" "$b" 2>/dev/null; then
     ended=$(iso_epoch "$ended")
-    birth=$(branch_birth "$main" "$b")
-    [ -z "$ended" ] || [ -z "$birth" ] || [ "$ended" -ge "$birth" ] || return 0
+    # No closedAt is the open-PR case, which the gate never fires on — so ask
+    # git nothing. This arm runs for every open PR whose tip moved (any local
+    # rebase before the force-push), and a reflog read plus a full `git log`
+    # thrown away one line later is a cost per row per cache window.
+    if [ -n "$ended" ]; then
+      birth=$(branch_birth "$main" "$b")
+      # SKEW is why this is not a bare `<`. The two sides come off DIFFERENT
+      # clocks — birth from this Mac, closedAt from GitHub — and a same-session
+      # /ship closes its PR ~15-25 min after the branch was cut (measured: 1001s
+      # and 1460s on two live lanes). A Mac running ahead, which a Tart guest
+      # resumed from a snapshot routinely is, would silently drop a PR that had
+      # just merged. Five minutes of grace costs the stale case nothing: what it
+      # is separating there is days, not seconds.
+      [ -z "$birth" ] || [ "$(( ended + 300 ))" -ge "$birth" ] || return 0
+    fi
   fi
   # merged+K — the PR merged, then the branch kept committing. Those K commits are
   # on a branch whose remote counterpart GitHub deleted at merge: no PR covers

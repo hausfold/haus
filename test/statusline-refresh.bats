@@ -298,6 +298,25 @@ fmtime() { statnum %m %Y "$1"; }   # mtime in epoch seconds
   [ "$(col sparkle 7)" = - ] || fail "with no reflog the stale PR came back"
 }
 
+@test "with no reflog, a branch that rebased after its merge keeps its own PR" {
+  # The no-reflog fallback's boundary, in the direction that costs something.
+  # A lane that merged and then rebased — CLAUDE.md's own advice for a branch
+  # that has to catch up — has a head SHA that is no longer reachable, so it
+  # reaches the date test; and a rebase rewrites every COMMITTER date to now.
+  # Dating the branch by those would put its birth after its own merge and drop
+  # the PR that is genuinely its own. Author dates survive the rebase, so they
+  # are what the fallback reads.
+  local main dir; main="$(mkrepo alpha)"; dir="$(mkwt "$main" sparkle)"
+  git -C "$dir" -c commit.gpgsign=false commit -q --amend --no-edit \
+    --date="2020-01-01T00:00:00Z"                       # author then, committer now
+  rm -f "$main/.git/logs/refs/heads/worktree-sparkle"   # …after the amend rewrote it
+  FAKE_PRS='[{"number":7,"state":"MERGED","headRefName":"worktree-sparkle",
+              "headRefOid":"0000000000000000000000000000000000000001",
+              "closedAt":"2020-06-01T00:00:00Z"}]' refresh
+  [ "$status" -eq 0 ]
+  [ "$(col sparkle 7)" = "#7 merged+1" ] || fail "the lane's own PR was dropped as somebody else's"
+}
+
 @test "the per-branch fallback asks gh for every field the reader selects on" {
   # It did not, and the omission was silent in exactly the way this suite exists
   # for: `--head` filtered the PRs, the reader then selected on `headRefName`,
