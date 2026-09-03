@@ -435,6 +435,15 @@ in
         gsw = "git switch";
         gswc = "git switch -c";
 
+        # `switch` and `restore` are the two halves git 2.23 split `checkout`
+        # into, and this set had only the branch half — undoing a file was the
+        # one everyday move it still sent you back to `git checkout -- <path>`
+        # for, the spelling whose whole problem is that it means two things.
+        # They sit here rather than beside `grb` for that reason.
+        grs = "git restore";
+        grss = "git restore --source";
+        grst = "git restore --staged";
+
         gc = "git commit --verbose";
         gca = "git commit --verbose --all";
         gcam = "git commit --all --message";
