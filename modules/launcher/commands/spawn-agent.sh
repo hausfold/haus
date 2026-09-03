@@ -374,7 +374,32 @@ fi
 # exactly that. Groups order the cards but draw no headers, so the single
 # "Repositories" group costs nothing; the rows are unchanged, because `--grid`
 # is purely a shape and the commit string is identical either way.
-repo_sel="$(printf '%s\n' "$list" | pounce --grid -p "Spawn Agent — which repo?" -i "sparkles")"
+#
+# Every way OUT of this step is chained, because none of them is the end of
+# anything: a card, or free text that matches no repo, is followed within
+# milliseconds by another `pounce` — the prompt box below, or one of the two
+# `notice` toasts. `--chain-rows` is the card half and `--chain` the typed half;
+# they are separate flags in pounce because one step routinely wants opposite
+# answers for the same key (lanes.sh chains ↵ on typed text and must not chain
+# it on a row), so a picker has to ask for the row half by name.
+#
+# Unchained, a card pick LINGERED: pounce handed focus back and armed a fade,
+# and the prompt step's `pounce` then had to present INTO it — landing inside
+# that fade got the brand-new box ordered straight back out, leaving this script
+# blocked in `ask` until the next palette request released it with an empty
+# answer, which reads as a dismissal. That is the "chose the repo and no prompt
+# box came up, do it again and it does" this step is written around: measured on
+# mbp 2026-09-03, 98 of 451 spawn-shaped flows in a week of the daemon's own log.
+# The mechanism and its fix are pounce's (State.swift's chainRowActions,
+# Window.swift's fade token) — don't restate the timings here, they move there.
+#
+# NEEDS a pounce that reads `--chain-rows` (hausfold/pounce, 2026-09-03). An
+# older daemon parses both flags and ignores the row half, which is exactly
+# today's behaviour: inert, not wrong, until the lock moves.
+# (A dismissal is not a commit and chains nothing, so Esc still closes cleanly.)
+repo_sel="$(printf '%s\n' "$list" |
+  pounce --grid --chain enter,cmd,opt,ctrl --chain-rows enter \
+    -p "Spawn Agent — which repo?" -i "sparkles")"
 [ -z "$repo_sel" ] && exit 0
 menu_commit "$repo_sel"
 repo_name="$(menu_field "$MENU_ROW" 1)"
