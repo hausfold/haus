@@ -1965,6 +1965,17 @@
               # --- the accent is supposed to arrive here ---
               fzf = hm.home.sessionVariables.FZF_DEFAULT_OPTS;
               glow = xdgFile "yazi/plugins/glow.yazi";
+              # The second glow surface, and a different question from the row
+              # above: that one asks whether yazi's PREVIEW follows the accent,
+              # this one whether a bare `glow` at your own prompt does. They
+              # were the same question until the wrapper landed, when the answer
+              # to the second was no — hausfold/haus#666, where the style
+              # reached three call sites and never the binary. A PACKAGE rather
+              # than a file, so the fingerprint is the store path: it moves when
+              # the style baked into the wrapper does, which is the question.
+              glow-wrapper = toString (
+                builtins.head (builtins.filter (p: (p.name or "") == "glow-nebelung") hm.home.packages)
+              );
               lazygit = file "Library/Application Support/lazygit/config.yml";
               yazi = file ".config/yazi/theme.toml";
               zen = hm.home.activation.zenNebelung.data;
@@ -2021,7 +2032,7 @@
             }";
           accentTable = builtins.concatStringsSep "\n" (map accentRow (builtins.attrNames accentA));
           # Alphabetical because the rows are `attrNames` — self-sorting, so a new
-          # surface can't be added in a spot that hides it. Ten move, seven hold.
+          # surface can't be added in a spot that hides it. Eleven move, seven hold.
           expectedAccentTable = ''
             bar moves
             bar-logo moves
@@ -2029,6 +2040,7 @@
             fzf moves
             ghostty pinned
             glow moves
+            glow-wrapper moves
             helix pinned
             lazygit moves
             lsd pinned

@@ -383,40 +383,80 @@ in
       batPreviewer = ''piper -- bat --color=always --paging=never --style=numbers --tabs=2 --terminal-width=$w "$1"'';
 
       # Nebelung glamour port (markdown styling for glow), selected from the
-      # same flavor + accent matrix as yazi itself. glow ignores
-      # $GLAMOUR_STYLE in its default "auto" mode (glow 2.x), so the style must
-      # be passed explicitly with `-s`: baked into the yazi previewer plugin
-      # (@glowStyle@ placeholder) and the `glow -p` opener below.
+      # same flavor + accent matrix as yazi itself — and from `nebelungRoot`,
+      # which is where `contrast` enters, so this one path follows all three of
+      # haus.theme.{flavor,contrast,accent}. glow ignores $GLAMOUR_STYLE in its
+      # default "auto" mode (glow 2.x), so the style must be passed explicitly
+      # with `-s`: baked into the yazi previewer plugin (@glowStyle@
+      # placeholder), the `glow -p` opener below, and the `glow` wrapper that
+      # puts it on PATH.
       glowStyle = "${nebelungRoot}/glow/themes/${nbFlavor}/catppuccin-${nbFlavor}-${accent}.json";
+
       # The `guard` half of ../lib/checked-ref.nix rather than its `collect`:
-      # what gets installed is the PLUGIN, and the glamour style is baked into
-      # its text by substitution rather than copied. Why the check has to be
-      # here and cannot be a reach check: `accent-reach` fingerprints this
-      # plugin's TEXT, and the accent varies only INSIDE the path, so a missing
-      # referent would still read `moves`. This is the one place the build can
-      # see the file. `-f`, because a directory there would be as wrong as
-      # nothing.
+      # nothing here INSTALLS the style file, it is baked into text (the
+      # plugin's, the wrapper's) by substitution. Why the check has to exist at
+      # all and cannot be a reach check: `accent-reach` fingerprints those
+      # texts, and the accent varies only INSIDE the path, so a missing referent
+      # would still read `moves`. `-f`, because a directory there would be as
+      # wrong as nothing.
+      #
+      # Written once and pasted into BOTH builders that spell `glowStyle` into
+      # their output. Two build paths, one rule: neither is "the one place the
+      # build can see the file" on its own, because a machine can have the
+      # toolbelt (so, the wrapper) with yazi off, or the reverse.
+      glowStyleGuard = checkedRef.guard [
+        {
+          path = glowStyle;
+          test = "-f";
+          problem = [
+            "terminal: the pinned nebelung renders no glamour port at"
+            "  ${glowStyle}"
+            "  (haus.theme.flavor/accent moved past what it ships)"
+          ];
+          remedies = [
+            "haus.theme.accent — pick one the pinned nebelung renders"
+            "haus.theme.flavor — the port matrix is rendered per flavor"
+            "(haus authors) nix flake update nebelung"
+          ];
+        }
+      ];
+
       glowPlugin = pkgs.runCommand "glow.yazi" { } (
-        checkedRef.guard [
-          {
-            path = glowStyle;
-            test = "-f";
-            problem = [
-              "terminal: the pinned nebelung renders no glamour port at"
-              "  ${glowStyle}"
-              "  (haus.theme.flavor/accent moved past what it ships)"
-            ];
-            remedies = [
-              "haus.theme.accent — pick one the pinned nebelung renders"
-              "haus.theme.flavor — the port matrix is rendered per flavor"
-              "(haus authors) nix flake update nebelung"
-            ];
-          }
-        ]
+        glowStyleGuard
         + ''
           cp -r ${./yazi/plugins/glow.yazi} $out
           chmod -R +w $out
           substituteInPlace $out/main.lua --subst-var-by glowStyle ${glowStyle}
+        ''
+      );
+
+      # `glow` on PATH, carrying the style — the difference between the theme
+      # reaching markdown you render and reaching only markdown yazi renders
+      # for you. Until this, `glowStyle` was passed by the three call sites that
+      # spell it out (the previewer, the `glow -p` opener, the `mdcat` alias)
+      # and a bare `glow README.md` at the prompt rendered stock, while
+      # `haus.theme.ports.handled` listed "glow" and so told the roster pass
+      # this room had it covered: no theme AND no `haus doctor` nudge, which is
+      # the exact failure that list's own comment warns about.
+      #
+      # `-s` goes FIRST, before "$@", and that ordering is the escape hatch:
+      # glow parses with pflag, where the last occurrence of a string flag wins,
+      # so `glow -s dark x.md` still gets dark and the three call sites above
+      # stay authoritative over their own rendering rather than merely
+      # redundant.
+      #
+      # This REPLACES pkgs.glow in the package list rather than being added
+      # beside it. Installing both would make which `glow` you get depend on
+      # home.packages ordering, which home-manager promises nothing about — and
+      # a collision there is a build error, not a silent win.
+      glowThemed = pkgs.runCommand "glow-nebelung" { } (
+        glowStyleGuard
+        + ''
+          mkdir -p $out/bin
+          substitute ${./glow-wrapper.sh} $out/bin/glow \
+            --subst-var-by glow ${pkgs.glow}/bin/glow \
+            --subst-var-by glowStyle ${glowStyle}
+          chmod +x $out/bin/glow
         ''
       );
 
@@ -739,7 +779,10 @@ in
         # tells the story).
         lib.optionals devCfg.toolbelt.enable [
           chafa # fast terminal image previewer / layout engine
-          glow # markdown renderer; yazi's glow previewer shells out to it
+          glowThemed # markdown renderer, Nebelung-styled; NOT pkgs.glow — see
+          # the `glowThemed` comment in the let. It ships bin/glow and nothing
+          # else, so this is a swap rather than an addition: two derivations
+          # both claiming bin/glow would be a home.packages collision.
           fd # fast finder; used by yazi/zoxide navigation
         ]
         # Editing haus's own Nix is a developer activity; `haus edit` still
@@ -1401,12 +1444,13 @@ in
       catppuccin.fzf.enable = false;
       # Not "wired to nebelung instead": this module's only lever is
       # GLAMOUR_STYLE, which glow 2.x ignores in its default "auto" mode, so
-      # leaving it on would export a variable glow never reads. The Nebelung
-      # style reaches glow by `-s` at the three call sites above (yazi's
-      # previewer, yazi's `glow -p` opener, the `mdcat` alias), which means a
-      # bare `glow` typed at the prompt still renders stock. That gap is real
-      # and tracked, not a claim this line settles — `haus.theme.ports.handled`
-      # still lists "glow", so the roster pass leaves it alone as well.
+      # leaving it on would export a variable glow never reads. Turning it back
+      # on would fix nothing, which is why the fix went the other way — the
+      # Nebelung style reaches glow by `-s`, at the three call sites that spell
+      # it out (yazi's previewer, yazi's `glow -p` opener, the `mdcat` alias)
+      # and, since hausfold/haus#666, in the `glowThemed` wrapper that IS the
+      # `glow` on PATH. So `haus.theme.ports.handled` listing "glow" is now
+      # true, rather than the promise it was when a bare `glow` rendered stock.
       catppuccin.glamour.enable = false;
       catppuccin.helix.enable = false;
       catppuccin.lazygit.enable = false;

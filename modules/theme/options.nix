@@ -41,10 +41,10 @@ in
         nebelung's CI measures each one rather than eyeballing it.
 
         What follows it: every tool haus themes itself. Ghostty, bat, delta,
-        lsd, yazi, fzf, starship, lazygit, zsh-syntax-highlighting, opencode,
-        the bar and Zen always, and three more that wait on something else:
-        helix when `haus.terminal.editorName` picks it (Nebelung has a port for
-        helix and none for the alternatives), gh-dash under
+        lsd, yazi, glow, fzf, starship, lazygit, zsh-syntax-highlighting,
+        opencode, the bar and Zen always, and three more that wait on something
+        else: helix when `haus.terminal.editorName` picks it (Nebelung has a
+        port for helix and none for the alternatives), gh-dash under
         `haus.terminal.ghDash.enable`, and Obsidian once
         `haus.terminal.obsidianVaults` names a vault. Each one is re-rendered
         for the flavor rather than recoloured in place.
@@ -145,7 +145,7 @@ in
         tests actually assert.
 
         Honest scope. This recolours what haus injects colours into:
-        Ghostty, bat, delta, lsd, yazi, starship, lazygit, the
+        Ghostty, bat, delta, lsd, yazi, glow, starship, lazygit, the
         bar, the launcher and the shelf (at runtime, via
         ~/.config/{pounce,perch}/themes/ — and unlike `flavor`, contrast reaches
         both on BOTH halves of their light/dark pair), Zen, and Obsidian once
@@ -167,9 +167,9 @@ in
         grey-tinted Catppuccin, so the fourteen names are the same in both
         flavors and the hue you get follows haus.theme.flavor.
 
-        What follows it: lazygit, fzf, yazi (including the glow-rendered
-        Markdown in its preview pane), Zen's own UI, the generated desktop
-        picture (the bloom behind the mark in "minimal", the whole sweep in
+        What follows it: lazygit, fzf, yazi, glow (the Markdown in yazi's
+        preview pane and at your own prompt alike), Zen's own UI, the generated
+        desktop picture (the bloom behind the mark in "minimal", the whole sweep in
         "bold"), the bar's far-left logo pill, the shelf, and any roster app
         whose Nebelung port ships a per-accent matrix (zed, gh-dash, mpv) once
         haus.theme.ports places it. The `accent-reach` flake check fingerprints
