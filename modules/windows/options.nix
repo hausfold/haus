@@ -62,6 +62,66 @@ let
         '';
       };
 
+  # ---- the settable gaps ----------------------------------------------------
+  # Every gap in aerospace.toml is a per-monitor pair — one number for the
+  # built-in display, one for anything external — so the option is that pair and
+  # not a single figure. `../lib/gaps.nix` owns what the numbers MEAN (it scales
+  # them by haus.ui.scale and adds the bar's reservation where one is due);
+  # this is only their shape, spelled once so three edges can't describe
+  # themselves three different ways.
+  #
+  # The paragraph every leaf carries is the same one, which is the whole reason
+  # for the function: the difference between a settable edge and the two that
+  # are not is a thing a person meets at whichever leaf they happen to read.
+  mkGapPair =
+    {
+      what,
+      builtin,
+      external,
+    }:
+    let
+      leaf =
+        monitor: default:
+        lib.mkOption {
+          type = lib.types.ints.unsigned;
+          inherit default;
+          example = 0;
+          description = ''
+            ${what} on ${monitor}, in points.
+
+            Two numbers rather than one because AeroSpace takes a gap per
+            monitor and the two displays want different ones: haus ships 10 on
+            the built-in and 20 around an external, which is the same gap
+            reading the same size on panels of very different pitch.
+
+            This is the gap at `haus.ui.scale = 1.0`, not the finished number —
+            it is multiplied by the scale like every other tuned measurement, so
+            a bigger desktop keeps its proportions. `0` is `0` at every scale,
+            which is what to set for a desktop with no gaps at all.
+
+            `inner`, `outer.left` and `outer.right` are the settable gaps.
+            `outer.top` and `outer.bottom` are not, and deliberately: those two
+            carry the bar's reservation
+            (`modules/lib/gaps.nix`), which is the only thing keeping tiled
+            windows out from under it — a `0` there would not be a tighter
+            desktop, it would be windows drawn beneath the bar. With
+            `haus.bar.enable = false` they carry no reservation either, and
+            fall back to the shipped 10/20 rather than to anything you can set.
+
+            These are read whether or not the tiler is on. AeroSpace is the
+            only thing that acts on them, but three surfaces are DRAWN
+            against them — the bar's left and right padding, the
+            near-fullscreen terminal popups, and the wallpaper's debug band
+            — so retuning a gap moves those on a machine with
+            haus.windows.enable = false too.
+          '';
+        };
+    in
+    {
+      builtin = leaf "the built-in display" builtin;
+      external = leaf "an external display" external;
+    };
+
   contrib = import ../lib/contrib.nix { inherit lib; };
 in
 
@@ -156,6 +216,75 @@ in
         The digits are reserved in launch mode, so a haus.workspaces key or a
         haus.keys.leaderExtras key that collides with one is refused at eval.
         This count decides which digits that means.
+
+        To pin them to a display — 1-4 on one screen, 5-8 on another — see
+        haus.windows.workspaceMonitors below, which takes these ids and
+        haus.workspaces names alike.
+
+        Only meaningful with haus.windows.enable.
+      '';
+    };
+
+    # Which SCREEN a workspace lives on. The numbered workspaces are a count
+    # rather than an attrset, so a `monitor` field on haus.workspaces.<id> could
+    # only ever have covered the named half — and pinning 1-4 to one display and
+    # 5-8 to another is the shape people actually write. So it is one table,
+    # keyed by workspace id, covering both kinds at once.
+    windows.workspaceMonitors = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.either lib.types.str (lib.types.listOf lib.types.str));
+      default = { };
+      # The example is checked by the same assertion the option adds, so it
+      # names workspaces a shipped machine actually has: the four numbered ones
+      # at the default count, and `T`, which the terminal room puts on the
+      # roster. An example that would be REFUSED if you pasted it is worse than
+      # no example, and this one renders straight into the options reference.
+      example = {
+        "1" = "main";
+        "2" = "main";
+        "3" = "secondary";
+        "4" = "secondary";
+        T = [
+          "Dell U2720Q"
+          "main"
+        ];
+      };
+      description = ''
+        Pin a workspace to a display, so it always opens on the same screen.
+        AeroSpace's `workspace-to-monitor-force-assignment`, keyed by the
+        workspace id: a numbered one (`"1"`, `"2"` — how many exist is
+        haus.windows.numberedWorkspaces) or a haus.workspaces name.
+
+        A value is either one pattern or a list of them tried in order, which
+        is how a workspace survives the monitor it wants being unplugged. Each
+        pattern is one of:
+
+        - `main` or `secondary` — the position, true on any desk;
+        - a number — the display's position left to right, counting from `1`;
+        - part of the display's name, matched case-insensitively (`Dell`);
+        - a regex, when it is wrapped in `^` and `$` (`^built-in retina display$`).
+
+        The last two name one physical panel, so they are a fact about your desk
+        rather than a taste: a shared desktop may only use the first two, and the
+        seam refuses the others (`modules/lib/desktop.nix`). Your own host file
+        can say any of them.
+
+        Note that `built-in` is one of those names, not a position: AeroSpace
+        has keywords for `main` and `secondary` only, and matches anything else
+        against the display's LOCALIZED name — so `built-in` works on an
+        English-language MacBook and matches nothing on a Mac mini.
+
+        A pattern AeroSpace would refuse — an empty string, monitor `0`, or one
+        carrying an apostrophe or a newline — is refused here first. Every one
+        of those stops `aerospace.toml` parsing, and AeroSpace answers an
+        unparseable config by keeping the one it already had, so the cost is
+        every binding in the file rather than this one line.
+
+        Naming a workspace that does not exist is refused at eval rather than
+        ignored: AeroSpace drops an assignment for an unknown workspace in
+        silence, which reads exactly like the option not working.
+
+        Empty (the default) assigns nothing, and AeroSpace puts a workspace on
+        whichever display it was last used on.
 
         Only meaningful with haus.windows.enable.
       '';
@@ -277,6 +406,30 @@ in
 
         Only meaningful with haus.windows.enable.
       '';
+    };
+
+    # The tiling gaps themselves. They were derived and only derived until this
+    # option existed — ../lib/gaps.nix read haus.ui.scale and the bar's position
+    # and that was the whole input — which made a perfectly ordinary AeroSpace
+    # config (every gap at 0) unsayable in haus. The derivation stays: this
+    # names the BASE it works from, so the bar reservation, the scale and the
+    # per-monitor pair all keep doing what they did.
+    windows.gaps = {
+      inner = mkGapPair {
+        what = "How much space AeroSpace leaves BETWEEN two tiled windows";
+        builtin = 10;
+        external = 20;
+      };
+      outer.left = mkGapPair {
+        what = "How much space AeroSpace leaves at the LEFT edge of the screen";
+        builtin = 10;
+        external = 20;
+      };
+      outer.right = mkGapPair {
+        what = "How much space AeroSpace leaves at the RIGHT edge of the screen";
+        builtin = 10;
+        external = 20;
+      };
     };
 
     # Gravity: the tiler's one UNASKED move, which is what puts it in reach of

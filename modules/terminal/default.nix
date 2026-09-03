@@ -368,6 +368,7 @@ in
         inherit lib;
         scale = osConfig.haus.ui.scale;
         bar = osConfig.haus.bar;
+        windows = osConfig.haus.windows;
       };
       # Asserting a path spelled INTO a store output — here, the nebelung
       # glamour port baked into the yazi plugin below. ../lib/checked-ref.nix.
@@ -2050,8 +2051,13 @@ in
                 (toString floatGaps.outer.top.external)
                 (toString floatGaps.outer.bottom.builtin)
                 (toString floatGaps.outer.bottom.external)
-                (toString floatGaps.outer.left.builtin)
-                (toString floatGaps.outer.left.external)
+                # `side`, not `outer.left`: the popup is centred, so it spends
+                # ONE number on both edges, and haus.windows.gaps lets the two
+                # differ. ../lib/gaps.nix takes the wider — inset further than
+                # the windows on one side reads as deliberate, overhanging them
+                # reads as broken.
+                (toString floatGaps.side.builtin)
+                (toString floatGaps.side.external)
               ]
               (builtins.readFile ./scripts/float-term.sh);
           executable = true;

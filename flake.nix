@@ -3246,6 +3246,7 @@
             test/desktops/host-only-command.nix: haus.keys.leaderExtras.*.command is host-only, so a shared desktop may not set it. It is a shell command this machine runs, and a desktop is a file you can read to know what it does. A leaf carrying a command is exactly what stops that being true.
             test/desktops/host-only-hardware.nix: haus.displays.37D8832A-2D66-02CA-B9F7-8F30A301B230 names a physical display, which is a fact about one machine — a desktop may only use the `internal` and `main` selectors
             test/desktops/host-only-identity.nix: haus.git.email is host-only, so a shared desktop may not set it. It names you rather than a machine: your commit identity, the addresses that are yours, the account whose repositories this Mac works on. A desktop that set it would put its author's details on your work.
+            test/desktops/host-only-monitor.nix: haus.windows.workspaceMonitors.2 names a physical display, which is a fact about one desk — a desktop may only pin a workspace by position (`main`, `secondary`, or a number from 1 counting left to right)
             test/desktops/host-only-package.nix: haus.fonts.mono.package is host-only, so a shared desktop may not set it. It takes a `pkgs` value, and desktop data is evaluated with no module arguments to take one from. The `…Name` leaf beside it is the desktop-safe half of the pair.
             test/desktops/host-only-path.nix: haus.terminal.obsidianVaults is host-only, so a shared desktop may not set it. It names a path on this disk, so it is a fact about one filesystem rather than an opinion a shared desktop can hold about every machine.
             test/desktops/host-only-secret.nix: haus.focus.slack.tokenCommand is host-only, so a shared desktop may not set it. It points at a secret, or at the store this machine keeps its secrets in, so it belongs to one person on one Mac.
@@ -3261,6 +3262,7 @@
             test/desktops/launcher-item-shortcut.nix: haus.launcher.items.shortcut:0ECC8F7A-3A52-467A-84C0-511CCE1CB9B7 names one entry in one Mac's Shortcuts library, which is a fact about that machine rather than a taste a desktop can share
             test/desktops/missing-haus.nix: has no `haus` settings — a desktop is { haus = { … }; }
             test/desktops/module-internals.nix: may not set module-system internals
+            test/desktops/monitor-ordinal-zero.nix: haus.windows.workspaceMonitors.3 names a physical display, which is a fact about one desk — a desktop may only pin a workspace by position (`main`, `secondary`, or a number from 1 counting left to right)
             test/desktops/nixpkgs.nix: may not set `nixpkgs.*`
             test/desktops/non-attrset.nix: does not evaluate to a set of settings — a desktop is { haus = { … }; }
             test/desktops/priority-instruction.nix: haus.ui.scale may not carry a merge or priority instruction — a desktop states values, and the host is what outranks them
@@ -3311,6 +3313,7 @@
             host-only-command.nix class=desktop ok=false sets=1 rooms=haus silent=13
             host-only-hardware.nix class=desktop ok=false sets=1 rooms=displays silent=12
             host-only-identity.nix class=desktop ok=false sets=1 rooms=host silent=13
+            host-only-monitor.nix class=desktop ok=false sets=1 rooms=windows silent=12
             host-only-package.nix class=desktop ok=false sets=1 rooms=appearance silent=12
             host-only-path.nix class=desktop ok=false sets=1 rooms=development silent=12
             host-only-secret.nix class=desktop ok=false sets=2 rooms=focus+security silent=11
@@ -3324,6 +3327,7 @@
             launcher-item-shortcut.nix class=desktop ok=false sets=1 rooms=launcher silent=12
             missing-haus.nix class=desktop ok=false sets=0 rooms=- silent=13
             module-internals.nix class=desktop ok=false sets=1 rooms=haus silent=13
+            monitor-ordinal-zero.nix class=desktop ok=false sets=1 rooms=windows silent=12
             nixpkgs.nix class=desktop ok=false sets=1 rooms=haus silent=13
             non-attrset.nix class=desktop ok=false sets=0 rooms=- silent=13
             priority-instruction.nix class=desktop ok=false sets=1 rooms=haus silent=13
@@ -3333,7 +3337,7 @@
             stray-key.nix class=desktop ok=false sets=1 rooms=haus silent=13
             unknown-option.nix class=desktop ok=false sets=1 rooms=appearance silent=12
             valid-other.nix class=desktop ok=true sets=1 rooms=haus silent=13
-            valid-sample.nix class=desktop ok=true sets=10 rooms=displays+development+bar+launcher+focus+haus silent=8
+            valid-sample.nix class=desktop ok=true sets=11 rooms=displays+development+windows+bar+launcher+focus+haus silent=7
           '';
 
           # And one fixture read in full, because the table above says nothing
@@ -3356,6 +3360,7 @@
             launcher  haus.launcher.items.mode:filesearch.alias = "ff"
             development  haus.terminal.editorName = "neovim"
             haus  haus.ui.scale = 1.35
+            windows  haus.windows.workspaceMonitors.2 = [ "secondary" "main" ]
           '';
 
           # And the throwing half of the same seam: `checkDesktop` is what
@@ -5110,6 +5115,7 @@
                 theme
                 ui
                 bar
+                windows
                 fonts
                 ;
               cfg = surface.wallpaper // {

@@ -5,15 +5,23 @@
 #
 #   gaps = import ../lib/gaps.nix {
 #     inherit lib;
-#     scale = config.haus.ui.scale;
-#     bar  = config.haus.bar;
+#     scale   = config.haus.ui.scale;
+#     bar     = config.haus.bar;
+#     windows = config.haus.windows;
 #   };
 #
-# TWO rooms read this. windows WRITES the numbers into aerospace.toml, which is
+# FOUR rooms read this. windows WRITES the numbers into aerospace.toml, which is
 # what makes them true. wallpaper READS them to find the rectangle a tiled window
 # will cover, so the debug band it draws in the corner lands exactly under the
-# window rather than beside it. Those two have to agree, and the only way they
-# can't drift is for one of them not to own the numbers.
+# window rather than beside it. bar takes the side gap as its own left/right
+# padding, so the outermost pill's edge lands on the tiled window's edge below
+# it. terminal bakes the outer gaps into float-term.sh, whose `geom --tiled`
+# has to know where the tiled desktop ends. All four have to agree, and the only
+# way they can't drift is for three of them not to own the numbers.
+#
+# `windows` is required rather than defaulted for exactly that reason:
+# haus.windows.gaps is settable now, and a caller that could forget to pass it
+# would silently draw against the SHIPPED gaps on a machine that retuned them.
 #
 # Every value here is POINTS, the unit AeroSpace speaks. A wallpaper is pixels,
 # so its caller scales — see `outermost` at the bottom.
@@ -21,15 +29,24 @@
   lib,
   scale,
   bar,
+  windows,
 }:
 
 let
   metrics = import ./bar.nix { inherit lib scale; };
 
-  # Window gaps follow haus.ui.scale. Base values are the tuned ones: 10 on
-  # the built-in display, 20 around an external. One outer edge reserves bar room
-  # — whichever edge the bar sits on (haus.bar.position) — and that edge is
-  # sized from the bar itself (`barEdge` below), not from a base value here.
+  # Window gaps follow haus.ui.scale. Base values come from haus.windows.gaps
+  # for the three edges that are settable, and the shipped defaults are the
+  # tuned ones this file used to spell as literals: 10 on the built-in display,
+  # 20 around an external. One outer edge reserves bar room — whichever edge the
+  # bar sits on (haus.bar.position) — and that edge is sized from the bar itself
+  # (`barEdge` below), not from a base value at all.
+  #
+  # The option names the BASE, not the finished number: a retuned gap still
+  # multiplies by haus.ui.scale, the same as the defaults it replaces. That is
+  # what keeps `ui.scale` meaning "everything gets bigger" on a machine that
+  # widened its gaps — and 0 is 0 at every scale, so a desktop that wants no
+  # gaps at all gets none whatever the scale says.
   gap = base: builtins.floor (base * scale + 0.5);
 
   # A gap plus the bar's breathing room, for the edge the bar is on. Written as
@@ -152,20 +169,53 @@ let
       }
       .${barPos};
 
-  # Left and right never reserve bar room: the bar spans a display's full
-  # width, so it is only ever ON a horizontal edge.
-  side = pair (gap 10) (gap 20);
+  # ---- the three settable edges ----------------------------------------------
+  # haus.windows.gaps, scaled. Left and right never reserve bar room — the bar
+  # spans a display's full width, so it is only ever ON a horizontal edge — and
+  # `inner` sits between two windows, where no bar can be. That is the whole
+  # reason these three are the settable ones and top/bottom are not: those two
+  # carry `barEdge`/`bottomEdge`, and a 0 there is not a tight desktop, it is
+  # windows drawn underneath the bar.
+  #
+  # The honest edge of that argument: with `bar.enable = false` the two tables
+  # above fall through to `pair (gap 10) (gap 20)` and reserve nothing for
+  # anybody, so the reason for withholding them does not apply on that one
+  # machine and they are still withheld. Left as it is deliberately rather than
+  # by oversight — an option whose meaning changed with another room's switch
+  # would be worse than one edge that stays at its tuned default — but it is why
+  # "every gap at 0" is only true of a machine that draws a bar.
+  #
+  # The option is already a per-monitor pair, so this is a scale and nothing
+  # else. Its shape is the module system's business (../windows/options.nix);
+  # what it MEANS in points is this file's.
+  tuned = edge: pair (gap edge.builtin) (gap edge.external);
+  inner = tuned windows.gaps.inner;
+  left = tuned windows.gaps.outer.left;
+  right = tuned windows.gaps.outer.right;
+
+  # One number for BOTH sides, per monitor class: the wider of the two. Two
+  # callers can only spend one — SketchyBar has a single bar padding, and
+  # float-term.sh's `geom --tiled` centres a popup — and the wide side is the
+  # safe direction for both, exactly as `outermost` below is across displays: a
+  # popup inset further than the windows on one side reads as deliberate, where
+  # one that overhangs them reads as broken. It lives here rather than in each
+  # caller because `lib.max` over two gaps IS gap arithmetic, and this file
+  # owning the arithmetic is the only thing keeping four rooms in agreement.
+  side = pair (lib.max left.builtin right.builtin) (lib.max left.external right.external);
 in
 {
   # Between windows, per monitor class.
-  inner = side;
+  inherit inner side;
 
   # At each edge of the screen, per monitor class. windows writes these straight
   # into aerospace.toml's [gaps] block.
   outer = {
-    inherit top bottom;
-    left = side;
-    right = side;
+    inherit
+      top
+      bottom
+      left
+      right
+      ;
   };
 
   # The WIDEST reservation any attached display could be using, per edge — the
@@ -175,8 +225,12 @@ in
   # external alike, where taking the built-in's narrower gap would leave the
   # drawing peeking out of an external's wider one.
   outermost = lib.mapAttrs (_: e: lib.max e.builtin e.external) {
-    inherit top bottom;
-    left = side;
-    right = side;
+    inherit
+      top
+      bottom
+      left
+      right
+      side
+      ;
   };
 }

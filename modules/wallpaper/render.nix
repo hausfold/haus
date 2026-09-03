@@ -20,6 +20,7 @@
   cfg, # haus.wallpaper
   ui, # haus.ui
   bar, # haus.bar
+  windows, # haus.windows
   fonts, # haus.fonts
 }:
 
@@ -87,7 +88,7 @@ let
   # built-in's narrower gap instead and the band peeks out from under an
   # external's wider one.
   gaps = import ../lib/gaps.nix {
-    inherit lib bar;
+    inherit lib bar windows;
     scale = ui.scale;
   };
   # Gaps are points; a picture is pixels. Two per point on every Retina display,

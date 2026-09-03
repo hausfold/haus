@@ -390,6 +390,46 @@ let
     ]
     [
       "windows"
+      "gaps"
+      "inner"
+      "builtin"
+    ]
+    [
+      "windows"
+      "gaps"
+      "inner"
+      "external"
+    ]
+    [
+      "windows"
+      "gaps"
+      "outer"
+      "left"
+      "builtin"
+    ]
+    [
+      "windows"
+      "gaps"
+      "outer"
+      "left"
+      "external"
+    ]
+    [
+      "windows"
+      "gaps"
+      "outer"
+      "right"
+      "builtin"
+    ]
+    [
+      "windows"
+      "gaps"
+      "outer"
+      "right"
+      "external"
+    ]
+    [
+      "windows"
       "gravity"
     ]
     [
@@ -403,6 +443,10 @@ let
     [
       "windows"
       "numberedWorkspaces"
+    ]
+    [
+      "windows"
+      "workspaceMonitors"
     ]
   ];
   # The registry names its leaves in full — "haus.sound.alertSound" — and the

@@ -70,14 +70,30 @@ automatically-unhide-macos-hidden-apps = true
 # binding. It has to sit here, after the last root-level key and before the first
 # table, because everything below is inside one.
 @KEY_MAPPING@
+# Every number here is generated from haus.windows.gaps and haus.ui.scale, via
+# modules/lib/gaps.nix — which four rooms import, so a gap retuned here moves
+# the bar's padding and the float popup's rectangle with it. Each is a
+# per-monitor list: the built-in's number first, keyed by display name, then the
+# fallback every external display takes. The top and bottom edges are the two
+# haus.windows.gaps does not offer, because on the edge the bar occupies the
+# number is the BAR'S HEIGHT rather than a tuned gap at all — it replaces the
+# gap rather than adding to it, so a smaller one there means windows under the
+# bar. (The built-in's top is the one that adds: macOS already excludes the
+# notch band, so the reservation there is the tuned gap plus the bar's
+# breathing room. modules/lib/gaps.nix carries the whole table.)
 [gaps]
-inner.horizontal = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTERNAL@]
-inner.vertical = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTERNAL@]
-outer.left = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTERNAL@]
+inner.horizontal = @GAP_INNER@
+inner.vertical = @GAP_INNER@
+outer.left = @GAP_OUTER_LEFT@
 outer.bottom = @GAP_OUTER_BOTTOM@
 outer.top = @GAP_OUTER_TOP@
-outer.right = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTERNAL@]
+outer.right = @GAP_OUTER_RIGHT@
 
+# Which display each workspace opens on, from haus.windows.workspaceMonitors.
+# Empty on a machine that names none, table header and all: AeroSpace's default
+# is to put a workspace back on the display it was last used on, and an empty
+# table would say the same thing more loudly.
+@WS_MONITORS@
 [mode.main.binding]
 
 # All possible keys:

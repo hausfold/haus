@@ -65,7 +65,7 @@ lacks() { printf '%s\n' "$out" | grep -qF -- "$1" && fail "$2: expected NOT to f
 run "$fixtures/valid-sample.nix"
 expect_status 0 "valid desktop"
 has "a desktop — data only" "valid desktop"
-has "10 options across 6 rooms" "valid desktop"
+has "11 options across 7 rooms" "valid desktop"
 has "haus.terminal.editorName" "valid desktop"
 # Filed under the ROOM a person meets, not the namespace they type. This is the
 # one thing the report adds over `checkDesktop` printing `true`.
@@ -272,7 +272,7 @@ has "$(gitc "$tmp/writer" rev-parse HEAD)" "repo source"
 has "the source's own date, not this fetch's" "repo source"
 has "stamped here, by the clock" "repo source"
 has "writer.nix, out of the fetched tree" "repo source"
-has "10 options across 6 rooms" "repo source"
+has "11 options across 7 rooms" "repo source"
 
 # Reading a fetched desktop is where attribution stops being per-file, so the
 # report has to say so — see the granularity assertions below.
@@ -432,9 +432,9 @@ printf '%s' "$out" | jq -e '
   and .class == "desktop"
   and .checked == true
   and .ok == true
-  and (.sets | length) == 10
-  and (.rooms | map(.room)) == ["displays","development","bar","launcher","focus","haus"]
-  and (.silent | length) == 8
+  and (.sets | length) == 11
+  and (.rooms | map(.room)) == ["displays","development","windows","bar","launcher","focus","haus"]
+  and (.silent | length) == 7
 ' >/dev/null || fail "json valid: envelope is not the documented shape"
 # Data on stdout, diagnostics on stderr, and NO human rendering mixed in.
 lacks "≋" "json valid"
