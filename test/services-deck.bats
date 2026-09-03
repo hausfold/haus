@@ -33,11 +33,22 @@
 # is running under, which is by construction one that can.
 
 setup() {
-  REPO="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
-  # The deck's readers, without the dispatch at the foot of the file — the same
-  # trick test/phase-painter.bats uses to reach one verb at a time.
-  HAUS_SRC="$BATS_TEST_TMPDIR/haus-lib.sh"
-  sed '/^case "${1:-status}" in$/,$d' "$REPO/modules/core/haus.sh" > "$HAUS_SRC"
+  # The REAL file, sourced through its own library seam — `HAUS_LIB=1` returns
+  # before the dispatch, which is what test/phase-painter.bats and
+  # test/haus-plan.sh both use. Never a `sed` that strips the dispatch into a
+  # copy: that reaches the verbs without passing the load-time guards, so the
+  # suite stops testing the conditions the script actually starts under.
+  HAUS_SRC="$BATS_TEST_DIRNAME/../modules/core/haus.sh"
+  export HAUS_LIB=1
+
+  # haus.sh refuses to load without a config flake, and `HAUS_LIB` stops it
+  # before the dispatch but NOT before that guard. Give it an empty one — a
+  # developer's Mac has ~/.config/nix and a CI runner has nothing, so without
+  # this the whole suite passes locally and every case fails in CI, which is the
+  # worst way round.
+  export HAUS_CONSUMER="$BATS_TEST_TMPDIR/consumer"
+  mkdir -p "$HAUS_CONSUMER"
+  : > "$HAUS_CONSUMER/flake.nix"
 }
 
 # The body of the fake, shared by both runners. Reproduces the real shape: the
