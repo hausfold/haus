@@ -502,50 +502,45 @@ duration() { # duration <minutes>
   else printf '%dh%dm' $((m / 60)) $((m % 60)); fi
 }
 
-# One event: the spine, then the meta line under it. A `focus` event — the one
-# the pill is counting down to — is the one whose Join is a BUTTON rather than
-# a badge on its meta line: the thing you opened this dropdown to press, drawn
-# as a thing you press. Every other joinable event keeps the badge, so the
-# panel has one button, and the button says which meeting is next.
+# One event is one list item: the title, and under it when, how long and with
+# whom. A `focus` event — the one the pill is counting down to — is the one
+# whose Join is a BUTTON rather than a badge on its caption: the thing you
+# opened this dropdown to press, drawn as a thing you press. Every other
+# joinable event keeps the badge, so the panel has one button, and the button
+# says which meeting is next.
 event_rows() { # event_rows <smin> <emin> <sdate> <stime> <title> <who> <join> <band> <focus>
   local smin="$1" emin="$2" sdate="$3" stime="$4" title="$5" who="$6" join="$7"
   local band="$8" focus="$9"
-  local when ntone vtone meta
+  local when ttone stone meta
 
-  when="$(daylabel "$sdate") $stime"
-  # The band picks the two tones: the when column (the name) and the title
-  # (the value). A done row is over — its when goes mute and its title dim; the
-  # now band's when is the same peach the section rule wears; everything else
-  # is the quiet default. The focus row brightens its title to full text and
-  # takes the box below.
+  when="$(daylabel "$sdate")"
+  when="${when%"${when##*[![:space:]]}"} $stime"
+  # The band picks the two tones: the title and the caption. A done row is
+  # over — its title goes dim and its caption mute; the now band's caption is
+  # the same peach the section rule wears; everything else is the quiet
+  # default, a title in the text colour over a dim caption.
   case "$band" in
-  done) ntone=mute; vtone=dim ;;
-  now) ntone=warn; vtone=text ;;
-  focus) ntone=text; vtone=text ;;
-  *) ntone=dim; vtone=dim ;;
+  done) ttone=dim; stone=mute ;;
+  now) ttone=text; stone=warn ;;
+  *) ttone=text; stone=dim ;;
   esac
 
-  if [ -n "$join" ]; then
-    popup_row --label "$when" --name-tone "$ntone" --value "$title" --tone "$vtone" \
-      --run "$SELF open $(popup_quote "$join")"
-  else
-    popup_row --label "$when" --name-tone "$ntone" --value "$title" --tone "$vtone"
-  fi
-
-  meta="$(duration $((emin - smin)))"
+  meta="$when · $(duration $((emin - smin)))"
   [ -n "$who" ] && meta="$meta · $(withwho "$who")"
   if [ -n "$join" ] && [ "$focus" != 1 ]; then
-    popup_row --label "$meta" --tone dim --badge "Join" --badge-tone action \
+    popup_item --title "$title" --title-tone "$ttone" --subtitle "$meta" --subtitle-tone "$stone" \
+      --badge "Join" --badge-tone action --run "$SELF open $(popup_quote "$join")"
+  elif [ -n "$join" ]; then
+    popup_item --title "$title" --title-tone "$ttone" --subtitle "$meta" --subtitle-tone "$stone" \
       --run "$SELF open $(popup_quote "$join")"
-  elif [ "$focus" = 1 ] && [ -z "$join" ]; then
-    # The one the pill counts down to, with nothing to join: the button
-    # below would have said which one it was, so a badge says it instead.
-    popup_row --label "$meta" --tone dim --badge "up next" --badge-tone text
-  else
-    popup_row --label "$meta" --tone dim
-  fi
-  if [ -n "$join" ] && [ "$focus" = 1 ]; then
     popup_button --icon "󰕧" --label "Join" --run "$SELF open $(popup_quote "$join")"
+  elif [ "$focus" = 1 ]; then
+    # The one the pill counts down to, with nothing to join: the button
+    # would have said which one it was, so a badge says it instead.
+    popup_item --title "$title" --title-tone "$ttone" --subtitle "$meta" --subtitle-tone "$stone" \
+      --badge "up next" --badge-tone text
+  else
+    popup_item --title "$title" --title-tone "$ttone" --subtitle "$meta" --subtitle-tone "$stone"
   fi
 }
 

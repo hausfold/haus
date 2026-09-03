@@ -708,75 +708,13 @@ let
       "icon.padding_right" = "4";
       "label.font" = ''"${clockLabelFont}:Bold:${sizes.label}"'';
     };
-    # Right-click opens Weather; left-click goes through popToggle so barpop
-    # guards the popup on the same bar instance that owns the pill.
-    weather = ''
-      ${sb} --add item weather ${side} \
-          --set weather \
-              update_freq=600 \
-              icon="󰖐" \
-              icon.color=$SKY \
-              background.color=$SURFACE0 \
-              popup.background.border_width=1 \
-              popup.background.corner_radius=12 \
-              popup.background.border_color=$SURFACE1 \
-              popup.background.color=$MANTLE \
-              ${popupAlign side} \
-              script="$HOME/.config/sketchybar/plugins/weather.sh" \
-              click_script="if [ \"\$BUTTON\" = \"right\" ]; then open -a Weather; else ${popToggle sb "weather"} fi" \
-          --subscribe weather system_woke mouse.clicked
-
-      WEATHER_POPUP_ITEM=(
-          icon.padding_left=10
-          label.padding_right=10
-          background.height=30
-          background.padding_left=0
-          background.padding_right=0
-          background.color=0x00000000
-          background.drawing=off
-          icon.font="${barFont}:Bold:${sizes.appIcon}"
-          label.font="${barFont}:Regular:${sizes.label}"
-      )
-
-      ${sb} --add item weather.location popup.weather \
-          --set weather.location "''${WEATHER_POPUP_ITEM[@]}" \
-              icon.color=$BLUE label.color=$TEXT
-      ${sb} --add item weather.condition popup.weather \
-          --set weather.condition "''${WEATHER_POPUP_ITEM[@]}" \
-              icon.color=$SKY label.color=$SUBTEXT0
-      ${sb} --add item weather.temp popup.weather \
-          --set weather.temp "''${WEATHER_POPUP_ITEM[@]}" \
-              icon.color=$PEACH label.color=$TEXT
-      ${sb} --add item weather.highlow popup.weather \
-          --set weather.highlow "''${WEATHER_POPUP_ITEM[@]}" \
-              icon.color=$RED label.color=$SUBTEXT0
-      ${sb} --add item weather.sun popup.weather \
-          --set weather.sun "''${WEATHER_POPUP_ITEM[@]}" \
-              icon.color=$YELLOW label.color=$TEXT
-      ${sb} --add item weather.wind popup.weather \
-          --set weather.wind "''${WEATHER_POPUP_ITEM[@]}" \
-              icon.color=$TEAL label.color=$TEXT
-      ${sb} --add item weather.humidity popup.weather \
-          --set weather.humidity "''${WEATHER_POPUP_ITEM[@]}" \
-              icon.color=$SAPPHIRE label.color=$TEXT
-      ${sb} --add item weather.uv popup.weather \
-          --set weather.uv "''${WEATHER_POPUP_ITEM[@]}" \
-              icon.color=$YELLOW label.color=$TEXT
-      ${sb} --add item weather.precip popup.weather \
-          --set weather.precip "''${WEATHER_POPUP_ITEM[@]}" \
-              icon.color=$BLUE label.color=$TEXT
-
-      for i in 0 1 2 3; do
-          ${sb} --add item weather.hour.$i popup.weather \
-              --set weather.hour.$i "''${WEATHER_POPUP_ITEM[@]}" \
-                  icon.color=$LAVENDER label.color=$SUBTEXT0
-      done
-      for i in 1 2 3; do
-          ${sb} --add item weather.forecast.$i popup.weather \
-              --set weather.forecast.$i "''${WEATHER_POPUP_ITEM[@]}" \
-                  icon.color=$MAUVE label.color=$TEXT
-      done
-    '';
+    # The header in weather.sh carries the interval and the popup; what is
+    # left here is the pill's identity. Right-click opens Weather.app, and that
+    # is the widget's on_right_click rather than a click_script here.
+    weather = frameworkBlock sb side "weather" {
+      "icon.color" = "$SKY";
+      "background.color" = "$SURFACE0";
+    };
     # SketchyBar's media_change event is dead on macOS 15.4+, so a detached
     # media-control stream owns repainting. The header in media.sh carries the
     # interval and the four mouse events; what is left here is the pill's

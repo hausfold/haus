@@ -72,19 +72,21 @@
 # whose `P_COLOR` half existed only for as long as one of its two readers
 # could not resolve a mark; this pill was that reader.
 #
-# Every row in an agent's block shares ONE click target (go-to/peek), which is
-# what `popup_heading --run` is for: a heading a few pixels tall is a bad
-# target for "this is the pane I meant", so the name line and the detail line
-# are given the same command and the block becomes one hit area.
+# Each agent is ONE list item (`popup_item`): the client's glyph in its mark,
+# the name in the text colour, and under it a caption in the STATE's tone
+# with the PR's verdict flush right in the PR's. Both lines run the same
+# go-to/peek and light together — a heading a few pixels tall is a bad
+# target for "this is the pane I meant", and the item kind is what makes the
+# pair one hit area rather than two rows that happen to agree.
 #
-# TWO of aiUsage's rules this popup drops, because an agent block is two rows
+# TWO of aiUsage's rules this popup drops, because an agent block is two lines
 # and aiUsage's is many. Its "dim descriptors never carry colour" assumes a
-# descriptor column; there is none here — the detail line is two ANSWERS side
-# by side, this lane's state and its PR's, so the left half carries the state
-# tone (`popup_row --name-tone`, which exists for exactly this row) rather
-# than the dim a descriptor would get. And its "footnotes are for staleness,
-# never data" yields to the overflow count, which is the one number that has
-# to be legible as an aside rather than as another agent.
+# descriptor column; there is none here — the caption is two ANSWERS side by
+# side, this lane's state and its PR's, so the left half carries the state
+# tone (`--subtitle-tone`) rather than the dim a caption would get. And its
+# "footnotes are for staleness, never data" yields to the overflow count,
+# which is the one number that has to be legible as an aside rather than as
+# another agent.
 #
 # ── the scruff join ──────────────────────────────────────────────────────────────
 # `agents-hook.sh` only ever knew state + a checkout basename, which is NOT
@@ -544,10 +546,12 @@ popup_rows() {
     esac
   done
 
-  # Summary block, only when there's more than one agent to summarise — the
-  # same "no total for a total of one" rule ai_usage's ∑ row follows.
+  # Summary heading, only when there's more than one agent to summarise — the
+  # same "no total for a total of one" rule ai_usage's ∑ row follows. The
+  # counts ride the heading as its hint: one line, the title on the left and
+  # the tally quiet on the right, where a row of its own sat right-aligned
+  # under a left-aligned title and belonged to neither.
   if [ ${#files[@]} -gt 1 ]; then
-    popup_heading --icon "$BOT" --label "Agents"
     parts=()
     [ "$waiting" -gt 0 ] && parts+=("$waiting ready")
     [ "$working" -gt 0 ] && parts+=("$working working")
@@ -559,11 +563,9 @@ popup_rows() {
     summary=""
     for p in "${parts[@]:-}"; do
       [ -n "$p" ] || continue
-      summary="${summary:+$summary  ·  }$p"
+      summary="${summary:+$summary · }$p"
     done
-    # A continuation row: the name column is left blank and the value lands on
-    # it, which is what puts the total under its own heading.
-    [ -n "$summary" ] && popup_row --label "" --value "$summary" --tone text
+    popup_heading --icon "$BOT" --label "Agents" --hint "$summary"
   fi
 
   lane_table "$lanes_json"
@@ -576,9 +578,6 @@ popup_rows() {
   while IFS=$'\t' read -r _pr epoch kind st target label client cwd; do
     [ -n "$kind" ] || continue
     [ "$shown" -lt "$MAX_BLOCKS" ] || break
-    # A hairline between blocks — and above the first one only when the
-    # summary sits above it, so a one-agent panel is a heading and a line.
-    if [ "$shown" -gt 0 ] || [ ${#files[@]} -gt 1 ]; then popup_separator; fi
     shown=$((shown + 1))
     state_style "$st"
 
@@ -600,33 +599,34 @@ popup_rows() {
       esac
     fi
 
-    provider_style "${client:-}" "" "$FS_LABEL"
+    provider_style "${client:-}" "" "$FS_SMALL"
     click="$PLUGINS/agents.sh row $kind $target"
 
-    popup_heading --icon "$P_ICON" --icon-font "$P_FONT" --label "$label" \
-      --mark "$P_MARK" --run "$click"
-
-    # The detail line: what this agent is doing, then where. The repo joins
-    # the state word rather than owning a row — at one repo per lane it was
+    # The caption: what this agent is doing, then where. The repo joins the
+    # state word rather than owning a row — at one repo per lane it was
     # never worth a descriptor and a line of its own.
-    left="$TAG  ·  $(ago $((now - ${epoch:-now})))"
+    left="$TAG · $(ago $((now - ${epoch:-now})))"
     if lane_lookup "$cwd" "$namekey"; then
-      [ -n "$L_REPO" ] && left="$left  ·  ${L_REPO##*/}"
+      [ -n "$L_REPO" ] && left="$left · ${L_REPO##*/}"
       # A dot, not a footnote row. It sits with the state because that is
       # what it qualifies: this agent, right now, has uncommitted work.
-      [ -n "$L_DIRTY" ] && left="$left  ●"
+      [ -n "$L_DIRTY" ] && left="$left ●"
       pr_style
     else
       PR_TEXT="" PR_TONE=dim
     fi
-    # --name-tone, because both halves are ANSWERS: the left is this lane's
-    # state and the right is its PR's, and neither is labelling the other.
-    popup_row --label "$left" --name-tone "$TONE" \
-      --value "$PR_TEXT" --tone "$PR_TONE" --run "$click"
+    # One list item per agent: the client's glyph in its mark, the name in
+    # the text colour, and under it the state in the state's tone with the
+    # PR's verdict flush right in the PR's — three hues on two lines, one hit
+    # area. It was a heading over a row: 60 points that read as a section
+    # with one entry, with a hairline between every pair.
+    popup_item --icon "$P_ICON" --icon-font "$P_FONT" --mark "$P_MARK" \
+      --title "$label" --subtitle "$left" --subtitle-tone "$TONE" \
+      --value "$PR_TEXT" --value-tone "$PR_TONE" --run "$click"
   done < <(printf '%s\n' "${files[@]}" | sort -t $'\t' -k1,1n -k2,2n)
 
   [ "$dropped" -gt 0 ] && popup_note --label "… $dropped more, quieter than these"
-  popup_note --label "click: go to  ·  ⌥/right-click: peek"
+  popup_note --label "click: go to · ⌥ or right-click: peek"
   return 0
 }
 

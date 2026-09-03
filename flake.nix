@@ -2330,9 +2330,10 @@
               # capture would be measuring whichever one bar emits first. Today
               # the anchor is NOT load-bearing — measured, by widening it to `.*`
               # and watching the row still pass — and for a weaker reason than
-              # ordering: the example system does emit a second `label.font=`
-              # (weather's popup) but it is `:Regular`, so this row's pattern has
-              # exactly one candidate. It stays anchored because that is a
+              # ordering: the example system emitted a second `label.font=`
+              # (weather's hand-written popup, `:Regular`, gone since weather
+              # became a framework widget), so this row's pattern had exactly
+              # one candidate then and has one now. It stays anchored because that is a
               # property of the SAMPLE, not of the bar: one more enabled item
               # with a Bold label, or one reorder, and an unanchored row measures
               # another pill while staying green.
