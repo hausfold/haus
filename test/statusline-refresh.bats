@@ -241,6 +241,96 @@ fmtime() { statnum %m %Y "$1"; }   # mtime in epoch seconds
   [ "$(col sparkle 7)" = "#7 merged" ]
 }
 
+@test "a PR that closed before this branch existed belongs to the last lane of that name" {
+  # scruff coins lane names from a small word list and a task name gets reused
+  # outright, so one repo has carried `worktree-tidy-raccoon` twice and
+  # `worktree-haus` five times. gh answers about the NAME, so the freshly cut
+  # lane inherited the reaped one's merged PR: a #N pill it never opened, an ⏏
+  # saying "done, reap me", and merged+K counting main's commits since that old
+  # merge as un-shipped work.
+  local main dir; main="$(mkrepo alpha)"; dir="$(mkwt "$main" sparkle)"
+  # An oid this branch has never heard of — the previous lane's tip, whose
+  # objects went with it. Ancestry says no; the date says how long ago.
+  FAKE_PRS='[{"number":7,"state":"MERGED","headRefName":"worktree-sparkle",
+              "headRefOid":"0000000000000000000000000000000000000001",
+              "closedAt":"2020-01-01T00:00:00Z"}]' refresh
+  [ "$status" -eq 0 ]
+  [ "$(col sparkle 7)" = - ] || fail "a reaped lane's PR stuck to the new lane wearing its name"
+  [ "$(col sparkle 3)" = 1 ]                      # …and the row itself is untouched
+}
+
+@test "a PR that closed after this branch was cut is kept, unreachable SHA and all" {
+  # The other direction, and the one that must not over-fire: a lane that merged
+  # and then rebased has a head SHA that is no longer reachable either, and its
+  # PR is still very much its own. Only a PR that predates the branch is somebody
+  # else's.
+  local main dir; main="$(mkrepo alpha)"; dir="$(mkwt "$main" sparkle)"
+  FAKE_PRS='[{"number":7,"state":"MERGED","headRefName":"worktree-sparkle",
+              "headRefOid":"0000000000000000000000000000000000000001",
+              "closedAt":"2099-01-01T00:00:00Z"}]' refresh
+  [ "$status" -eq 0 ]
+  # merged+1, not a plain merged: the merged+K arm below takes an unreachable
+  # SHA as "the branch moved on since" and says so with K=1. What this test is
+  # about is the PR surviving the gate at all.
+  [ "$(col sparkle 7)" = "#7 merged+1" ]
+}
+
+@test "an OPEN PR on a reused name is kept — a push to that name lands on it" {
+  # No closedAt to judge by, and that is the honest answer rather than a gap:
+  # the branch name is the head ref, so pushing this lane updates that very PR.
+  local main dir; main="$(mkrepo alpha)"; dir="$(mkwt "$main" sparkle)"
+  FAKE_PRS='[{"number":7,"state":"OPEN","headRefName":"worktree-sparkle",
+              "headRefOid":"0000000000000000000000000000000000000001"}]' refresh
+  [ "$status" -eq 0 ]
+  [ "$(col sparkle 7)" = "#7 open" ]
+}
+
+@test "a branch with no reflog dates itself by its own oldest commit" {
+  # Reflogs can be off (core.logAllRefUpdates=false) or aged out by gc, and the
+  # gate must still be able to fire — the commits a lane carries of its own are
+  # the next-best "this branch did not exist before".
+  local main dir; main="$(mkrepo alpha)"; dir="$(mkwt "$main" sparkle)"
+  rm -f "$main/.git/logs/refs/heads/worktree-sparkle"
+  FAKE_PRS='[{"number":7,"state":"MERGED","headRefName":"worktree-sparkle",
+              "headRefOid":"0000000000000000000000000000000000000001",
+              "closedAt":"2020-01-01T00:00:00Z"}]' refresh
+  [ "$status" -eq 0 ]
+  [ "$(col sparkle 7)" = - ] || fail "with no reflog the stale PR came back"
+}
+
+@test "with no reflog, a branch that rebased after its merge keeps its own PR" {
+  # The no-reflog fallback's boundary, in the direction that costs something.
+  # A lane that merged and then rebased — CLAUDE.md's own advice for a branch
+  # that has to catch up — has a head SHA that is no longer reachable, so it
+  # reaches the date test; and a rebase rewrites every COMMITTER date to now.
+  # Dating the branch by those would put its birth after its own merge and drop
+  # the PR that is genuinely its own. Author dates survive the rebase, so they
+  # are what the fallback reads.
+  local main dir; main="$(mkrepo alpha)"; dir="$(mkwt "$main" sparkle)"
+  git -C "$dir" -c commit.gpgsign=false commit -q --amend --no-edit \
+    --date="2020-01-01T00:00:00Z"                       # author then, committer now
+  rm -f "$main/.git/logs/refs/heads/worktree-sparkle"   # …after the amend rewrote it
+  FAKE_PRS='[{"number":7,"state":"MERGED","headRefName":"worktree-sparkle",
+              "headRefOid":"0000000000000000000000000000000000000001",
+              "closedAt":"2020-06-01T00:00:00Z"}]' refresh
+  [ "$status" -eq 0 ]
+  [ "$(col sparkle 7)" = "#7 merged+1" ] || fail "the lane's own PR was dropped as somebody else's"
+}
+
+@test "the per-branch fallback asks gh for every field the reader selects on" {
+  # It did not, and the omission was silent in exactly the way this suite exists
+  # for: `--head` filtered the PRs, the reader then selected on `headRefName`,
+  # gh had never been asked for it, and every fallback answer came back empty
+  # from a cache file full of PRs. No error, no log, just "-" forever on any lane
+  # whose PR fell out of the newest-100 window.
+  local main; main="$(mkrepo alpha)"
+  mkwt "$main" sparkle >/dev/null
+  FAKE_PRS='[]' FAKE_PRS_HEAD_ACME_ALPHA='[{"number":7,"state":"OPEN","headRefName":"worktree-sparkle"}]' refresh
+  [ "$status" -eq 0 ]
+  local line; line=$(grep -- "--head worktree-sparkle" "$FAKE_GH_LOG" | head -1)
+  case "$line" in *headRefName*) : ;; *) fail "the --head call never asked for headRefName: $line" ;; esac
+}
+
 @test "uncommitted work is counted, and untracked-only counts too" {
   local main dir; main="$(mkrepo alpha)"
   dir="$(mkwt "$main" sparkle)"
