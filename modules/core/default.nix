@@ -193,6 +193,15 @@ let
   # own derivation -- there is no end-user CLI here, nothing to run by hand.
   lidawake = pkgs.writeShellScriptBin "lidawake" (builtins.readFile ./lidawake.sh);
 
+  # The weekly store cleanup, wrapped. `nix-collect-garbage` on its own aborts
+  # the WHOLE collection the first time macOS refuses to chmod an app bundle
+  # the user has launched, and it dies on the same bundle at the same point
+  # every week after: three of the eight runs on record here ended that way, on
+  # a different app each time, each losing the rest of that week's garbage. Same shape as lidawake — a daemon's
+  # script, no end-user CLI, nothing to run by hand. Why it pins the path
+  # rather than retrying it is nix-gc.sh's own header.
+  nixGc = pkgs.writeShellScriptBin "haus-nix-gc" (builtins.readFile ./nix-gc.sh);
+
   # `trill` on PATH. A wrapper, not a symlink into the bundle, because nix has
   # to decide at build time and whether Trill.app exists is a runtime fact — a
   # link to a bundle that isn't there is a `trill` that `command -v` finds and
@@ -1899,6 +1908,14 @@ in
   # Determinate owns the daemon + settings (/etc/nix/nix.custom.conf), so
   # nix-darwin's nix module is off. Determinate only GCs reactively under disk
   # pressure — on a big SSD that never fires — so run a weekly cleanup ourselves.
+  #
+  # Through `haus-nix-gc`, NOT `nix-collect-garbage` directly: a single app
+  # bundle macOS refuses to release aborts the rest of that week's collection,
+  # and goes on doing it for as long as the bundle is there. The wrapper roots
+  # those bundles BEFORE the collection runs — after the fact is too late, nix
+  # having already invalidated the path it then failed to delete — and it is
+  # also what keeps this log from being a megabyte of `deleting '...'`. See
+  # nix-gc.sh's header, which argues the ordering.
   nix.enable = false;
 
   # The one whose failure is invisible without this deck, and it is not
@@ -1923,8 +1940,7 @@ in
   launchd.daemons.nix-gc = {
     serviceConfig = {
       ProgramArguments = [
-        "/nix/var/nix/profiles/default/bin/nix-collect-garbage"
-        "--delete-older-than"
+        "${nixGc}/bin/haus-nix-gc"
         "30d"
       ];
       StartCalendarInterval = [
