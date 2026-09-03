@@ -81,10 +81,20 @@ in
     let
       pathStr = toString path;
       lines = lib.splitString "\n" (builtins.readFile path);
+      # `builtins.match` anchors the WHOLE line, which is the point: a header
+      # is a comment line that says nothing else. `nearMiss` below is what
+      # makes that strictness safe to keep.
+      #
+      # Leading whitespace is tolerated for the reason
+      # modules/launcher/header-grammar.nix tolerates it one room over: a
+      # person hand-writing a widget in their own directory should not lose
+      # the pill's tick to a stray space. Tolerance in the READER is still not
+      # a licence to use it in the widgets this repo ships.
+      header = builtins.match "[[:space:]]*#[[:space:]]*widget:[[:space:]]*([A-Za-z]+)[[:space:]]*=[[:space:]]*(.*)";
       kvs = lib.concatMap (
         line:
         let
-          m = builtins.match "#[[:space:]]*widget:[[:space:]]*([A-Za-z]+)[[:space:]]*=[[:space:]]*(.*)" line;
+          m = header line;
         in
         if m == null then
           [ ]
@@ -96,13 +106,47 @@ in
             }
           ]
       ) lines;
+      # ⚠️ A declaration this parser cannot SEE is the one failure the rest
+      # of this file's strictness does not cover, and it is silent all the way
+      # down: no key parsed, no `update_freq=` in the emission, and a pill
+      # whose script SketchyBar then never runs again. The clock shipped that
+      # way — `# …this file cannot see. widget: interval = 10`, the declaration
+      # glued to the tail of a prose line — and sat frozen at whatever minute
+      # the last reload happened to catch, from #564 until it was noticed by
+      # eye.
+      #
+      # So a COMMENT line that says `widget: <word> =` and is not a header is
+      # an eval error naming the file and the line. Three things about the
+      # shape, each one a false positive it would otherwise have:
+      #
+      #   * `<word>`, not one of knownKeys. A glued line is doubly silent
+      #     otherwise: `widget: subscribe = x` (the singular typo) names no
+      #     known key, so a knownKeys test would pass it clean, when on its
+      #     own line the same typo is caught as an unknown key.
+      #   * nothing before `widget:` but the `#` and text with no BACKTICK in
+      #     it. Prose quoting a header is this repo's own house style
+      #     (barlib.sh writes ``the `# widget: mark =` header``), and a
+      #     backtick is what tells the two apart. It under-detects rather
+      #     than over-detects: a real glued declaration later on a line that
+      #     quoted something earlier goes unseen, which is the safe direction
+      #     for a rule whose other failure mode is refusing to build.
+      #   * a comment line, so a script that ECHOES a header string is not a
+      #     widget declaring one.
+      #
+      nearMiss = lib.filter (
+        line:
+        header line == null
+        && builtins.match "[[:space:]]*#[^`]*widget:[[:space:]]*[A-Za-z]+[[:space:]]*=.*" line != null
+      ) lines;
       unknown = lib.filter (kv: !(builtins.elem kv.key knownKeys)) kvs;
       names = map (kv: kv.key) kvs;
       dupes = lib.filter (k: lib.count (n: n == k) names > 1) (lib.unique names);
       get = key: default: (lib.findFirst (kv: kv.key == key) { value = default; } kvs).value;
       checked =
         v:
-        if unknown != [ ] then
+        if nearMiss != [ ] then
+          throw "bar widget manifest ${pathStr}: '${lib.trim (builtins.head nearMiss)}' declares a key the parser cannot see. A `# widget:` header is a comment line of its own, with nothing before `widget:` but the `#`; if this line is PROSE about a header, put the example in `backticks` and it is left alone."
+        else if unknown != [ ] then
           throw "bar widget manifest ${pathStr}: unknown key '${(builtins.head unknown).key}' (known: ${lib.concatStringsSep ", " knownKeys})"
         else if dupes != [ ] then
           throw "bar widget manifest ${pathStr}: key '${builtins.head dupes}' given twice"
