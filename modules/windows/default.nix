@@ -342,12 +342,51 @@ let
     inherit lib;
     scale = config.haus.ui.scale;
     bar = config.haus.bar;
+    windows = cfg;
   };
   # AeroSpace's per-monitor form: a list whose first entry keys off the display's
   # name and whose last is the fallback everything else takes.
   monLine =
     edge:
     ''[{ monitor."Built-in Retina Display" = ${toString edge.builtin} }, ${toString edge.external}]'';
+
+  # ---- haus.windows.workspaceMonitors -> the force-assignment table -----------
+  # A workspace id to one pattern, or to a list of them AeroSpace tries in
+  # order. Both sides are TOML literal strings (single quotes, no escapes), and
+  # an assertion below refuses a pattern carrying one — a display name with an
+  # apostrophe in it would otherwise write a config that does not parse, and a
+  # config AeroSpace cannot parse is one it answers by falling back to its own
+  # defaults with nothing said.
+  #
+  # Keys are quoted. `1 = 'main'` is legal TOML and is how AeroSpace's own docs
+  # spell it, but a haus.workspaces name is any string AeroSpace accepts, and
+  # quoting is what keeps one holding a dot from silently becoming a nested
+  # table.
+  wsMonitorPatterns = lib.mapAttrs (
+    _: value: if builtins.isList value then value else [ value ]
+  ) cfg.workspaceMonitors;
+  # Two things a force-assignment can get wrong, both silent in AeroSpace and
+  # so both refused at eval by the assertions below.
+  unknownMonitorWorkspaces = lib.sort (a: b: a < b) (
+    lib.filter (ws: !(lib.elem ws workspaceRoster)) (builtins.attrNames wsMonitorPatterns)
+  );
+  quotedMonitorPatterns = lib.unique (
+    lib.filter (p: lib.hasInfix "'" p) (lib.concatLists (lib.attrValues wsMonitorPatterns))
+  );
+
+  wsMonitors =
+    let
+      value =
+        patterns:
+        if builtins.length patterns == 1 then
+          "'${builtins.head patterns}'"
+        else
+          "[" + lib.concatMapStringsSep ", " (p: "'${p}'") patterns + "]";
+      rows = lib.mapAttrsToList (ws: patterns: ''"${ws}" = ${value patterns}'') wsMonitorPatterns;
+    in
+    lib.optionalString (rows != [ ]) (
+      "[workspace-to-monitor-force-assignment]\n" + lib.concatStringsSep "\n" rows + "\n"
+    );
 
   # haus.windows.mouseFollowsFocus, as AeroSpace spells it. BOTH of its hooks,
   # because the option's name is a promise about focus and not about screens: a
@@ -415,10 +454,12 @@ let
         "@ACCORDION_PADDING@"
         "@FOCUS_CHANGED@"
         "@MONITOR_CHANGED@"
-        "@GAP_BUILTIN@"
-        "@GAP_EXTERNAL@"
+        "@GAP_INNER@"
+        "@GAP_OUTER_LEFT@"
+        "@GAP_OUTER_RIGHT@"
         "@GAP_OUTER_TOP@"
         "@GAP_OUTER_BOTTOM@"
+        "@WS_MONITORS@"
       ]
       [
         homeDir
@@ -439,10 +480,12 @@ let
         (toString cfg.accordionPadding)
         focusChanged
         monitorChanged
-        (toString gaps.inner.builtin)
-        (toString gaps.inner.external)
+        (monLine gaps.inner)
+        (monLine gaps.outer.left)
+        (monLine gaps.outer.right)
         (monLine gaps.outer.top)
         (monLine gaps.outer.bottom)
+        wsMonitors
       ]
       (builtins.readFile ./aerospace.toml);
 
@@ -778,6 +821,34 @@ lib.mkMerge [
           + "claims the digits "
           + lib.concatStringsSep " " (map (n: n.key) numbered)
           + ". Give the workspace another key, or lower the count.";
+      }
+      {
+        # AeroSpace drops a force-assignment for a workspace it has never heard
+        # of, in silence — which is indistinguishable from the option not
+        # working. The roster is the same list persistent-workspaces is written
+        # from, so this catches the two ways to get it wrong: a typo, and
+        # naming a numbered workspace above haus.windows.numberedWorkspaces.
+        assertion = unknownMonitorWorkspaces == [ ];
+        message =
+          "haus.windows.workspaceMonitors names workspaces this machine does not have: "
+          + lib.concatStringsSep ", " unknownMonitorWorkspaces
+          + ". This machine's workspaces are "
+          + lib.concatStringsSep " " workspaceRoster
+          + " (the numbered ones follow haus.windows.numberedWorkspaces, which is "
+          + toString cfg.numberedWorkspaces
+          + "; the rest are haus.workspaces keys).";
+      }
+      {
+        # The patterns are written into aerospace.toml as single-quoted literal
+        # strings, which have no escape at all in TOML. One apostrophe and the
+        # file stops parsing, and AeroSpace answers an unparseable config by
+        # running on its own defaults rather than by complaining.
+        assertion = quotedMonitorPatterns == [ ];
+        message =
+          "haus.windows.workspaceMonitors patterns may not contain an apostrophe: "
+          + lib.concatStringsSep ", " quotedMonitorPatterns
+          + ". Match the display some other way — part of its name is enough, and "
+          + "the match is case-insensitive.";
       }
     ];
     # AeroSpace itself, as a roster entry like everything else — no leader key,

@@ -46,6 +46,7 @@
             theme
             ui
             bar
+            windows
             fonts
             ;
           cfg = osConfig.haus.wallpaper;

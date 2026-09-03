@@ -138,6 +138,10 @@ PIN_BIN="@floatpin@"
 # into aerospace.toml's [gaps] block; imported from the shared file rather than
 # re-derived here so a --tiled popup and the windows it covers can never
 # disagree about where the desktop ends. Only `geom --tiled` reads them.
+#
+# GAP_SIDE_* is ONE number for both edges because the popup is centred, and
+# haus.windows.gaps lets the left and right gaps differ — so it is the wider of
+# the two, picked in ../lib/gaps.nix (`side`) rather than here.
 GAP_TOP_BUILTIN="@gap_top_builtin@"
 GAP_TOP_EXTERNAL="@gap_top_external@"
 GAP_BOTTOM_BUILTIN="@gap_bottom_builtin@"

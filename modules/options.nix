@@ -523,6 +523,12 @@ in
         so); one with `apps` but no `key` still gets a persistent workspace,
         a pill (with `icon`) and auto-herds its member windows, it just has
         no dedicated leader throw.
+
+        WHICH DISPLAY a workspace opens on is not a field here either, for
+        the same reason `apps` is not a field on the app: the numbered
+        workspaces are a count rather than entries, so a `monitor` field here
+        could only ever have pinned half of them. It is one table over both
+        kinds — `haus.windows.workspaceMonitors`, keyed by workspace id.
       '';
     };
 

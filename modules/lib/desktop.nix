@@ -259,6 +259,18 @@ let
   # it lands.
   shellSafe = s: builtins.match "[^\"'\\$`\n\t]*" s != null;
 
+  # AeroSpace's own words for WHERE a display is, as opposed to which one it is.
+  # Every one of them is true on any desk that has the screen at all, which is
+  # what makes them the desktop-safe half of `monitor-selectors` below. An
+  # ordinal (`1`, `2` — counting from the left) is the same kind of answer and is
+  # matched numerically rather than listed.
+  monitorPositions = [
+    "main"
+    "secondary"
+    "built-in"
+  ];
+  monitorPositionList = lib.concatMapStringsSep ", " (p: "`${p}`") monitorPositions;
+
   validators = {
     roster-entries = entries {
       keyOk = plainId;
@@ -357,6 +369,45 @@ let
         _:
         "names a physical display, which is a fact about one machine — a desktop may only use the `internal` and `main` selectors";
     };
+    # The other half of the display/desktop split, one option over. A workspace
+    # pinned to `main` or `secondary` says WHICH SCREEN in words that are true on
+    # any desk — two monitors is a shape, not a purchase — while "Dell U2720Q"
+    # or `^built-in retina display$` names one panel in one room, which is the
+    # same hardware fact `display-selectors` above keeps out. So a desktop may
+    # say "put the comms workspace on the second screen" and may not mention the
+    # monitor at the office.
+    #
+    # Both halves are checked here or nowhere: the values are strings with no
+    # options underneath them, exactly like `attrs-of-string`, and a value is
+    # either one pattern or a list of them AeroSpace tries in order.
+    monitor-selectors =
+      path: value:
+      let
+        positional =
+          pattern: builtins.elem pattern monitorPositions || builtins.match "[0-9]+" pattern != null;
+        checkPattern =
+          key: pattern:
+          if !(builtins.isString pattern) then
+            [ (said "${path}.${key}" "takes a display position, or a list of them") ]
+          else if !(positional pattern) then
+            [
+              (said "${path}.${key}" "names a physical display, which is a fact about one desk — a desktop may only pin a workspace by position (${monitorPositionList}, or a number counting from the left)")
+            ]
+          else
+            [ ];
+      in
+      if !(builtins.isAttrs value) then
+        [ (said path "takes a set of workspace names") ]
+      else
+        lib.concatMap (
+          key:
+          if !(plainId key) then
+            [ (said "${path}.${key}" "is not a plain workspace name") ]
+          else if builtins.isList value.${key} then
+            lib.concatMap (checkPattern key) value.${key}
+          else
+            checkPattern key value.${key}
+        ) (builtins.attrNames value);
     # A list of submodules (leader extras, snippets, tour steps). The list is
     # ONE value as far as this walk is concerned — the fields inside its
     # elements are what get checked. (What a HOST then does to that list is

@@ -70,14 +70,26 @@ automatically-unhide-macos-hidden-apps = true
 # binding. It has to sit here, after the last root-level key and before the first
 # table, because everything below is inside one.
 @KEY_MAPPING@
+# Every number here is generated from haus.windows.gaps and haus.ui.scale, via
+# modules/lib/gaps.nix — which four rooms import, so a gap retuned here moves
+# the bar's padding and the float popup's rectangle with it. Each is a
+# per-monitor list: the built-in's number first, keyed by display name, then the
+# fallback every external display takes. The two horizontal edges carry the
+# bar's own reservation on top of the tuned gap, which is why they are the two
+# haus.windows.gaps does not offer.
 [gaps]
-inner.horizontal = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTERNAL@]
-inner.vertical = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTERNAL@]
-outer.left = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTERNAL@]
+inner.horizontal = @GAP_INNER@
+inner.vertical = @GAP_INNER@
+outer.left = @GAP_OUTER_LEFT@
 outer.bottom = @GAP_OUTER_BOTTOM@
 outer.top = @GAP_OUTER_TOP@
-outer.right = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTERNAL@]
+outer.right = @GAP_OUTER_RIGHT@
 
+# Which display each workspace opens on, from haus.windows.workspaceMonitors.
+# Empty on a machine that names none, table header and all: AeroSpace's default
+# is to put a workspace back on the display it was last used on, and an empty
+# table would say the same thing more loudly.
+@WS_MONITORS@
 [mode.main.binding]
 
 # All possible keys:

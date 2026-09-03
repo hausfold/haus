@@ -6987,6 +6987,148 @@
     "readOnly": false,
     "type": "boolean"
   },
+  "haus.windows.gaps.inner.builtin": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "10"
+    },
+    "description": "How much space AeroSpace leaves BETWEEN two tiled windows on the built-in display, in points.\n\nTwo numbers rather than one because AeroSpace takes a gap per\nmonitor and the two displays want different ones: haus ships 10 on\nthe built-in and 20 around an external, which is the same gap\nreading the same size on panels of very different pitch.\n\nThis is the gap at `haus.ui.scale = 1.0`, not the finished number —\nit is multiplied by the scale like every other tuned measurement, so\na bigger desktop keeps its proportions. `0` is `0` at every scale,\nwhich is what to set for a desktop with no gaps at all.\n\n`inner`, `outer.left` and `outer.right` are the settable gaps.\n`outer.top` and `outer.bottom` are not, and deliberately: those two\ncarry the bar's reservation\n(`modules/lib/gaps.nix`), which is the only thing keeping tiled\nwindows out from under it — a `0` there would not be a tighter\ndesktop, it would be windows drawn beneath the bar. With\n`haus.bar.enable = false` they fall back to the shipped 10/20.\n\nOnly meaningful with haus.windows.enable.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "0"
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "gaps",
+      "inner",
+      "builtin"
+    ],
+    "readOnly": false,
+    "type": "unsigned integer, meaning >=0"
+  },
+  "haus.windows.gaps.inner.external": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "20"
+    },
+    "description": "How much space AeroSpace leaves BETWEEN two tiled windows on an external display, in points.\n\nTwo numbers rather than one because AeroSpace takes a gap per\nmonitor and the two displays want different ones: haus ships 10 on\nthe built-in and 20 around an external, which is the same gap\nreading the same size on panels of very different pitch.\n\nThis is the gap at `haus.ui.scale = 1.0`, not the finished number —\nit is multiplied by the scale like every other tuned measurement, so\na bigger desktop keeps its proportions. `0` is `0` at every scale,\nwhich is what to set for a desktop with no gaps at all.\n\n`inner`, `outer.left` and `outer.right` are the settable gaps.\n`outer.top` and `outer.bottom` are not, and deliberately: those two\ncarry the bar's reservation\n(`modules/lib/gaps.nix`), which is the only thing keeping tiled\nwindows out from under it — a `0` there would not be a tighter\ndesktop, it would be windows drawn beneath the bar. With\n`haus.bar.enable = false` they fall back to the shipped 10/20.\n\nOnly meaningful with haus.windows.enable.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "0"
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "gaps",
+      "inner",
+      "external"
+    ],
+    "readOnly": false,
+    "type": "unsigned integer, meaning >=0"
+  },
+  "haus.windows.gaps.outer.left.builtin": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "10"
+    },
+    "description": "How much space AeroSpace leaves at the LEFT edge of the screen on the built-in display, in points.\n\nTwo numbers rather than one because AeroSpace takes a gap per\nmonitor and the two displays want different ones: haus ships 10 on\nthe built-in and 20 around an external, which is the same gap\nreading the same size on panels of very different pitch.\n\nThis is the gap at `haus.ui.scale = 1.0`, not the finished number —\nit is multiplied by the scale like every other tuned measurement, so\na bigger desktop keeps its proportions. `0` is `0` at every scale,\nwhich is what to set for a desktop with no gaps at all.\n\n`inner`, `outer.left` and `outer.right` are the settable gaps.\n`outer.top` and `outer.bottom` are not, and deliberately: those two\ncarry the bar's reservation\n(`modules/lib/gaps.nix`), which is the only thing keeping tiled\nwindows out from under it — a `0` there would not be a tighter\ndesktop, it would be windows drawn beneath the bar. With\n`haus.bar.enable = false` they fall back to the shipped 10/20.\n\nOnly meaningful with haus.windows.enable.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "0"
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "gaps",
+      "outer",
+      "left",
+      "builtin"
+    ],
+    "readOnly": false,
+    "type": "unsigned integer, meaning >=0"
+  },
+  "haus.windows.gaps.outer.left.external": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "20"
+    },
+    "description": "How much space AeroSpace leaves at the LEFT edge of the screen on an external display, in points.\n\nTwo numbers rather than one because AeroSpace takes a gap per\nmonitor and the two displays want different ones: haus ships 10 on\nthe built-in and 20 around an external, which is the same gap\nreading the same size on panels of very different pitch.\n\nThis is the gap at `haus.ui.scale = 1.0`, not the finished number —\nit is multiplied by the scale like every other tuned measurement, so\na bigger desktop keeps its proportions. `0` is `0` at every scale,\nwhich is what to set for a desktop with no gaps at all.\n\n`inner`, `outer.left` and `outer.right` are the settable gaps.\n`outer.top` and `outer.bottom` are not, and deliberately: those two\ncarry the bar's reservation\n(`modules/lib/gaps.nix`), which is the only thing keeping tiled\nwindows out from under it — a `0` there would not be a tighter\ndesktop, it would be windows drawn beneath the bar. With\n`haus.bar.enable = false` they fall back to the shipped 10/20.\n\nOnly meaningful with haus.windows.enable.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "0"
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "gaps",
+      "outer",
+      "left",
+      "external"
+    ],
+    "readOnly": false,
+    "type": "unsigned integer, meaning >=0"
+  },
+  "haus.windows.gaps.outer.right.builtin": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "10"
+    },
+    "description": "How much space AeroSpace leaves at the RIGHT edge of the screen on the built-in display, in points.\n\nTwo numbers rather than one because AeroSpace takes a gap per\nmonitor and the two displays want different ones: haus ships 10 on\nthe built-in and 20 around an external, which is the same gap\nreading the same size on panels of very different pitch.\n\nThis is the gap at `haus.ui.scale = 1.0`, not the finished number —\nit is multiplied by the scale like every other tuned measurement, so\na bigger desktop keeps its proportions. `0` is `0` at every scale,\nwhich is what to set for a desktop with no gaps at all.\n\n`inner`, `outer.left` and `outer.right` are the settable gaps.\n`outer.top` and `outer.bottom` are not, and deliberately: those two\ncarry the bar's reservation\n(`modules/lib/gaps.nix`), which is the only thing keeping tiled\nwindows out from under it — a `0` there would not be a tighter\ndesktop, it would be windows drawn beneath the bar. With\n`haus.bar.enable = false` they fall back to the shipped 10/20.\n\nOnly meaningful with haus.windows.enable.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "0"
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "gaps",
+      "outer",
+      "right",
+      "builtin"
+    ],
+    "readOnly": false,
+    "type": "unsigned integer, meaning >=0"
+  },
+  "haus.windows.gaps.outer.right.external": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "20"
+    },
+    "description": "How much space AeroSpace leaves at the RIGHT edge of the screen on an external display, in points.\n\nTwo numbers rather than one because AeroSpace takes a gap per\nmonitor and the two displays want different ones: haus ships 10 on\nthe built-in and 20 around an external, which is the same gap\nreading the same size on panels of very different pitch.\n\nThis is the gap at `haus.ui.scale = 1.0`, not the finished number —\nit is multiplied by the scale like every other tuned measurement, so\na bigger desktop keeps its proportions. `0` is `0` at every scale,\nwhich is what to set for a desktop with no gaps at all.\n\n`inner`, `outer.left` and `outer.right` are the settable gaps.\n`outer.top` and `outer.bottom` are not, and deliberately: those two\ncarry the bar's reservation\n(`modules/lib/gaps.nix`), which is the only thing keeping tiled\nwindows out from under it — a `0` there would not be a tighter\ndesktop, it would be windows drawn beneath the bar. With\n`haus.bar.enable = false` they fall back to the shipped 10/20.\n\nOnly meaningful with haus.windows.enable.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "0"
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "gaps",
+      "outer",
+      "right",
+      "external"
+    ],
+    "readOnly": false,
+    "type": "unsigned integer, meaning >=0"
+  },
   "haus.windows.gravity": {
     "declarations": [
       "modules/windows/options.nix"
@@ -7142,7 +7284,7 @@
       "_type": "literalExpression",
       "text": "4"
     },
-    "description": "How many numbered workspaces exist, on top of whatever\nhaus.workspaces names. Four is the house default; the ceiling is ten\nbecause the leader reaches them by DIGIT and there are only ten\ndigits: 1-9 in order, then `0` for the tenth, the same wrap a\nbrowser's tab shortcuts use.\n\nEach one gets three leader bindings (the digit focuses it, ⇧+the digit\nthrows the focused window there and follows, ⌥⇧+the digit throws\nwithout following), a bar pill, and a `persistent-workspace` entry, so\nthe workspace exists whether or not a window is on it.\n\n`0` is legal and means no numbered workspaces at all: a machine where\nevery workspace is a NAMED one out of haus.workspaces. Raising the\ncount never renames an existing workspace, so windows stay where they\nare. Lowering it takes the digit AND the bar pill, so whatever was on\nthe workspaces that went is reachable only through the launcher's ⌘⇥\nwindow switcher until you raise the count again.\n\nThe digits are reserved in launch mode, so a haus.workspaces key or a\nhaus.keys.leaderExtras key that collides with one is refused at eval.\nThis count decides which digits that means.\n\nOnly meaningful with haus.windows.enable.\n",
+    "description": "How many numbered workspaces exist, on top of whatever\nhaus.workspaces names. Four is the house default; the ceiling is ten\nbecause the leader reaches them by DIGIT and there are only ten\ndigits: 1-9 in order, then `0` for the tenth, the same wrap a\nbrowser's tab shortcuts use.\n\nEach one gets three leader bindings (the digit focuses it, ⇧+the digit\nthrows the focused window there and follows, ⌥⇧+the digit throws\nwithout following), a bar pill, and a `persistent-workspace` entry, so\nthe workspace exists whether or not a window is on it.\n\n`0` is legal and means no numbered workspaces at all: a machine where\nevery workspace is a NAMED one out of haus.workspaces. Raising the\ncount never renames an existing workspace, so windows stay where they\nare. Lowering it takes the digit AND the bar pill, so whatever was on\nthe workspaces that went is reachable only through the launcher's ⌘⇥\nwindow switcher until you raise the count again.\n\nThe digits are reserved in launch mode, so a haus.workspaces key or a\nhaus.keys.leaderExtras key that collides with one is refused at eval.\nThis count decides which digits that means.\n\nTo pin them to a display — 1-4 on one screen, 5-8 on another — see\nhaus.windows.workspaceMonitors below, which takes these ids and\nhaus.workspaces names alike.\n\nOnly meaningful with haus.windows.enable.\n",
     "example": {
       "_type": "literalExpression",
       "text": "6"
@@ -7265,6 +7407,27 @@
     "readOnly": false,
     "type": "null or boolean"
   },
+  "haus.windows.workspaceMonitors": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "{ }"
+    },
+    "description": "Pin a workspace to a display, so it always opens on the same screen.\nAeroSpace's `workspace-to-monitor-force-assignment`, keyed by the\nworkspace id: a numbered one (`\"1\"`, `\"2\"` — how many exist is\nhaus.windows.numberedWorkspaces) or a haus.workspaces name.\n\nA value is either one pattern or a list of them tried in order, which\nis how a workspace survives the monitor it wants being unplugged. Each\npattern is one of:\n\n- `main`, `secondary`, `built-in` — the position, true on any desk;\n- a number — the display's position left to right, `1` being leftmost;\n- part of the display's name, matched case-insensitively (`Dell`);\n- a regex, when it is wrapped in `^` and `$` (`^built-in retina display$`).\n\nThe last two name one physical panel, so they are a fact about your desk\nrather than a taste: a shared desktop may only use the first two, and the\nseam refuses the others (`modules/lib/desktop.nix`). Your own host file\ncan say any of them.\n\nNaming a workspace that does not exist is refused at eval rather than\nignored: AeroSpace drops an assignment for an unknown workspace in\nsilence, which reads exactly like the option not working.\n\nEmpty (the default) assigns nothing, and AeroSpace puts a workspace on\nwhichever display it was last used on.\n\nOnly meaningful with haus.windows.enable.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "{\n  \"1\" = \"main\";\n  \"2\" = \"main\";\n  \"5\" = \"secondary\";\n  \"6\" = \"secondary\";\n  comms = [\n    \"Dell U2720Q\"\n    \"main\"\n  ];\n}"
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "workspaceMonitors"
+    ],
+    "readOnly": false,
+    "type": "attribute set of (string or list of string)"
+  },
   "haus.workspaces": {
     "declarations": [
       "modules/options.nix"
@@ -7273,7 +7436,7 @@
       "_type": "literalExpression",
       "text": "{ }"
     },
-    "description": "AeroSpace workspaces this machine names on purpose, keyed by the\nworkspace id AeroSpace itself will use (any string it accepts as a\nworkspace name — a single letter like `T`, or a word like `comms`).\nFirst-class rather than a field on an app: an app can only ever own\none workspace if the field lives on the app, which makes a role\nworkspace (\"communication\" = Mail + Slack + Messages) or a project\nworkspace literally unrepresentable. Here, a workspace lists its own\nmembers instead.\n\nThe numbered workspaces (leader + a digit) are not part of this\noption — they always exist, independent of what any app claims, and\nhow many there are is haus.windows.numberedWorkspaces. This option is\nfor the NAMED workspaces app windows get herded onto.\n\nAn entry with no `key` and no `apps` does nothing (a warning says\nso); one with `apps` but no `key` still gets a persistent workspace,\na pill (with `icon`) and auto-herds its member windows, it just has\nno dedicated leader throw.\n",
+    "description": "AeroSpace workspaces this machine names on purpose, keyed by the\nworkspace id AeroSpace itself will use (any string it accepts as a\nworkspace name — a single letter like `T`, or a word like `comms`).\nFirst-class rather than a field on an app: an app can only ever own\none workspace if the field lives on the app, which makes a role\nworkspace (\"communication\" = Mail + Slack + Messages) or a project\nworkspace literally unrepresentable. Here, a workspace lists its own\nmembers instead.\n\nThe numbered workspaces (leader + a digit) are not part of this\noption — they always exist, independent of what any app claims, and\nhow many there are is haus.windows.numberedWorkspaces. This option is\nfor the NAMED workspaces app windows get herded onto.\n\nAn entry with no `key` and no `apps` does nothing (a warning says\nso); one with `apps` but no `key` still gets a persistent workspace,\na pill (with `icon`) and auto-herds its member windows, it just has\nno dedicated leader throw.\n\nWHICH DISPLAY a workspace opens on is not a field here either, for\nthe same reason `apps` is not a field on the app: the numbered\nworkspaces are a count rather than entries, so a `monitor` field here\ncould only ever have pinned half of them. It is one table over both\nkinds — `haus.windows.workspaceMonitors`, keyed by workspace id.\n",
     "example": {
       "_type": "literalExpression",
       "text": "{\n  # Role workspace: three apps, one pill, one throw key.\n  comms = {\n    key = \"c\";\n    icon = \":slack:\";\n    apps = [ \"slack\" \"mail\" \"messages\" ];\n  };\n\n  # Single-app workspace: the common case, one entry each.\n  T = { key = \"t\"; icon = \":ghostty:\"; apps = [ \"ghostty\" ]; };\n}\n"

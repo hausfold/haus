@@ -214,11 +214,18 @@ let
     inherit lib;
     scale = config.haus.ui.scale;
     bar = cfg;
+    windows = config.haus.windows;
   };
 
   # The inset itself: the bar's padding IS the window gap, in full, and the pill
   # at each edge gives up its own outer padding to make that true (`edgePad`).
-  barPadX = gaps.outermost.left;
+  #
+  # `side` and not `left`: haus.windows.gaps lets the two side gaps differ, and
+  # a bar has ONE padding for both ends — so the number is the wider of them,
+  # for the same reason `outermost` takes the wider of the two displays. Both
+  # collapses live in ../lib/gaps.nix rather than here, so the four rooms
+  # reading it can't each pick a different way to spend one number.
+  barPadX = gaps.outermost.side;
 
   # The outermost pill's outer padding is spent on nothing — there is no
   # neighbour out there, only the screen, and the bar's padding is already the
