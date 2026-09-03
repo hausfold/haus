@@ -21,10 +21,14 @@
 # Deferring instead sends scruff through resume → lane-open.sh, and the window
 # that appears is a lane's, not a shell that happens to hold one.
 #
-# A background lane HAS a window from the moment it spawns (lane-open.sh's
-# background note), so the common path through here is a plain raise. The defer
-# is for the lane whose window was closed with ⌘W while the session kept
-# thinking, and for the spawn whose window has not been tiled yet — and it is
+# A background lane USUALLY has a window from the moment it spawns
+# (lane-open.sh's background note), so the common path through here is a plain
+# raise. The defer is for the lane whose window was closed with ⌘W while the
+# session kept thinking, for the spawn whose window has not been tiled yet, and
+# for the lane born with the display asleep — that one is windowless by design
+# (lane-open.sh's no-display note), so this defer is how it gets its FIRST
+# window rather than a replacement one, and ⌃⇥ cannot stand in because it walks
+# tiled pages and that lane has never been on one. It is
 # the reason not to "fix" this script by reaching for --or-open, which answers
 # with a bare untiled window born on whatever page you are standing on instead
 # of a lane's own window on T/<repo>.

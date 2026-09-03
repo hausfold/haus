@@ -648,6 +648,87 @@ fi
 } >"$launcher"
 chmod +x "$launcher"
 
+# ── no display, no window ────────────────────────────────────────────────────
+# A background lane spawned while the screen is ASLEEP came up as Ghostty's
+# "The terminal failed to initialize" pane and took its whole task with it.
+# MEASURED 2026-09-03, three lanes lost inside ninety seconds, one pair of lines
+# per lane in Ghostty's log and nothing anywhere else:
+#
+#   CVDisplayLinkCreateWithCGDisplays error -6661 due to invalid display count (0)
+#   embedded_window: error initializing surface err=error.OutOfMemory
+#
+# A direct exec has to build its OWN surface, a surface wants a display link,
+# and with the screen asleep macOS answers CGGetActiveDisplayList with zero. The
+# `open -na` path below is not the fallback it looks like: it lands a new
+# surface in the running instance, which needs a display just the same.
+#
+# What turned that from a bad window into a lost TASK is that this script is the
+# lane's own --initial-command. A surface that never came up means nothing below
+# the spawn ever ran — no zmx session, no client, no `stamp`, and no `vanish`
+# banner, because the fault notice lives inside the path that did not execute.
+# The `kill -0` probe at the spawn passes either way: the process is alive, it
+# is the window that is not. So `scruff spawn` exited 0, the palette reported a
+# lane that was working, and the prompt survived only as the launcher temp file
+# below until $TMPDIR was swept.
+#
+# So when there is no display, do not ask for a window. The SESSION is the lane
+# — `zmx run … -d` creates it and starts the client detached, exactly as the
+# window would have — and the first `scruff <name>`, agents pill or ⌃⇥ after the
+# screen comes back gives it one. Which route, precisely, because ⌃⇥ is NOT it:
+# that walk is over non-empty `T/*` pages and a lane that never tiled has none,
+# which the launcher's own note 115 lines up already says. What does work is the
+# spawn banner — it still fires, and its click runs `scruff focus`, which
+# lane-focus.sh defers (exit 3) into a resume, which comes back through this
+# script and opens the lane a properly tiled window. `scruff <name>` is the same
+# path from a shell. The bar's agent row is the odd one out: it goes through
+# raise-session.sh --or-open, which opens a bare untiled window. #544 tried
+# a windowless birth for every background lane and was reverted for the right
+# reason: a lane missing from ⌃⇥ and from its own T/<repo> page is invisible
+# rather than quiet. With the display off there is no page to be absent from, so
+# the cost it was reverted over is not being paid here.
+#
+# It fails SAFE toward the status quo: a machine with no `hausdisp` — the
+# displays room's helper, one CGGetActiveDisplayList call — takes the window
+# path it always took.
+#
+# ── does this session exist ──────────────────────────────────────────────────
+# Through `zmx-rows.sh` and never `zmx ls` by hand: AGENTS.md states that as an
+# invariant because zmx flipped a separator at 0.7.0 and broke eight readers
+# silently, and `zmx list --short`'s bare-name shape is one marker away from
+# being the ninth. Empty is "no such session", and a machine missing the reader
+# answers empty too — which is the safe direction for the bail below (create the
+# lane) and the reason the window path's watch skips itself entirely rather than
+# firing a fault it cannot substantiate.
+zmx_rows="$HOME/.config/haus/term/zmx-rows.sh"
+session_live() {
+  [ -x "$zmx_rows" ] || return 1
+  [ -n "$("$zmx_rows" name "name=$1" | head -1)" ]
+}
+
+displays=1
+if command -v hausdisp >/dev/null 2>&1; then
+  displays="$(hausdisp list 2>/dev/null | sed -n 's/^active displays: \([0-9][0-9]*\).*/\1/p' | head -1)"
+  [ -n "$displays" ] || displays=1
+fi
+if [ -n "$bg" ] && [ "$displays" = 0 ]; then
+  # The launcher is the window's script and no window is coming; the same
+  # `cd` + client it holds is run directly below.
+  rm -f "$launcher"
+  # A RESUME with the screen off has nothing to open and nothing to start: the
+  # client is already running in there. This is the one place the difference
+  # between the two verbs bites — `zmx attach` ignores its trailing command on a
+  # live session (the note above), and `zmx run` would start a SECOND client in
+  # it, which is a thing no path here has ever done.
+  session_live "$sess" && exit 0
+  cd "$chat" || exit 3
+  # `-d` goes AFTER the name: `zmx run <name> [-d] [command…]`, so the obvious
+  # `zmx run -d <name>` reads `-d` as the session and the lane's name as its
+  # command. That spelling creates a session called "-d" and never starts a
+  # client, which is this whole block's failure mode wearing a different hat.
+  zmx run "$sess" -d bash -lc "$held" || exit 3
+  exit 0
+fi
+
 # ── the window ───────────────────────────────────────────────────────────────
 # Cold start, both backends. `open -a` returns as soon as LaunchServices
 # accepts, so firing the spawn below in the same breath races the app's own
@@ -772,6 +853,51 @@ if [ "$backend" = aerospace ]; then
       --window-position-y=25000 >/dev/null 2>&1 &
     sleep 0.2
     kill -0 $! 2>/dev/null || exit 3
+    # `kill -0` asks whether the PROCESS is alive; the question is whether a
+    # CLIENT started, and the two came apart the morning the display-asleep
+    # block above was written — a Ghostty whose surface died is a live process
+    # holding an error pane, and this probe called it a lane. The session is
+    # the honest signal, because every path here ends in one.
+    #
+    # In the background and bounded, on purpose: `scruff spawn`'s stdout is a
+    # command substitution in the launcher's spawn-agent.sh, so this hook has to
+    # return NOW — waiting ten seconds here would hang the palette on every
+    # lane. Detached with both fds closed for the same reason the spawn above
+    # is, and it notifies rather than exiting, since by the time it knows, the
+    # exit code has long since been read as 0.
+    #
+    # 10s is a CEILING chosen to be embarrassingly generous rather than measured
+    # tight, and that asymmetry is the point: too short teaches people to ignore
+    # a `fault` banner, while too long only delays one. This path skips the
+    # pre-warm, so it pays a cold Ghostty plus a login shell plus the client's
+    # own start — comfortably inside it on an idle Mac, and the number is here
+    # to be raised if a loaded one ever proves otherwise.
+    #
+    # Only this path is watched, deliberately. The `open -na` fallback and the
+    # ghostty backend still take a live process for a live lane; the failure
+    # that produced this watch was the direct exec's own, and a watch on a path
+    # nothing has been observed to lose would be a banner budget spent on a
+    # guess.
+    (
+      [ -x "$zmx_rows" ] || exit 0
+      for _ in $(seq 1 50); do
+        session_live "$sess" && exit 0
+        sleep 0.2
+      done
+      notify=/run/current-system/sw/bin/haus-notify
+      command -v "$notify" >/dev/null 2>&1 || notify="$(command -v haus-notify 2>/dev/null)"
+      [ -n "$notify" ] || exit 0
+      # The launcher deletes itself as its FIRST line, so which failure this was
+      # decides whether the prompt is still anywhere. Surface that never came up
+      # → the file survives and is the only copy of the lane's task. Window
+      # opened and the client died instead → it is already gone, and a banner
+      # naming a path that isn't there is worse than one that doesn't.
+      where="its prompt is in $launcher"
+      [ -f "$launcher" ] || where="its prompt is gone with the launcher — check the client"
+      "$notify" --source haus.lane --kind fault --symbol exclamationmark.triangle \
+        --thread "$sess" --title "haus · agent lane" \
+        --body "$sess opened a window but no client — $where" >/dev/null 2>&1
+    ) >/dev/null 2>&1 &
   else
     open -na Ghostty.app --args \
       --title="$sess" \
