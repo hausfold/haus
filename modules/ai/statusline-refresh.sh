@@ -192,7 +192,7 @@ pr_json_for_repo() { # $1=main ; echoes cached JSON of that repo's PRs
     [ "$age" -lt 120 ] && { cat "$cache"; return; }
   fi
   if gh pr list -R "$slug" --state all --limit 100 \
-        --json number,state,headRefName,headRefOid >"$cache.tmp" 2>/dev/null; then
+        --json number,state,headRefName,headRefOid,closedAt >"$cache.tmp" 2>/dev/null; then
     mv "$cache.tmp" "$cache"
   else
     rm -f "$cache.tmp"; [ -f "$cache" ] || echo '[]' >"$cache"
@@ -220,8 +220,13 @@ pr_json_for_branch() { # $1=main $2=branch -> cached JSON of that branch's PRs
     age=$(( $(date +%s) - $(mtime "$cache") ))
     [ "$age" -lt 120 ] && { cat "$cache"; return 0; }
   fi
+  # The field list is the repo-wide one, and `headRefName` is in it even though
+  # `--head` already filtered on that name: the reader below selects on it, so a
+  # list without it selects NOTHING. That is not hypothetical — it shipped, and
+  # for weeks this whole fallback answered "no PR" for every branch it was asked
+  # about, cache files full of PRs it had just fetched. Ask for what you read.
   if gh pr list -R "$slug" --state all --head "$branch" --limit 20 \
-        --json number,state,headRefOid >"$cache.tmp" 2>/dev/null; then
+        --json number,state,headRefName,headRefOid,closedAt >"$cache.tmp" 2>/dev/null; then
     mv "$cache.tmp" "$cache"
   else
     rm -f "$cache.tmp"; [ -f "$cache" ] || echo '[]' >"$cache"
@@ -229,21 +234,89 @@ pr_json_for_branch() { # $1=main $2=branch -> cached JSON of that branch's PRs
   cat "$cache"
 }
 
+iso_epoch() { # $1=ISO-8601 UTC stamp (2026-08-27T09:45:47Z) -> epoch seconds, or ""
+  # BSD first, GNU second, digits insisted on — the same three-step mtime() uses
+  # and for the same reason: this ships to macOS, the bats suite runs on Linux,
+  # and each date(1) reads the OTHER's flags as something else entirely (BSD -d
+  # is a DST override, GNU has no -j), so only the ANSWER can pick the platform.
+  local s="$1" v
+  case "$s" in '' | - | null) return 0 ;; esac
+  v=$(date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$s" +%s 2>/dev/null || true)
+  case "$v" in '' | *[!0-9]*) v=$(date -u -d "$s" +%s 2>/dev/null || true) ;; esac
+  case "$v" in '' | *[!0-9]*) return 0 ;; esac
+  printf '%s' "$v"
+}
+
+branch_birth() { # $1=main $2=branch -> epoch this branch came into being, or ""
+  # The reflog's OLDEST entry — `branch: Created from …`, written when scruff
+  # cuts the lane. Git deletes a branch's reflog with the branch, so a name used
+  # three times before still dates the incarnation in front of you. (scruff's own
+  # `neverDiverged` reads the same log for the same reason.)
+  #
+  # Every step is || true'd: this runs under `set -euo pipefail`, and a branch
+  # with no reflog must cost this ROW its PR pill, never the whole pass.
+  local main="$1" b="$2" raw t
+  raw=$(git -C "$main" reflog show --date=unix "$b" 2>/dev/null || true)
+  t=$(printf '%s\n' "$raw" | tail -1 | sed -n 's/.*@{\([0-9][0-9]*\)}.*/\1/p')
+  # Reflogs can be off (core.logAllRefUpdates=false) or aged out by gc. Then the
+  # oldest commit the branch carries of its OWN is the next-best "not before":
+  # committer date, not author date, so a cherry-pick or a rebase dates when it
+  # landed here rather than when it was first written elsewhere.
+  if [ -z "$t" ]; then
+    raw=$(git -C "$main" log --format=%ct "$(git_default "$main")..$b" 2>/dev/null || true)
+    t=$(printf '%s\n' "$raw" | tail -1)
+  fi
+  case "$t" in '' | *[!0-9]*) return 0 ;; esac
+  printf '%s' "$t"
+}
+
 pr_state_for_branch() { # $1=main $2=branch -> "#N open|merged|closed|merged+K" or ""
   # `|| true`: a truncated cache (a gh run killed mid-write) makes jq exit 5, and
   # under `set -o pipefail` that status would propagate out of the `pr=$(…)`
   # substitution below and, with `set -e`, abort the whole pass. No PR state is a
   # blank cell; it is never a reason to stop refreshing the panel.
-  local main="$1" b="$2" raw num state oid tip k
-  raw=$(pr_json_for_repo "$main" | jq -r --arg b "$b" '
-    map(select(.headRefName == $b)) | (.[0] // empty)
-    | "\(.number) \(.state|ascii_downcase) \(.headRefOid // "")"' 2>/dev/null || true)
+  local main="$1" b="$2" raw num state oid ended birth tip k q
+  # One jq program, read by both sources. Every field it names has to be in BOTH
+  # `--json` lists above; a reader that outlives its fetch is what killed the
+  # fallback once already. The two "-" sentinels are why it can: an empty MIDDLE
+  # field collapses under `read`'s IFS and hands `ended` to `oid`, so a PR with
+  # no head SHA would read as one that closed at a hex string.
+  q='map(select(.headRefName == $b)) | (.[0] // empty)
+     | "\(.number) \(.state|ascii_downcase) \(.headRefOid // "-") \(.closedAt // "-")"'
+  raw=$(pr_json_for_repo "$main" | jq -r --arg b "$b" "$q" 2>/dev/null || true)
   # …and when the repo-wide window missed the branch, ask about it directly.
-  [ -n "$raw" ] || raw=$(pr_json_for_branch "$main" "$b" | jq -r --arg b "$b" '
-    map(select(.headRefName == $b)) | (.[0] // empty)
-    | "\(.number) \(.state|ascii_downcase) \(.headRefOid // "")"' 2>/dev/null || true)
+  [ -n "$raw" ] || raw=$(pr_json_for_branch "$main" "$b" | jq -r --arg b "$b" "$q" 2>/dev/null || true)
   [ -n "$raw" ] || return 0
-  read -r num state oid <<<"$raw"
+  read -r num state oid ended <<<"$raw"
+  case "$oid" in - | null) oid="" ;; esac
+  case "$ended" in - | null) ended="" ;; esac
+
+  # --- is this PR about THIS lane, or about the last one to wear its name? ----
+  # A branch name is not a lane. scruff coins lane names from a small word list
+  # and a task name gets reused outright, so `worktree-tidy-raccoon` has been two
+  # different lanes in this repo and `worktree-haus` five — while gh answers
+  # about the NAME. So a lane cut minutes ago inherited the previous lane's
+  # merged PR: a #N pill it never opened, an ⏏ saying "done, reap me", and the
+  # merged+K arm below counting main's commits since that old merge as un-shipped
+  # work — an orange 37^ demanding a reship of nothing.
+  #
+  # Ours by ANCESTRY first: the PR's head SHA reachable from this branch means
+  # this branch is what that PR was opened from (plain merged and merged+K both),
+  # whatever the name has meant since. Otherwise by DATE: a PR that closed before
+  # this branch existed cannot be about it. gh lists newest-first, so if the
+  # newest PR on the name predates the branch every older one does too — there is
+  # nothing to fall through to, and dropping it is the whole answer.
+  #
+  # Everything else keeps the old behaviour, because everything else is a real
+  # doubt: an OPEN PR has no closedAt at all (a push to this name lands on it, so
+  # it IS this branch's PR), an older cache carries no oid, and a branch whose
+  # birth git cannot date says nothing either way. The gate only fires on two
+  # facts it actually has.
+  if [ -z "$oid" ] || ! git -C "$main" merge-base --is-ancestor "$oid" "$b" 2>/dev/null; then
+    ended=$(iso_epoch "$ended")
+    birth=$(branch_birth "$main" "$b")
+    [ -z "$ended" ] || [ -z "$birth" ] || [ "$ended" -ge "$birth" ] || return 0
+  fi
   # merged+K — the PR merged, then the branch kept committing. Those K commits are
   # on a branch whose remote counterpart GitHub deleted at merge: no PR covers
   # them and nothing is pushed. Rendering that as a plain `merged` is what put an
