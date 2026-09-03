@@ -1,37 +1,22 @@
 # hausax — the effective appearance + accessibility oracle. `haus diff`/`haus plan`
 # call it, and so does modules/theme's systemAppearance activation block.
-# See hausax.swift for why a plist read isn't enough. Compiled with the system
-# Swift via xcrun, the same way modules/displays/package.nix builds hausdisp —
-# building the Swift toolchain from source to compile a few dozen lines against
-# AppKit would cost hours, and the CLT is already a prerequisite for haus.
+# See hausax.swift for why a plist read isn't enough.
+#
+# The one helper that keeps a file of its own rather than three lines in its
+# room's default.nix: TWO rooms build it (core, for the system-wide install, and
+# theme, which asks for the same derivation instead of depending on core's
+# let-block), and inlining it in both would put the name and the src path in two
+# places for the sake of deleting one file. Every other one-file Swift helper
+# calls ../lib/swift-bin.nix straight from its room — see that file for the
+# xcrun rationale, which used to be re-explained in ten headers including this
+# one.
 {
   lib,
   stdenvNoCC,
 }:
 
-stdenvNoCC.mkDerivation {
-  pname = "hausax";
-  version = "1.0";
-
+(import ../lib/swift-bin.nix { inherit lib stdenvNoCC; }) {
+  name = "hausax";
   src = ./hausax.swift;
-  dontUnpack = true;
-
-  buildPhase = ''
-    runHook preBuild
-    /usr/bin/xcrun swiftc -O -o hausax "$src"
-    runHook postBuild
-  '';
-
-  installPhase = ''
-    runHook preInstall
-    mkdir -p $out/bin
-    cp hausax $out/bin/hausax
-    runHook postInstall
-  '';
-
-  meta = {
-    description = "Effective appearance + accessibility state via AppKit, for haus plan/diff and theme.systemAppearance";
-    platforms = lib.platforms.darwin;
-    mainProgram = "hausax";
-  };
+  description = "Effective appearance + accessibility state via AppKit, for haus plan/diff and theme.systemAppearance";
 }

@@ -4167,6 +4167,36 @@
             touch $out
           '';
 
+          # ---- the one-file Swift helpers ---------------------------------
+          # Ten of them (barpop, barvitals, hausax, hausdisp, hausocr, hausrect,
+          # floatring, floatpin, haustabs, haus-github-receiver), and the set
+          # grows every few weeks. Each used to be a hand copy of a sibling's
+          # thirty lines, identical but for `pname`, `src` and a description,
+          # because copying the file next door is how you write the eleventh —
+          # which is exactly what this check makes impossible.
+          #
+          # `xcrun swiftc` is the whole tell: it is the one line a copy cannot
+          # do without, so grepping for it catches a fresh mkDerivation that no
+          # amount of prose in AGENTS.md did. There is no allowlist on purpose.
+          # A helper that needs another flag or an explicit `-framework` grows
+          # modules/lib/swift-bin.nix, where every helper gets it at once.
+          swift-bin = pkgs.runCommand "haus-swift-bin-ok" { } ''
+            bad=
+            for f in $(find ${./modules} -name '*.nix'); do
+              grep -q 'xcrun swiftc' "$f" || continue
+              rel=''${f#${./modules}/}
+              [ "$rel" = "lib/swift-bin.nix" ] && continue
+              bad="$bad $rel"
+            done
+            if [ -n "$bad" ]; then
+              echo "builds Swift by hand instead of calling modules/lib/swift-bin.nix:$bad" >&2
+              echo "fix: swiftBin { name = \"…\"; src = ./….swift; description = \"…\"; }" >&2
+              echo "     — and if this helper genuinely needs more than that, grow swift-bin.nix" >&2
+              exit 1
+            fi
+            touch $out
+          '';
+
           # ---- wallpaper --------------------------------------------------
           # Renders the `minimal` desktop and asserts the two things about it
           # that nobody would notice going wrong.

@@ -55,6 +55,7 @@
 
 let
   cfg = config.haus.github;
+  swiftBin = pkgs.callPackage ../lib/swift-bin.nix { };
 
   home = "/Users/${username}";
   stateDir = "${home}/.local/state/haus/github";
@@ -82,7 +83,13 @@ let
 
   userPath = "/run/current-system/sw/bin:/etc/profiles/per-user/${username}/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 
-  receiver = pkgs.callPackage ./receiver.nix { };
+  # See receiver.swift for what it does and why the fan-out is bytes rather
+  # than events.
+  receiver = swiftBin {
+    name = "haus-github-receiver";
+    src = ./receiver.swift;
+    description = "Verify, record and fan out GitHub webhook deliveries on loopback";
+  };
 
   # One body, two doors: this is the same file the surfaces source, so a person
   # debugging the bridge runs exactly what the bar runs.
@@ -94,8 +101,9 @@ let
   # `~/.config/haus/github/signal.sh` copy below) is untouched by this: its half
   # never draws, and its `[ -r ]` guard leaves it plain either way.
   signalBin = pkgs.writeShellScriptBin "github-signal" (
-    ''HAUS_UI_SH="''${HAUS_UI_SH:-${pkgs.snug}/share/ui.sh}"
-''
+    ''
+      HAUS_UI_SH="''${HAUS_UI_SH:-${pkgs.snug}/share/ui.sh}"
+    ''
     + builtins.readFile ./signal.sh
   );
 

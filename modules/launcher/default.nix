@@ -20,6 +20,7 @@
 
 let
   panes = import ../lib/settings-panes.nix;
+  swiftBin = pkgs.callPackage ../lib/swift-bin.nix { };
   # Shared ~/.local/state/haus files (../lib/state-files.nix). Two of them are
   # this room's, both written by windows: the ⌃⇥ walk's recency file below, and
   # the `any-page` byte the Pages command declares as its `whenFile`.
@@ -322,7 +323,11 @@ let
   # Copy Text from Screen's image → text half (see ./hausocr.swift). Owned by
   # this room because its one caller is a palette command; the capture UI is
   # macOS's own and the clipboard is pbcopy, so the helper is the whole feature.
-  hausocr = pkgs.callPackage ./hausocr.nix { };
+  hausocr = swiftBin {
+    name = "hausocr";
+    src = ./hausocr.swift;
+    description = "Recognize text in an image (offline Vision OCR) — the palette's Copy Text command";
+  };
 
   # haus's palette commands (see ./commands — one self-describing script
   # each, metadata in a `# pounce:` header). The generated app-font lookup is

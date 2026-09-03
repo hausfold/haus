@@ -305,6 +305,8 @@ in
       ...
     }:
     let
+      swiftBin = pkgs.callPackage ../lib/swift-bin.nix { };
+
       # haus.theme.{flavor,contrast} select which rendered variant everything
       # below reads — see ../lib/nebelung.nix, which owns that resolution for
       # terminal, bar and theme alike (it was duplicated in all three the moment
@@ -327,7 +329,11 @@ in
       # the bar's dropdowns take — and "off" renders an empty colour, which is the
       # one thing float-term.sh's ring() checks, so the binary is never launched
       # (nor built — the store path is dropped from the script too, below).
-      floatring = pkgs.callPackage ./package-floatring.nix { };
+      floatring = swiftBin {
+        name = "floatring";
+        src = ./floatring.swift;
+        description = "Rounded accent/grey outline around another process's window, for the floating Ghostty popups";
+      };
 
       # The pin that keeps those same popups above the tiled window you click
       # next (haus.terminal.floatOnTop), baked into float-term.sh below the same
@@ -336,7 +342,11 @@ in
       # two options are independent — a machine with floatBorder = "off" still
       # wants its peek panel to stay put. Dropped from the script (and so from
       # the closure) when the option is off, exactly like floatring.
-      floatpin = pkgs.callPackage ./package-floatpin.nix { };
+      floatpin = swiftBin {
+        name = "floatpin";
+        src = ./floatpin.swift;
+        description = "Keep a Ghostty float-term popup above every tiled window, by window level";
+      };
       floatBorderColor =
         {
           accent = nebelungPalette.${osConfig.haus.theme.accent};
