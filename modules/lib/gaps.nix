@@ -177,6 +177,14 @@ let
   # carry `barEdge`/`bottomEdge`, and a 0 there is not a tight desktop, it is
   # windows drawn underneath the bar.
   #
+  # The honest edge of that argument: with `bar.enable = false` the two tables
+  # above fall through to `pair (gap 10) (gap 20)` and reserve nothing for
+  # anybody, so the reason for withholding them does not apply on that one
+  # machine and they are still withheld. Left as it is deliberately rather than
+  # by oversight — an option whose meaning changed with another room's switch
+  # would be worse than one edge that stays at its tuned default — but it is why
+  # "every gap at 0" is only true of a machine that draws a bar.
+  #
   # The option is already a per-monitor pair, so this is a scale and nothing
   # else. Its shape is the module system's business (../windows/options.nix);
   # what it MEANS in points is this file's.

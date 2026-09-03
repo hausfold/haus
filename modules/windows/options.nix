@@ -105,9 +105,15 @@ let
             (`modules/lib/gaps.nix`), which is the only thing keeping tiled
             windows out from under it — a `0` there would not be a tighter
             desktop, it would be windows drawn beneath the bar. With
-            `haus.bar.enable = false` they fall back to the shipped 10/20.
+            `haus.bar.enable = false` they carry no reservation either, and
+            fall back to the shipped 10/20 rather than to anything you can set.
 
-            Only meaningful with haus.windows.enable.
+            These are read whether or not the tiler is on. AeroSpace is the
+            only thing that acts on them, but three surfaces are DRAWN
+            against them — the bar's left and right padding, the
+            near-fullscreen terminal popups, and the wallpaper's debug band
+            — so retuning a gap moves those on a machine with
+            haus.windows.enable = false too.
           '';
         };
     in
@@ -227,12 +233,17 @@ in
     windows.workspaceMonitors = lib.mkOption {
       type = lib.types.attrsOf (lib.types.either lib.types.str (lib.types.listOf lib.types.str));
       default = { };
+      # The example is checked by the same assertion the option adds, so it
+      # names workspaces a shipped machine actually has: the four numbered ones
+      # at the default count, and `T`, which the terminal room puts on the
+      # roster. An example that would be REFUSED if you pasted it is worse than
+      # no example, and this one renders straight into the options reference.
       example = {
         "1" = "main";
         "2" = "main";
-        "5" = "secondary";
-        "6" = "secondary";
-        comms = [
+        "3" = "secondary";
+        "4" = "secondary";
+        T = [
           "Dell U2720Q"
           "main"
         ];
@@ -247,8 +258,8 @@ in
         is how a workspace survives the monitor it wants being unplugged. Each
         pattern is one of:
 
-        - `main`, `secondary`, `built-in` — the position, true on any desk;
-        - a number — the display's position left to right, `1` being leftmost;
+        - `main` or `secondary` — the position, true on any desk;
+        - a number — the display's position left to right, counting from `1`;
         - part of the display's name, matched case-insensitively (`Dell`);
         - a regex, when it is wrapped in `^` and `$` (`^built-in retina display$`).
 
@@ -256,6 +267,17 @@ in
         rather than a taste: a shared desktop may only use the first two, and the
         seam refuses the others (`modules/lib/desktop.nix`). Your own host file
         can say any of them.
+
+        Note that `built-in` is one of those names, not a position: AeroSpace
+        has keywords for `main` and `secondary` only, and matches anything else
+        against the display's LOCALIZED name — so `built-in` works on an
+        English-language MacBook and matches nothing on a Mac mini.
+
+        A pattern AeroSpace would refuse — an empty string, monitor `0`, or one
+        carrying an apostrophe or a newline — is refused here first. Every one
+        of those stops `aerospace.toml` parsing, and AeroSpace answers an
+        unparseable config by keeping the one it already had, so the cost is
+        every binding in the file rather than this one line.
 
         Naming a workspace that does not exist is refused at eval rather than
         ignored: AeroSpace drops an assignment for an unknown workspace in

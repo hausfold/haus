@@ -2148,7 +2148,7 @@
       "rule": "Keys are palette addresses — `cmd:<id>`, `app:<path>`, `setting:<pane>[?<anchor>]` or `mode:<name>`, spelled as `modules/launcher/item-grammar.nix` spells them — because each one names a row pounce already has, and carrying no quote, backslash, `$`, backtick, newline or tab, because the key is written out beside the values it configures. `shortcut:<uuid>` is the one shape a desktop may not name: it identifies one entry in one Mac's Shortcuts library, the same reason a display UUID is host-only."
     },
     "monitor-selectors": {
-      "rule": "Keys are plain workspace names, and each value pins one to a display by POSITION — `main`, `secondary`, `built-in`, or a number counting from the left — because a monitor's name or a regex over it identifies one physical panel on one desk, the same reason a display UUID is host-only. A list of positions is a fallback chain, tried in order."
+      "rule": "Keys are plain workspace names, and each value pins one to a display by POSITION — `main`, `secondary`, or a number from 1 counting left to right — because a monitor's name or a regex over it identifies one physical panel on one desk, the same reason a display UUID is host-only. `built-in` is a name too, and a localized one. A list of positions is a fallback chain, tried in order."
     },
     "roster-entries": {
       "rule": "Keys are plain app ids — letters, digits, `_` and `-` — because each one becomes a launcher row and an argument to an installer."

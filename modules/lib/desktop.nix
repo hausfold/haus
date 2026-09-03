@@ -260,14 +260,25 @@ let
   shellSafe = s: builtins.match "[^\"'\\$`\n\t]*" s != null;
 
   # AeroSpace's own words for WHERE a display is, as opposed to which one it is.
-  # Every one of them is true on any desk that has the screen at all, which is
-  # what makes them the desktop-safe half of `monitor-selectors` below. An
-  # ordinal (`1`, `2` — counting from the left) is the same kind of answer and is
-  # matched numerically rather than listed.
+  # Both are true on any desk that has the screen at all, which is what makes
+  # them the desktop-safe half of `monitor-selectors` below. An ordinal is the
+  # same kind of answer and is matched numerically rather than listed — from
+  # ONE, because AeroSpace refuses a `0` with "Monitor sequence numbers uses
+  # 1-based indexing", and it refuses it by failing to PARSE THE CONFIG, which
+  # costs the machine every binding in that file and not just this line.
+  #
+  # `built-in` is deliberately not here, and checking rather than assuming is
+  # the whole reason. AeroSpace's MonitorDescription has four cases — main,
+  # secondary, sequenceNumber and pattern — and only the first two are keywords
+  # in the binary (verified against 0.20, 2026-09-03: `strings` finds `main` and
+  # `secondary`, and no `built-in` at all). So `built-in` is a case-insensitive
+  # SUBSTRING of the display's LOCALIZED name, which happens to read "Built-in
+  # Retina Display" on an English MacBook and matches nothing on a Mac mini or a
+  # Mac set to another language. That is a name, so it lands on the host side
+  # with every other name.
   monitorPositions = [
     "main"
     "secondary"
-    "built-in"
   ];
   monitorPositionList = lib.concatMapStringsSep ", " (p: "`${p}`") monitorPositions;
 
@@ -384,14 +395,14 @@ let
       path: value:
       let
         positional =
-          pattern: builtins.elem pattern monitorPositions || builtins.match "[0-9]+" pattern != null;
+          pattern: builtins.elem pattern monitorPositions || builtins.match "[1-9][0-9]*" pattern != null;
         checkPattern =
           key: pattern:
           if !(builtins.isString pattern) then
             [ (said "${path}.${key}" "takes a display position, or a list of them") ]
           else if !(positional pattern) then
             [
-              (said "${path}.${key}" "names a physical display, which is a fact about one desk — a desktop may only pin a workspace by position (${monitorPositionList}, or a number counting from the left)")
+              (said "${path}.${key}" "names a physical display, which is a fact about one desk — a desktop may only pin a workspace by position (${monitorPositionList}, or a number from 1 counting left to right)")
             ]
           else
             [ ];

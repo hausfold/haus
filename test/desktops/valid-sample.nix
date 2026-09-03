@@ -39,10 +39,18 @@
     # shape (there is nothing behind it) and name a Shortcuts UUID.
     launcher.items."mode:filesearch".alias = "ff";
     # A workspace pinned to a display BY POSITION — the happy path of the rule
-    # `host-only-monitor.nix` fails. "The second screen" is a shape any desk can
-    # have, so a desktop may hold an opinion about it; the panel's own name is a
-    # purchase, and stays a host's.
-    windows.workspaceMonitors."2" = "secondary";
+    # `host-only-monitor.nix` and `monitor-ordinal-zero.nix` fail. "The second
+    # screen" is a shape any desk can have, so a desktop may hold an opinion
+    # about it; the panel's own name is a purchase, and stays a host's.
+    #
+    # A LIST rather than one string on purpose: it is the fallback chain, and
+    # the validator walks a list element by element while a scalar goes through
+    # one call. The two bad fixtures take the scalar and the list in turn, so
+    # between the three every branch of that decision is exercised.
+    windows.workspaceMonitors."2" = [
+      "secondary"
+      "main"
+    ];
     # A list, so the check can read back what a host override does to one.
     launcher.autoQuit.exclude = [
       "from-desktop-a"

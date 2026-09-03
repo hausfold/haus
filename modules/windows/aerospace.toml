@@ -74,9 +74,13 @@ automatically-unhide-macos-hidden-apps = true
 # modules/lib/gaps.nix — which four rooms import, so a gap retuned here moves
 # the bar's padding and the float popup's rectangle with it. Each is a
 # per-monitor list: the built-in's number first, keyed by display name, then the
-# fallback every external display takes. The two horizontal edges carry the
-# bar's own reservation on top of the tuned gap, which is why they are the two
-# haus.windows.gaps does not offer.
+# fallback every external display takes. The top and bottom edges are the two
+# haus.windows.gaps does not offer, because on the edge the bar occupies the
+# number is the BAR'S HEIGHT rather than a tuned gap at all — it replaces the
+# gap rather than adding to it, so a smaller one there means windows under the
+# bar. (The built-in's top is the one that adds: macOS already excludes the
+# notch band, so the reservation there is the tuned gap plus the bar's
+# breathing room. modules/lib/gaps.nix carries the whole table.)
 [gaps]
 inner.horizontal = @GAP_INNER@
 inner.vertical = @GAP_INNER@

@@ -352,11 +352,9 @@ let
 
   # ---- haus.windows.workspaceMonitors -> the force-assignment table -----------
   # A workspace id to one pattern, or to a list of them AeroSpace tries in
-  # order. Both sides are TOML literal strings (single quotes, no escapes), and
-  # an assertion below refuses a pattern carrying one — a display name with an
-  # apostrophe in it would otherwise write a config that does not parse, and a
-  # config AeroSpace cannot parse is one it answers by falling back to its own
-  # defaults with nothing said.
+  # order. Both sides are TOML literal strings (single quotes, no escapes);
+  # `illegalMonitorPattern` below is what keeps a value out of them that would
+  # stop the file parsing.
   #
   # Keys are quoted. `1 = 'main'` is legal TOML and is how AeroSpace's own docs
   # spell it, but a haus.workspaces name is any string AeroSpace accepts, and
@@ -365,13 +363,58 @@ let
   wsMonitorPatterns = lib.mapAttrs (
     _: value: if builtins.isList value then value else [ value ]
   ) cfg.workspaceMonitors;
-  # Two things a force-assignment can get wrong, both silent in AeroSpace and
-  # so both refused at eval by the assertions below.
+  # An assignment for a workspace this machine has not got. AeroSpace drops it
+  # in silence, which is indistinguishable from the option not working.
   unknownMonitorWorkspaces = lib.sort (a: b: a < b) (
     lib.filter (ws: !(lib.elem ws workspaceRoster)) (builtins.attrNames wsMonitorPatterns)
   );
-  quotedMonitorPatterns = lib.unique (
-    lib.filter (p: lib.hasInfix "'" p) (lib.concatLists (lib.attrValues wsMonitorPatterns))
+
+  # The patterns AeroSpace REFUSES, and the ones that would break the file on
+  # the way in. Both end the same way and it is the expensive way: a config
+  # AeroSpace cannot parse leaves it running the one it already had and puts up
+  # a "Failed to parse" diagnostics window — so a machine that has just
+  # rebuilt keeps the PREVIOUS generation's bindings, gaps and workspaces, and
+  # the only sign is a window behind whatever you were doing. Refused at eval,
+  # where the message can name the line.
+  #
+  # The first two sentences are AeroSpace's own, read out of the binary
+  # (0.20, 2026-09-03) rather than remembered:
+  #
+  #   "Empty string is an illegal monitor description"
+  #   "Monitor sequence numbers uses 1-based indexing. Values less than 1 are illegal"
+  #   "The array must contain at least one monitor pattern"
+  #
+  # The last two are this file's own doing: a pattern is written as a TOML
+  # LITERAL string, which has no escape sequence at all, so an apostrophe or a
+  # newline closes it early and the rest of the line becomes syntax.
+  illegalMonitorPattern =
+    pattern:
+    if pattern == "" then
+      "is empty, and AeroSpace calls an empty monitor description illegal"
+    else if builtins.match "0+" pattern != null then
+      "is monitor number 0, and AeroSpace numbers displays from 1"
+    else if lib.hasInfix "'" pattern then
+      "contains an apostrophe, which ends the TOML string it is written into"
+    else if builtins.match "[^\n\r\t]*" pattern == null then
+      "contains a newline or a tab, which ends the TOML string it is written into"
+    else
+      null;
+  badMonitorPatterns = lib.concatLists (
+    lib.mapAttrsToList (
+      ws: patterns:
+      if patterns == [ ] then
+        [ ''"${ws}" names no display at all, and AeroSpace wants at least one pattern'' ]
+      else
+        lib.filter (m: m != null) (
+          map (
+            pattern:
+            let
+              why = illegalMonitorPattern pattern;
+            in
+            if why == null then null else ''"${ws}"'s pattern "${pattern}" ${why}''
+          ) patterns
+        )
+    ) wsMonitorPatterns
   );
 
   wsMonitors =
@@ -839,16 +882,17 @@ lib.mkMerge [
           + "; the rest are haus.workspaces keys).";
       }
       {
-        # The patterns are written into aerospace.toml as single-quoted literal
-        # strings, which have no escape at all in TOML. One apostrophe and the
-        # file stops parsing, and AeroSpace answers an unparseable config by
-        # running on its own defaults rather than by complaining.
-        assertion = quotedMonitorPatterns == [ ];
+        # See `illegalMonitorPattern` above for what each of these costs. They
+        # are collected into one assertion because they share an outcome —
+        # aerospace.toml stops parsing — and a person fixing one wants to see
+        # the rest of them in the same message rather than one rebuild apart.
+        assertion = badMonitorPatterns == [ ];
         message =
-          "haus.windows.workspaceMonitors patterns may not contain an apostrophe: "
-          + lib.concatStringsSep ", " quotedMonitorPatterns
-          + ". Match the display some other way — part of its name is enough, and "
-          + "the match is case-insensitive.";
+          "haus.windows.workspaceMonitors: "
+          + lib.concatStringsSep "; " badMonitorPatterns
+          + ". A display is named by position (main, secondary, or a number from 1 "
+          + "counting left to right), by part of its name (matched without regard to "
+          + "case), or by a regex wrapped in ^ and $.";
       }
     ];
     # AeroSpace itself, as a roster entry like everything else — no leader key,

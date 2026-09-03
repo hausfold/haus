@@ -739,7 +739,7 @@ let
     scene-entries.rule = "Keys are plain scene names — what you type after `focus scene`, so a key has to survive as one shell word.";
     widget-entries.rule = "Keys are plain widget names, because each becomes a SketchyBar item name; a desktop may place and retune a pill, but `command` stays host-only so it can never add one that runs code.";
     display-selectors.rule = "Only the `internal` and `main` selectors: a display UUID names one physical panel on one desk, which is a fact about a machine rather than a taste a desktop can share.";
-    monitor-selectors.rule = "Keys are plain workspace names, and each value pins one to a display by POSITION — `main`, `secondary`, `built-in`, or a number counting from the left — because a monitor's name or a regex over it identifies one physical panel on one desk, the same reason a display UUID is host-only. A list of positions is a fallback chain, tried in order.";
+    monitor-selectors.rule = "Keys are plain workspace names, and each value pins one to a display by POSITION — `main`, `secondary`, or a number from 1 counting left to right — because a monitor's name or a regex over it identifies one physical panel on one desk, the same reason a display UUID is host-only. `built-in` is a name too, and a localized one. A list of positions is a fallback chain, tried in order.";
     submodule-list.rule = "A list of settings, checked field by field inside each element — and a host that names the list at all REPLACES it rather than appending to it.";
     attrs-of-string.rule = "Keys and values are strings carrying no quote, backslash, `$`, backtick, newline or tab, because they are written into a generated file as shell assignments.";
   };
