@@ -35,6 +35,94 @@ let
   # without `modules/ai/agents/` beside it.
   hausSkill = import ../ai/agents/skill.nix { inherit pkgs; };
 
+  # ---- the background-jobs deck --------------------------------------------
+  # Every room's `haus._contrib.services` entry, joined to the launchd job it
+  # names, rendered to share/haus/services.json for `haus services` and
+  # doctor's Services section to read at runtime.
+  #
+  # The join is the whole design (modules/core/options.nix has the argument):
+  # an entry carries what only a person needs, and everything mechanical is
+  # read back out of `config.launchd` here — so the label, the log path and
+  # "is this meant to be running right now" describe the plist that actually
+  # shipped in this generation rather than a copy somebody kept up to date.
+  svcJob =
+    key: entry:
+    if entry.domain == "system" then
+      config.launchd.daemons.${key} or null
+    else
+      config.launchd.user.agents.${key} or null;
+
+  # nix-darwin materialises every unset serviceConfig field as `null` (measured
+  # on the example host), so `?` answers true for all of them and the test has
+  # to be on the VALUE. An empty list counts as unset for the same reason.
+  svcSet = v: v != null && v != [ ] && v != { };
+
+  # What "healthy" means for this job, derived from the job's own serviceConfig
+  # rather than declared beside it. Ten of haus's sixteen jobs expect to be
+  # running; the other six are healthy precisely BECAUSE they are not, and a
+  # deck that could not tell the difference would report a red line for the
+  # weekly GC every day but Sunday — which is how a checklist teaches people to
+  # stop reading it.
+  #
+  # Order matters twice. `KeepAlive` as an ATTRSET is launchd's conditional
+  # form (github's tunnel uses `PathState`: dormant until the credentials file
+  # appears, and starting itself when it does), so it is tested before the
+  # plain `true`. And a job with both `RunAtLoad` and an interval — github's
+  # coverage refresher — is periodic, not a one-shot, so the interval is tested
+  # first.
+  svcLiveness =
+    sc:
+    let
+      ka = sc.KeepAlive or null;
+    in
+    if builtins.isAttrs ka then
+      "dormant"
+    else if ka == true then
+      "running"
+    else if svcSet (sc.StartInterval or null) || svcSet (sc.StartCalendarInterval or null) then
+      "periodic"
+    else if svcSet (sc.WatchPaths or null) then
+      "watch"
+    else
+      "oneshot";
+
+  # Orphans are filtered out rather than left to throw here: the assertion
+  # below is the diagnostic, and a `serviceConfig` forced off a null would beat
+  # it to the error with nothing in it but a stack trace.
+  svcEntries = lib.mapAttrsToList (
+    key: entry:
+    let
+      sc = (svcJob key entry).serviceConfig;
+    in
+    entry
+    // {
+      inherit key;
+      # nix-darwin fills Label in itself (`org.nixos.<key>` unless the room set
+      # one), so this is read and never reconstructed — three rooms do set their
+      # own, and a rule of thumb here would have been wrong for all three.
+      label = sc.Label;
+      liveness = svcLiveness sc;
+      # stderr first: it is where a failing job says why. A job may legitimately
+      # have neither (focus's watcher logs nothing at all), and the reader draws
+      # no log hint rather than the invented `/tmp/<name>.err.log` doctor
+      # pointed at for years — a path that was right for two of the sixteen.
+      log =
+        if svcSet (sc.StandardErrorPath or null) then
+          sc.StandardErrorPath
+        else if svcSet (sc.StandardOutPath or null) then
+          sc.StandardOutPath
+        else
+          "";
+    }
+  ) (lib.filterAttrs (key: entry: (svcJob key entry) != null) config.haus._contrib.services);
+
+  # An entry naming a job that does not exist on this machine. Always a bug in
+  # the contributing room, and exactly one bug: the job is behind a condition
+  # (`lib.mkIf cfg.bottom.enable`) that the entry did not repeat. Caught at eval
+  # with both halves named, because the alternative is `haus services` listing a
+  # job launchd has never heard of and doctor calling it wedged forever.
+  svcOrphans = lib.filterAttrs (key: entry: (svcJob key entry) == null) config.haus._contrib.services;
+
   # The client table — which agent clients exist and where each keeps its
   # skills — under the same rule as `hausSkill` above: an import of PURE DATA
   # (modules/ai/agents/homes.nix takes nothing), never a `config.haus.ai.*`
@@ -695,6 +783,31 @@ in
         `hausax input-sources --all` lists them.
       '';
     }
+    {
+      # A build-time refusal and not a warning, because the deck's whole promise
+      # is that `haus services` and doctor describe THIS machine: an entry with
+      # no job behind it would draw a row for something launchd has never heard
+      # of, and doctor would call it wedged on every run forever.
+      #
+      # There is only one way to earn this, and the message names it because it
+      # is not obvious from the entry: the job is behind a condition its entry
+      # did not repeat. Five of haus's own jobs are (`bar-bottom`,
+      # `focus-auto`, `focus-watcher`, `haus-agent-awake`, `haus-lidawake`), so
+      # this is the failure the next room to add one will hit.
+      assertion = svcOrphans == { };
+      message = ''
+        haus: these haus._contrib.services entries name a launchd job this
+        machine doesn't have: ${lib.concatStringsSep ", " (lib.attrNames svcOrphans)}
+
+        An entry is keyed by the launchd ATTRIBUTE name and core looks the job
+        up by it, so the key has to match a job this configuration declares —
+        `launchd.user.agents.<key>` for domain "user", `launchd.daemons.<key>`
+        for domain "system".
+
+        Almost always this means the job is behind a condition the entry isn't:
+        gate the entry with the same `lib.mkIf` as the job it describes.
+      '';
+    }
   ];
 
   # ---- haus.accessibility → com.apple.universalaccess -------------------
@@ -1166,6 +1279,23 @@ in
         );
       })
 
+      # The background-jobs deck, at share/haus/services.json — every launchd
+      # job a room wrote to `haus._contrib.services`, joined to the plist that
+      # actually shipped (see `svcEntries` at the top of this file).
+      #
+      # Same argument as the permissions deck above, and one more that is
+      # specific to this one: the file is a property of the GENERATION, so
+      # rolling back to a system without the github room takes its three jobs
+      # out of `haus services` along with the jobs themselves. A table baked
+      # into haus.sh could only ever describe the revision haus.sh was written
+      # on, which is precisely how doctor came to name three agents out of
+      # sixteen.
+      (writeTextFile {
+        name = "haus-services-deck";
+        destination = "/share/haus/services.json";
+        text = builtins.toJSON svcEntries;
+      })
+
       # `awake 3h` / `awake indefinitely` — a durable controller around macOS's
       # built-in caffeinate. Its assertion is launchd-owned below, so callers can
       # exit (or SketchyBar can reload) without accidentally allowing idle sleep.
@@ -1315,6 +1445,21 @@ in
   # resumes an unexpired timed assertion (with only its remaining duration), or
   # an explicit indefinite one, after login/rebuild. With no saved state it
   # exits immediately and launchd does not restart it.
+  # A one-shot, and the deck reads that off the plist itself: no KeepAlive and
+  # no interval, so `haus services` calls it idle and doctor stays quiet about
+  # it. That is the correct reading — with no saved assertion this exits 0
+  # immediately, and a machine where it IS running is one that is deliberately
+  # being kept awake.
+  haus._contrib.services.awake = {
+    order = 40;
+    title = "Stay-awake assertions — awake";
+    why = ''
+      Resumes a timed or indefinite caffeinate assertion after a login or a
+      rebuild, so a Mac you told to stay awake for three hours still is.
+    '';
+    cost = "a `haus awake 3h` doesn't survive a rebuild or a logout";
+  };
+
   launchd.user.agents.awake = {
     serviceConfig = {
       Label = "com.hausfold.awake";
@@ -1755,6 +1900,26 @@ in
   # nix-darwin's nix module is off. Determinate only GCs reactively under disk
   # pressure — on a big SSD that never fires — so run a weekly cleanup ourselves.
   nix.enable = false;
+
+  # The one whose failure is invisible without this deck, and it is not
+  # hypothetical: on the machine this was written on, `launchctl print
+  # system/org.nixos.nix-gc` read `last exit code = 1` with
+  # /var/log/nix-gc.err.log ending in a `chmod … Operation not permitted` on an
+  # app bundle. A weekly job that has quietly stopped working looks exactly like
+  # one that simply is not Sunday, which is why the deck reports on the last
+  # exit code as well as on liveness.
+  haus._contrib.services.nix-gc = {
+    domain = "system";
+    order = 70;
+    title = "Weekly store cleanup — nix-gc";
+    why = ''
+      Deletes store paths older than 30 days, every Sunday at 03:00. Determinate
+      only collects garbage reactively under disk pressure, which on a big SSD
+      never fires.
+    '';
+    cost = "the nix store grows without bound until the disk is the thing that notices";
+  };
+
   launchd.daemons.nix-gc = {
     serviceConfig = {
       ProgramArguments = [
@@ -1786,6 +1951,19 @@ in
   # seconds is the resolution at which "an agent started working" has to beat
   # "the lid just closed", and a launchd StartInterval that spawned a fresh
   # process that often would be worse on every axis.
+  # Gated on the same condition as the job — the entry has to repeat it, or core
+  # asserts that this names a daemon the machine doesn't have.
+  haus._contrib.services.haus-lidawake = lib.mkIf lidCfg.enable {
+    domain = "system";
+    order = 45;
+    title = "Lid-close hold — lidawake";
+    why = ''
+      Watches for the signal that says something is still working, and holds off
+      sleep while it is there, so closing the lid mid-job doesn't stop the job.
+    '';
+    cost = "closing the lid sleeps the Mac even with work in flight";
+  };
+
   launchd.daemons.haus-lidawake = lib.mkIf lidCfg.enable {
     serviceConfig = {
       Label = "com.hausfold.lidawake";

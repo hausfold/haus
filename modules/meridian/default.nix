@@ -60,6 +60,17 @@ lib.mkIf cfg.enable {
   # hand lands somewhere the running proxy is not looking.
   environment.systemPackages = [ cfg.package ];
 
+  haus._contrib.services.haus-meridian = {
+    order = 65;
+    title = "Subscription API proxy — meridian";
+    why = ''
+      Serves an Anthropic-shaped API on loopback out of your Claude subscription,
+      so an agent that is not Claude Code spends the subscription instead of a
+      metered key.
+    '';
+    cost = "anything pointed at the local API gets a connection refused";
+  };
+
   launchd.user.agents.haus-meridian = {
     serviceConfig = {
       ProgramArguments = [ (lib.getExe cfg.package) ];

@@ -815,6 +815,16 @@ lib.mkMerge [
       }
     ];
 
+    haus._contrib.services.aerospace = {
+      order = 20;
+      title = "The tiler — AeroSpace";
+      why = ''
+        Lays every window out on a grid, moves windows between workspaces and
+        answers the leader key. Nothing else on the Mac places a window.
+      '';
+      cost = "windows stop tiling and every leader-key binding goes dead";
+    };
+
     launchd.user.agents.aerospace = {
       serviceConfig = {
         ProgramArguments = withGUIWait "/Applications/AeroSpace.app/Contents/MacOS/AeroSpace";
@@ -832,6 +842,17 @@ lib.mkMerge [
 
     # On wake, re-sort AeroSpace windows back to their assigned workspaces (macOS
     # otherwise dumps them all onto the current workspace).
+    haus._contrib.services.sleepwatcher = {
+      order = 46;
+      title = "Wake re-sort — sleepwatcher";
+      why = ''
+        Runs on wake and puts windows back on the workspaces they were assigned
+        to. macOS otherwise dumps every window onto whichever workspace is
+        current when the Mac comes back.
+      '';
+      cost = "every wake piles your windows onto one workspace";
+    };
+
     launchd.user.agents.sleepwatcher = {
       serviceConfig = {
         ProgramArguments = [

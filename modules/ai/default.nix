@@ -978,6 +978,17 @@ in
   # a StartInterval respawning it every five seconds would be worse on every
   # axis. It is deliberately NOT wrapped in gui-wait: it talks to no GUI
   # process, so the cold-boot race those wrappers exist for cannot reach it.
+  haus._contrib.services.haus-agent-awake = lib.mkIf keepAwakeOn {
+    order = 47;
+    title = "Agent keep-awake — haus-agent-awake";
+    why = ''
+      Holds off sleep while an agent is actually working, and lets go when the
+      last one stops. The signal is the same one the bar's agents pill draws
+      from.
+    '';
+    cost = "the Mac sleeps mid-turn and every running agent stops with it";
+  };
+
   launchd.user.agents.haus-agent-awake = lib.mkIf keepAwakeOn {
     serviceConfig = {
       Label = "com.hausfold.agent-awake";

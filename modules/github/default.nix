@@ -249,6 +249,16 @@ lib.mkMerge [
       signalBin
     ];
 
+    haus._contrib.services.haus-github-receiver = {
+      order = 60;
+      title = "Webhook receiver — GitHub";
+      why = ''
+        Listens on loopback for GitHub deliveries and writes the signal every
+        surface that watches GitHub reads instead of polling.
+      '';
+      cost = "the bar and the palette fall back to polling, so GitHub news arrives late";
+    };
+
     launchd.user.agents.haus-github-receiver = {
       serviceConfig = {
         ProgramArguments = [ "${receiverWrapper}" ];
@@ -266,6 +276,19 @@ lib.mkMerge [
     # asked on a timer rather than by whoever happens to render first. That is
     # what keeps it off every render path AND makes the answer the same for all
     # of them.
+    # Periodic, not one-shot: it carries RunAtLoad AND a StartInterval, and the
+    # deck's derivation tests the interval first for exactly this job.
+    haus._contrib.services.haus-github-coverage = {
+      order = 61;
+      title = "Coverage refresh — GitHub";
+      why = ''
+        Answers the slow question — may a surface stop polling — on a timer, so
+        no render path ever has to ask it and every surface gets the same
+        answer.
+      '';
+      cost = "coverage never refreshes, so every surface keeps polling forever";
+    };
+
     launchd.user.agents.haus-github-coverage = {
       serviceConfig = {
         # A store path, not `/bin/bash -lc`. A login shell would source
@@ -368,6 +391,21 @@ lib.mkMerge [
     # that has not run the one-time bootstrap gets a DORMANT agent, not a crash
     # loop. PathState is launchd's own answer to that, and it wakes the agent by
     # itself the moment the file appears.
+    # `KeepAlive.PathState` — the deck calls this class `dormant`, because a
+    # machine that hasn't run the one-time bootstrap has no credentials file and
+    # this job correctly sits there waiting for one. Reporting it as dead would
+    # be wrong on every machine that never set the tunnel up.
+    haus._contrib.services.haus-github-tunnel = {
+      order = 62;
+      title = "Webhook tunnel — cloudflared";
+      why = ''
+        Carries GitHub's deliveries from the public hook URL down to the
+        receiver on loopback, so nothing on this Mac has to be reachable from
+        the internet.
+      '';
+      cost = "deliveries never arrive, so the receiver has nothing to hear";
+    };
+
     launchd.user.agents.haus-github-tunnel = {
       serviceConfig = {
         ProgramArguments = [

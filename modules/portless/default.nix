@@ -99,6 +99,18 @@ lib.mkIf cfg.enable {
 
   environment.systemPackages = [ cfg.package ] ++ lib.optional cfg.lanes.enable portlessLane;
 
+  haus._contrib.services.portless = {
+    domain = "system";
+    order = 64;
+    title = "Dev-server proxy — portless";
+    why = ''
+      Holds :443 as root and routes your named .localhost URLs to whichever
+      dev server is behind each one. Being root on the privileged port is what
+      makes the URLs carry no port number.
+    '';
+    cost = "every .localhost URL stops resolving to your dev server";
+  };
+
   launchd.daemons.portless = {
     serviceConfig = {
       Label = "sh.portless.proxy";

@@ -20,11 +20,12 @@
 #   haus diff            declared config vs what macOS actually has right now — read-only
 #   haus capture         turn this Mac's current settings into config lines + a snapshot
 #   haus revert-settings put back a 'haus capture' snapshot (Nix rollback can't touch macOS defaults)
-#   haus doctor          check the machine's health (Nix, CLT, the GUI agents)
+#   haus doctor          check the machine's health (Nix, CLT, the background jobs)
 #   haus report          file a bug on GitHub with 'haus doctor' already filled in (--print)
 #   haus skill           print haus's own agent skill, or one of its reference pages;
 #                        'haus skill install' writes it into an agent client
 #   haus permissions     every grant and click this Mac still needs a person for
+#   haus services        every background job this Mac runs, what it is for, how it is doing
 #   haus btm             check BTM daemon-gating (macOS 26 Tahoe+; no-op before)
 #   haus tour            take the guided haus tour (it lives in the bar)
 #   haus show            inspect a desktop or room — a local file or a source you have
@@ -273,8 +274,8 @@ snug_close() { # everything down: end the region and drop the coprocess
 # entirely on fd 2. `REPORT` is set once, in the dispatch at the bottom, where
 # you can read the whole list at a glance.
 #
-#   report      status doctor plan diff permissions btm generations get capture
-#               report
+#   report      status doctor plan diff permissions services btm generations get
+#               capture report
 #   narration   rebuild update rollback set unset reset options add desktop
 #               remove edit tour revert-settings skill
 #
@@ -719,6 +720,10 @@ haus — the everyday CLI for a haus machine.
                       what macOS lets it confirm and says so about the rest.
                       --list reports without touching anything (so does doctor);
                       --reset forgets the cards you marked done by hand
+  haus services       every background job this Mac runs: what each one does for
+                      you, whether it is running or idle by design, where it
+                      logs, and the line that restarts a dead one. doctor
+                      reports only the part that wants attention
   haus btm            check BTM daemon-gating (macOS 26 Tahoe+; no-op before)
   haus tour           take the guided haus tour (haus tour reset re-arms it)
   haus show <src>     inspect a desktop or room before you publish or trust it:
@@ -3613,14 +3618,7 @@ cmd_options() {
 }
 
 cmd_doctor() {
-  local uid; uid="$(id -u)"
   say "haus doctor"
-
-  # On macOS 26 Tahoe+, a "stopped agent" is often BTM gating the /bin/sh-invoked
-  # nix login item rather than a cold-boot wedge — point at `haus btm` when so.
-  local osver osmajor btmhint=""
-  osver="$(sw_vers -productVersion 2>/dev/null || echo 0)"; osmajor="${osver%%.*}"
-  [ "${osmajor:-0}" -ge 26 ] && btmhint=" · on Tahoe+ this is often BTM: haus btm"
 
   # Determinate Nix (core assumes it owns the daemon: nix.enable = false).
   if [ -f /nix/receipt.json ]; then ok "Determinate Nix installed"
@@ -3633,18 +3631,19 @@ cmd_doctor() {
 
   command -v darwin-rebuild >/dev/null 2>&1 && ok "darwin-rebuild on PATH" || bad "darwin-rebuild missing — has this machine switched yet?"
 
-  # GUI agents — only report on the ones whose launchd plist exists (i.e. the
-  # rooms you enabled). Running is good; stopped may just mean the room is off.
+  # Background jobs — rendered from the deck every room contributes to, never
+  # from a second copy of it here. It was three GUI agents named by hand in this
+  # file out of the sixteen launchd jobs the repo declares, so a wedged bottom
+  # bar, webhook tunnel or dev proxy was invisible to doctor, and every failure
+  # pointed at a `/tmp/<name>.err.log` that was right for two of them.
+  #
+  # Only what wants attention, plus a line counting the rest: sixteen green
+  # ticks is a wall people skim, and skimming is how the one red line in it gets
+  # missed. `haus services` is the roster, and _svc_report says so on its way
+  # out.
   echo
-  say "GUI agents"
-  local label name
-  for pair in $(_haus_gui_agents); do
-    label="${pair%%:*}"; name="${pair##*:}"
-    if launchctl print "gui/$uid/$label" >/dev/null 2>&1; then
-      if pgrep -qx "$name"; then ok "$name running"
-      else bad "$name enabled but not running — check /tmp/$name.err.log (a wedged cold-boot agent: launchctl kickstart -k gui/$uid/$label)$btmhint"; fi
-    fi
-  done
+  say "Background jobs"
+  _svc_report
 
   # Every manual step this machine needs, in ONE place — rendered from the deck
   # `haus permissions` walks, never from a second copy of it here. It was three
@@ -4288,6 +4287,322 @@ cmd_skill_install() {
 # fix: the remedy is a toggle in the BTM store, which is GUI-only (sfltool can
 # dump it but not set it). So this DETECTS the condition and prints the one-time
 # manual fix. A pure no-op before Tahoe — nothing to gate there.
+# ---- the background-jobs deck ------------------------------------------------
+# Every launchd job haus installs, contributed by the room that owns it and
+# joined at build time to the plist that actually shipped. `haus services` draws
+# the roster; `haus doctor` reports only what wants attention.
+#
+# DATA, per-generation, exactly like the permissions deck below it — and for one
+# extra reason. Until this deck existed, doctor named three agents in a `printf`
+# in this file (`org.nixos.aerospace`, `org.nixos.sketchybar`,
+# `com.hausfold.pounce`) while the repo declared SIXTEEN jobs across nine rooms,
+# and pointed every failure at `/tmp/$name.err.log` — a path that was right for
+# two of them. A table written here can only ever describe the revision haus.sh
+# was written on; this one describes the generation you are running.
+HAUS_SERVICES="${HAUS_SERVICES:-/run/current-system/sw/share/haus/services.json}"
+
+# Each job as one record, ordered — fields separated by US, for the reason
+# _perm_deck's header gives at length: tab is IFS whitespace, so `read` collapses
+# runs of it and every field after an empty one shifts a column left. Two fields
+# here are routinely empty (`cost`, and `log` for a job that logs nowhere), so
+# that is not a hypothetical.
+_svc_deck() {
+  [ -r "$HAUS_SERVICES" ] || return 0
+  jq -j '
+    def flat: (. // "") | gsub("\\s+"; " ") | sub("^ +"; "") | sub(" +$"; "");
+    sort_by(.order, .key)[]
+    | [ .key, .domain, .label, .liveness, (.title|flat), (.why|flat),
+        (.cost|flat), (.log // "") ]
+    | join("\u001f") + "\n"
+  ' "$HAUS_SERVICES" 2>/dev/null || true
+}
+
+# gui/<uid> or system — the two launchd domains, and the reason `domain` is a
+# field rather than something derived from the label. A job asked for in the
+# wrong domain is not found, which is indistinguishable from a job that is gone.
+_svc_domain() {
+  case "$1" in
+    system) printf 'system' ;;
+    *) printf 'gui/%s' "$(id -u)" ;;
+  esac
+}
+
+# _svc_probe <domain> <label> -> "<verdict><US><last exit code>"
+#
+# verdict: absent | live | stopped. `absent` means launchd has never heard of
+# the job, which is what a plist that has not been bootstrapped yet looks like.
+#
+# ONE `launchctl print` per job, and no `pgrep`: launchd's own view is the
+# authority on a job it owns, and it answers for DAEMONS as well as agents
+# without sudo — measured, `launchctl print system/<label>` returns 0 for a
+# non-root caller. That is what makes three of the sixteen jobs probeable at
+# all; the list this replaced could only ever ask about agents, because
+# `pgrep -qx` was the probe and a process name was the only handle it had.
+#
+# Both greps are anchored on a SINGLE leading tab, and that is load-bearing:
+# `launchctl print` nests each of the job's endpoints underneath it and every one
+# of those carries `state = active` at two tabs, so an unanchored match reads the
+# first endpoint's state as the job's own and calls a stopped daemon healthy.
+# Measured on macOS 26.6.1.
+#
+# `|| true` on the exit-code read is not decoration: `set -o pipefail` is on, a
+# grep that matches nothing exits 1, and the failing pipeline would take the
+# assignment — and with `set -e`, the whole command — down with it.
+_svc_probe() {
+  local out verdict code
+  out="$(launchctl print "$(_svc_domain "$1")/$2" 2>/dev/null)" || {
+    printf 'absent\037\n'
+    return 0
+  }
+  # Only `not running` earns a stopped verdict, and the asymmetry is deliberate.
+  # launchd has at least a third state — `spawn scheduled`, the window in which
+  # it is starting a job — and a KeepAlive job caught in it is not wedged. A red
+  # line here is not free: it also fires the BTM card in the permissions deck,
+  # so a state this code does not recognise reads as alive rather than putting a
+  # card in front of somebody about a job that is fine.
+  case "$(printf '%s\n' "$out" | grep -m1 $'^\tstate = ' | sed 's/.*= //' || true)" in
+    "not running") verdict=stopped ;;
+    *) verdict=live ;;
+  esac
+  # 🚨 A job that has NEVER run prints `last exit code = (never exited)` — the
+  # field is there, it just isn't a number. Read raw and tested for emptiness it
+  # is neither empty nor "0", so it used to mean `failed`: `nix-gc` would warn
+  # that the weekly GC had failed for the whole first week after an install, and
+  # github's tunnel — dormant by design until its credentials file appears, and
+  # so at `runs = 0` forever on a machine that never bootstrapped it — would warn
+  # permanently that deliveries never arrive. Both are the false red line this
+  # whole deck exists to remove, so a non-numeric code is normalised away HERE,
+  # once, rather than at each of the three places that read one.
+  code="$(printf '%s\n' "$out" | grep -m1 $'^\tlast exit code = ' | sed 's/.*= //' || true)"
+  case "$code" in
+    '' | *[!0-9]*) code="" ;;
+  esac
+  printf '%s\037%s\n' "$verdict" "$code"
+  return 0
+}
+
+# _svc_status <liveness> <verdict> <exit code> -> ok | wedged | failed | absent
+#
+#   ok       running, or idle in the way its own plist says it should be
+#   wedged   meant to be running, is not
+#   failed   idle as designed, but its last run exited non-zero
+#   absent   launchd has never heard of it
+#
+# `failed` is the verdict this deck was built for. A periodic job that has
+# quietly stopped working looks exactly like one that simply is not Sunday, so
+# liveness alone can never see it: the weekly store cleanup on the machine this
+# was written on had been exiting 1 on an app bundle it could not chmod, with
+# nothing anywhere saying so. launchd keeps only the most recent run's code, so
+# a genuinely transient failure does nag until the next scheduled run — the
+# accepted cost, the alternative being silence.
+#
+# A LIVE job is `ok` whatever it last exited, and that is deliberate rather than
+# an oversight: for a KeepAlive job the last exit code is a crash launchd has
+# already recovered from, so reporting it would nag forever about something that
+# is working now and needs nothing from anybody.
+_svc_status() {
+  local liveness="$1" verdict="$2" code="$3"
+  case "$verdict" in
+    absent)
+      printf 'absent'
+      return 0
+      ;;
+    live)
+      printf 'ok'
+      return 0
+      ;;
+  esac
+  if [ "$liveness" = running ]; then
+    printf 'wedged'
+  elif [ -n "$code" ] && [ "$code" != 0 ]; then
+    # `code` is a number or empty by the time it gets here — _svc_probe drops
+    # `(never exited)` on the floor, which is the only way this test is safe.
+    printf 'failed'
+  else
+    printf 'ok'
+  fi
+  return 0
+}
+
+# How an idle job's idleness reads to a person, per liveness class — because
+# "not running" on its own reads as broken, and for six of haus's sixteen jobs it
+# is the healthy answer. A `periodic` one is waiting for its schedule, a
+# `dormant` one for the file its KeepAlive names.
+_svc_idle_note() {
+  case "$1" in
+    periodic) printf 'runs on a schedule' ;;
+    watch) printf 'wakes on a file change' ;;
+    dormant) printf 'dormant until its trigger appears' ;;
+    oneshot) printf 'runs once and exits' ;;
+    *) printf 'idle' ;;
+  esac
+}
+
+# The report half, for doctor: ONLY what wants attention, plus one line counting
+# the rest.
+#
+# That counting line is the whole difference between this and the loop it
+# replaced. Doctor drew a green tick per agent back when it knew about three; the
+# same shape over sixteen is a wall of ticks nobody reads, and a checklist people
+# skim is one that hides the single red line in it. The roster, with what each
+# job is FOR, is `haus services` — one command away and named on the way out.
+_svc_report() {
+  local key domain label liveness title why cost log
+  local probe verdict code status
+  local healthy=0 idle=0 absent=0 wedged=0 failed=0 any=0
+
+  if [ ! -r "$HAUS_SERVICES" ]; then
+    info "no services deck at $HAUS_SERVICES (haus rebuild installs it)"
+    return 0
+  fi
+
+  while IFS=$'\037' read -r key domain label liveness title why cost log; do
+    [ -n "$key" ] || continue
+    probe="$(_svc_probe "$domain" "$label")"
+    verdict="${probe%%$'\037'*}"
+    code="${probe#*$'\037'}"
+    status="$(_svc_status "$liveness" "$verdict" "$code")"
+    case "$status" in
+      ok)
+        if [ "$verdict" = live ]; then healthy=$((healthy + 1)); else idle=$((idle + 1)); fi
+        ;;
+      wedged)
+        any=1
+        wedged=$((wedged + 1))
+        bad "$title — bootstrapped but not running.${cost:+ Without it: $cost}"
+        info "  start it again: launchctl kickstart -k $(_svc_domain "$domain")/$label"
+        [ -z "$log" ] || info "  why it stopped, if it said: $log"
+        ;;
+      failed)
+        # NOT counted as idle. It is idle in the launchd sense, but the closing
+        # line is a green tick and a job whose last run failed has not earned a
+        # share of one — counting it there put "0 running, 2 idle by design"
+        # under two warnings about those same two jobs.
+        any=1
+        failed=$((failed + 1))
+        warn "$title — $(_svc_idle_note "$liveness"), and its last run exited $code.${cost:+ Until one succeeds: $cost}"
+        [ -z "$log" ] || info "  what it said: $log"
+        ;;
+      absent) absent=$((absent + 1)) ;;
+    esac
+  done < <(_svc_deck)
+
+  # Absent is counted rather than listed, for a reason worth saying: the normal
+  # way to have one is to have all of them. A generation whose plists are not
+  # bootstrapped yet has EVERY job absent, and sixteen identical lines saying so
+  # is noise wrapped around a single fact.
+  if [ "$absent" -gt 0 ]; then
+    any=1
+    info "$absent declared but not loaded into launchd yet — a rebuild or a restart loads them"
+  fi
+
+  # On Tahoe and later a job that is bootstrapped and dead is usually Background
+  # Task Management refusing the /bin/sh-invoked login item, not a cold-boot
+  # wedge. Said once, after the loop, rather than glued onto every red line —
+  # and only when there IS one, because the version alone is not a symptom.
+  if [ "$wedged" -gt 0 ]; then
+    local osmajor
+    osmajor="$(sw_vers -productVersion 2>/dev/null || echo 0)"
+    if [ "${osmajor%%.*}" -ge 26 ] 2>/dev/null; then
+      info "on Tahoe+ a job that is bootstrapped and dead is usually BTM: haus btm"
+    fi
+  fi
+
+  # The count is a GREEN line, so it is only drawn when something earned it: a
+  # machine where every job is wedged would otherwise end its Background jobs
+  # section on a tick reading "0 running, 0 idle by design", which is the one
+  # shape a health check must never have. Each of those jobs has already said so
+  # on its own line, so dropping the summary loses nothing.
+  if [ "$((healthy + idle + absent + wedged + failed))" = 0 ]; then
+    info "no room on this machine installs a background job"
+  elif [ "$((healthy + idle))" -gt 0 ]; then
+    ok "$healthy running, $idle idle by design"
+  fi
+  [ "$any" = 0 ] || info "what each one is for: haus services"
+  return 0
+}
+
+# ---- haus services -----------------------------------------------------------
+# The roster: every job, what it is for, how it is doing, and — for one that
+# wants something — the line that fixes it.
+#
+# BLOCKS and not a table, the same call `haus-secret --list` makes and for the
+# same reason AGENTS.md gives there: `why` is a sentence or two, and a sentence
+# in a column is cut exactly where the part worth reading starts. What this takes
+# from the runtime is the fold and the roles, not a grid.
+cmd_services() {
+  [ $# -eq 0 ] \
+    || die "haus services takes no arguments — it is the whole roster, and doctor reports the part that wants attention"
+
+  [ -r "$HAUS_SERVICES" ] \
+    || die "no services deck at $HAUS_SERVICES (haus rebuild installs it)"
+
+  say "haus services — what this Mac runs in the background"
+
+  local key domain label liveness title why cost log
+  local probe verdict code status healthy=0 idle=0 wanting=0
+  while IFS=$'\037' read -r key domain label liveness title why cost log; do
+    [ -n "$key" ] || continue
+    probe="$(_svc_probe "$domain" "$label")"
+    verdict="${probe%%$'\037'*}"
+    code="${probe#*$'\037'}"
+    status="$(_svc_status "$liveness" "$verdict" "$code")"
+
+    echo
+    case "$status" in
+      ok)
+        if [ "$verdict" = live ]; then
+          healthy=$((healthy + 1))
+          ok "$title — running"
+        else
+          idle=$((idle + 1))
+          ok "$title — $(_svc_idle_note "$liveness")"
+        fi
+        ;;
+      wedged)
+        wanting=$((wanting + 1))
+        bad "$title — bootstrapped but not running"
+        ;;
+      failed)
+        # Counted ONCE, in `wanting`. It is idle and it wants attention, and
+        # adding it to both made the closing line not add up to the number of
+        # blocks above it — a summary you can't check against what you just read
+        # is worse than no summary.
+        wanting=$((wanting + 1))
+        warn "$title — $(_svc_idle_note "$liveness"), and its last run exited $code"
+        ;;
+      absent)
+        wanting=$((wanting + 1))
+        # Branch on the domain: a user agent is loaded into your login session,
+        # a root daemon into the system at boot, and telling somebody to log out
+        # and back in to start `portless` or `nix-gc` would simply not work.
+        if [ "$domain" = system ]; then
+          info "$title — not loaded into launchd yet; it starts at the next boot"
+        else
+          info "$title — not loaded into launchd yet; it starts at your next login"
+        fi
+        ;;
+    esac
+
+    hint "$why"
+    if [ -n "$cost" ] && [ "$status" != ok ]; then hint "Without it: $cost"; fi
+    hint "$(_svc_domain "$domain")/$label${log:+   ·   log: $log}"
+    if [ "$status" = wedged ]; then
+      hint "start it again: launchctl kickstart -k $(_svc_domain "$domain")/$label"
+    fi
+  done < <(_svc_deck)
+
+  echo
+  if [ "$((healthy + idle + wanting))" = 0 ]; then
+    info "no room on this machine installs a background job"
+  elif [ "$wanting" -gt 0 ]; then
+    info "$healthy running, $idle idle by design, $wanting wanting attention"
+  else
+    info "$healthy running, $idle idle by design"
+  fi
+  return 0
+}
+
 # ---- the manual-click deck ---------------------------------------------------
 # Everything a fresh haus machine needs a PERSON for: the TCC grants, the login
 # items Tahoe gates, the theme ports an app only reads from its own preferences,
@@ -4392,26 +4707,30 @@ _perm_wait() {
   return 1
 }
 
-# The GUI agents haus installs, `<launchd label>:<process name>`. One list, read
-# by doctor's own section and by core's Login Items card — which is gated on a
-# wedged agent rather than on the macOS version, so it appears when something is
-# actually broken instead of on every Tahoe machine forever.
-_haus_gui_agents() {
-  printf '%s\n' org.nixos.aerospace:AeroSpace org.nixos.sketchybar:sketchybar com.hausfold.pounce:pounce
-}
-
-# Is anything bootstrapped into launchd but not running? That is the SYMPTOM
+# Is anything that is MEANT to be running not running? That is the SYMPTOM
 # Background Task Management produces, and it is readable without sudo — unlike
 # the BTM store itself, which `haus btm` needs a password to open. A card gated
 # on a real wedge beats a card gated on "you are on macOS 26", which every Tahoe
 # machine would answer yes to whether or not anything was ever blocked.
+#
+# Agents only, deliberately: BTM gates LOGIN ITEMS, which is a property of your
+# session, and a root daemon does not have one. The card's own steps send you to
+# a Settings pane where a stopped daemon would never appear, so including one
+# here would produce a card nobody could act on — the exact dishonesty the
+# deck's rules exist to stop.
+#
+# It walks the services deck rather than a list of its own. Until this deck
+# existed it named three agents by hand out of the sixteen jobs the repo
+# declares, so a wedged bottom bar, tunnel or proxy was invisible to it.
 _perm_agent_wedged() {
-  local pair label name
-  for pair in $(_haus_gui_agents); do
-    label="${pair%%:*}"; name="${pair##*:}"
-    launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1 || continue
-    pgrep -qx "$name" || return 0
-  done
+  local key domain label liveness state
+  while IFS=$'\037' read -r key domain label liveness _ _ _ _; do
+    [ -n "$key" ] || continue
+    [ "$domain" = user ] || continue
+    [ "$liveness" = running ] || continue
+    state="$(_svc_probe "$domain" "$label")"
+    [ "${state%%$'\037'*}" = stopped ] && return 0
+  done < <(_svc_deck)
   return 1
 }
 
@@ -5448,7 +5767,7 @@ set -- ${HAUS_ARGS[@]+"${HAUS_ARGS[@]}"}
 # read at a glance — and so a helper both kinds call (`settings_diff`,
 # `consumer_worktree_warning`) needs no opinion of its own.
 case "${1:-status}" in
-  status | doctor | plan | diff | permissions | btm | generations | get | capture | report)
+  status | doctor | plan | diff | permissions | services | btm | generations | get | capture | report)
     REPORT=1
     ;;
 esac
@@ -5474,6 +5793,7 @@ case "${1:-status}" in
   report)      shift; cmd_report "$@" ;;
   skill)       shift; cmd_skill "$@" ;;
   permissions) cmd_permissions "${2:-}" ;;
+  services)    shift; cmd_services "$@" ;;
   btm)         cmd_btm ;;
   tour)        cmd_tour "${2:-}" ;;
   show)        shift; cmd_show "$@" ;;
@@ -5481,5 +5801,5 @@ case "${1:-status}" in
   desktop)     cmd_desktop "${2:-}" ;;
   remove)      cmd_remove "${2:-}" "${3:-}" ;;
   -h|--help|help) usage ;;
-  *)           die "unknown command '$1' — try: rebuild fix update rollback generations status edit options set get unset reset plan diff capture revert-settings doctor report skill permissions btm tour show add desktop remove" ;;
+  *)           die "unknown command '$1' — try: rebuild fix update rollback generations status edit options set get unset reset plan diff capture revert-settings doctor report skill permissions services btm tour show add desktop remove" ;;
 esac
