@@ -498,6 +498,39 @@ let
     )
   );
 
+  # The tart adapter, a second time, in the STORE — same file, so the fact that
+  # a lane's VM is `scruff-<lane>` has one home. The home copy at
+  # ~/.config/haus/runtime is what scruff execs (its argv contract); this copy
+  # is what `haus-vm-shot` execs, and neither can drift from the other because
+  # both are rendered from ./runtime/tart-adapter.sh. Not itself installed —
+  # only referenced by store path below.
+  tartAdapterBin = pkgs.writeShellScriptBin "haus-tart-adapter" (
+    builtins.readFile ./runtime/tart-adapter.sh
+  );
+
+  # `haus-vm-shot <lane> [dest.png]` — the verb an agent reaches for instead of
+  # the user's screen. It prints ONE line, the host path of a PNG captured in
+  # that lane's headless guest, so it composes straight into gh 2.99.0's
+  # `--attach`:
+  #
+  #     gh pr comment 42 --attach "$(haus-vm-shot my-lane)#the bar, after"
+  #
+  # stdout-is-a-parser, so it draws nothing and loads no snug painter, for the
+  # reason `haus-fix` and `scruff-cache` don't: fd 1 is consumed by a `$( )`,
+  # not read by a person. The workshop's AGENTS.md owns that exemption list and
+  # is where re-opening it happens — a comment here cannot grant one.
+  # Deliberately does NOT run `gh` itself: what to say about a picture is the
+  # agent's judgement, and a verb that opened PRs would need a token this one
+  # has no business holding.
+  #
+  # The argument check is the wrapper's own: a bare `exec` would surface the
+  # adapter's usage line instead, naming a script the caller never typed and
+  # three subcommands it cannot reach.
+  hausVmShot = pkgs.writeShellScriptBin "haus-vm-shot" ''
+    [ $# -ge 1 ] || { echo "usage: haus-vm-shot <lane> [dest.png]" >&2; exit 2; }
+    exec ${tartAdapterBin}/bin/haus-tart-adapter screenshot "$@"
+  '';
+
   # scruff's tart runtime adapter (SPEC.md §5.5 in hausfold/scruff) — the "real
   # tart backend" hausfold/scruff#52's own commit message left as a follow-up here.
   # `scruff runtime up|enter|down --backend tart` is otherwise a dead end: the
@@ -996,6 +1029,12 @@ in
       # nixpkgs marks tart unfree (Fair Source); modules/core already sets
       # `nixpkgs.config.allowUnfree`, so this evaluates on any haus machine.
       tart
+
+      # `haus-vm-shot` — pixels out of a lane's guest, for a PR body. Beside
+      # `tart` and for its reason: the instructions this room writes tell an
+      # agent to take a VM rather than the screen, and "take a VM" is only
+      # actionable if what it saw can leave the VM. See its header above.
+      hausVmShot
 
       # `claude-statusline` — the agent-worktree HUD for Claude Code's status bar
       # (terminal's claudeCodeSettings points the `statusLine` key here). Row 1 is

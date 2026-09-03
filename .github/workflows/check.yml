@@ -455,6 +455,14 @@ jobs:
       - name: desktop guard tests
         run: bats test/desktop-guard.bats
 
+      # `haus-vm-shot`'s capture path. Its whole output is consumed by a `$( )`
+      # and published into a pull request, so its failures are ones nobody
+      # reads: a stray line on stdout, a capture without `-x`, the wrong lane's
+      # VM, a PNG left on the guest, a failure that still printed a path.
+      # tart/ssh/scp are stubbed, so no VM and no Mac.
+      - name: vm-shot tests
+        run: bats test/vm-shot.bats
+
       # float-term's `recenter` — the pass that centres a spawned popup on the
       # size it actually is. Pure arithmetic over two rectangles with AX and the
       # screen probe stubbed, so it runs here rather than needing a Mac and a
