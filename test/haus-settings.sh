@@ -1,6 +1,41 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# ── an interpreter that can actually run haus.sh ─────────────────────────────
+# haus.sh is `#!/usr/bin/env bash` and is written for bash 4+ — the contract
+# test/phase-painter.bats pins for every script that reaches the painter. A
+# bare `bash` is not that: on a Mac it is /bin/bash 3.2, and the subject does
+# not degrade under 3.2, it MIS-PARSES. `coproc` is no keyword there, so the
+# `}` that closes `coproc SNUG { … }` inside snug_open closes the FUNCTION
+# instead, and the lines meant to run inside it run at LOAD time — the first
+# being `exec {SNUG_FD}>&"${SNUG[1]}"`, which under `set -u` kills the run
+# before the suite has asserted anything. CI never saw it: those runners are
+# Linux with bash 5, which is why this only ever bit someone running the suite
+# by hand on a Mac.
+#
+# So the suite re-execs itself under a bash that can read the file, and hands
+# that one on as `$BASH` to every `haus` it spawns. Only a candidate that
+# ANSWERED 4+ is exec'd, so there is no loop to fall into, and no answer at all
+# is a loud failure rather than a suite that skips itself quietly.
+#
+# The same block is in test/haus-plan.sh and test/haus-add.sh, and
+# test/awake-ui.bats makes the same call as `resolve_bash4`. Copies rather than
+# a sourced helper — the size call AGENTS.md makes for the Ghostty pre-warm, and
+# a suite that cannot bootstrap its own interpreter is a bad place to add a file
+# it has to find first. test/phase-painter.bats pins the INVARIANT rather than
+# the bytes, so a fourth suite that spawns the subject cannot opt out quietly.
+if [ "${BASH_VERSINFO[0]:-0}" -lt 4 ]; then
+  for _bash in /run/current-system/sw/bin/bash /opt/homebrew/bin/bash \
+               "$(command -v bash || true)" /bin/bash; do
+    [ -n "$_bash" ] && [ -x "$_bash" ] || continue
+    [ "$("$_bash" -c 'echo ${BASH_VERSINFO[0]}' 2>/dev/null || echo 0)" -ge 4 ] || continue
+    exec "$_bash" "$0" "$@"
+  done
+  printf 'FAIL: haus.sh needs bash 4+ and this is %s — no newer one found\n' \
+    "${BASH_VERSION:-?}" >&2
+  exit 1
+fi
+
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -23,7 +58,7 @@ EOF
 printf '%s\n' '{ ... }: { }' >"$tmp/hosts/test/default.nix"
 git -C "$tmp" add flake.nix hosts/test/default.nix
 
-haus=(env HAUS_CONSUMER="$tmp" HAUS_HOST=test HAUS_NO_REBUILD=1 bash "$repo/modules/core/haus.sh")
+haus=(env HAUS_CONSUMER="$tmp" HAUS_HOST=test HAUS_NO_REBUILD=1 "$BASH" "$repo/modules/core/haus.sh")
 
 "${haus[@]}" set theme.accent teal >/dev/null
 test "$("${haus[@]}" get theme.accent)" = "teal"
