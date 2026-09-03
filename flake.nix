@@ -3033,7 +3033,7 @@
                 --subscribe backup system_woke
             /run/current-system/sw/bin/sketchybar --add event haus.example.tick
             /run/current-system/sw/bin/sketchybar --add item pomodoro right \
-                --set pomodoro update_freq=30 background.color=$SURFACE0 icon.color=$TEAL label.font="JetBrainsMono Nerd Font Mono:Bold:14.0" popup.align=right popup.background.border_color=$SURFACE0 popup.background.border_width=2 popup.background.color=$MANTLE popup.background.corner_radius=10 script="$HOME/.config/sketchybar/widgets/pomodoro.sh" \
+                --set pomodoro update_freq=30 background.color=$SURFACE0 icon.color=$TEAL label.font="JetBrainsMono Nerd Font Mono:Bold:14.0" popup.align=right popup.background.border_color=$SURFACE1 popup.background.border_width=1 popup.background.color=$MANTLE popup.background.corner_radius=12 script="$HOME/.config/sketchybar/widgets/pomodoro.sh" \
                 --subscribe pomodoro system_woke haus.example.tick mouse.clicked
           '';
 

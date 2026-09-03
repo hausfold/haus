@@ -114,6 +114,16 @@ pct_tone() { # pct_tone <pct>
   fi
 }
 
+ago() { # ago <seconds> — "90m", "5h 12m", "4d". The old row said `6962m ago`,
+  # which is a true number nobody can read as "this feed died on Tuesday".
+  awk -v s="${1:-0}" 'BEGIN {
+    m = int(s / 60); h = int(m / 60); d = int(h / 24)
+    if      (d >= 1) printf "%dd %dh", d, h % 24
+    else if (h >= 1) printf "%dh %dm", h, m % 60
+    else             printf "%dm", m
+  }'
+}
+
 resets_at() { # resets_at <epoch> <now> — "resets 14:20" / "resets Thu 09:00"
   # Rides in the NAME of the bar it belongs to (`session · resets 14:20`): the
   # reset time is the quieter half of the same fact, and the name column is
@@ -297,12 +307,8 @@ fetch() {
     return 0
   fi
 
-  local blocks=0
   for f in "${FILES[@]}"; do
     read_row "$now" "$f"
-    # A hairline between providers, none above the first.
-    [ "$blocks" -gt 0 ] && popup_separator
-    blocks=$((blocks + 1))
     if [ "$PREFERRED" != "latest" ] && [ "$ROW_PROV" = "$PREFERRED" ]; then
       main_v5=$ROW_V5; main_vw=$ROW_VW; main_stamp=$ROW_STAMP
       main_prov=$ROW_PROV; main_model=$ROW_MODEL; main_pid=$ROW_PID

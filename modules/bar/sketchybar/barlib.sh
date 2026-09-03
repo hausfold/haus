@@ -749,11 +749,13 @@ _barlib_fit() {
         _BARLIB_FIT=$1
         return 0
     fi
+    # The ellipsis is one cell wide and three bytes long, so the estimator
+    # below counts it as two columns; the cut leaves two rather than one.
     local s=$1
     while [ "${#s}" -gt 1 ]; do
         s=${s%?}
         _barlib_cols "$s"
-        if [ "$_BARLIB_COLS" -le "$(($2 - 1))" ]; then break; fi
+        if [ "$_BARLIB_COLS" -le "$(($2 - 2))" ]; then break; fi
     done
     _BARLIB_FIT="${s%"${s##*[![:space:]]}"}…"
 }
@@ -870,6 +872,10 @@ _barlib_pop_add() { # _barlib_pop_add <kind> <height> <font> <action> <hover> <s
             _BARLIB_ARGS+=(--add item "$POPUP_ID" "popup.${_BARLIB_POPUP}")
             ;;
     esac
+    # The glyph face is the LABEL size on every row, not the bar's own 17pt
+    # icon face the rc's --default hands out: a glyph in a 20pt column beside
+    # 12pt text is a glyph at 13, and the pills' icon size was only ever right
+    # for a pill.
     _BARLIB_ARGS+=(
         --set "$POPUP_ID"
         width="$_BARLIB_G_W"
@@ -891,7 +897,7 @@ _barlib_pop_add() { # _barlib_pop_add <kind> <height> <font> <action> <hover> <s
         # level so the case runs in the spawned /bin/sh, not here.
         _BARLIB_ARGS+=(
             --set "$POPUP_ID"
-            script="case \"\$SENDER\" in mouse.entered) $SB --set \"\$NAME\" background.color=${SURFACE0:-0x00000000} ;; mouse.exited) $SB --set \"\$NAME\" background.color=0x00000000 ;; esac"
+            script="case \"\$SENDER\" in mouse.entered) \"$SB\" --set \"\$NAME\" background.color=${SURFACE0:-0x00000000} ;; mouse.exited) \"$SB\" --set \"\$NAME\" background.color=0x00000000 ;; esac"
             --subscribe "$POPUP_ID" mouse.entered mouse.exited
         )
     fi
@@ -976,16 +982,27 @@ _barlib_text_cap() {
 # far edge lands on the gutter — to within the estimate's error, which on a
 # four-character badge is a pixel or two.
 _BARLIB_RIGHT=()
-_barlib_right_slot() {
-    local text=$1 font=$2 size=$3 color=$4 tint=${5:-}
+_barlib_right_slot() { # <text> <font> <font-size> <colour> [tint] [reserve-px]
+    local text=$1 font=$2 size=$3 color=$4 tint=${5:-} reserve=${6:-0}
     # A value that right-aligned its own number with leading blanks (`%3s%%`)
     # asked for exactly what the slot now does — and a label is the one place
     # those blanks cannot stay: sketchybar sizes a string TRIMMED and draws it
     # untrimmed, so they would push the digits past the edge of a slot sized
     # without them.
     text="${text#"${text%%[! ]*}"}"
-    _barlib_cols "$text"
     _barlib_adv "$size"
+    # The slot may take everything the NAME does not need — <reserve> is the
+    # name's own width plus its lead, as the caller measured it — and never
+    # less than four columns. Without the cap a long value (calendar's event
+    # title is a value) sized a slot wider than the row, and the name slot
+    # went NEGATIVE: a row spilling out of the panel on the right.
+    local room=$((_BARLIB_G_W - reserve - _BARLIB_G_GUTTER - 2 * _BARLIB_COL_SLACK))
+    if [ -n "$tint" ]; then room=$((room - 2 * _BARLIB_G_GAP)); fi
+    local cap=$((room / _BARLIB_ADV))
+    if [ "$cap" -lt 4 ]; then cap=4; fi
+    _barlib_fit "$text" "$cap"
+    text=$_BARLIB_FIT
+    _barlib_cols "$text"
     local w
     if [ -n "$tint" ]; then
         w=$((_BARLIB_COLS * _BARLIB_ADV + 2 * _BARLIB_G_GAP + _BARLIB_COL_SLACK))
@@ -1010,6 +1027,16 @@ _barlib_right_slot() {
         _BARLIB_NAME_W=$((_BARLIB_G_W - w))
     fi
     return 0
+}
+
+# _barlib_reserve <name> <font-size> <lead> → _BARLIB_RESERVE: the points the
+# name slot needs — its lead and its own columns — for a right slot to leave
+# alone.
+_BARLIB_RESERVE=0
+_barlib_reserve() {
+    _barlib_cols "$1"
+    _barlib_adv "$2"
+    _BARLIB_RESERVE=$(($3 + _BARLIB_COLS * _BARLIB_ADV))
 }
 
 # _barlib_name_cap <font-size> <lead> → _BARLIB_CAP: the columns the NAME slot
@@ -1117,7 +1144,8 @@ popup_heading() {
         if [ -n "$label_tone" ]; then vcolor=$(tone "$label_tone"); fi
         local name="$label"
         if [ -n "$icon" ]; then name="$icon $label"; fi
-        _barlib_right_slot "$value" "$hfont" "${FS_LABEL:-13}" "$vcolor"
+        _barlib_reserve "$name" "${FS_LABEL:-13}" "$_BARLIB_G_GUTTER"
+        _barlib_right_slot "$value" "$hfont" "${FS_LABEL:-13}" "$vcolor" "" "$_BARLIB_RESERVE"
         _barlib_name_cap "${FS_LABEL:-13}" "$_BARLIB_G_GUTTER"
         _barlib_fit "$name" "$_BARLIB_CAP"
         _barlib_pop_add heading "$_BARLIB_G_H_HEADING" "$hfont" "$action" "$hover" \
@@ -1129,12 +1157,15 @@ popup_heading() {
     fi
 
     # The well: the icon slot is exactly the well wide, its background is the
-    # hue's tint drawn as a circle, and the glyph is centred in it. The
-    # gutter is paid as icon.padding_left (inside the slot, so the centring
-    # accounts for it) and given back to the background as x_offset (which is
-    # outside it), so the circle sits at the gutter and the glyph sits in the
-    # circle. No icon, no well — the title starts on the text column either
-    # way.
+    # hue's tint drawn as a circle, and the glyph is centred in it. SketchyBar
+    # centres a text in its slot by (slot − text − padding) / 2 and then adds
+    # the padding back, so a left padding of one WELL puts the glyph's centre
+    # half a well past the slot's own centre — i.e. on the centre of a circle
+    # drawn one gutter to the right, which is where x_offset puts the circle.
+    # No icon, no well — the title starts on the text column either way.
+    # `${a[@]+"${a[@]}"}` where it is spliced in, not `"${a[@]}"`: bash 3.2
+    # (and everything before 4.4) treats an EMPTY array's expansion as an
+    # unbound variable under `set -u`, and widgets are welcome to set -u.
     local -a well_args=()
     if [ -n "$icon" ]; then
         well_args=(
@@ -1147,13 +1178,14 @@ popup_heading() {
     if [ -n "$badge" ]; then
         local bcolor="$hue"
         if [ -n "$badge_tone" ]; then bcolor=$(tone "$badge_tone"); fi
-        _barlib_tint "$bcolor"
-        _barlib_right_slot "$badge" "${BAR_FONT:-}:Bold:${FS_TINY:-}" "${FS_TINY:-10}" "$bcolor" "$_BARLIB_TINT"
         if [ -n "$icon_font" ]; then
             echo "barlib: popup_heading: --icon-font is ignored with --badge (glyph and title share one item)" >&2
         fi
         local name="$label"
         if [ -n "$icon" ]; then name="$icon $label"; fi
+        _barlib_reserve "$name" "${FS_LABEL:-13}" "$_BARLIB_G_GUTTER"
+        _barlib_tint "$bcolor"
+        _barlib_right_slot "$badge" "${BAR_FONT:-}:Bold:${FS_TINY:-}" "${FS_TINY:-10}" "$bcolor" "$_BARLIB_TINT" "$_BARLIB_RESERVE"
         _barlib_name_cap "${FS_LABEL:-13}" "$_BARLIB_G_GUTTER"
         _barlib_fit "$name" "$_BARLIB_CAP"
         _barlib_pop_add heading "$_BARLIB_G_H_HEADING" "$hfont" "$action" "$hover" \
@@ -1170,7 +1202,7 @@ popup_heading() {
         icon.font="${icon_font:-${BAR_FONT:-}:Bold:${FS_LABEL:-}}" \
         icon.width="$_BARLIB_G_WELL" icon.align=center \
         icon.padding_left="$_BARLIB_G_WELL" icon.padding_right=0 \
-        "${well_args[@]}" \
+        ${well_args[@]+"${well_args[@]}"} \
         label="$_BARLIB_FIT" label.color="$title_color" \
         label.padding_left="$((_BARLIB_G_GUTTER + _BARLIB_G_GAP))"
     _barlib_pop_cap "$cap" "$marquee"
@@ -1246,7 +1278,8 @@ popup_row() {
         # An EMPTY --label is a continuation row: the name slot is left blank
         # and the value still lands flush right, so the second line of a block
         # sits under the first instead of beside it.
-        _barlib_right_slot "$value" "${BAR_FONT:-}:Bold:${FS_SMALL:-}" "${FS_SMALL:-12}" "$(tone "$icon_tone")"
+        _barlib_reserve "$name" "${FS_SMALL:-12}" "$lead"
+        _barlib_right_slot "$value" "${BAR_FONT:-}:Bold:${FS_SMALL:-}" "${FS_SMALL:-12}" "$(tone "$icon_tone")" "" "$_BARLIB_RESERVE"
         _barlib_name_cap "${FS_SMALL:-12}" "$lead"
         _barlib_fit "$name" "$_BARLIB_CAP"
         _barlib_pop_add row "$_BARLIB_G_H_ROW" "$rfont" "$action" "$hover" \
@@ -1268,13 +1301,14 @@ popup_row() {
         # is paid by the row that asked for it.
         local name="$label" lead="$_BARLIB_G_TEXT_X"
         if [ -n "$icon" ]; then name="$icon $label"; lead="$_BARLIB_G_GUTTER"; fi
+        _barlib_reserve "$name" "${FS_SMALL:-12}" "$lead"
         if [ -n "$badge" ]; then
             local bcolor
             if [ -n "$badge_tone" ]; then bcolor=$(tone "$badge_tone"); else bcolor=$(tone "$icon_tone"); fi
             _barlib_tint "$bcolor"
-            _barlib_right_slot "$badge" "${BAR_FONT:-}:Bold:${FS_TINY:-}" "${FS_TINY:-10}" "$bcolor" "$_BARLIB_TINT"
+            _barlib_right_slot "$badge" "${BAR_FONT:-}:Bold:${FS_TINY:-}" "${FS_TINY:-10}" "$bcolor" "$_BARLIB_TINT" "$_BARLIB_RESERVE"
         else
-            _barlib_right_slot "$hint" "${BAR_FONT:-}:Regular:${FS_TINY:-}" "${FS_TINY:-10}" "${OVERLAY0:-}"
+            _barlib_right_slot "$hint" "${BAR_FONT:-}:Regular:${FS_TINY:-}" "${FS_TINY:-10}" "${OVERLAY0:-}" "" "$_BARLIB_RESERVE"
         fi
         _barlib_name_cap "${FS_SMALL:-12}" "$lead"
         _barlib_fit "$name" "$_BARLIB_CAP"
@@ -1328,7 +1362,8 @@ popup_action() {
     if [ -n "$hint" ]; then
         local name="$label" lead="$_BARLIB_G_TEXT_X"
         if [ -n "$icon" ]; then name="$icon $label"; lead="$_BARLIB_G_GUTTER"; fi
-        _barlib_right_slot "$hint" "${BAR_FONT:-}:Regular:${FS_TINY:-}" "${FS_TINY:-10}" "${OVERLAY0:-}"
+        _barlib_reserve "$name" "${FS_SMALL:-12}" "$lead"
+        _barlib_right_slot "$hint" "${BAR_FONT:-}:Regular:${FS_TINY:-}" "${FS_TINY:-10}" "${OVERLAY0:-}" "" "$_BARLIB_RESERVE"
         _barlib_name_cap "${FS_SMALL:-12}" "$lead"
         _barlib_fit "$name" "$_BARLIB_CAP"
         _barlib_pop_add action "$_BARLIB_G_H_ROW" "$afont" "$action" 1 \
@@ -1409,7 +1444,7 @@ popup_button() {
     if [ "$solid" = 0 ]; then
         _BARLIB_ARGS+=(
             --set "$POPUP_ID"
-            script="case \"\$SENDER\" in mouse.entered) $SB --set \"\$NAME\" background.color=$hover_fill ;; mouse.exited) $SB --set \"\$NAME\" background.color=$fill ;; esac"
+            script="case \"\$SENDER\" in mouse.entered) \"$SB\" --set \"\$NAME\" background.color=$hover_fill ;; mouse.exited) \"$SB\" --set \"\$NAME\" background.color=$fill ;; esac"
             --subscribe "$POPUP_ID" mouse.entered mouse.exited
         )
     fi

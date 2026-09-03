@@ -537,6 +537,10 @@ event_rows() { # event_rows <smin> <emin> <sdate> <stime> <title> <who> <join> <
   if [ -n "$join" ] && [ "$focus" != 1 ]; then
     popup_row --label "$meta" --tone dim --badge "Join" --badge-tone action \
       --run "$SELF open $(popup_quote "$join")"
+  elif [ "$focus" = 1 ] && [ -z "$join" ]; then
+    # The one the pill counts down to, with nothing to join: the button
+    # below would have said which one it was, so a badge says it instead.
+    popup_row --label "$meta" --tone dim --badge "up next" --badge-tone text
   else
     popup_row --label "$meta" --tone dim
   fi

@@ -1587,3 +1587,38 @@ row_args() {
   [[ "$(row_args 0)" == *"background.height=10"* ]]
   [[ "$(row_args 0)" == *"icon.drawing=off label.drawing=off"* ]]
 }
+
+# ---- what a slot may hold -----------------------------------------------------
+
+@test "a value longer than the row leaves the name its room and is cut itself" {
+  # calendar's event title is a VALUE. Uncapped, a long one sized a slot wider
+  # than the row and the name slot went negative — a row spilling out of the
+  # panel on the right.
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_row --label "Thu 14:00" --value "a meeting whose title runs on and on and on and on and on"; }
+    on_click() { popup_open; }
+  '
+  local r
+  r=$(row_args 0)
+  [[ "$r" == *"icon=Thu 14:00 "* ]]
+  [[ "$r" == *"…"* ]]
+  ! grep -qE 'icon\.width=-' "$SB_LOG"
+  ! grep -q 'and on and on and on and on' "$SB_LOG"
+}
+
+@test "a cut never lands inside a glyph, under the bash macOS ships" {
+  # ${#s} and ${s%?} count what the locale says; the runtime sets it per
+  # function and relies on bash putting it back. Run under /bin/bash (3.2)
+  # on purpose, with a string that ENDS in a three-byte glyph: a byte-wise
+  # cut would leave two bytes of it on the row.
+  [ -x /bin/bash ] || skip "no /bin/bash"
+  NAME=w SENDER=mouse.clicked run /bin/bash -c '
+    source "'"$BARLIB"'"
+    _barlib_fit "abcdefghijklmnopqrstuvwxyz 󰃰󰃰󰃰󰃰󰃰" 20
+    printf "%s\n" "$_BARLIB_FIT"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"…" ]]
+  # Every glyph that survived is whole: the output is valid UTF-8.
+  printf '%s' "$output" | iconv -f UTF-8 -t UTF-8 >/dev/null
+}
