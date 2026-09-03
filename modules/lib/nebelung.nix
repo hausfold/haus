@@ -71,10 +71,11 @@ in
 
   # Per-port install metadata, narrowed to the ports whose TOOL runs on macOS
   # (nebelung ships Linux-only ones too — foot, Xresources, zathura, tty) and
-  # with `path` resolved to both the selected flavor and an absolute location in
-  # the themes tree. `{ }` on an older nebelung lock that predates the output;
-  # every consumer below treats "no metadata" as "nothing to offer", never as an
-  # error, so being pinned behind it costs the report, not the build.
+  # with `path` — and every companion file beside it — resolved to both the
+  # selected flavor and an absolute location in the themes tree. `{ }` on an
+  # older nebelung lock that predates the output; every consumer below treats
+  # "no metadata" as "nothing to offer", never as an error, so being pinned
+  # behind it costs the report, not the build.
   # The flavor lives in the human-facing strings too, not just the path: a port's
   # `howto`, its `setting.value` and its `requires` commands all name the theme
   # ("set theme = catppuccin-mocha", "fish_config theme choose catppuccin-mocha").
@@ -87,6 +88,14 @@ in
       path = resolveFlavor p.path;
       file = "${root}/${resolveFlavor p.path}";
       howto = resolveFlavor p.howto;
+      # The other files a port's install needs BESIDE `path` — OBS's base
+      # `Catppuccin.obt`, JetBrains's `.theme.json` UI half. Each is spelled
+      # for the default variant exactly as `path` is, so resolving one and not
+      # the other is the silently-nothing case this file's header opens with:
+      # OBS reads the variant, can't find the base it extends, and drops the
+      # theme without logging anything (nebelung#54). `[ ]` on a lock that
+      # predates the field, which is every consumer's state until it bumps.
+      alsoPlace = map resolveFlavor (p.alsoPlace or [ ]);
     }
     // lib.optionalAttrs (p ? setting && p.setting ? value) {
       setting = p.setting // {

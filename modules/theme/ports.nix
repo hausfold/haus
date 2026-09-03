@@ -8,8 +8,11 @@
 # This room closes that gap from the other side. nebelung publishes, per port,
 # where its rendered theme has to land and what makes it active (its `ports`
 # output — see nebelung's docs/ports.md). So for any roster app whose id matches a
-# port, the theme file can be put where that app looks for it, in the selected
+# port, its theme files can be put where that app looks for them, in the selected
 # flavor and contrast, following them on every rebuild — no per-app wiring here.
+# Files, plural, for the handful of ports whose install is more than one:
+# nebelung spells those `alsoPlace`, and an app handed only half of them drops
+# the theme without logging anything.
 #
 # What it deliberately does NOT do is pretend the job is finished when it isn't.
 # Dropping a file only makes a theme ACTIVE for ports whose select is "path"
@@ -68,15 +71,21 @@
         # single right answer, and stays a reported manual step.
         accent = osConfig.haus.theme.accent;
         Accent = lib.toUpper (lib.substring 0 1 accent) + lib.substring 1 (lib.stringLength accent) accent;
+        resolveAccent = builtins.replaceStrings [ "<accent>" "<Accent>" ] [ accent Accent ];
         ports = lib.mapAttrs (
           _: p:
           let
-            resolved = builtins.replaceStrings [ "<accent>" "<Accent>" ] [ accent Accent ] p.path;
+            resolved = resolveAccent p.path;
           in
           p
           // {
             path = resolved;
             file = "${nb.root}/${resolved}";
+            # A port's companion files get the same substitution as `path`, for
+            # the same reason ../lib/nebelung.nix gives them the same flavor
+            # one: a placeholder resolved on one file and left on the other is
+            # a port placed half-right, which is worse than not placed at all.
+            alsoPlace = map resolveAccent p.alsoPlace;
           }
         ) nb.ports;
 
@@ -90,6 +99,13 @@
           ) osConfig.haus.roster
         );
 
+        # Every file a port's install needs, `path` first. Nearly every port is
+        # one file; `alsoPlace` is the handful that need a companion beside it
+        # (OBS's base `.obt`, JetBrains's `.theme.json`), and placing `path`
+        # alone for one of those is an app that drops the theme and logs
+        # nothing — nebelung#54, which is why this list exists at all.
+        files = p: [ p.path ] ++ p.alsoPlace;
+
         # A port this module can place unattended: a straight file copy into a
         # fixed ~/-rooted destination, with a concrete filename. Accent matrices
         # (`<accent>`) and brace expansions have no single right answer to pick,
@@ -99,7 +115,18 @@
           p.install == "copy"
           && p.dest != null
           && lib.hasPrefix "~/" p.dest
-          && builtins.match ".*[<>{}].*" p.path == null;
+          # A `dest` that IS the target filename (lsd's colors.yaml, gitui's
+          # theme.ron) has nowhere to put a second file — two files, one name.
+          # A port with companions therefore needs a DIRECTORY dest, or it
+          # falls through to the reported manual path: telling someone the
+          # install is theirs beats placing one of its two halves and writing
+          # "done" next to it.
+          && (p.alsoPlace == [ ] || lib.hasSuffix "/" p.dest)
+          # Every file, not just `path`: a placeholder left in a companion
+          # would be spelled into a store path that nothing renders, and the
+          # `checked` guard below would then fail the BUILD over a port that
+          # should simply have been reported as manual.
+          && lib.all (f: builtins.match ".*[<>{}].*" f == null) (files p);
 
         placed = lib.filterAttrs (_: placeable) chosen;
 
@@ -107,9 +134,21 @@
         # a directory to drop the rendered file into; anything else IS the target
         # filename (lsd's colors.yaml, gitui's theme.ron).
         relative = d: lib.removeSuffix "/" (lib.removePrefix "~/" d);
-        basename = p: lib.last (lib.splitString "/" p);
+        # Trailing-slash safe, because some port paths are DIRECTORIES spelled
+        # with one (qbittorrent's `themes/icons/`) and `lib.last` on those is
+        # the empty string — a `home.file` name and an install path that both
+        # look like a bug in this file rather than in the metadata.
+        basename = p: lib.last (lib.splitString "/" (lib.removeSuffix "/" p));
         target =
-          p: if lib.hasSuffix "/" p.dest then "${relative p.dest}/${basename p.path}" else relative p.dest;
+          p: f: if lib.hasSuffix "/" p.dest then "${relative p.dest}/${basename f}" else relative p.dest;
+
+        # Where the report says a port landed. One with companions names its
+        # primary file and counts the rest, so the tsv can't describe a
+        # two-file theme as a one-file install.
+        where =
+          p:
+          "~/${target p p.path}"
+          + lib.optionalString (p.alsoPlace != [ ]) " (+ ${toString (builtins.length p.alsoPlace)} more)";
 
         # What's left for a human after the file is in place. `select` is
         # nebelung's answer to "what makes this the active theme":
@@ -139,13 +178,19 @@
           id: p:
           let
             left = remaining p;
+            # Every rendered file, not just the first. A port that falls
+            # through to manual WITH companions is one whose "copy this" means
+            # two files, and naming one of them is the correct-file-beside-
+            # instructions-that-name-something-else outcome
+            # ../lib/nebelung.nix's own comment warns about.
+            rendered = lib.concatStringsSep " and " (map (f: "${nb.root}/${f}") (files p));
           in
           if !(placeable p) then
-            "manual\t${p.title}\tnot installed — ${p.howto} (rendered at ${p.file})"
+            "manual\t${p.title}\tnot installed — ${p.howto} (rendered at ${rendered})"
           else if left == null then
-            "done\t${p.title}\t~/${target p}"
+            "done\t${p.title}\t${where p}"
           else
-            "step\t${p.title}\tplaced at ~/${target p} — ${left}";
+            "step\t${p.title}\tplaced at ${where p} — ${left}";
 
         report = lib.concatStringsSep "\n" (lib.mapAttrsToList line chosen);
 
@@ -161,27 +206,36 @@
         # flavor (../lib/nebelung.nix, whose own comment already notes "a mocha
         # path under a latte root silently resolves to nothing") and once for
         # `<accent>` — so two substitutions neither side validates stand
-        # between another repo's metadata and a real file.
+        # between another repo's metadata and a real file. One ref per FILE,
+        # companions included: a companion nebelung stopped rendering is the
+        # same dangling symlink as a missing `path`, and the app it belongs to
+        # is the half that goes quiet.
         checked = checkedRef.collect {
           name = "nebelung-ports";
-          refs = lib.mapAttrsToList (id: p: {
-            path = p.file;
-            install = "${id}/${basename p.path}";
-            problem = [
-              "haus.theme.ports: the pinned nebelung renders no port file at"
-              "  ${p.file}"
-              "for ${p.title} (haus.roster.${id}) at flavor ${nb.flavor}, accent ${accent}."
-            ];
-            # Three remedies, because they belong to three different people.
-            # The desktop AUTHOR bumps the pin; a CONSUMER of a desktop can't —
-            # they hold the flake input transitively — so name the two levers
-            # that are theirs. The haus#249 question: who can this check fail on?
-            remedies = [
-              "drop haus.roster.${id}, if you don't need the app themed"
-              "haus.theme.ports.enable = false, to turn the whole pass off"
-              "(haus authors) nix flake update nebelung — the port's metadata path may have moved upstream"
-            ];
-          }) placed;
+          refs = lib.concatLists (
+            lib.mapAttrsToList (
+              id: p:
+              map (f: {
+                path = "${nb.root}/${f}";
+                install = "${id}/${basename f}";
+                problem = [
+                  "haus.theme.ports: the pinned nebelung renders no port file at"
+                  "  ${nb.root}/${f}"
+                  "for ${p.title} (haus.roster.${id}) at flavor ${nb.flavor}, accent ${accent}."
+                ];
+                # Three remedies, because they belong to three different
+                # people. The desktop AUTHOR bumps the pin; a CONSUMER of a
+                # desktop can't — they hold the flake input transitively — so
+                # name the two levers that are theirs. The haus#249 question:
+                # who can this check fail on?
+                remedies = [
+                  "drop haus.roster.${id}, if you don't need the app themed"
+                  "haus.theme.ports.enable = false, to turn the whole pass off"
+                  "(haus authors) nix flake update nebelung — the port's metadata path may have moved upstream"
+                ];
+              }) (files p)
+            ) placed
+          );
         };
       in
       {
@@ -204,10 +258,21 @@
             '';
         };
 
+        # One entry per FILE, so a port whose theme is two files installs whole
+        # instead of landing the half the app can't use on its own. Two of a
+        # port's files claiming one name can't quietly lose one here: `checked`
+        # above refuses a second referent at the same install path and fails
+        # the build saying so, where `listToAttrs` would take the first and
+        # drop the rest in silence.
         home.file =
-          lib.mapAttrs' (
-            id: p: lib.nameValuePair (target p) { source = "${checked}/${id}/${basename p.path}"; }
-          ) placed
+          lib.listToAttrs (
+            lib.concatLists (
+              lib.mapAttrsToList (
+                id: p:
+                map (f: lib.nameValuePair (target p f) { source = "${checked}/${id}/${basename f}"; }) (files p)
+              ) placed
+            )
+          )
           # Read by `haus doctor`. Written even when empty so doctor can tell
           # "nothing in your roster has a port" apart from "this machine's haus predates the
           # feature" and say the right thing for each.
