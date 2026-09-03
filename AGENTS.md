@@ -220,6 +220,15 @@ modules/
                           #   item-grammar.nix mirrors pounce's item-key grammar,
                           #   pinned to the LOCKED pounce by `pounce-item-grammar`
   shelf/                  # the perch notch file shelf, installed via the perch flake input
+  notifications/          # whether haus owns the trill bundle (haus.notifications
+                          #   .compositor) — drawing THROUGH trill is ../core's and
+                          #   unconditional — plus mail.nix, the room's second
+                          #   address: haus.mail.*, an IMAP IDLE watcher whose whole
+                          #   output is a card. goimapnotify holds the connection,
+                          #   mail-announce.py decides which messages this Mac has
+                          #   never seen. No filter option in either half: the
+                          #   account's filters decide what arrives and
+                          #   ~/.config/trill/rules.json decides what a card does
   focus/                  # Focus/DND one-switch: declarative hotkey 175 + Slack + hooks,
                           #   plus haus.focus.scenes — the same switch with more than one
                           #   member (quiet is the built-in, and the name is reserved).

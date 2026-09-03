@@ -4364,6 +4364,128 @@
     "readOnly": false,
     "type": "null or (unsigned integer, meaning >=0)"
   },
+  "haus.mail.address": {
+    "declarations": [
+      "modules/notifications/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "The mailbox's own address, which is also the IMAP username.\n\nIt is the account name for the login and the account name in the link\nthe card's Open pill carries — Gmail's `u/<address>` form rather than\n`u/0`, which means \"whichever Google account signed in first\" and is\nthe wrong mailbox on any Mac signed into two of them.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"you@gmail.com\""
+    },
+    "loc": [
+      "haus",
+      "mail",
+      "address"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.mail.enable": {
+    "declarations": [
+      "modules/notifications/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Watch a mailbox over IMAP and draw one card per new message.\n\nThe server pushes: an IDLE connection is held open, so a card arrives\nin the seconds after the mail does and nothing on this Mac polls. What\ndraws it is `haus-notify`, so it is a trill card where trill is\ninstalled and an Apple banner where it is not, like everything else\nthis desktop puts on screen.\n\nWhich mail is worth a card is decided twice before haus sees it, and\nneither dial is this room's. The account's own filters decide what\nreaches the mailbox at all — a Gmail filter that skips the inbox never\nproduces a card — and `~/.config/trill/rules.json` decides what a\n`haus.mail` card then does: quiet hours, dropped, rewritten, or\nsilenced entirely. That is why there is no filter option here.\n\nIt needs the mailbox's password before it will start (see\n`secretCommand`). Until there is one the agent parks with EX_CONFIG and\nsays so in `~/Library/Logs/haus-mail.log`; the build is fine, the\nwatcher simply is not up.\n",
+    "loc": [
+      "haus",
+      "mail",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.mail.host": {
+    "declarations": [
+      "modules/notifications/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"imap.gmail.com\""
+    },
+    "description": "The IMAP server.\n\nGmail's by default because that is the account this was built for, but\nnothing in the room is Gmail-specific except one flourish: where the\nserver says it speaks Gmail's dialect, the card gets an Open pill that\ngoes to the message's own thread. Elsewhere the card carries no pill,\nwhich is the honest answer — a link that opens the wrong thing is\nworse than no link.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"imap.fastmail.com\""
+    },
+    "loc": [
+      "haus",
+      "mail",
+      "host"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.mail.mailboxes": {
+    "declarations": [
+      "modules/notifications/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ \"INBOX\" ]"
+    },
+    "description": "Which mailboxes to watch, spelled exactly as the server spells them.\n\n⚠️ Do not empty this list to mean \"all of them\". The watcher's own\ndefault for an empty list is every mailbox on the account, which on\nGmail is every label plus All Mail — so one arriving message announces\nitself twice, three times, once per label it matched. haus refuses to\nbuild with the list empty for that reason.\n\n`INBOX` is the one name IMAP standardises. Everything else is the\nprovider's own spelling, and Gmail's are bracketed\n(`[Gmail]/All Mail`); `haus-mail-announce` has no way to guess them, so\ntake them from your client or from\n`goimapnotify -conf ~/.config/haus/mail/watch.json -list`.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"INBOX\"\n  \"[Gmail]/Starred\"\n]"
+    },
+    "loc": [
+      "haus",
+      "mail",
+      "mailboxes"
+    ],
+    "readOnly": false,
+    "type": "list of string"
+  },
+  "haus.mail.port": {
+    "declarations": [
+      "modules/notifications/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "993"
+    },
+    "description": "The IMAP port. 993 is implicit TLS, which is what this room configures\nand what every hosted provider answers on.\n\nAn option because a self-hosted server can differ, not because anyone\nshould need to change it.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "143"
+    },
+    "loc": [
+      "haus",
+      "mail",
+      "port"
+    ],
+    "readOnly": false,
+    "type": "16 bit unsigned integer; between 0 and 65535 (both inclusive)"
+  },
+  "haus.mail.secretCommand": {
+    "declarations": [
+      "modules/notifications/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "Shell printing the mailbox's IMAP password on stdout.\n\nA command rather than a value so the password never enters the Nix\nstore, where it would be world-readable and kept in every generation.\nIt is run at startup by the watcher and again by the announcer for each\nmessage it fetches, and nothing caches the answer to disk.\n\nEMPTY (the default) means haus holds it: this room declares\nMAIL_IMAP_PASSWORD to the secrets room, `haus-secret --check` asks you\nfor it once, and `haus.secrets.provider` decides where it is kept. Set\nthis only to fetch the value some other way — which withdraws the\ndeclaration, since a manifest entry nothing reads is a value the wizard\nwould ask for and never use.\n\nOn a Google account the value is an **app password**\n(`https://myaccount.google.com/apppasswords`, which needs 2-Step\nVerification on first): Google no longer accepts an account password\nfor IMAP. It is a static credential with full access to the mailbox, so\nit belongs in the keychain and nowhere else — and revoking it in that\nsame page is what stops this Mac reading the mail, without touching any\nother machine.\n\n⚠️ A command containing `%s` is reinterpreted by the watcher as a\nformat string (it substitutes the mailbox name into hooks that way), so\nkeep percent signs out of it.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"op read op://private/gmail/app-password\""
+    },
+    "loc": [
+      "haus",
+      "mail",
+      "secretCommand"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
   "haus.menuBar.clock.analog": {
     "declarations": [
       "modules/core/options.nix"
