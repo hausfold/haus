@@ -103,8 +103,8 @@ modules/
                           #   copy the ten scripts that reach ui.sh hold verbatim —
                           #   `ui-load-sync` and phase-painter.bats pin the copies
   lib/swift-bin.nix       # the ONE way a one-file Swift helper is built: swiftBin
-                          #   { name, src, description } over `xcrun swiftc`. Ten
-                          #   helpers call it, most from their room's own
+                          #   { name, src, description } over `xcrun swiftc`.
+                          #   Every helper calls it, most from their room's own
                           #   default.nix; `swift-bin` fails the build on any
                           #   hand-rolled copy
   lib/contrib.nix         # extension points: how a room contributes a feature to
@@ -700,13 +700,13 @@ mechanism, say so in one line.
   config lives in `/etc/nix/nix.custom.conf`. GC is our own weekly launchd job.
 - **The pounce build shells out to `/usr/bin/xcrun swiftc`** — needs Xcode CLT +
   the macOS build sandbox relaxed (Determinate's default). See the pounce repo.
-  So do this repo's ten one-file Swift helpers, for the same reason (compiling a
+  So do this repo's one-file Swift helpers, for the same reason (compiling a
   Swift toolchain from source to build a few hundred lines against AppKit costs
   hours) — and every one of them goes through **`modules/lib/swift-bin.nix`**,
   the only place that command is written. A room binds
   `swiftBin = pkgs.callPackage ../lib/swift-bin.nix { };` and calls
   `swiftBin { name; src; description; }` in its own `default.nix`, so
-  `grep -rn 'swiftBin {' modules` is the list of helpers. Two keep a package
+  `grep -rln swift-bin.nix modules` finds every helper. Two keep a package
   file, each for its own reason: `modules/core/package-hausax.nix`, because core
   and theme both build it, and `modules/terminal/zen-tabs/package.nix`, because
   it also owns the `.xpi`.

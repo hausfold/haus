@@ -11,11 +11,10 @@
 # xcrun rationale, which used to be re-explained in ten headers including this
 # one.
 {
-  lib,
-  stdenvNoCC,
+  callPackage,
 }:
 
-(import ../lib/swift-bin.nix { inherit lib stdenvNoCC; }) {
+(callPackage ../lib/swift-bin.nix { }) {
   name = "hausax";
   src = ./hausax.swift;
   description = "Effective appearance + accessibility state via AppKit, for haus plan/diff and theme.systemAppearance";

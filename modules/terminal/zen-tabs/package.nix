@@ -5,14 +5,13 @@
 # one-file Swift helper now calls straight from its room) because it is not one
 # product but two, and the .xpi below is nobody else's shape.
 {
-  lib,
-  stdenvNoCC,
+  callPackage,
   runCommand,
   zip,
 }:
 
 rec {
-  haustabs = (import ../../lib/swift-bin.nix { inherit lib stdenvNoCC; }) {
+  haustabs = (callPackage ../../lib/swift-bin.nix { }) {
     name = "haustabs";
     src = ./haustabs.swift;
     description = "Native-messaging host publishing Zen's tabs to haus";

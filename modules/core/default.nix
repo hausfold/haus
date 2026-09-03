@@ -1277,9 +1277,9 @@ in
       order = 20;
       title = "Xcode Command Line Tools";
       why = ''
-        Five one-file Swift helpers compile against the system toolchain at
-        build time — the palette's signing, the bar's popup dismissal, the
-        window geometry reader — and `git` itself comes from here.
+        haus's one-file Swift helpers compile against the system toolchain at
+        build time: the bar's popup dismissal, the window geometry reader, the
+        OCR behind Copy Text from Screen. `git` itself comes from here too.
       '';
       cost = "a rebuild stops at the first Swift helper it reaches";
       check = "/usr/bin/xcode-select -p >/dev/null 2>&1";

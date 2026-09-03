@@ -4168,22 +4168,29 @@
           '';
 
           # ---- the one-file Swift helpers ---------------------------------
-          # Ten of them (barpop, barvitals, hausax, hausdisp, hausocr, hausrect,
-          # floatring, floatpin, haustabs, haus-github-receiver), and the set
-          # grows every few weeks. Each used to be a hand copy of a sibling's
-          # thirty lines, identical but for `pname`, `src` and a description,
-          # because copying the file next door is how you write the eleventh —
-          # which is exactly what this check makes impossible.
+          # barpop, barvitals, hausax, hausdisp, hausocr, hausrect, floatring,
+          # floatpin, haustabs, haus-github-receiver — and the set grows every
+          # few weeks. Each used to be a hand copy of a sibling's thirty lines,
+          # identical but for `pname`, `src` and a description, because copying
+          # the file next door is how you write the next one. That is what this
+          # check makes impossible.
           #
-          # `xcrun swiftc` is the whole tell: it is the one line a copy cannot
-          # do without, so grepping for it catches a fresh mkDerivation that no
-          # amount of prose in AGENTS.md did. There is no allowlist on purpose.
-          # A helper that needs another flag or an explicit `-framework` grows
+          # `xcrun swiftc` is the tell, and it is a HEURISTIC rather than a
+          # proof: it catches the copy this repo actually produced ten times,
+          # and a determined `xcrun -sdk macosx swiftc` or a build outside
+          # modules/*.nix would walk past it. Worth having anyway — prose in
+          # AGENTS.md caught none of the ten. There is no allowlist: a helper
+          # that needs another flag or an explicit `-framework` grows
           # modules/lib/swift-bin.nix, where every helper gets it at once.
+          #
+          # Comments are stripped before the grep. Explaining the xcrun
+          # rationale beside your `swiftBin {` call is exactly what the eight
+          # deleted headers did, and failing the build for saying the words
+          # would teach the wrong lesson twice over.
           swift-bin = pkgs.runCommand "haus-swift-bin-ok" { } ''
             bad=
             for f in $(find ${./modules} -name '*.nix'); do
-              grep -q 'xcrun swiftc' "$f" || continue
+              sed 's/#.*$//' "$f" | grep -q 'xcrun swiftc' || continue
               rel=''${f#${./modules}/}
               [ "$rel" = "lib/swift-bin.nix" ] && continue
               bad="$bad $rel"
