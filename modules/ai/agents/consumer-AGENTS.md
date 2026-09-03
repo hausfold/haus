@@ -49,6 +49,13 @@ The `CLAUDE.md` beside it is that pointer and holds no rules of its own.
   markdown, so read it by path even if your client never loads it as a skill.
 - **Ask before touching identity or secrets** — git identity, signing keys,
   `haus.secrets.*`.
+- **A fault in haus itself is not a fault in this repo.** `haus report` opens
+  haus's bug form with the diagnostics already filled in (`--print` for the
+  block and the link alone), and the `hausfold` skill beside the `haus` one
+  routes anything about Pounce, Perch, trill or scruff to the repo that owns it.
+  None of these tools has telemetry, so an issue is the only way a rough edge
+  ever reaches the people who made it — offer to file one, and file nothing
+  without a yes.
 
 ## Where the detail lives
 

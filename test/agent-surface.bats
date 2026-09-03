@@ -51,6 +51,10 @@ setup() {
   echo 'boot a headless VM'                >"$SKILL/references/vm.md"
   echo 'starter AGENTS.md'                 >"$SKILL/consumer-AGENTS.md"
   echo 'starter CLAUDE.md'                 >"$SKILL/consumer-CLAUDE.md"
+  # haus's second skill — a SIBLING directory, the layout `cmd_skill` has always
+  # checked first and `cmd_skill_install` now writes.
+  mkdir -p "$SKILL/hausfold"
+  printf -- '---\nname: hausfold\n---\nTelling hausfold.\n' >"$SKILL/hausfold/SKILL.md"
 
   export FAKEHOME="$BATS_TEST_TMPDIR/home"
   mkdir -p "$FAKEHOME"
@@ -129,9 +133,10 @@ haus_sh() { # haus_sh <VAR=val…> <snippet>
 }
 
 @test "a sibling skill outranks a reference of the same name" {
-  # A3's `skill <name>` means a SIBLING skill; haus ships none today, and the
-  # reference arm is haus's addition. The order is what keeps the day haus grows
-  # one from being shadowed by a page that happens to share its name.
+  # A3's `skill <name>` means a SIBLING skill; the reference arm is haus's
+  # addition. The order is what keeps a skill from being shadowed by a page that
+  # happens to share its name — `hausfold` is the real one, and this uses a
+  # made-up collision because the real pair does not collide.
   mkdir -p "$SKILL/options"
   echo 'a real sibling skill' >"$SKILL/options/SKILL.md"
   haus_sh 'cmd_skill options'
@@ -233,6 +238,43 @@ haus_sh() { # haus_sh <VAR=val…> <snippet>
   # The one exception, and it is not one this can close: modules/ai renders
   # `this-machine.md` per HOST, so it is not in the store dir copied from.
   [ ! -e "$d/references/this-machine.md" ] || fail "invented a per-host page"
+  # The second skill is a SIBLING of the first, not a page inside it. Both
+  # halves are asserted because the failure is silent either way: a client scans
+  # `<skills dir>/<name>/SKILL.md` and would never look under `haus/`, so a copy
+  # landing there is installed, listed by nothing, and never loaded.
+  [ -f "$FAKEHOME/elsewhere/hausfold/SKILL.md" ] || fail "the hausfold skill did not install"
+  [ ! -e "$d/hausfold" ] || fail "the hausfold skill landed inside the haus skill, where nothing loads it"
+}
+
+@test "the room installs the same two skills this verb does" {
+  # Same discipline as the list above, one file further out: `haus skill
+  # install` and `haus.ai.skill` write the same paths on purpose, and nothing
+  # but this notices when one of them grows a skill the other doesn't.
+  local room="$BATS_TEST_DIRNAME/../modules/ai/default.nix"
+  grep -q 'skills}/hausfold/SKILL.md' "$room" \
+    || fail "modules/ai no longer installs the hausfold skill — the two halves have drifted"
+  grep -q 'hausfold/SKILL.md' "$SUBJECT" \
+    || fail "haus skill install no longer writes the hausfold skill"
+}
+
+@test "the hausfold skill is a real routing document, not an empty directory" {
+  # The source, not the fixture: a skill whose frontmatter is wrong installs,
+  # lists and is never loaded, which from the user's side is indistinguishable
+  # from haus not shipping one. The nix guard (agents/skill.nix) reads the
+  # RENDERED copy; this reads the file a person edits, so a bad edit fails here
+  # on a machine with no Nix.
+  local src="$BATS_TEST_DIRNAME/../modules/ai/agents/hausfold/SKILL.md"
+  [ -f "$src" ] || fail "no hausfold skill source"
+  head -1 "$src" | grep -qx -- '---' || fail "no frontmatter"
+  grep -qx 'name: hausfold' "$src" || fail "the name key must match the directory it installs into"
+  grep -qE '^description: .{80,}' "$src" || fail "description too short to route on, or wrapped"
+  [ "$(wc -l <"$src" | tr -d ' ')" -le 150 ] || fail "over the 150-line cap"
+  # The thing it exists for: a door per product. A skill that named no verb
+  # would send every reporter to github.com to work the repo out themselves.
+  local v
+  for v in 'haus report' 'pounce report' 'trill report' 'perch doctor'; do
+    grep -q "$v" "$src" || fail "the hausfold skill names no '$v' door"
+  done
 }
 
 @test "doctor's starter-pair probe finds what this installed" {
@@ -266,6 +308,11 @@ haus_sh() { # haus_sh <VAR=val…> <snippet>
   # some would let this pass while the rest were quietly written over.
   for f in SKILL.md consumer-AGENTS.md consumer-CLAUDE.md; do ln -s "$SKILL/$f" "$d/haus/$f"; done
   for f in options rooms recipes vm; do ln -s "$SKILL/references/$f.md" "$d/haus/references/$f.md"; done
+  # The second skill sits BESIDE the first, not inside it, so a rebuild leaves a
+  # symlink one level up. Leaving it out here would let this test pass while
+  # `skill install` wrote a real file into a directory home-manager owns.
+  mkdir -p "$d/hausfold"
+  ln -s "$SKILL/hausfold/SKILL.md" "$d/hausfold/SKILL.md"
 
   haus_sh 'cmd_skill_install --client claude 2>&1'
   [ "$status" -eq 0 ] || fail "a machine in its NORMAL state was reported as a failure: $output"
