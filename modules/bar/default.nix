@@ -538,6 +538,18 @@ let
       # a pill, and a hex here would be the hardcoded-palette mistake the
       # whole framework exists to remove — so both are eval errors rather
       # than a default that quietly picks one.
+      # A `style` that writes `update_freq` on a pill whose header already
+      # declared one. Both land in the same `--set` and the style is the later
+      # of the two, so the pill would tick at a rate its own header denies —
+      # and `intervalOverride` reads the HEADER, so it would then compare the
+      # option against a number nothing on the machine uses. `calendar` is the
+      # legal shape of this and stays legal: `haus.bar.calendar.refresh`
+      # written through `style`, with no interval in the header at all.
+      freqChecked =
+        if !(style ? "update_freq") || m.interval == null then
+          true
+        else
+          throw "bar widget ${name}: its style writes update_freq=${style."update_freq"} and its header declares interval = ${toString m.interval}. Two rates for one pill, and the style is the one that wins — keep whichever is right and delete the other (a rate that has to come from an option belongs in the style, with no interval in the header).";
       graphChecked =
         if m.graph == null then
           true
@@ -654,7 +666,7 @@ let
     in
     # seq, so the checks above fire with their own message rather than as a
     # `head: empty list` from the fill derivation below them.
-    builtins.seq graphChecked (
+    builtins.seq (builtins.seq freqChecked graphChecked) (
       let
         events = lib.concatMapStrings (e: ''
           ${sb} --add event ${e}
@@ -685,14 +697,21 @@ let
         ''
     );
 
+  # The file a bundled pill's plugin IS, in this repo — the one `builtins.readFile`
+  # reads its `# widget:` header out of at eval. Keyed by the pill's ITEM id and
+  # not its `widgets.nix` key, because the item id is what `mkPluginBlocks` hands
+  # `frameworkBlock` and what the script on disk is named: `aiUsage`'s pill is
+  # `ai_usage` and its plugin is `ai_usage.sh`. A lookup by table key would find
+  # no file at all there, and every bundled pill has one whether it is converted
+  # or not — a hand-written block's `script=` points at this same path.
+  bundledPlugin = item: ./sketchybar/plugins + "/${item}.sh";
+
   # A pill haus ships, converted. The script is this repo's own, so both paths
   # are derived from the name and the call sites in `mkPluginBlocks` below say
   # nothing but the name and the pill's identity.
   frameworkBlock =
     sb: side: name:
-    frameworkItem sb side name (
-      ./sketchybar/plugins + "/${name}.sh"
-    ) "$HOME/.config/sketchybar/plugins/${name}.sh";
+    frameworkItem sb side name (bundledPlugin name) "$HOME/.config/sketchybar/plugins/${name}.sh";
 
   mkPluginBlocks = sb: side: {
     focus = focusBlock sb side;
@@ -1208,15 +1227,35 @@ let
     let
       chosen = widgets.${name}.interval or null;
       # What the pill already ticks at, so that setting the option to the rate
-      # it was already running emits nothing at all. For a bundled pill that is
-      # its `widgets.nix` entry; for a declared framework widget it is the
-      # `interval` in the script's own header, which is the same fact one file
-      # over.
+      # it was already running emits nothing at all. It is the `interval` in the
+      # plugin's own `# widget:` header wherever there is one — for a bundled
+      # framework pill and a stranger's alike, read by the same parser out of the
+      # same file `frameworkItem` emits the pill's `update_freq` from. That is
+      # the whole point: the rate this compares against and the rate the bar
+      # actually writes cannot be two different numbers.
+      #
+      # `widgets.nix` is the FALLBACK, not the source, and it is what the six
+      # pre-framework pills need: battery, wifi, volume, elgato, trill and focus
+      # carry no header at all, and their tick is a literal in a hand-written
+      # block that only that table can speak for. `calendar` lands here too and
+      # is null on both sides, because its rate is `haus.bar.calendar.refresh`
+      # written through `style` — an option that shipped first and that this one
+      # only backstops.
+      #
+      # The table is also what the option DEFAULTS to on a bundled pill
+      # (`interval = lib.mkDefault w.interval` below), so a header and a table
+      # entry that disagree would put the table's number back on the pill on
+      # every rebuild with nobody having asked for it. That is a defect rather
+      # than a precedence, and `bar-widget-intervals` in flake.nix is what
+      # refuses it.
       shipped =
-        if isBundled name then
-          widgetTable.${name}.interval or null
+        if !(isBundled name) then
+          (widgetManifest.parse widgets.${name}.script).interval
         else
-          (widgetManifest.parse widgets.${name}.script).interval;
+          let
+            header = (widgetManifest.parse (bundledPlugin (itemId name))).interval;
+          in
+          if header != null then header else widgetTable.${name}.interval or null;
     in
     lib.optionalString (chosen != null && chosen != shipped) ''
       ${sb} --set ${itemId name} update_freq=${toString chosen}
@@ -1248,9 +1287,10 @@ let
   #
   # The interval override rides BOTH declared tiers, and means the same thing on
   # each: a trailing `--set update_freq` after the block that already wrote one.
-  # For a framework widget the rate it overrides is the `interval` in the
-  # script's own header, which is exactly the relationship a bundled pill's
-  # `widgets.nix` entry has to its hand-written block.
+  # The rate it overrides is the `interval` in the script's own header, for a
+  # bundled pill and a stranger's alike — the same file, the same parser, the
+  # same number the block above it just wrote. Only the six pills that predate
+  # the framework, which have no header to read, fall back to `widgets.nix`.
   widgetBlock =
     sb: side: name:
     if isBundled name then
