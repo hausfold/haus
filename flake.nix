@@ -4116,7 +4116,8 @@
           # lists move together or a rebuild links a path that isn't there.
           agent-skill = pkgs.runCommand "haus-agent-skill-ok" { } ''
             skill=${self.packages.${system}.agent-skill}
-            for f in SKILL.md consumer-AGENTS.md consumer-CLAUDE.md \
+            for f in SKILL.md hausfold/SKILL.md \
+                     consumer-AGENTS.md consumer-CLAUDE.md \
                      references/options.md references/rooms.md \
                      references/recipes.md references/vm.md; do
               test -s "$skill/$f" \

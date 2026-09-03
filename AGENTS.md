@@ -160,15 +160,23 @@ modules/
     agents/               # the haus agent skill (haus.ai.skill): hand-written
                           #   SKILL.md + recipes + vm (the headless-VM loop), plus
                           #   options and rooms rendered per-revision — see skill.nix
-                          #   for why it's a package. ONE skill, installed into every
-                          #   client in haus.ai.clients (this room's agentHomes has
-                          #   the paths). Also ships the consumer starter pair
+                          #   for why it's a package. TWO skills, installed into
+                          #   every client in haus.ai.clients (this room's agentHomes
+                          #   has the paths): `haus`, which changes this machine, and
+                          #   `hausfold/SKILL.md`, which routes a complaint about any
+                          #   of our tools into an issue or a PR in the repo that owns
+                          #   it — a sibling directory because a client matches a
+                          #   skill's own frontmatter, and "why does the shelf keep
+                          #   doing that" names no room and no option.
+                          #   Also ships the consumer starter pair
                           #   (consumer-AGENTS.md + its consumer-CLAUDE.md pointer)
                           #   `haus doctor` offers to copy.
                           #   skill.nix also carries this repo's A4 GUARD — the shape
                           #   check every other family repo has and haus went without
-                          #   until 2026-09-02: frontmatter, `name: haus` against the
-                          #   directory it installs into, the description's length,
+                          #   until 2026-09-02: frontmatter, the `name:` key against
+                          #   the directory that skill installs into (a function,
+                          #   run per skill — the standard binds each separately),
+                          #   the description's length,
                           #   the 150-LINE CAP, no surviving @placeholder@, and no
                           #   references/ pointer the skill doesn't ship. It reads
                           #   $out, never ./SKILL.md — that file is a template — and

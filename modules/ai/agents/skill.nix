@@ -132,9 +132,26 @@ pkgs.runCommand "haus-agent-skill-${version}"
     };
   }
   ''
-    mkdir -p "$out/references"
+    mkdir -p "$out/references" "$out/hausfold"
 
     substitute ${./SKILL.md} "$out/SKILL.md" --subst-var-by hausVersion ${lib.escapeShellArg version}
+
+    # haus's SECOND skill, and the only one here that is not about driving this
+    # machine: how an agent turns "this is annoying" into a filed issue — or a
+    # pull request — in whichever hausfold repo owns the symptom. A sibling
+    # directory rather than a reference page, because a page is only read once
+    # the haus skill has already loaded, and the sentence this has to catch
+    # ("why does the shelf keep doing that") never mentions haus at all. Its
+    # `description` is the whole routing surface, so it names the phrases
+    # somebody says when they are annoyed rather than the features we have.
+    #
+    # It ships to a CONSUMER's machine, where there is no workshop checkout and
+    # no telemetry in anything we make, so an issue is the only channel that
+    # exists. Hand-written and hand-updated: the doors it names (`haus report`,
+    # `pounce report`, trill's, perch's menu row) are the family's bug-report
+    # standard, the workshop's `docs/bug-reports.md`, which is also where a
+    # door that moves has to be re-read.
+    cp ${./hausfold/SKILL.md}   "$out/hausfold/SKILL.md"
     cp ${./recipes.md}          "$out/references/recipes.md"
 
     # The one page an agent is told to read INSTEAD of driving this desktop. It
@@ -190,22 +207,16 @@ pkgs.runCommand "haus-agent-skill-${version}"
     grep -q '^- \*\*Says:\*\* .*make my mac quiet' "$out/references/rooms.md" \
       || { echo "rooms.md rendered no room's agent.asks — the routing half is missing" >&2; exit 1; }
 
-    # ---- A4: the shape of the skill itself ----------------------------------
+    # ---- A4: the shape of every skill in here --------------------------------
     # See the header for why this is a build failure and why it reads $out.
-    skill="$out/SKILL.md"
-
-    # The frontmatter, and ONLY the frontmatter. Every client routes on `name`
-    # and `description`; the same words further down the body are prose.
     #
-    # The close is found by LINE NUMBER inside a bounded window rather than with
-    # `sed '1,/^---$/p'`, which runs to EOF when the block is never closed and
-    # then hands the greps below the whole body to search. That is not
-    # hypothetical here: a markdown thematic break is spelt `---` too, so an
-    # unclosed block plus one horizontal rule anywhere in the prose would pass a
-    # "never closed" check and let `name:`/`description:` match a sentence. Real
-    # frontmatter is two keys; 12 lines is generous and still nowhere near the
-    # body.
-    # ⚠️ Every check from here down reads a FILE, never a pipeline, and that is
+    # A FUNCTION over a list, because haus ships two skills and the family
+    # standard binds each of them separately (`docs/agent-surface.md`: "every
+    # guard runs per skill"). The one thing that differs between the two calls
+    # is the `name:` a skill must carry, which is also the directory it installs
+    # into — so it is the argument.
+    #
+    # ⚠️ Every check in here reads a FILE, never a pipeline, and that is
     # load-bearing rather than a style. `grep -q` and `grep -m1` exit the moment
     # they match, so `head`/`tail`/`printf` feeding one can be killed by SIGPIPE
     # mid-write; nixpkgs' setup.sh sets `-o pipefail`, so the derivation then
@@ -216,57 +227,88 @@ pkgs.runCommand "haus-agent-skill-${version}"
     # widest window was `tail -n +2 "$skill" | head -n "$close"`, where the
     # reader wants four lines and the writer has the whole file to push. Keep
     # new guards file-fed; a pipe here is a flake nobody can debug from the log.
-    [ "$(head -1 "$skill")" = '---' ] \
-      || { echo "SKILL.md does not open with YAML frontmatter — no client will load it" >&2; exit 1; }
-    close=$(awk 'NR > 1 && NR <= 13 && $0 == "---" { print NR; exit }' "$skill")
-    [ -n "$close" ] \
-      || { echo "SKILL.md frontmatter block is never closed in its first 12 lines" >&2; exit 1; }
-    front=frontmatter.txt
-    sed -n "2,''${close}p" "$skill" > "$front"
+    # The one pipe left is `grep -o … | sort -u` at the bottom, and it is safe
+    # for the reason the rest are not: `sort` reads to EOF, so there is no early
+    # exit to race.
+    check_skill() {
+      local skill="$1" want="$2" dir close front lines ref
+      dir="$(dirname "$skill")"
 
-    # The `name:` key and the directory this installs into are two identifiers
-    # for one skill — the path a client scans and the string it routes on. haus
-    # writes `<client skills dir>/haus/SKILL.md` (modules/ai's agentHomes, and
-    # `haus skill install` says it again in bash), so this name is not a free
-    # choice: rename it and the skill installs under a name nothing asks for.
-    grep -qx 'name: haus' "$front" \
-      || { echo "SKILL.md has no 'name: haus' line — it must match the directory it installs into" >&2; exit 1; }
+      # The frontmatter, and ONLY the frontmatter. Every client routes on `name`
+      # and `description`; the same words further down the body are prose.
+      #
+      # The close is found by LINE NUMBER inside a bounded window rather than
+      # with `sed '1,/^---$/p'`, which runs to EOF when the block is never
+      # closed and then hands the greps below the whole body to search. That is
+      # not hypothetical here: a markdown thematic break is spelt `---` too, so
+      # an unclosed block plus one horizontal rule anywhere in the prose would
+      # pass a "never closed" check and let `name:`/`description:` match a
+      # sentence. Real frontmatter is two keys; 12 lines is generous and still
+      # nowhere near the body.
+      [ "$(head -1 "$skill")" = '---' ] \
+        || { echo "$skill does not open with YAML frontmatter — no client will load it" >&2; exit 1; }
+      close=$(awk 'NR > 1 && NR <= 13 && $0 == "---" { print NR; exit }' "$skill")
+      [ -n "$close" ] \
+        || { echo "$skill frontmatter block is never closed in its first 12 lines" >&2; exit 1; }
+      # Named for the skill rather than reused, so a failing guard's own file is
+      # still on disk to look at when two skills are checked in one build.
+      front="frontmatter-$want.txt"
+      sed -n "2,''${close}p" "$skill" > "$front"
 
-    # One PHYSICAL line, by design, and it is the most important line in the
-    # file: it is what a client matches the user's words against to decide
-    # whether to load the skill at all. A YAML folded scalar (`>-` plus an
-    # indented body) is valid YAML that these greps would silently stop
-    # checking, so the family standard says one line.
-    grep -qE '^description: .{80,}' "$front" \
-      || { echo "SKILL.md description is missing, too short to route on, or wrapped onto a second line" >&2; exit 1; }
+      # The `name:` key and the directory this installs into are two identifiers
+      # for one skill — the path a client scans and the string it routes on.
+      # haus writes `<client skills dir>/<name>/SKILL.md` (modules/ai's
+      # agentHomes and agentSkillFiles, and `haus skill install` says it again
+      # in bash), so this name is not a free choice: rename it and the skill
+      # installs under a name nothing asks for.
+      grep -qx "name: $want" "$front" \
+        || { echo "$skill has no 'name: $want' line — it must match the directory it installs into" >&2; exit 1; }
 
-    # A routing document that grew into a manual stops being read as one. haus's
-    # was 286 lines when this guard was written; the detail went to references/
-    # and to `haus --help`, which is where the next overflow goes too.
-    lines=$(wc -l < "$skill" | tr -d ' ')
-    [ "$lines" -le 150 ] \
-      || { echo "SKILL.md is $lines lines; the standard caps a routing document at 150 — push detail into references/ or behind 'haus --help'" >&2; exit 1; }
+      # One PHYSICAL line, by design, and it is the most important line in the
+      # file: it is what a client matches the user's words against to decide
+      # whether to load the skill at all. A YAML folded scalar (`>-` plus an
+      # indented body) is valid YAML that these greps would silently stop
+      # checking, so the family standard says one line.
+      grep -qE '^description: .{80,}' "$front" \
+        || { echo "$skill description is missing, too short to route on, or wrapped onto a second line" >&2; exit 1; }
 
-    # The template trap, and the one guard here no other repo in the family
-    # needs. `substitute` above fails silently in the direction that matters: a
-    # renamed hole is not an error, it is a placeholder shipped to a user. Any
-    # surviving `@name@` means the substitution stopped matching.
-    if grep -n '@[A-Za-z][A-Za-z0-9_]*@' "$skill"; then
-      echo "SKILL.md still holds an unsubstituted @placeholder@ — the substitute call above no longer matches it" >&2
-      exit 1
-    fi
+      # A routing document that grew into a manual stops being read as one.
+      # haus's was 286 lines when this guard was written; the detail went to
+      # references/ and to `haus --help`, which is where the next overflow goes
+      # too.
+      lines=$(wc -l < "$skill" | tr -d ' ')
+      [ "$lines" -le 150 ] \
+        || { echo "$skill is $lines lines; the standard caps a routing document at 150 — push detail into references/ or behind 'haus --help'" >&2; exit 1; }
 
-    # Every reference page the prose sends a reader to has to be one this skill
-    # ships. A dangling pointer in a routing document is the failure the whole
-    # document exists to prevent, and it is invisible: the agent reads the name,
-    # cannot open the file, and falls back to guessing. `this-machine.md` is the
-    # deliberate exception — modules/ai renders it per HOST out of the evaluated
-    # config, so it is never in this store copy (`haus skill this-machine` finds
-    # the installed one).
-    for ref in $(grep -o 'references/[A-Za-z0-9._-]*\.md' "$skill" | sort -u || true); do
-      if [ "$ref" != references/this-machine.md ] && [ ! -f "$out/$ref" ]; then
-        echo "SKILL.md points at $ref, which this skill does not ship" >&2
+      # The template trap, and the one guard here no other repo in the family
+      # needs. `substitute` above fails silently in the direction that matters:
+      # a renamed hole is not an error, it is a placeholder shipped to a user.
+      # Any surviving `@name@` means the substitution stopped matching. It runs
+      # over the non-template skills too — a hole they never had cannot appear,
+      # and a hole someone adds later has to be filled by something.
+      if grep -n '@[A-Za-z][A-Za-z0-9_]*@' "$skill"; then
+        echo "$skill still holds an unsubstituted @placeholder@ — the substitute call above no longer matches it" >&2
         exit 1
       fi
-    done
+
+      # Every reference page the prose sends a reader to has to be one this
+      # skill ships. A dangling pointer in a routing document is the failure the
+      # whole document exists to prevent, and it is invisible: the agent reads
+      # the name, cannot open the file, and falls back to guessing. Resolved
+      # against the SKILL's own directory, not $out, because that is what a
+      # relative pointer means to the client reading it — the two are the same
+      # for haus and differ for every sibling. `this-machine.md` is the
+      # deliberate exception — modules/ai renders it per HOST out of the
+      # evaluated config, so it is never in this store copy (`haus skill
+      # this-machine` finds the installed one).
+      for ref in $(grep -o 'references/[A-Za-z0-9._-]*\.md' "$skill" | sort -u || true); do
+        if [ "$ref" != references/this-machine.md ] && [ ! -f "$dir/$ref" ]; then
+          echo "$skill points at $ref, which that skill does not ship" >&2
+          exit 1
+        fi
+      done
+    }
+
+    check_skill "$out/SKILL.md" haus
+    check_skill "$out/hausfold/SKILL.md" hausfold
   ''

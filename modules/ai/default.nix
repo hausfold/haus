@@ -231,7 +231,8 @@ let
 
     `~/${agentHomes.${client}.skills}/haus/` is generated too, from the haus
     revision this machine pins (`haus update` regenerates it), as is every other
-    skill haus installed. `scruff/` and `handoff/` are scruff's, edited in
+    skill haus installed. `hausfold/` is haus's second skill and is edited in
+    hausfold/haus beside the first; `scruff/` and `handoff/` are scruff's, edited in
     hausfold/scruff; `factory/` and `nightshift/` are factory's, edited in
     hausfold/factory; `nebelung/` is nebelung's, and half of it is rendered from
     that repo's palette files rather than written;${lib.optionalString config.haus.notifications.compositor " `trill/` is trill's, here because `haus.notifications.compositor` is on;"}${lib.optionalString config.haus.launcher.enable " `pounce/` is pounce's, here because `haus.launcher.enable` is on;"}${lib.optionalString config.haus.shelf.enable " `perch/` is perch's, here because `haus.shelf.enable` is on;"} they arrive on a lock bump. Not everything beside them
@@ -351,6 +352,27 @@ let
         however loudly it redraws over there. Booting that VM with a window on
         this display (`tart run` without `--no-graphics`) is.
       ''
+    }
+
+    # Feedback belongs upstream, not in your scrollback
+
+    Nothing hausfold makes sends telemetry — not haus, Pounce, Perch, trill,
+    scruff, snug or nebelung — so a GitHub issue is the only way a rough edge
+    ever reaches the people who made it. When the user says one of those is
+    broken, annoying or should work differently, **offer once, in one line, to
+    file it**. The report is theirs — their words, their account, an explicit
+    yes before anything is filed — and if they pass on the offer, drop it and
+    don't raise it again this session.${
+      # Two blank lines, not one: Nix drops the newline that immediately
+      # follows the opening `''`, so a single one would join this to the
+      # paragraph above and markdown would read them as one.
+      lib.optionalString cfg.skill ''
+
+
+        The route is `~/${agentHomes.${client}.skills}/hausfold/SKILL.md`: which
+        repo owns which symptom, the `report` verb that fills that form's
+        diagnostics field in, and the fork to a pull request when the user would
+        rather fix it than report it.''
     }
 
     Full guide: https://hausfold.co/docs/haus/rooms/ai/
@@ -507,6 +529,19 @@ let
           "${dir}/references/this-machine.md".text = thisMachine;
           "${dir}/consumer-AGENTS.md".source = "${hausSkill}/consumer-AGENTS.md";
           "${dir}/consumer-CLAUDE.md".source = "${hausSkill}/consumer-CLAUDE.md";
+        }
+        # haus's second skill, and a TOP-LEVEL sibling rather than a page inside
+        # the first: routing feedback upstream is a different job from changing
+        # this Mac, and a client only ever matches a skill's own frontmatter. A
+        # user who says "why does the shelf keep dropping things" names no room,
+        # no option and not haus — so a description buried inside the haus skill
+        # would never be read at the moment it is needed.
+        #
+        # One file, so a plain `home.file` entry rather than the directory
+        # symlink the tool skills get: this skill ships no references/ and the
+        # single entry keeps the collision surface one path wide.
+        // {
+          "${agentHomes.${client}.skills}/hausfold/SKILL.md".source = "${hausSkill}/hausfold/SKILL.md";
         }
       ) fileClients
     )

@@ -4224,24 +4224,35 @@ cmd_skill_install() {
   # close: modules/ai renders it per HOST out of the evaluated config, so it is
   # not in the store dir copied from here. `haus skill this-machine` says where
   # it does live.
-  local rel dest t wrote_client=""
+  local rel dest root t wrote_client=""
   local -a pages=(
     SKILL.md
     references/options.md references/rooms.md references/recipes.md
     references/vm.md
     consumer-AGENTS.md consumer-CLAUDE.md
+    # haus's SECOND skill — routing a complaint about any of our tools into an
+    # issue or a PR. It is a sibling directory rather than a page of the first,
+    # so it installs at `<skills dir>/hausfold/SKILL.md`, which is the same path
+    # modules/ai writes and the only one a client scans. It rides in this list
+    # because the source layout matches (`$src/hausfold/SKILL.md`); the case
+    # below is what keeps it out of `$t/haus/`, where nothing would ever load
+    # it.
+    hausfold/SKILL.md
   )
   for t in "${targets[@]}"; do
     for rel in "${pages[@]}"; do
       [ -f "$src/$rel" ] || continue
-      dest="$t/haus/$rel"
+      case "$rel" in
+        hausfold/*) root="$t/hausfold"; dest="$t/$rel" ;;
+        *)          root="$t/haus";     dest="$t/haus/$rel" ;;
+      esac
       # THE HAUS MACHINE CASE, and the reason this is a refusal rather than an
       # EPERM: on any machine with `haus.ai.skill` on, every one of these is a
       # read-only symlink into the store that haus itself put there, one rebuild
       # ago. Writing is impossible and re-installing is pointless, so say which
       # of the two it is — an agent that met a bare "permission denied" here
       # would reach for sudo, and sudo would succeed at corrupting a generation.
-      if [ -L "$dest" ] || [ -L "$t/haus" ]; then
+      if [ -L "$dest" ] || [ -L "$root" ]; then
         hint "skipped $dest — a symlink, so something else manages it (on a haus machine, haus.ai.skill already did)"
         nixed=$((nixed + 1)); continue
       fi

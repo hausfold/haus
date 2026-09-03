@@ -488,7 +488,11 @@ in
         have open?" or "hand this off to a fresh session" reaches for `scruff`
         rather than `git worktree`.
 
-        Six skills on any machine: `haus` (this machine's setup), scruff's
+        Seven skills on any machine. Two are haus's own: `haus` (this
+        machine's setup) and `hausfold` (carrying a complaint about anything we
+        make upstream — which repo owns the symptom, the `report` verb that
+        fills its bug form's diagnostics field in, and the fork to a pull
+        request; it files nothing without asking you first). Then scruff's
         own two — `scruff` (the lane lifecycle) and `handoff` (turning work into a
         brief a cold session can act on, ending on the clipboard or in a new
         lane) — factory's two: `factory` (the merge verbs) and `nightshift`
@@ -508,7 +512,7 @@ in
         Each tool names its own skills; haus only decides that they are
         installed.
 
-        One copy per client, in the directory that client scans:
+        One copy per skill per client, in the directory that client scans:
         `~/.claude/skills/haus`, `~/.codex/skills/haus`,
         `~/.config/opencode/skills/haus`, `~/.pi/agent/skills/haus`, and the
         same four directories again
