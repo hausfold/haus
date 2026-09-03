@@ -367,7 +367,7 @@ jobs:
           # unsubstituted; and it is an end-user CLI that launchd agents also
           # exec at boot to read a value, where a non-zero is a room starting
           # without its secret and nothing on screen to say so.
-          shellcheck --severity=warning modules/secrets/haus-secret.sh bootstrap.sh modules/ai/fix.sh modules/ai/fix-github.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/haus-bar-poke.sh modules/core/lidawake.sh test/lidawake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/launcher/commands/lib/menu-commit.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh modules/ai/statusline.sh modules/github/signal.sh modules/terminal/scripts/image-preview.sh modules/terminal/lanes/lane-open.sh modules/bar/sketchybar/barlib.sh
+          shellcheck --severity=warning modules/secrets/haus-secret.sh bootstrap.sh modules/ai/fix.sh modules/ai/fix-github.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/haus-bar-poke.sh modules/core/lidawake.sh test/lidawake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/terminal/lanes/lane-focus.sh modules/terminal/scripts/raise-session.sh modules/windows/scripts/fullscreen-toggle.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/launcher/commands/lib/menu-commit.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh modules/ai/statusline.sh modules/github/signal.sh modules/terminal/scripts/image-preview.sh modules/terminal/lanes/lane-open.sh modules/bar/sketchybar/barlib.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
       # lidawake's three failsafes, over a fake pmset and a fake clock. Every
@@ -478,6 +478,18 @@ jobs:
       # one-true-awk's rule, and would pass on the old code without it.
       - name: raise-session lane join
         run: bats test/raise-session-lane-join.bats
+
+      # The other half of that click: the fullscreen ON take, which is <mod>f's
+      # body and what a trill fin's raise reaches through --fullscreen. Both
+      # rules it keeps fail SILENTLY — the solo-window guard arms a mode that
+      # hides the next window to open on that page; counting the window's OWN
+      # page rather than the focused one is what keeps a raise that missed from
+      # arming the mode somewhere you are not. Plus raise-session's flag loop,
+      # which every existing caller runs through with both streams redirected
+      # away. Hermetic: aerospace and the bar's notify hook are recorders.
+      # Needs only bash + bats.
+      - name: fullscreen take
+        run: bats test/fullscreen-take.bats
 
       # The zmx wire-format reader — the one parse of `zmx ls`/`zmx get`
       # everything reads through (three rooms; ~10 hand parses replaced).

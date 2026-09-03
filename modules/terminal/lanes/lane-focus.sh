@@ -46,8 +46,21 @@ sess="scruff.$lane"
 raise="$HOME/.config/haus/term/raise-session.sh"
 [ -x "$raise" ] || exit 3
 
+# --fullscreen, because of WHO clicks this. The banner is up because the lane
+# blocked or finished, and a raise onto a page holding five tiled windows
+# answers "which page wanted you" rather than "which window" — the one that
+# asked is then found by its solid cursor, which is the hunt this flag exists
+# to end.
+#
+# It is cheap to take because it is cheap to leave: AeroSpace drops the mode
+# the moment you focus any other window on that page, so the page comes back
+# by itself and <mod>f is only the deliberate way out. The take is that
+# binding's own script, guard included — windows/scripts/fullscreen-toggle.sh,
+# reached through raise-session.sh, whose header says why the rule lives there
+# and not here.
+#
 # Exit 0 = a window was raised and scruff is done. Exit 1 from raise-session.sh
 # means no window holds this session — it is detached and still running, which
 # is a defer here, not a failure.
-"$raise" "$sess" >/dev/null 2>&1 || exit 3
+"$raise" --fullscreen "$sess" >/dev/null 2>&1 || exit 3
 exit 0
