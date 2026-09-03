@@ -35,12 +35,24 @@ let
 
   cfg = config.haus.bar;
 
-  barpop = pkgs.callPackage ./barpop.nix { };
+  swiftBin = pkgs.callPackage ../lib/swift-bin.nix { };
+
+  # The popup dismisser. See barpop.swift for why SketchyBar can't do this
+  # itself — it only ever hears about clicks on its own items.
+  barpop = swiftBin {
+    name = "barpop";
+    src = ./barpop.swift;
+    description = "Close a SketchyBar popup on the first click outside it";
+  };
 
   # What the cpu and memory pills read their numbers from — the Mach calls and
   # the delta arithmetic neither `ps` nor `memory_pressure` can do honestly.
   # See barvitals.swift; installed conditionally at systemPackages below.
-  barvitals = pkgs.callPackage ./barvitals.nix { };
+  barvitals = swiftBin {
+    name = "barvitals";
+    src = ./barvitals.swift;
+    description = "One sample of CPU and memory, for the bar's readout pills";
+  };
 
   # ---- the second bar, and why it is a symlink -------------------------------
   # SketchyBar has no two-bars-in-one-process mode. An instance names itself

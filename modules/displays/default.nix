@@ -33,7 +33,15 @@
 }:
 
 let
-  hausdisp = pkgs.callPackage ./package.nix { };
+  swiftBin = pkgs.callPackage ../lib/swift-bin.nix { };
+
+  # haus's display-mode helper. See hausdisp.swift for what it does and why the
+  # mode ladder is derived rather than tabulated.
+  hausdisp = swiftBin {
+    name = "hausdisp";
+    src = ./hausdisp.swift;
+    description = "Set a display's scaled resolution by intent (haus.displays)";
+  };
 
   displays = config.haus.displays;
 

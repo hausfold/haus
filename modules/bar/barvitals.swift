@@ -27,7 +27,7 @@
 // counters top does, in ~8 ms, and leaves its previous reading in a state file.
 //
 // Compiled with the system Swift via xcrun, exactly like barpop (see
-// barvitals.nix).
+// modules/lib/swift-bin.nix, which builds every one of these).
 //
 // ── usage ─────────────────────────────────────────────────────────────────────
 //     barvitals sample --state PATH [--top cpu|mem|none] [--rows N]

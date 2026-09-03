@@ -102,6 +102,11 @@ modules/
   lib/ui-load.nix         # snug's painter bootstrap: ui_resolve + ui_load, the ONE
                           #   copy the ten scripts that reach ui.sh hold verbatim —
                           #   `ui-load-sync` and phase-painter.bats pin the copies
+  lib/swift-bin.nix       # the ONE way a one-file Swift helper is built: swiftBin
+                          #   { name, src, description } over `xcrun swiftc`.
+                          #   Every helper calls it, most from their room's own
+                          #   default.nix; `swift-bin` fails the build on any
+                          #   hand-rolled copy
   lib/contrib.nix         # extension points: how a room contributes a feature to
                           #   another room without reaching into its config, or
                           #   switching it on. The receiver declares the point
@@ -711,11 +716,28 @@ mechanism, say so in one line.
   config lives in `/etc/nix/nix.custom.conf`. GC is our own weekly launchd job.
 - **The pounce build shells out to `/usr/bin/xcrun swiftc`** — needs Xcode CLT +
   the macOS build sandbox relaxed (Determinate's default). See the pounce repo.
-  So do this repo's seven one-file Swift helpers, for the same reason (compiling
-  a Swift toolchain from source to build a few hundred lines against AppKit
-  costs hours): `hausax` (core), `hausdisp` (displays), `barpop` (bar),
-  `floatring` and `floatpin` (terminal), `hausrect` (windows), `hausocr`
-  (launcher).
+  So do this repo's one-file Swift helpers, for the same reason (compiling a
+  Swift toolchain from source to build a few hundred lines against AppKit costs
+  hours) — and every one of them goes through **`modules/lib/swift-bin.nix`**,
+  the only place that command is written. A room binds
+  `swiftBin = pkgs.callPackage ../lib/swift-bin.nix { };` and calls
+  `swiftBin { name; src; description; }` in its own `default.nix`, so
+  `grep -rln swift-bin.nix modules` finds every helper. Two keep a package
+  file, each for its own reason: `modules/core/package-hausax.nix`, because core
+  and theme both build it, and `modules/terminal/zen-tabs/package.nix`, because
+  it also owns the `.xpi`.
+  - **Never start a fresh `mkDerivation` for one next door** — that is how ten
+    identical copies happened, five of them in five weeks, each re-explaining
+    the rationale in its own words and citing a different sibling. Prose here
+    did not stop it, so `nix flake check`'s `swift-bin` fails on any `xcrun
+    swiftc` under `modules/` outside the builder. There is no allowlist: a
+    helper that needs another flag or an explicit `-framework` grows
+    `swift-bin.nix`, where every helper gets it at once.
+  - `src` is the ONE `.swift` file, never its directory. A path literal becomes
+    its own store entry, so an edit elsewhere in the tree leaves the drv path
+    byte-identical — which is why the call is three lines in the room and not a
+    file of its own. The eight package files that existed to keep a comment from
+    recompiling a binary were guarding something `src` already guards.
 
 ## Patterns
 
@@ -912,7 +934,7 @@ mechanism, say so in one line.
   is why they exist rather than something a widget re-derives. SketchyBar hears clicks on its own items
   and nothing else, so a popup it opened could otherwise only be closed by
   clicking that pill again. `barpop` (`modules/bar/barpop.swift`, built by
-  `barpop.nix`) is the missing half: an AppKit global mouse-down monitor
+  `swiftBin` in the room's `default.nix`) is the missing half: an AppKit global mouse-down monitor
   (Accessibility-gated for KEY events only, so no TCC prompt) that closes the
   popup on the first click outside the bar and outside the popup's own rows. One
   process, alive only while a dropdown is; opening one closes any other.

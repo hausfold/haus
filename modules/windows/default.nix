@@ -24,12 +24,17 @@
 let
   panes = import ../lib/settings-panes.nix;
   withGUIWait = (import ../lib/gui-wait.nix).wrap;
+  swiftBin = pkgs.callPackage ../lib/swift-bin.nix { };
 
   # `hausrect` — on-screen window rects by window id, the one thing AeroSpace
   # cannot report about itself. scripts/tiling-mode.sh sizes the grid's columns
   # from it; see hausrect.swift for why the tiler has no answer and why this
   # reads WINDOWS rather than displays.
-  hausrect = pkgs.callPackage ./package-hausrect.nix { };
+  hausrect = swiftBin {
+    name = "hausrect";
+    src = ./hausrect.swift;
+    description = "On-screen window rects by window id, for haus's tiling-mode grid";
+  };
   userPath = "/run/current-system/sw/bin:/etc/profiles/per-user/${username}/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin";
 
   # Absolute paths baked into the generated configs. AeroSpace's exec-and-forget
