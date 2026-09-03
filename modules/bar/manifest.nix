@@ -81,10 +81,14 @@ in
     let
       pathStr = toString path;
       lines = lib.splitString "\n" (builtins.readFile path);
+      # `builtins.match` anchors the WHOLE line, which is the point: a header
+      # is a comment line that says nothing else. `nearMiss` below is what
+      # makes that strictness safe to keep.
+      header = builtins.match "#[[:space:]]*widget:[[:space:]]*([A-Za-z]+)[[:space:]]*=[[:space:]]*(.*)";
       kvs = lib.concatMap (
         line:
         let
-          m = builtins.match "#[[:space:]]*widget:[[:space:]]*([A-Za-z]+)[[:space:]]*=[[:space:]]*(.*)" line;
+          m = header line;
         in
         if m == null then
           [ ]
@@ -96,13 +100,33 @@ in
             }
           ]
       ) lines;
+      # ⚠️ A declaration this parser cannot SEE is the one failure the rest of
+      # this file's strictness does not cover, and it is silent all the way
+      # down: no key parsed, no `update_freq=` in the emission, and a pill
+      # whose script SketchyBar then never runs again. The clock shipped that
+      # way — `# …this file cannot see. widget: interval = 10`, the
+      # declaration glued to the tail of a prose line — and sat frozen at
+      # whatever minute the last reload happened to catch, from #564 until it
+      # was noticed by eye.
+      #
+      # So a line that names a known key with an `=` after `widget:` and is
+      # not a header is an eval error naming the file and the line. The test
+      # is deliberately narrow: prose ABOUT the header (logo.sh's "there is no
+      # `# widget:` header") carries no `<key> =`, and passes.
+      nearMiss = lib.filter (
+        line:
+        header line == null
+        && lib.any (k: builtins.match ".*widget:[[:space:]]*${k}[[:space:]]*=.*" line != null) knownKeys
+      ) lines;
       unknown = lib.filter (kv: !(builtins.elem kv.key knownKeys)) kvs;
       names = map (kv: kv.key) kvs;
       dupes = lib.filter (k: lib.count (n: n == k) names > 1) (lib.unique names);
       get = key: default: (lib.findFirst (kv: kv.key == key) { value = default; } kvs).value;
       checked =
         v:
-        if unknown != [ ] then
+        if nearMiss != [ ] then
+          throw "bar widget manifest ${pathStr}: '${lib.trim (builtins.head nearMiss)}' declares a key the parser cannot see — a `# widget:` header is a comment line of its own, with nothing before `widget:` but the `#`"
+        else if unknown != [ ] then
           throw "bar widget manifest ${pathStr}: unknown key '${(builtins.head unknown).key}' (known: ${lib.concatStringsSep ", " knownKeys})"
         else if dupes != [ ] then
           throw "bar widget manifest ${pathStr}: key '${builtins.head dupes}' given twice"

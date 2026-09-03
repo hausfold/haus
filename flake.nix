@@ -4398,6 +4398,43 @@
             touch $out
           '';
 
+          # The `# widget:` header parser's near-miss guard, which exists
+          # because the clock shipped frozen: its `interval` rode the tail of
+          # a prose line, `builtins.match` anchors the whole line, and a
+          # widget with no interval gets no `update_freq=` and never ticks
+          # again. `test/bar-widget-glued.sh` keeps that exact line shape.
+          bar-widget-header =
+            let
+              manifest = import ./modules/bar/manifest.nix { lib = nixpkgs.lib; };
+              probe = f: builtins.tryEval (builtins.deepSeq (manifest.parse f) true);
+              glued = probe ./test/bar-widget-glued.sh;
+              good = probe ./test/bar-widget.sh;
+              interval = (manifest.parse ./test/bar-widget.sh).interval;
+            in
+            pkgs.runCommand "haus-bar-widget-header-ok" { } (
+              (
+                if glued.success then
+                  "echo 'a header glued to a prose line parsed clean; a pill can still ship frozen' >&2; exit 1"
+                else
+                  ""
+              )
+              + "\n"
+              + (
+                if good.success then
+                  ""
+                else
+                  "echo 'the near-miss guard rejected a well-formed widget header' >&2; exit 1"
+              )
+              + "\n"
+              + (
+                if interval == 30 then
+                  ""
+                else
+                  "echo 'test/bar-widget.sh interval parsed as ${builtins.toJSON interval}, want 30' >&2; exit 1"
+              )
+              + "\ntouch $out\n"
+            );
+
           app-collections = pkgs.runCommand "haus-app-collections-ok" { } ''
             ${nixpkgs.lib.optionalString (collectionFailures != [ ]) ''
               cat >&2 <<'FAILURES'
