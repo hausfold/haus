@@ -68,6 +68,23 @@ exit 2) are both decided before the fork and *are* visible in the status —
 everything after that point is forked and exits 0, so the resolve and the spawn
 are the unobservable half.
 
+**A lane spawned with the screen asleep gets no window, and that is the fix
+rather than the fault.** The fault was the other way round: Ghostty cannot build
+a terminal surface while macOS reports zero active displays, so a background
+lane born at 3 a.m. came up as a "failed to initialize" pane. Because
+`modules/terminal/lanes/lane-open.sh` *is* the lane's `--initial-command`,
+nothing below the spawn ran — no zmx session, no client, no banner — while
+`scruff spawn` exited 0 and every caller reported a lane that was working. That
+script now asks `hausdisp` first and, with no display, starts the client
+detached in its zmx session instead. The window comes later, from `scruff
+<name>` or from clicking the spawn banner — **not from ⌃⇥**, which walks
+non-empty `T/*` pages and so cannot see a lane that never tiled. **A shift on a
+sleeping desk therefore has lanes with no windows, and the zmx session rather
+than the tiler is what says a fixer lane exists.** The window path keeps a
+bounded watch of its own: a spawn whose session never appears within ten seconds
+draws a `haus.lane` fault, naming the launcher file the prompt is still in when
+that spawn is the one that never got a surface.
+
 **"It can build; it cannot activate" is `bench`'s doing, not this binary's**,
 which is why only the consequence is on the site. `bench try` builds against the
 lane's branch; `bench try switch` is refused to an agent in a worktree unless it

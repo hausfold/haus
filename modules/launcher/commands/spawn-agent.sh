@@ -737,10 +737,11 @@ name="$(basename "$dir")"
 #
 # This covers the seam REFUSING, not the lane failing later. A ⌃↵ spawn's last
 # act is `open -na`, which returns the moment LaunchServices accepts it; a
-# background spawn's is `zmx run -d`, which returns as soon as the session is up.
-# Either way nothing after that — the launcher script, `zmx attach`, the client
-# itself — can reach this exit status. Those failures are caught where they
-# happen instead: lane-open.sh's hold keeps a non-zero client exit on screen (or,
+# background spawn's is a direct exec of the Ghostty bundle, which returns
+# sooner still — or, with the display asleep and no window to make, a
+# `zmx run … -d` that returns as soon as the session is up. Either way nothing
+# after that — the launcher script, `zmx attach`, the client itself — can reach
+# this exit status. Those failures are caught where they happen instead: lane-open.sh's hold keeps a non-zero client exit on screen (or,
 # for a background lane, in the session's scrollback) rather than letting it
 # flash shut, which is the evidence you would otherwise want this branch to
 # preserve.
@@ -800,10 +801,14 @@ lane_target() {
 # `pillActions` wants two before it spends a row — so "Go to lane" rides the
 # meta row as a LABEL saying what the card does, and the card is the target.
 # The click runs `scruff focus <repo>/<name>`, which goes through
-# lane-focus.sh: the background spawn already has a window tiled on T/<repo>, so
-# the common answer is a plain raise onto that page, and the one case where the
-# window was closed with ⌘W defers back into lane-open.sh and opens a fresh one
-# there. Exactly the path scruff's own fin takes when the lane later blocks or
+# lane-focus.sh: a background spawn USUALLY has a window tiled on T/<repo>, so
+# the common answer is a plain raise onto that page, and the cases that do not
+# defer back into lane-open.sh and open one there — a window closed with ⌘W, and
+# a lane spawned with the display asleep, which is windowless by design (see
+# lane-open.sh's no-display note). That second case is why this banner earns its
+# place twice over: on a dark desk the click is the whole way in, because ⌃⇥
+# walks tiled pages and there is no tile to walk to.
+# Exactly the path scruff's own fin takes when the lane later blocks or
 # finishes (`scruff hook notify`) — this just stops the FIRST banner being the
 # one that can't take you anywhere.
 #

@@ -532,6 +532,19 @@ jobs:
       - name: ghostty pre-warm
         run: bats test/ghostty-prewarm.bats
 
+      # A background lane spawned while the screen is asleep. Ghostty cannot
+      # build a surface when macOS reports zero active displays, and
+      # lanes/lane-open.sh IS the lane's --initial-command — so the window came
+      # up as an error pane, the script never ran, and the lane had no session,
+      # no client and not even a fault banner, while `scruff spawn` exited 0 and
+      # the palette reported it working. Three lanes were lost that way inside
+      # ninety seconds before anyone looked at the windows. Pins the display
+      # gate, the windowless path's create-or-bail, zmx's flag order, and the
+      # probe that now asks whether a CLIENT started rather than whether a
+      # process is alive. Needs only bash + bats.
+      - name: a lane with no display
+        run: bats test/lane-no-display.bats
+
       # The `haus rebuild` phase painter and the colour gate both end-user CLIs
       # grew with it. Three silent failure modes: a record `snug run` cannot
       # parse is a line that simply never appears; a repaint that assumes a
