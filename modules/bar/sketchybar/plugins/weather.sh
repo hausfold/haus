@@ -159,7 +159,16 @@ fetch() {
     emit ok=0
     return 0
   fi
-  jq -c --arg city "$CITY" --argjson fetched "$(date +%s)" '. + {city: $city, fetched: $fetched}' "$tmp" >"$STATE.json" 2>/dev/null
+  # Merged into a second temp and moved into place: a `>` onto the live
+  # file truncates it before jq has said a word, and the last-good forecast
+  # is the thing this file promises to keep.
+  if ! jq -c --arg city "$CITY" --argjson fetched "$(date +%s)" '. + {city: $city, fetched: $fetched}' "$tmp" >"$tmp.2" 2>/dev/null; then
+    rm -f "$tmp" "$tmp.2"
+    [ -s "$STATE.json" ] && return 1
+    emit ok=0
+    return 0
+  fi
+  mv "$tmp.2" "$STATE.json"
   rm -f "$tmp"
   IFS=$'\t' read -r temp code < <(jq -r '[(.current.temperature_2m | round), .current.weather_code] | @tsv' "$STATE.json")
   emit ok=1 temp="$temp" code="$code"

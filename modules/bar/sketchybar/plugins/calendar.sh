@@ -517,11 +517,13 @@ event_rows() { # event_rows <smin> <emin> <sdate> <stime> <title> <who> <join> <
   when="${when%"${when##*[![:space:]]}"} $stime"
   # The band picks the two tones: the title and the caption. A done row is
   # over — its title goes dim and its caption mute; the now band's caption is
-  # the same peach the section rule wears; everything else is the quiet
-  # default, a title in the text colour over a dim caption.
+  # the same peach the section rule wears; the focus row — the one the pill
+  # counts down to — brightens its caption to full text; everything else is
+  # the quiet default, a title in the text colour over a dim caption.
   case "$band" in
   done) ttone=dim; stone=mute ;;
   now) ttone=text; stone=warn ;;
+  focus) ttone=text; stone=text ;;
   *) ttone=text; stone=dim ;;
   esac
 

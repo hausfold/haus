@@ -1672,10 +1672,13 @@ _barlib_graph_points() {
             a=${v[$k]}; b=${v[$((k + 1))]}
             val=$(((a * (span - r) + b * r + span / 2) / span))
         fi
+        # printf -v, never $(printf): a command substitution is a fork, and
+        # 320 of them on the click path is the awk this replaced, in bash.
         if [ "$val" -ge 100 ]; then
             _BARLIB_GRAPH_POINTS+=("1.00")
         else
-            _BARLIB_GRAPH_POINTS+=("$(printf '0.%02d' "$val")")
+            printf -v p '0.%02d' "$val"
+            _BARLIB_GRAPH_POINTS+=("$p")
         fi
     done
     return 0
