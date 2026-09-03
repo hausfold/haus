@@ -1756,6 +1756,10 @@ popup_separator() {
 # popup_space [points] — nothing, that tall. The panel's own padding is drawn
 # with it (popup_open adds one above the first row and one below the last);
 # a widget wants one between two buttons, or under a picture.
+#
+# SC2120: the only caller IN THIS FILE passes no argument; the argument is
+# for widgets, which shellcheck never sees source this.
+# shellcheck disable=SC2120
 popup_space() {
     local h=${1:-}
     _barlib_pop_geo
