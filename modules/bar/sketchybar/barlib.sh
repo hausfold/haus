@@ -111,13 +111,41 @@ esac
 # EVAL, so anything that gets this far has already passed. $BARLIB_SEGMENTS
 # stays as an override for a harness (test/barlib.bats sets it) and for a
 # by-hand run of a file whose header you want to ignore.
-if [ -z "${BARLIB_SEGMENTS:-}" ] && [ -n "${0:-}" ] && [ -r "${0:-}" ]; then
-    BARLIB_SEGMENTS=$(
-        sed -n 's/^#[[:space:]]*widget:[[:space:]]*segments[[:space:]]*=[[:space:]]*//p' "$0" \
-            | head -1 | tr ',' ' ' | tr -s '[:space:]' ' '
-    )
-    BARLIB_SEGMENTS="${BARLIB_SEGMENTS#"${BARLIB_SEGMENTS%%[![:space:]]*}"}"
-    BARLIB_SEGMENTS="${BARLIB_SEGMENTS%"${BARLIB_SEGMENTS##*[![:space:]]}"}"
+# `mark = <name>` rides the same read: the widget's own hue on the identity
+# axis (modules/bar/marks.nix), which is what its dropdown headings wear when
+# they name no tone of their own. Validated by manifest.nix at eval, so a name
+# that reaches here is one mark() resolves; $BARLIB_MARK is the harness
+# override, exactly as $BARLIB_SEGMENTS is.
+if { [ -z "${BARLIB_SEGMENTS:-}" ] || [ -z "${BARLIB_MARK:-}" ]; } && [ -n "${0:-}" ] && [ -r "${0:-}" ]; then
+    _blib_hdr=$(sed -n \
+        -e 's/^#[[:space:]]*widget:[[:space:]]*segments[[:space:]]*=[[:space:]]*/segments=/p' \
+        -e 's/^#[[:space:]]*widget:[[:space:]]*mark[[:space:]]*=[[:space:]]*/mark=/p' "$0")
+    # Word-splitting is the whitespace normaliser — one space between names,
+    # none at either end, no fork — and it happens inside a function on
+    # purpose: this file is SOURCED, so a `set --` up here would overwrite the
+    # widget's own argv, and github's `refresh`/`fetch` CLI modes read $1
+    # after the source.
+    _barlib_words() { _BARLIB_WORDS="$*"; }
+    while IFS= read -r _blib_line; do
+        case "$_blib_line" in
+            segments=*)
+                if [ -z "${BARLIB_SEGMENTS:-}" ]; then
+                    _blib_v=${_blib_line#segments=}
+                    # shellcheck disable=SC2086
+                    _barlib_words ${_blib_v//,/ }
+                    BARLIB_SEGMENTS="$_BARLIB_WORDS"
+                fi
+                ;;
+            mark=*)
+                if [ -z "${BARLIB_MARK:-}" ]; then
+                    # shellcheck disable=SC2086
+                    _barlib_words ${_blib_line#mark=}
+                    BARLIB_MARK="${_BARLIB_WORDS%% *}"
+                fi
+                ;;
+        esac
+    done <<<"$_blib_hdr"
+    unset _blib_hdr _blib_line _blib_v
 fi
 # Two ids have to come back to the head, and both arrive as $NAME because
 # sketchybar exports whichever item was actually touched:
@@ -533,109 +561,220 @@ graph() {
 # the result to barpop so the popup also closes on the first click ANYWHERE
 # else (SketchyBar hears clicks on its own items and nothing else).
 #
-# SIX ROW KINDS, and their typography is the runtime's, not the widget's:
+# THE PANEL IS A GRID, and the grid is the runtime's. SketchyBar lays a popup
+# out as a stack of left-aligned items, each as wide as its own content, with
+# no alignment property and no notion of a column — which is why every
+# hand-written dropdown in this bar's history was a ragged left edge of
+# strings in three greys. Every row here is instead a FIXED-WIDTH item
+# (`width=`), and inside that width the two text slots are placed by their
+# own `width`/`align`, which SketchyBar does honour. That one decision is
+# what buys everything below: a value that lands flush right on every row, a
+# glyph column every row shares, a hover highlight that spans the row, a
+# button that can be centred, a hairline that reaches both edges.
 #
-#   popup_heading   a section title.      Bold, label size,   32pt tall
-#   popup_row       a thing you can act on. Regular, small,   25pt
-#   popup_action    a verb — Refresh, a command to copy. Bold, small, 25pt
-#   popup_note      an aside — "nothing", "+4 more".  Italic, tiny, 20pt
-#   popup_slider    a track you aim at rather than press.     25pt
-#   popup_image     a row that is entirely a picture. --box points tall
+#   ┌ inset ┐┌ gutter ┐┌ well ┐┌ gap ┐┌── text ──────────────┐┌ gutter ┐┌ inset ┐
+#   │       ││        ││ glyph││     ││ Title             38% ││        ││       │
 #
-# Six because that is what every popup in this bar already is; a widget
-# naming ":Bold:${FS_SMALL}" itself is the hardcoded-hex mistake one layer up,
-# and the seventh kind someone needs is a kind to add here rather than a --font
-# to add to the signature.
+# The numbers are POINTS at haus.ui.scale 1 and scale with the type: the row
+# width, the columns and the heights all ride $BAR_SCALE (sizes.sh), so a
+# large-print machine gets a wider panel rather than the same panel with
+# bigger words falling off it.
 #
-# The three label colours below ARE palette keys rather than tones, and that
-# is the line: TEXT/SUBTEXT0/OVERLAY0 are a reading hierarchy the runtime
-# lays out with, the way it picks the fonts. Tones are what a WIDGET names,
-# and a widget still only ever names one — the icon's.
-_BARLIB_POP_I=0
-_BARLIB_H_HEADING=32
-_BARLIB_H_ROW=25
-_BARLIB_H_NOTE=20
-# A value row sits UNDER a heading, so it is indented past the heading's own
-# 10 rather than sharing its left edge.
-_BARLIB_ROW_INDENT=22
+# THE ROW KINDS, and their typography is the runtime's, not the widget's:
+#
+#   popup_heading   a section title, in the widget's own hue.  Bold, label size, 34pt
+#   popup_row       a thing you can act on.                 Regular, small,   26pt
+#   popup_action    a verb — Refresh, a command to copy.    Bold, small,      26pt
+#   popup_button    a filled control, centred — the CTA.    Bold, small,      28pt
+#   popup_bar       a name, a filled track and a value.     Regular, small,   26pt
+#   popup_graph     a sparkline the width of the panel.                       40pt
+#   popup_note      an aside — "nothing", "+4 more".        Italic, tiny,     18pt
+#   popup_separator a hairline between two groups.                            12pt
+#   popup_space     nothing, n points tall.                                    n
+#   popup_slider    a track you aim at rather than press.                     26pt
+#   popup_image     a row that is entirely a picture.       --box points tall
+#
+# A widget naming ":Bold:${FS_SMALL}" itself is the hardcoded-hex mistake one
+# layer up, and the next kind someone needs is a kind to add here rather than
+# a --font to add to a signature.
+#
+# COLOUR. The ladder and the marks (tones.nix, marks.nix) are still the only
+# things a widget names, and the runtime still lays the reading hierarchy out
+# in the palette's own TEXT/SUBTEXT0/OVERLAY0. What changed is where the
+# widget's IDENTITY lands: a heading with no --tone and no --mark wears the
+# mark the widget's `# widget: mark =` header declares, glyph and title both,
+# so a converted pill's dropdown is no longer grey where its pill is coloured.
+# Tints — the wells behind heading glyphs, the capsule behind a badge, the
+# fill of a button — are that same hue at low alpha, derived here, never a
+# second colour a widget could pick.
+#
+# HOVER. Every row that DOES something highlights under the pointer, the way a
+# native menu does: a transparent full-width background the row's own
+# mouse.entered/mouse.exited script turns SURFACE0 and back. It is one
+# `/bin/sh -c` per crossing, on the pointer's schedule and never the tick's,
+# and it is what makes a dropdown feel like a control rather than a printout.
+# A row with nothing to click never lights, so lighting up is itself the
+# affordance.
 
-# ---- the value column -------------------------------------------------------
+# ── geometry ──────────────────────────────────────────────────────────────────
+# Base values at scale 1. `_barlib_pop_geo` scales them once per process and
+# fills the _BARLIB_G_* set every kind below reads; a widget that wants a wider
+# panel says `popup_width <points>` at the top of popup_rows and nothing else.
+_BARLIB_POPUP_W=340    # the row width — the panel is this plus two insets
+_BARLIB_INSET=6        # row inset from the frame: the hover pill's margin
+_BARLIB_GUTTER=10      # text inset inside a row, both ends
+_BARLIB_WELL=20        # the glyph column, and the well drawn behind a heading's
+_BARLIB_GAP=8          # glyph column → text
+_BARLIB_H_HEADING=34
+_BARLIB_H_ROW=26
+_BARLIB_H_BUTTON=28
+_BARLIB_H_NOTE=18
+_BARLIB_H_GRAPH=40
+_BARLIB_H_BADGE=18
+_BARLIB_H_PAD=6        # the panel's own top and bottom padding
+_BARLIB_ROW_RADIUS=6
+_BARLIB_BUTTON_RADIUS=8
+# The mono advance as a share of the point size, ×100. JetBrains Mono, SF
+# Mono and Fira are 0.60; Iosevka is 0.50. A column is sized from it, so it
+# has to be an OVERestimate for every face haus.fonts.mono can name — a value
+# column a shade too roomy is a wider gap, a column too narrow is a number
+# with its first digit under the name. 65 clears them all.
+_BARLIB_ADV100=65
+# A value column pads the number by this many points on its inner side.
+_BARLIB_COL_SLACK=4
+
+_BARLIB_POPUP_W_REQ=''
+_BARLIB_G_READY=0
+_BARLIB_G_W=0 _BARLIB_G_INSET=0 _BARLIB_G_GUTTER=0 _BARLIB_G_WELL=0 _BARLIB_G_GAP=0
+_BARLIB_G_TEXT_X=0
+_BARLIB_G_H_HEADING=0 _BARLIB_G_H_ROW=0 _BARLIB_G_H_BUTTON=0 _BARLIB_G_H_NOTE=0
+_BARLIB_G_H_GRAPH=0 _BARLIB_G_H_BADGE=0 _BARLIB_G_H_PAD=0
+
+# popup_width <points> — a wider (or narrower) panel for this popup, at
+# scale 1. For the widget whose rows are sentences (github's PR titles) or
+# whose picture sets the width (media's cover). Say it before the first row;
+# after that the grid is already laid.
+popup_width() {
+    case "${1:-}" in
+        '' | *[!0-9]*) echo "barlib: popup_width: '${1:-}' is not a point count — ignored" >&2 ;;
+        *) _BARLIB_POPUP_W_REQ=$1 ;;
+    esac
+    if [ "$_BARLIB_G_READY" = 1 ]; then
+        echo "barlib: popup_width: rows are already laid out — say it before the first row" >&2
+    fi
+    return 0
+}
+
+# _barlib_scale100 — $BAR_SCALE ("1", "1.25") as an integer percentage, in
+# bash alone: this runs on the click path and a fork for one number that
+# never changes is the awk this file used to pay per row.
+_BARLIB_SCALE100=100
+_barlib_scale100() {
+    local s=${BAR_SCALE:-1} i f
+    i=${s%%.*}
+    f=${s#*.}
+    if [ "$f" = "$s" ]; then f=0; fi
+    f="${f}00"
+    f=${f:0:2}
+    case "$i$f" in
+        '' | *[!0-9]*) i=1; f=00 ;;
+    esac
+    _BARLIB_SCALE100=$((10#$i * 100 + 10#$f))
+}
+
+_barlib_px() { # _barlib_px <base> → _BARLIB_PX, the base scaled
+    _BARLIB_PX=$((($1 * _BARLIB_SCALE100 + 50) / 100))
+}
+
+_barlib_pop_geo() {
+    if [ "$_BARLIB_G_READY" = 1 ]; then return 0; fi
+    _barlib_scale100
+    _barlib_px "${_BARLIB_POPUP_W_REQ:-$_BARLIB_POPUP_W}"; _BARLIB_G_W=$_BARLIB_PX
+    _barlib_px "$_BARLIB_INSET";     _BARLIB_G_INSET=$_BARLIB_PX
+    _barlib_px "$_BARLIB_GUTTER";    _BARLIB_G_GUTTER=$_BARLIB_PX
+    _barlib_px "$_BARLIB_WELL";      _BARLIB_G_WELL=$_BARLIB_PX
+    _barlib_px "$_BARLIB_GAP";       _BARLIB_G_GAP=$_BARLIB_PX
+    _barlib_px "$_BARLIB_H_HEADING"; _BARLIB_G_H_HEADING=$_BARLIB_PX
+    _barlib_px "$_BARLIB_H_ROW";     _BARLIB_G_H_ROW=$_BARLIB_PX
+    _barlib_px "$_BARLIB_H_BUTTON";  _BARLIB_G_H_BUTTON=$_BARLIB_PX
+    _barlib_px "$_BARLIB_H_NOTE";    _BARLIB_G_H_NOTE=$_BARLIB_PX
+    _barlib_px "$_BARLIB_H_GRAPH";   _BARLIB_G_H_GRAPH=$_BARLIB_PX
+    _barlib_px "$_BARLIB_H_BADGE";   _BARLIB_G_H_BADGE=$_BARLIB_PX
+    _barlib_px "$_BARLIB_H_PAD";     _BARLIB_G_H_PAD=$_BARLIB_PX
+    _BARLIB_G_TEXT_X=$((_BARLIB_G_GUTTER + _BARLIB_G_WELL + _BARLIB_G_GAP))
+    _BARLIB_G_READY=1
+}
+
+# ── measuring text without a fork ─────────────────────────────────────────────
+# The bar draws in haus.fonts.mono, so a string's width IS its column count
+# times the advance — which is what lets a value column be sized in bash on
+# the click path. A Nerd Font glyph is drawn about two cells wide; it is
+# three or four BYTES and one character, so columns = chars + (bytes − chars)
+# / 2 counts it as two and an accented letter as one and a half. `local
+# LC_ALL` is what makes ${#s} count what it is told to (bash re-reads the
+# locale on assignment, 3.2 included); a machine without the UTF-8 locale
+# counts bytes for both, over-measures glyphs, and gets a roomier column.
+_BARLIB_N=0
+_barlib_chars() { local LC_ALL=en_US.UTF-8; _BARLIB_N=${#1}; }
+_barlib_bytes() { local LC_ALL=C; _BARLIB_N=${#1}; }
+_BARLIB_COLS=0
+_barlib_cols() { # _barlib_cols <string> → _BARLIB_COLS
+    local c b
+    _barlib_chars "$1"; c=$_BARLIB_N
+    _barlib_bytes "$1"; b=$_BARLIB_N
+    _BARLIB_COLS=$((c + (b - c) / 2))
+}
+
+# _barlib_adv <font-size> → _BARLIB_ADV, points per column at that size. Sizes
+# out of sizes.sh are decimals ("12.0"); only the whole part matters at this
+# precision.
+_BARLIB_ADV=0
+_barlib_adv() {
+    local s=${1:-12}
+    s=${s%%.*}
+    case "$s" in '' | *[!0-9]*) s=12 ;; esac
+    _BARLIB_ADV=$(((s * _BARLIB_ADV100 + 50) / 100))
+}
+
+# _barlib_fit <string> <max-columns> → _BARLIB_FIT: the string, cut to fit
+# with an ellipsis. SketchyBar's max_chars cuts and draws nothing to say it
+# did, so a row that lost its end reads as a row that ended there; this
+# spends one column on saying so. Character-based, so a glyph is never cut
+# in half.
+_BARLIB_FIT=''
+_barlib_fit() {
+    local LC_ALL=en_US.UTF-8
+    _barlib_cols "$1"
+    if [ "$_BARLIB_COLS" -le "$2" ] || [ "$2" -lt 2 ]; then
+        _BARLIB_FIT=$1
+        return 0
+    fi
+    local s=$1
+    while [ "${#s}" -gt 1 ]; do
+        s=${s%?}
+        _barlib_cols "$s"
+        if [ "$_BARLIB_COLS" -le "$(($2 - 1))" ]; then break; fi
+    done
+    _BARLIB_FIT="${s%"${s##*[![:space:]]}"}…"
+}
+
+# _barlib_tint <0xAARRGGBB> [alpha-hex] → the same hue at that alpha. What a
+# well, a badge's capsule and a button's fill are made of: the row's own
+# colour, faded, never a second colour a widget could pick.
+_BARLIB_TINT=''
+_barlib_tint() {
+    _BARLIB_TINT="0x${2:-30}${1#0x??}"
+}
+
+# ── the value column ──────────────────────────────────────────────────────────
 # A row that carries a NUMBER is two columns, not one sentence: a name on the
 # left and a value that has to land on the same x as the value in every row
-# above it. Getting that wrong is the one dropdown flaw you see immediately,
-# so the arithmetic is the runtime's — the same reason the six row kinds own
-# their fonts.
-#
-# The gap is a PIXEL PADDING derived from the monospace advance, never
-# trailing spaces: sketchybar sizes an item from its TRIMMED label and then
-# draws the untrimmed string, so a space-padded row is a row clipped by
-# exactly the width of its own padding.
-_BARLIB_COL_NAME=16   # widest name column before a value starts sliding right
-_BARLIB_COL_GAP=12
-_BARLIB_ADV=602       # mono advance per point, ×1000
-
-# _barlib_name_pad <name> <extra-columns> <font-size> — the icon padding that
-# lands every value on one column. A name longer than the column gets the
-# minimum gap and pushes its own value right; that is one ragged row rather
-# than a dropdown sized for the worst name on the machine.
-#
-# <extra-columns> is for what bash cannot measure — a Nerd Font glyph riding
-# in the same slot, which `${#s}` counts as three bytes in the C locale a bar
-# plugin inherits and as one character anywhere else. Two columns, named by
-# the caller, beats a length that changes with $LANG.
-#
-# It goes NEGATIVE, and that is the other half: a value that right-aligns its
-# own number asks for leading blanks a label may not carry (_barlib_unpad
-# below), and paying for them here is what turns them back into space the row
-# actually gets. So the argument is "columns the name owes the gutter",
-# whichever side of zero that lands on.
-#
-# The advance is measured with awk, not bash arithmetic, because a font size
-# out of the generated sizes.sh is a DECIMAL ("14.0") and $(( )) errors on
-# one. It is cached against the size it was measured at, so a dropdown of a
-# heading plus twelve rows forks awk twice rather than thirteen times — a
-# popup is built inside a click, where the whole batch is one message and the
-# forks would be the only thing in it that isn't.
-#
-# ⚠️ Which is why this SETS A GLOBAL rather than printing. It printed until
-# ai_usage converted, and every call site was `$(_barlib_name_pad …)` — a
-# SUBSHELL, so the cache above was written in a process that exited one line
-# later and the next row measured the advance again. The comment was simply
-# false: a 17-row dropdown forked awk 15 times, on the click path, for one
-# number that never changes within a popup. `_barlib_unpad` below states the
-# same rule from the other end. Read the answer out of $_BARLIB_PAD.
-_BARLIB_ADV_FOR=''
-_BARLIB_ADV_PX=''
-_BARLIB_PAD=0
-_barlib_name_pad() {
-    local cols
-    cols=$((_BARLIB_COL_NAME - ${#1} - ${2:-0}))
-    if [ "$cols" -lt 1 ]; then cols=1; fi
-    if [ "${3:-13}" != "$_BARLIB_ADV_FOR" ]; then
-        _BARLIB_ADV_PX=$(awk -v s="${3:-13}" -v a="$_BARLIB_ADV" 'BEGIN { printf "%.0f", s * a }')
-        _BARLIB_ADV_FOR="${3:-13}"
-    fi
-    _BARLIB_PAD=$(((cols * _BARLIB_ADV_PX + _BARLIB_COL_GAP * 1000 + 500) / 1000))
-}
-
-# A value that RIGHT-aligns its number — ` 7%` under `46%`, ` 733M` under
-# `6.14B` — asks for leading blanks, and a label is the one place they cannot
-# go: sketchybar sizes an item from the TRIMMED string and then draws the
-# untrimmed one, so the row loses exactly its own indent off the right edge.
-# (A no-break space is trimmed just the same. That is the obvious fix and it
-# does not work.) It is the same trap as padding with trailing spaces, which
-# the value column already exists to avoid — so the runtime honours leading
-# blanks the only way that works, by turning them back into the column count
-# the caller is already paying for in padding.
-#
-# Sets two globals rather than printing: `$(_barlib_unpad …)` is a subshell
-# and the count would never come back out of one.
-_BARLIB_UNPADDED=''
-_BARLIB_LEAD=0
-_barlib_unpad() { # _barlib_unpad <value> → _BARLIB_UNPADDED, _BARLIB_LEAD
-    _BARLIB_UNPADDED="${1#"${1%%[! ]*}"}"
-    _BARLIB_LEAD=$(( ${#1} - ${#_BARLIB_UNPADDED} ))
-}
+# above it. That x is the RIGHT EDGE now, the way a native menu puts its
+# shortcuts: the value slot gets a fixed `label.width` sized from the value's
+# own column count and `label.align=right`, and the name slot takes the rest
+# of the row (`_barlib_right_slot`, below the row builder). Getting that
+# wrong is the one dropdown flaw you see immediately, so the arithmetic is
+# the runtime's — the same reason the row kinds own their fonts.
 
 # popup_quote <value> — single-quote a value for embedding in a click_script.
 # A row's URL or copy text is DATA — a PR title with an apostrophe in it must
@@ -666,53 +805,100 @@ popup_quote() {
 # itself up, and the reason exactly one row may is that exactly one row is a
 # CONTROL you aim rather than a thing you press.
 #
-# <kind> is which of them this is. Only `slider:<width>` branches — the other
-# five are one word of self-description in the emission, and the next kind that
-# needs to behave differently adds an arm here rather than a flag upstream.
-# The slider is also the one that is not an `--add item`: `--add slider <id>
-# <parent> <width>` is an item TYPE, the same shape `frameworkBlock` uses for
-# `--add graph`, and every other property below behaves identically. It is
-# subscribed to mouse.clicked because that is what makes sketchybar hand the
-# click's position back as $PERCENTAGE — the whole mechanism of a seek.
+# <kind> is which of them this is. `slider:<width>` and `graph:<width>` branch
+# — both are an item TYPE (`--add slider`, `--add graph`) rather than an
+# `--add item`, and every other property below behaves identically. A slider
+# is subscribed to mouse.clicked because that is what makes sketchybar hand
+# the click's position back as $PERCENTAGE — the whole mechanism of a seek.
+#
+# <hover> is 1 for a row that should light under the pointer. It is derived
+# by the caller from whether the row DOES anything, never passed by a widget:
+# a row that lights and then does nothing is the broken-button feeling this
+# exists to prevent.
+#
+# Every row is the panel's full width and carries a transparent background of
+# its own height, and both are load-bearing rather than decoration: the width
+# is what makes the popup one rectangle rather than a ragged stack, and
+# SketchyBar counts a background toward an item's height ONLY while it is
+# drawn — with `background.drawing=off` every row here was 30pt tall whatever
+# height it named, because the popup's own cell floor (popup.height, 30 by
+# default) won. popup_open sets that floor to 1, so the heights below are the
+# heights you get.
 #
 # $POPUP_ID is the id of the row just added, for the rare widget that has to
 # reach one again after the batch has gone out (media measures its dropdown
 # and nudges an image into the corner). Read it immediately; the next row
 # overwrites it.
 POPUP_ID=''
-_barlib_pop_add() { # _barlib_pop_add <kind> <height> <font> <action> <set-args…>
-    local kind=$1 height=$2 font=$3 action=$4
-    shift 4
+_BARLIB_POP_I=0
+# The panel's own two pads are numbered apart (`.popup.top`, `.popup.bottom`)
+# so the widget's first row is `.popup.0` whether or not the runtime drew
+# something above it — the ids are the runtime's, but a widget that caught
+# one in $POPUP_ID, and every test that names one, expects the count to be
+# the widget's rows.
+_BARLIB_POP_PAD=''
+_barlib_pop_add() { # _barlib_pop_add <kind> <height> <font> <action> <hover> <set-args…>
+    local kind=$1 height=$2 font=$3 action=$4 hover=$5
+    shift 5
+    _barlib_pop_geo
     local width=''
     case "$kind" in
-        slider:*)
-            width=${kind#slider:}
-            kind=slider
-            ;;
+        slider:*) width=${kind#slider:}; kind=slider ;;
+        bar:*) width=${kind#bar:}; kind=bar ;;
+        graph:*) width=${kind#graph:}; kind=graph ;;
     esac
-    POPUP_ID="${_BARLIB_POPUP}.popup.${_BARLIB_POP_I}"
+    if [ -n "$_BARLIB_POP_PAD" ]; then
+        POPUP_ID="${_BARLIB_POPUP}.popup.${_BARLIB_POP_PAD}"
+    else
+        POPUP_ID="${_BARLIB_POPUP}.popup.${_BARLIB_POP_I}"
+    fi
     local close="$SB --set $_BARLIB_POPUP popup.drawing=off"
     local click="$close"
     if [ -n "$action" ]; then click="$action; $close"; fi
-    if [ "$kind" = slider ]; then
-        click="$action"
-        _BARLIB_ARGS+=(--add slider "$POPUP_ID" "popup.${_BARLIB_POPUP}" "$width")
-    else
-        _BARLIB_ARGS+=(--add item "$POPUP_ID" "popup.${_BARLIB_POPUP}")
-    fi
+    case "$kind" in
+        slider)
+            click="$action"
+            _BARLIB_ARGS+=(--add slider "$POPUP_ID" "popup.${_BARLIB_POPUP}" "$width")
+            ;;
+        bar)
+            _BARLIB_ARGS+=(--add slider "$POPUP_ID" "popup.${_BARLIB_POPUP}" "$width")
+            ;;
+        graph)
+            _BARLIB_ARGS+=(--add graph "$POPUP_ID" "popup.${_BARLIB_POPUP}" "$width")
+            ;;
+        *)
+            _BARLIB_ARGS+=(--add item "$POPUP_ID" "popup.${_BARLIB_POPUP}")
+            ;;
+    esac
     _BARLIB_ARGS+=(
         --set "$POPUP_ID"
-        icon="" icon.padding_left=10 icon.padding_right=8
-        label="" label.padding_left=0 label.padding_right=14
+        width="$_BARLIB_G_W"
+        padding_left="$_BARLIB_G_INSET" padding_right="$_BARLIB_G_INSET"
+        icon="" icon.font="${BAR_FONT:-}:Bold:${FS_LABEL:-}"
+        icon.width="$((_BARLIB_G_GUTTER + _BARLIB_G_WELL))" icon.align=center
+        icon.padding_left="$_BARLIB_G_GUTTER" icon.padding_right=0
+        label="" label.padding_left="$_BARLIB_G_GAP" label.padding_right="$_BARLIB_G_GUTTER"
         label.font="$font"
-        background.drawing=off background.height="$height"
+        background.drawing=on background.color=0x00000000
+        background.height="$height" background.corner_radius="$_BARLIB_ROW_RADIUS"
         click_script="$click"
         "$@"
     )
+    if [ "$hover" = 1 ]; then
+        # $NAME is the row's own id when sketchybar runs this — it exports the
+        # item the pointer touched — so the script needs no id baked in and
+        # the two colours are the only thing in it. Single-quoted at the shell
+        # level so the case runs in the spawned /bin/sh, not here.
+        _BARLIB_ARGS+=(
+            --set "$POPUP_ID"
+            script="case \"\$SENDER\" in mouse.entered) $SB --set \"\$NAME\" background.color=${SURFACE0:-0x00000000} ;; mouse.exited) $SB --set \"\$NAME\" background.color=0x00000000 ;; esac"
+            --subscribe "$POPUP_ID" mouse.entered mouse.exited
+        )
+    fi
     if [ "$kind" = slider ]; then
         _BARLIB_ARGS+=(--subscribe "$POPUP_ID" mouse.clicked)
     fi
-    _BARLIB_POP_I=$((_BARLIB_POP_I + 1))
+    if [ -z "$_BARLIB_POP_PAD" ]; then _BARLIB_POP_I=$((_BARLIB_POP_I + 1)); fi
 }
 
 # popup_set <row-id> <prop>=<val>… — raw properties on ONE popup row, batched
@@ -752,10 +938,10 @@ popup_set() {
 # cap. Folding them into one flag would make "don't move" mean "and be as wide
 # as you like".
 #
-# ⚠️ A `width` would not do the cap's job: sketchybar's is a STATIC size, not a
-# maximum, so setting one pads a three-word title out to the same wide box. Two
-# separate --sets on the same batched call, so an unwanted one is simply absent
-# rather than set to a value meaning "off".
+# With the grid, a row that names NEITHER is cut to the column by the runtime
+# itself (`_barlib_fit`, with an ellipsis) before it is emitted — so these two
+# are for the row that wants sketchybar's own cap, which is the row that
+# scrolls: a marquee has to hold the whole string to sweep it past.
 _barlib_pop_cap() {
     if [ "${1:-0}" -gt 0 ] 2>/dev/null; then
         _BARLIB_ARGS+=(--set "$POPUP_ID" label.max_chars="$1")
@@ -766,10 +952,100 @@ _barlib_pop_cap() {
     return 0
 }
 
+# _barlib_text_cap <font-size> <lead> → _BARLIB_CAP: how many columns of that
+# size fit between <lead> and the right gutter of a single-column row.
+_BARLIB_CAP=0
+_barlib_text_cap() {
+    _barlib_pop_geo
+    _barlib_adv "$1"
+    _BARLIB_CAP=$(((_BARLIB_G_W - $2 - _BARLIB_G_GUTTER - _BARLIB_COL_SLACK) / _BARLIB_ADV))
+}
+
+# _barlib_right_slot <text> <font> <font-size> <colour> [capsule-tint] — the
+# --set args that put <text> flush right, and the icon slot sized to
+# everything left of it. Sets the _BARLIB_RIGHT array for the caller to
+# splice in (a subshell could not hand an array back) and _BARLIB_NAME_W,
+# the width the name slot was left with.
+#
+# Two shapes. A plain value gets a fixed `label.width` and `label.align=right`,
+# so it lands on the gutter EXACTLY whatever the advance estimate was — the
+# estimate only has to be generous. A capsule cannot: a text's background is
+# as wide as its slot, so a fixed slot would be a capsule as wide as the
+# column. The label stays dynamic there, its padding is what gives the words
+# their room inside the capsule, and the icon slot is cut so the capsule's
+# far edge lands on the gutter — to within the estimate's error, which on a
+# four-character badge is a pixel or two.
+_BARLIB_RIGHT=()
+_barlib_right_slot() {
+    local text=$1 font=$2 size=$3 color=$4 tint=${5:-}
+    # A value that right-aligned its own number with leading blanks (`%3s%%`)
+    # asked for exactly what the slot now does — and a label is the one place
+    # those blanks cannot stay: sketchybar sizes a string TRIMMED and draws it
+    # untrimmed, so they would push the digits past the edge of a slot sized
+    # without them.
+    text="${text#"${text%%[! ]*}"}"
+    _barlib_cols "$text"
+    _barlib_adv "$size"
+    local w
+    if [ -n "$tint" ]; then
+        w=$((_BARLIB_COLS * _BARLIB_ADV + 2 * _BARLIB_G_GAP + _BARLIB_COL_SLACK))
+        _BARLIB_RIGHT=(
+            label="$text" label.font="$font" label.color="$color"
+            label.width=dynamic
+            label.padding_left="$_BARLIB_G_GAP" label.padding_right="$_BARLIB_G_GAP"
+            label.background.drawing=on label.background.color="$tint"
+            label.background.height="$_BARLIB_G_H_BADGE"
+            label.background.corner_radius="$((_BARLIB_G_H_BADGE / 2))"
+            icon.width="$((_BARLIB_G_W - w - _BARLIB_G_GUTTER))" icon.align=left
+        )
+        _BARLIB_NAME_W=$((_BARLIB_G_W - w - _BARLIB_G_GUTTER))
+    else
+        w=$((_BARLIB_COLS * _BARLIB_ADV + _BARLIB_G_GUTTER + _BARLIB_COL_SLACK))
+        _BARLIB_RIGHT=(
+            label="$text" label.font="$font" label.color="$color"
+            label.width="$w" label.align=right
+            label.padding_left=0 label.padding_right="$_BARLIB_G_GUTTER"
+            icon.width="$((_BARLIB_G_W - w))" icon.align=left
+        )
+        _BARLIB_NAME_W=$((_BARLIB_G_W - w))
+    fi
+    return 0
+}
+
+# _barlib_name_cap <font-size> <lead> → _BARLIB_CAP: the columns the NAME slot
+# a right slot just left has room for, past <lead> points of padding.
+_barlib_name_cap() {
+    _barlib_adv "$1"
+    _BARLIB_CAP=$(((_BARLIB_NAME_W - $2 - _BARLIB_COL_SLACK) / _BARLIB_ADV))
+}
+
 # popup_heading --label <text> [--icon <glyph>] [--icon-font <font>]
 #               [--tone <tone>] [--mark <mark>] [--label-tone <tone>]
-#               [--count <n>] [--value <text>] [--run <command>]
+#               [--count <n>] [--badge <text>] [--badge-tone <tone>]
+#               [--value <text>] [--run <command>]
 #               [--max-chars <n>] [--marquee]
+# The section title. Glyph in a tinted WELL on the glyph column, title beside
+# it, both in ONE hue — and that hue is, in order: --tone or --mark if the
+# widget said one (last wins, so `--mark warm --tone mute` is "this is Claude,
+# and its feed is dead"), else the mark its `# widget: mark =` header
+# declares, else `dim`. The header is the whole reason a converted pill's
+# dropdown stopped being grey: the ladder has no rung for "this pill's own
+# colour" on purpose (a heading is not a verdict), and the identity axis is
+# where that colour lives.
+#
+# --count appends " · n" to the title when n is above zero: a section that
+# says "open PRs" over eight rows leaves you counting them to find out whether
+# eight is all of them, and the rows below may be a truncation. It rides the
+# title rather than a badge so the well stays — a count is part of the name
+# of the section, not a reading about it.
+# --badge <text> is a CAPSULE flush right, in --badge-tone's tint with its
+# words in that tone (the heading's hue by default): "41%", "critical",
+# "paused". A reading about the section, set apart from its name.
+# --value <text> is the older two-column shape — the value flush right in
+# --label-tone, no capsule. Both of those need the label slot, so glyph and
+# title share the icon slot in one hue and the well is not drawn: three
+# things, two slots, and the heading that asks for a third pays with the
+# well.
 # --run makes the heading CLICKABLE, on the same terms as a row: the command,
 # then the popup closes. It is for a block whose rows all mean one thing —
 # the agents pill's per-agent block is a name line and a detail line that
@@ -777,40 +1053,18 @@ _barlib_pop_cap() {
 # "this is the one I meant". Give both rows the same --run and the block
 # becomes one hit area, which is what a widget is really asking for when it
 # wants a clickable heading.
-# --count appends " · n" when n is above zero: a section that says "open PRs"
-# over eight rows leaves you counting them to find out whether eight is all of
-# them, and the rows below may be a truncation.
-# The default is `dim`, not `mute`: a section title with no verdict of its own
-# is still a title. Every popup in this bar already drew one that way — agents
-# and calendar still paint the section glyph overlay1 and reserve overlay0 for
-# the meta row under it, as vitals_lib and ai_usage did before they converted —
-# and `mute` here made the heading read as absent rather than quiet.
-#
-# --mark is the IDENTITY half (modules/bar/marks.nix), for a heading whose subject
-# the bar cannot know until it runs. --tone and --mark are LAST-WINS rather
-# than an error together: `--mark warm --tone mute` is a widget saying "this
-# is Claude, and its feed is dead", which is one heading with two things to
-# say and a legitimate order to say them in.
-#
-# --label-tone paints the LABEL half, and defaults to the ordinary foreground
-# — which is what every heading drew before the flag existed, so nothing moves
-# unless a widget asks. It is the same two-tone shape `pill` has and exists for
-# the same job one layer down: a section whose subject has gone quiet greys as
-# a BLOCK, mark and title together. A dim mark under a full-brightness name
-# reads as a rendering bug rather than as a feed that stopped reporting, and
-# `--tone dim` alone could only ever reach the mark. In the two-column form the
-# label half is the VALUE, and the flag colours that — it is "the label's
-# tone" either way.
-#
+# --label-tone paints the TITLE half alone, for a section whose subject has
+# gone quiet as a BLOCK (`--tone dim --label-tone dim`): a dim mark under a
+# full-brightness name reads as a rendering bug rather than as a feed that
+# stopped reporting.
 # --icon-font is for a glyph that does not exist in the bar's own face —
 # sketchybar-app-font's `:claude:` and `:openai:` are the shipped case. It is
 # NOT a typography flag: the runtime still owns the weight and the size of
-# everything a heading draws, and the fifth row KIND someone needs is still a
-# kind to add rather than a --font to add here. This is which font the GLYPH
-# lives in, which is a fact about the glyph and not a choice about the row.
+# everything a heading draws.
 popup_heading() {
-    local label='' icon='' icon_font='' tone_name=dim mark_name='' count=0
+    local label='' icon='' icon_font='' tone_name='' mark_name='' count=0
     local value='' have_value=0 label_tone='' cap=0 marquee=0 action=''
+    local badge='' badge_tone=''
     while [ $# -gt 0 ]; do
         case "$1" in
             --label) label=$2; shift 2 ;;
@@ -818,73 +1072,112 @@ popup_heading() {
             --icon) icon=$2; shift 2 ;;
             --icon-font) icon_font=$2; shift 2 ;;
             --tone) tone_name=$2; mark_name=''; shift 2 ;;
-            --mark) mark_name=$2; shift 2 ;;
+            --mark) mark_name=$2; tone_name=''; shift 2 ;;
             --label-tone) label_tone=$2; shift 2 ;;
             --count) count=$2; shift 2 ;;
+            --badge) badge=$2; shift 2 ;;
+            --badge-tone) badge_tone=$2; shift 2 ;;
             --value) value=$2; have_value=1; shift 2 ;;
             --max-chars) cap=$2; shift 2 ;;
             --marquee) marquee=1; shift ;;
             *) echo "barlib: popup_heading: unknown flag '$1' — dropped" >&2; shift ;;
         esac
     done
-    local icon_color
+    _barlib_pop_geo
+    local hue
     if [ -n "$mark_name" ]; then
-        icon_color=$(mark "$mark_name")
+        hue=$(mark "$mark_name")
+    elif [ -n "$tone_name" ]; then
+        hue=$(tone "$tone_name")
+    elif [ -n "${BARLIB_MARK:-}" ]; then
+        hue=$(mark "$BARLIB_MARK")
     else
-        icon_color=$(tone "$tone_name")
+        hue=$(tone dim)
     fi
-    local label_color="${TEXT:-}"
-    if [ -n "$label_tone" ]; then label_color=$(tone "$label_tone"); fi
+    local title_color="$hue"
+    if [ -n "$label_tone" ]; then title_color=$(tone "$label_tone"); fi
+    _barlib_tint "$hue"
+    local well="$_BARLIB_TINT"
+    local hover=0
+    if [ -n "$action" ]; then hover=1; fi
+    local hfont="${BAR_FONT:-}:Bold:${FS_LABEL:-}"
     case "$count" in '' | *[!0-9]*) count=0 ;; esac
     if [ "$count" -gt 0 ]; then label="$label · $count"; fi
+
     if [ "$have_value" = 1 ]; then
-        # Glyph and title travel TOGETHER in the icon, in ONE tone: they are
-        # the same mark, and splitting them across the row's two colourable
-        # halves would spend the value's colour on a word. That tone is the
-        # heading's `dim` unless the widget says otherwise — the ladder has no
-        # rung for a pill's own identity hue, deliberately, so a converted
-        # pill's dropdown title is grey where a hand-written one was often the
-        # pill's colour. The
-        # value then lands on the column every row below it uses, so the
-        # heading reads as the total of what follows rather than as a caption
-        # sitting above it.
-        #
-        # ⚠️ That merge is also why --icon-font cannot apply here: the glyph and
-        # the title share ONE item, so a glyph-only face would draw the title as
-        # tofu. Warned and ignored rather than silently dropping the glyph — a
-        # mark in the wrong face is a thing someone reports, a mark that is
-        # missing is a thing nobody notices.
+        # Glyph and title travel TOGETHER in the icon, in ONE tone — they are
+        # the same mark, and the value takes the label slot flush right. That
+        # merge is also why --icon-font cannot apply here: a glyph-only face
+        # would draw the title as tofu. Warned rather than silently dropping
+        # the glyph — a mark in the wrong face is a thing someone reports.
         if [ -n "$icon_font" ]; then
             echo "barlib: popup_heading: --icon-font is ignored with --value (glyph and title share one item)" >&2
         fi
-        local _blib_name="$label" _blib_cols=0
-        if [ -n "$icon" ]; then
-            _blib_name="$icon $label"
-            _blib_cols=2
-        fi
-        _barlib_unpad "$value"
-        _barlib_name_pad "$label" "$((_blib_cols - _BARLIB_LEAD))" "${FS_LABEL:-13}"
-        _barlib_pop_add heading "$_BARLIB_H_HEADING" "${BAR_FONT:-}:Bold:${FS_LABEL:-}" "$action" \
-            icon="$_blib_name" icon.color="$icon_color" \
-            icon.font="${BAR_FONT:-}:Bold:${FS_LABEL:-}" \
-            icon.padding_left=10 \
-            icon.padding_right="$_BARLIB_PAD" \
-            label="$_BARLIB_UNPADDED" label.color="$label_color"
+        local vcolor="${TEXT:-}"
+        if [ -n "$label_tone" ]; then vcolor=$(tone "$label_tone"); fi
+        local name="$label"
+        if [ -n "$icon" ]; then name="$icon $label"; fi
+        _barlib_right_slot "$value" "$hfont" "${FS_LABEL:-13}" "$vcolor"
+        _barlib_name_cap "${FS_LABEL:-13}" "$_BARLIB_G_GUTTER"
+        _barlib_fit "$name" "$_BARLIB_CAP"
+        _barlib_pop_add heading "$_BARLIB_G_H_HEADING" "$hfont" "$action" "$hover" \
+            icon="$_BARLIB_FIT" icon.color="$hue" icon.font="$hfont" \
+            icon.padding_left="$_BARLIB_G_GUTTER" icon.padding_right=0 \
+            "${_BARLIB_RIGHT[@]}"
         _barlib_pop_cap "$cap" "$marquee"
         return 0
     fi
-    # The default is spelled out rather than left inherited, so there is one
-    # code path instead of two: it is byte-identical to the icon.font every
-    # popup row already gets from sketchybarrc's `--default`, so a heading
-    # that names no font draws exactly as it did before this flag existed.
-    _barlib_pop_add heading "$_BARLIB_H_HEADING" "${BAR_FONT:-}:Bold:${FS_LABEL:-}" "$action" \
-        icon="$icon" icon.color="$icon_color" \
-        icon.font="${icon_font:-${BAR_FONT:-}:Bold:${FS_ICON:-}}" \
-        label="$label" label.color="$label_color"
+
+    # The well: the icon slot is exactly the well wide, its background is the
+    # hue's tint drawn as a circle, and the glyph is centred in it. The
+    # gutter is paid as icon.padding_left (inside the slot, so the centring
+    # accounts for it) and given back to the background as x_offset (which is
+    # outside it), so the circle sits at the gutter and the glyph sits in the
+    # circle. No icon, no well — the title starts on the text column either
+    # way.
+    local -a well_args=()
+    if [ -n "$icon" ]; then
+        well_args=(
+            icon.background.drawing=on icon.background.color="$well"
+            icon.background.height="$_BARLIB_G_WELL"
+            icon.background.corner_radius="$((_BARLIB_G_WELL / 2))"
+            icon.background.x_offset="$_BARLIB_G_GUTTER"
+        )
+    fi
+    if [ -n "$badge" ]; then
+        local bcolor="$hue"
+        if [ -n "$badge_tone" ]; then bcolor=$(tone "$badge_tone"); fi
+        _barlib_tint "$bcolor"
+        _barlib_right_slot "$badge" "${BAR_FONT:-}:Bold:${FS_TINY:-}" "${FS_TINY:-10}" "$bcolor" "$_BARLIB_TINT"
+        if [ -n "$icon_font" ]; then
+            echo "barlib: popup_heading: --icon-font is ignored with --badge (glyph and title share one item)" >&2
+        fi
+        local name="$label"
+        if [ -n "$icon" ]; then name="$icon $label"; fi
+        _barlib_name_cap "${FS_LABEL:-13}" "$_BARLIB_G_GUTTER"
+        _barlib_fit "$name" "$_BARLIB_CAP"
+        _barlib_pop_add heading "$_BARLIB_G_H_HEADING" "$hfont" "$action" "$hover" \
+            icon="$_BARLIB_FIT" icon.color="$hue" icon.font="$hfont" \
+            icon.padding_left="$_BARLIB_G_GUTTER" icon.padding_right=0 \
+            "${_BARLIB_RIGHT[@]}"
+        _barlib_pop_cap "$cap" "$marquee"
+        return 0
+    fi
+    _barlib_text_cap "${FS_LABEL:-13}" "$_BARLIB_G_TEXT_X"
+    if [ "$cap" -gt 0 ] 2>/dev/null; then _BARLIB_FIT=$label; else _barlib_fit "$label" "$_BARLIB_CAP"; fi
+    _barlib_pop_add heading "$_BARLIB_G_H_HEADING" "$hfont" "$action" "$hover" \
+        icon="$icon" icon.color="$hue" \
+        icon.font="${icon_font:-${BAR_FONT:-}:Bold:${FS_LABEL:-}}" \
+        icon.width="$_BARLIB_G_WELL" icon.align=center \
+        icon.padding_left="$_BARLIB_G_WELL" icon.padding_right=0 \
+        "${well_args[@]}" \
+        label="$_BARLIB_FIT" label.color="$title_color" \
+        label.padding_left="$((_BARLIB_G_GUTTER + _BARLIB_G_GAP))"
     _barlib_pop_cap "$cap" "$marquee"
 }
 
 # popup_row --label <text> [--icon <glyph>] [--tone <tone>] [--value <text>]
+#           [--badge <text>] [--badge-tone <tone>] [--hint <text>]
 #           [--name-tone <tone>] [--open <url>] [--run <command>]
 #           [--max-chars <n>] [--marquee]
 # A `mute` row loses a shade of its TEXT too, not only its glyph colour:
@@ -892,9 +1185,15 @@ popup_heading() {
 # them are their author saying "not yet". Only `mute` — a `dim` row keeps its
 # full-brightness label on purpose, because dim is the row still being ABOUT
 # something; it is the glyph that is subordinate, not the sentence.
+#
+# The right column, one of three: --value is the ANSWER (small, on the
+# ladder, flush right); --badge is a capsule (tiny, bold, the tone's tint
+# behind it) for a state word or a count; --hint is meta (tiny, dim) — a
+# time, a shortcut, a "2 of 4". They share one slot, so a row takes one.
 popup_row() {
     local label='' icon='' icon_tone=mute action='' value='' have_value=0 tone_set=0
     local cap=0 marquee=0 name_tone=dim name_tone_set=0
+    local badge='' badge_tone='' hint=''
     while [ $# -gt 0 ]; do
         case "$1" in
             --label) label=$2; shift 2 ;;
@@ -902,6 +1201,9 @@ popup_row() {
             --icon) icon=$2; shift 2 ;;
             --tone) icon_tone=$2; tone_set=1; shift 2 ;;
             --value) value=$2; have_value=1; shift 2 ;;
+            --badge) badge=$2; shift 2 ;;
+            --badge-tone) badge_tone=$2; shift 2 ;;
+            --hint) hint=$2; shift 2 ;;
             --open) action="/usr/bin/open $(popup_quote "$2")"; shift 2 ;;
             --run) action=$2; shift 2 ;;
             --max-chars) cap=$2; shift 2 ;;
@@ -909,6 +1211,10 @@ popup_row() {
             *) echo "barlib: popup_row: unknown flag '$1' — dropped" >&2; shift ;;
         esac
     done
+    _barlib_pop_geo
+    local hover=0
+    if [ -n "$action" ]; then hover=1; fi
+    local rfont="${BAR_FONT:-}:Regular:${FS_SMALL:-}"
     # --name-tone only means anything in the two-column shape: without a
     # --value there is no name column to tone, `--tone` already paints the
     # glyph, and a flag that quietly does nothing is the silent ignore this
@@ -935,41 +1241,64 @@ popup_row() {
         # should: naming this flag to save a shade is how the "one row
         # shouting twice" rule above gets lost.
         if [ "$tone_set" = 0 ]; then icon_tone=text; fi
-        local _blib_name="$label" _blib_cols=0
-        if [ -n "$icon" ]; then
-            _blib_name="$icon $label"
-            _blib_cols=2
-        fi
-        # An EMPTY --label is a continuation row: the name column is left
-        # blank and the value still lands on it, so the second line of a block
-        # sits under the first instead of beside it. It needs no branch of its
-        # own — an empty icon still reserves its padding, which is the whole
-        # mechanism — but it is a shape worth knowing is available.
-        _barlib_unpad "$value"
-        _barlib_name_pad "$label" "$((_blib_cols - _BARLIB_LEAD))" "${FS_SMALL:-12}"
-        _barlib_pop_add row "$_BARLIB_H_ROW" "${BAR_FONT:-}:Bold:${FS_SMALL:-}" "$action" \
-            icon="$_blib_name" icon.color="$(tone "$name_tone")" \
-            icon.font="${BAR_FONT:-}:Regular:${FS_SMALL:-}" \
-            icon.padding_left="$_BARLIB_ROW_INDENT" \
-            icon.padding_right="$_BARLIB_PAD" \
-            label="$_BARLIB_UNPADDED" label.color="$(tone "$icon_tone")"
+        local name="$label" lead="$_BARLIB_G_TEXT_X"
+        if [ -n "$icon" ]; then name="$icon $label"; lead="$_BARLIB_G_GUTTER"; fi
+        # An EMPTY --label is a continuation row: the name slot is left blank
+        # and the value still lands flush right, so the second line of a block
+        # sits under the first instead of beside it.
+        _barlib_right_slot "$value" "${BAR_FONT:-}:Bold:${FS_SMALL:-}" "${FS_SMALL:-12}" "$(tone "$icon_tone")"
+        _barlib_name_cap "${FS_SMALL:-12}" "$lead"
+        _barlib_fit "$name" "$_BARLIB_CAP"
+        _barlib_pop_add row "$_BARLIB_G_H_ROW" "$rfont" "$action" "$hover" \
+            icon="$_BARLIB_FIT" icon.color="$(tone "$name_tone")" icon.font="$rfont" \
+            icon.padding_left="$lead" icon.padding_right=0 \
+            "${_BARLIB_RIGHT[@]}"
         _barlib_pop_cap "$cap" "$marquee"
         return 0
     fi
     local lcolor="${SUBTEXT0:-}"
     if [ "$icon_tone" = mute ]; then lcolor="${OVERLAY0:-}"; fi
-    _barlib_pop_add row "$_BARLIB_H_ROW" "${BAR_FONT:-}:Regular:${FS_SMALL:-}" "$action" \
+    if [ -n "$badge" ] || [ -n "$hint" ]; then
+        # The glyph keeps its column; the label carries the sentence and the
+        # right slot goes to the badge or the hint — so the sentence moves
+        # into the icon slot beside the glyph, in the label's own colour, and
+        # the glyph's tone is spent on the glyph alone when there is no glyph.
+        # A badge row's glyph and words therefore share one colour: the
+        # words'. That is the price of a third thing on a two-slot row, and it
+        # is paid by the row that asked for it.
+        local name="$label" lead="$_BARLIB_G_TEXT_X"
+        if [ -n "$icon" ]; then name="$icon $label"; lead="$_BARLIB_G_GUTTER"; fi
+        if [ -n "$badge" ]; then
+            local bcolor
+            if [ -n "$badge_tone" ]; then bcolor=$(tone "$badge_tone"); else bcolor=$(tone "$icon_tone"); fi
+            _barlib_tint "$bcolor"
+            _barlib_right_slot "$badge" "${BAR_FONT:-}:Bold:${FS_TINY:-}" "${FS_TINY:-10}" "$bcolor" "$_BARLIB_TINT"
+        else
+            _barlib_right_slot "$hint" "${BAR_FONT:-}:Regular:${FS_TINY:-}" "${FS_TINY:-10}" "${OVERLAY0:-}"
+        fi
+        _barlib_name_cap "${FS_SMALL:-12}" "$lead"
+        _barlib_fit "$name" "$_BARLIB_CAP"
+        _barlib_pop_add row "$_BARLIB_G_H_ROW" "$rfont" "$action" "$hover" \
+            icon="$_BARLIB_FIT" icon.color="$lcolor" icon.font="$rfont" \
+            icon.padding_left="$lead" icon.padding_right=0 \
+            "${_BARLIB_RIGHT[@]}"
+        _barlib_pop_cap "$cap" "$marquee"
+        return 0
+    fi
+    _barlib_text_cap "${FS_SMALL:-12}" "$_BARLIB_G_TEXT_X"
+    if [ "$cap" -gt 0 ] 2>/dev/null; then _BARLIB_FIT=$label; else _barlib_fit "$label" "$_BARLIB_CAP"; fi
+    _barlib_pop_add row "$_BARLIB_G_H_ROW" "$rfont" "$action" "$hover" \
         icon="$icon" icon.color="$(tone "$icon_tone")" \
-        label="$label" label.color="$lcolor"
+        label="$_BARLIB_FIT" label.color="$lcolor"
     _barlib_pop_cap "$cap" "$marquee"
 }
 
-# popup_action --label <text> [--icon <glyph>] [--tone <tone>]
+# popup_action --label <text> [--icon <glyph>] [--tone <tone>] [--hint <text>]
 #              [--run <command>] [--copy <text>]
-# The verb row. --copy exists because the useful answer is often a command
-# you have to run somewhere with a terminal in front of it: `gh auth login`
-# wants a browser, a protocol choice and a paste-back code, and there is no
-# shell behind a bar popup to give it any of that.
+# The verb row — a menu item. --copy exists because the useful answer is often
+# a command you have to run somewhere with a terminal in front of it: `gh auth
+# login` wants a browser, a protocol choice and a paste-back code, and there
+# is no shell behind a bar popup to give it any of that.
 #
 # It defaults to `action`, and defaulting to `accent` was a real bug rather
 # than a shade: accent follows haus.theme.accent, an enum of fourteen names
@@ -977,33 +1306,237 @@ popup_row() {
 # verb row in every framework popup was painted the same colour as the alarm
 # — and `haus.theme.accent`'s own doc promises the logo is the ONLY pill that
 # follows it. A row you press is a fixed sapphire on every machine.
+#
+# --hint puts a tiny dim caption flush right — "2m ago" on a Refresh, the
+# gesture that does the same thing — where the old row spelled it into the
+# label with a middle dot.
 popup_action() {
-    local label='' icon='' icon_tone=action action=''
+    local label='' icon='' icon_tone=action action='' hint=''
     while [ $# -gt 0 ]; do
         case "$1" in
             --label) label=$2; shift 2 ;;
             --icon) icon=$2; shift 2 ;;
             --tone) icon_tone=$2; shift 2 ;;
+            --hint) hint=$2; shift 2 ;;
             --run) action=$2; shift 2 ;;
             --copy) action="printf '%s' $(popup_quote "$2") | pbcopy"; shift 2 ;;
             *) echo "barlib: popup_action: unknown flag '$1' — dropped" >&2; shift ;;
         esac
     done
-    _barlib_pop_add action "$_BARLIB_H_ROW" "${BAR_FONT:-}:Bold:${FS_SMALL:-}" "$action" \
+    _barlib_pop_geo
+    local afont="${BAR_FONT:-}:Bold:${FS_SMALL:-}"
+    if [ -n "$hint" ]; then
+        local name="$label" lead="$_BARLIB_G_TEXT_X"
+        if [ -n "$icon" ]; then name="$icon $label"; lead="$_BARLIB_G_GUTTER"; fi
+        _barlib_right_slot "$hint" "${BAR_FONT:-}:Regular:${FS_TINY:-}" "${FS_TINY:-10}" "${OVERLAY0:-}"
+        _barlib_name_cap "${FS_SMALL:-12}" "$lead"
+        _barlib_fit "$name" "$_BARLIB_CAP"
+        _barlib_pop_add action "$_BARLIB_G_H_ROW" "$afont" "$action" 1 \
+            icon="$_BARLIB_FIT" icon.color="$(tone "$icon_tone")" icon.font="$afont" \
+            icon.padding_left="$lead" icon.padding_right=0 \
+            "${_BARLIB_RIGHT[@]}"
+        return 0
+    fi
+    _barlib_text_cap "${FS_SMALL:-12}" "$_BARLIB_G_TEXT_X"
+    _barlib_fit "$label" "$_BARLIB_CAP"
+    _barlib_pop_add action "$_BARLIB_G_H_ROW" "$afont" "$action" 1 \
         icon="$icon" icon.color="$(tone "$icon_tone")" \
-        label="$label" label.color="${SUBTEXT0:-}"
+        label="$_BARLIB_FIT" label.color="${SUBTEXT0:-}"
 }
 
-# ---- the scrubber -----------------------------------------------------------
+# ── the button ────────────────────────────────────────────────────────────────
+# popup_button --label <text> [--icon <glyph>] [--tone <tone>] [--mark <mark>]
+#              [--solid] [--run <command>] [--open <url>] [--copy <text>]
+#
+# The one row that LOOKS like a control: a filled capsule the width of the
+# panel less a gutter each side, its words centred, in the row's hue. Tinted
+# by default — the hue at low alpha behind the hue's own text, which is what a
+# secondary button is on every Apple surface — and `--solid` for the primary
+# one: the hue itself, with the panel's base colour for the words. Two shapes
+# and no third; a popup with two solid buttons has not decided what it wants
+# you to do.
+#
+# It defaults to `action` for the same reason popup_action does. A verb with a
+# verdict names one — "Allow sleep" while an assertion is held is `bad` — and
+# the fill follows, which is how a destructive button reads as one.
+#
+# Hover brightens a tinted fill one step; a solid fill is already as loud as
+# it gets and stays put.
+_BARLIB_ALPHA_TINT=30
+_BARLIB_ALPHA_HOVER=50
+popup_button() {
+    local label='' icon='' tone_name=action mark_name='' solid=0 action=''
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --label) label=$2; shift 2 ;;
+            --icon) icon=$2; shift 2 ;;
+            --tone) tone_name=$2; mark_name=''; shift 2 ;;
+            --mark) mark_name=$2; tone_name=''; shift 2 ;;
+            --solid) solid=1; shift ;;
+            --run) action=$2; shift 2 ;;
+            --open) action="/usr/bin/open $(popup_quote "$2")"; shift 2 ;;
+            --copy) action="printf '%s' $(popup_quote "$2") | pbcopy"; shift 2 ;;
+            *) echo "barlib: popup_button: unknown flag '$1' — dropped" >&2; shift ;;
+        esac
+    done
+    _barlib_pop_geo
+    local hue
+    if [ -n "$mark_name" ]; then hue=$(mark "$mark_name"); else hue=$(tone "$tone_name"); fi
+    local fill text hover_fill
+    if [ "$solid" = 1 ]; then
+        fill="$hue"; text="${BASE:-}"; hover_fill="$hue"
+    else
+        _barlib_tint "$hue" "$_BARLIB_ALPHA_TINT"; fill="$_BARLIB_TINT"
+        _barlib_tint "$hue" "$_BARLIB_ALPHA_HOVER"; hover_fill="$_BARLIB_TINT"
+        text="$hue"
+    fi
+    local bfont="${BAR_FONT:-}:Bold:${FS_SMALL:-}"
+    local w=$((_BARLIB_G_W - 2 * _BARLIB_G_GUTTER))
+    local ipad=0
+    if [ -n "$icon" ]; then ipad=$_BARLIB_G_GAP; fi
+    _barlib_text_cap "${FS_SMALL:-12}" "$((_BARLIB_G_GUTTER + _BARLIB_G_WELL + ipad))"
+    _barlib_fit "$label" "$_BARLIB_CAP"
+    # No hover through _barlib_pop_add — a button's rest state is already a
+    # fill, so its own script swaps the two tints rather than the row grey.
+    _barlib_pop_add button "$_BARLIB_G_H_BUTTON" "$bfont" "$action" 0 \
+        width="$w" align=center \
+        padding_left="$((_BARLIB_G_INSET + _BARLIB_G_GUTTER))" \
+        padding_right="$((_BARLIB_G_INSET + _BARLIB_G_GUTTER))" \
+        icon="$icon" icon.color="$text" icon.font="$bfont" \
+        icon.width=dynamic icon.align=left icon.padding_left=0 icon.padding_right="$ipad" \
+        label="$_BARLIB_FIT" label.color="$text" label.padding_left=0 label.padding_right=0 \
+        background.color="$fill" background.corner_radius="$_BARLIB_BUTTON_RADIUS"
+    if [ "$solid" = 0 ]; then
+        _BARLIB_ARGS+=(
+            --set "$POPUP_ID"
+            script="case \"\$SENDER\" in mouse.entered) $SB --set \"\$NAME\" background.color=$hover_fill ;; mouse.exited) $SB --set \"\$NAME\" background.color=$fill ;; esac"
+            --subscribe "$POPUP_ID" mouse.entered mouse.exited
+        )
+    fi
+    return 0
+}
+
+# ── the bar ───────────────────────────────────────────────────────────────────
+# popup_bar --label <name> --percentage <0-100> [--value <text>] [--tone <tone>]
+#           [--mark <mark>] [--name-tone <tone>]
+#
+# A readout with a FILL in it: the name on the left, a track that is as full
+# as the number, the number flush right. What every "38%" in a dropdown wants
+# to be, and what ai_usage drew in block glyphs because one item can carry
+# only one colour — a slider carries three (the groove, the fill, the words),
+# so the track is a real 4pt bar in the row's tone against the runtime's
+# groove. It is the slider component with no knob and no gesture: SketchyBar's
+# slider IS a progress bar once nothing subscribes it to a click. The
+# interactive cousin is popup_slider, one section down, and they are two
+# kinds rather than one flag because one of them may leave the popup open
+# under your hand and the other never may.
+#
+# The columns are FIXED across rows — the name gets a set share of the panel
+# and the value a set share — so that three bars under one heading are three
+# tracks of one length starting on one x. That is the alignment the eye reads
+# as "a chart"; ragged tracks read as three unrelated rows.
+_BARLIB_BAR_NAME_COLS=14
+_BARLIB_BAR_VALUE_COLS=5
+popup_bar() {
+    local label='' pct=0 value='' tone_name=text mark_name='' name_tone=dim
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --label) label=$2; shift 2 ;;
+            --percentage) pct=$2; shift 2 ;;
+            --value) value=$2; shift 2 ;;
+            --tone) tone_name=$2; mark_name=''; shift 2 ;;
+            --mark) mark_name=$2; tone_name=''; shift 2 ;;
+            --name-tone) name_tone=$2; shift 2 ;;
+            *) echo "barlib: popup_bar: unknown flag '$1' — dropped" >&2; shift ;;
+        esac
+    done
+    _barlib_pop_geo
+    case "$pct" in '' | *[!0-9]*) pct=0 ;; esac
+    if [ "$pct" -gt 100 ]; then pct=100; fi
+    local fill
+    if [ -n "$mark_name" ]; then fill=$(mark "$mark_name"); else fill=$(tone "$tone_name"); fi
+    local sfont="${BAR_FONT:-}:Regular:${FS_SMALL:-}"
+    _barlib_adv "${FS_SMALL:-12}"
+    local name_w=$((_BARLIB_G_TEXT_X + _BARLIB_BAR_NAME_COLS * _BARLIB_ADV))
+    local value_w=$((_BARLIB_BAR_VALUE_COLS * _BARLIB_ADV + _BARLIB_G_GUTTER + _BARLIB_COL_SLACK))
+    local track=$((_BARLIB_G_W - name_w - value_w - _BARLIB_G_GAP))
+    if [ "$track" -lt 40 ]; then track=40; fi
+    _barlib_fit "$label" "$_BARLIB_BAR_NAME_COLS"
+    _barlib_pop_add "bar:$track" "$_BARLIB_G_H_ROW" "$sfont" '' 0 \
+        icon="$_BARLIB_FIT" icon.color="$(tone "$name_tone")" icon.font="$sfont" \
+        icon.width="$name_w" icon.align=left \
+        icon.padding_left="$_BARLIB_G_TEXT_X" icon.padding_right="$_BARLIB_G_GAP" \
+        label="$value" label.color="$fill" label.font="${BAR_FONT:-}:Bold:${FS_SMALL:-}" \
+        label.width="$value_w" label.align=right \
+        label.padding_left=0 label.padding_right="$_BARLIB_G_GUTTER" \
+        slider.percentage="$pct" \
+        slider.background.height=4 \
+        slider.background.corner_radius=2 \
+        slider.background.color="${SURFACE1:-}" \
+        slider.highlight_color="$fill" \
+        slider.knob="" slider.knob.drawing=off
+    return 0
+}
+
+# ── the sparkline ─────────────────────────────────────────────────────────────
+# popup_graph --points "<p1> <p2> …" [--tone <tone>] [--mark <mark>]
+#
+# A graph the width of the panel, fed the last N readings as PERCENTAGES
+# (0…100, the same unit `graph` on the pill takes; clamped the same way). Its
+# line is the hue and its fill the hue's tint, the pairing the pill's own
+# graph gets from the emitter. The points are pushed on the same batch the row
+# rides, oldest first, so the newest reading lands at the right edge — which
+# is where a rolling window puts "now".
+#
+# A widget has to KEEP the readings to have any to push here: the pill's own
+# graph is inside SketchyBar and cannot be read back. vitals_lib's ring is the
+# shipped example — one line appended per tick, the last width kept.
+popup_graph() {
+    local points='' tone_name='' mark_name=''
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --points) points=$2; shift 2 ;;
+            --tone) tone_name=$2; mark_name=''; shift 2 ;;
+            --mark) mark_name=$2; tone_name=''; shift 2 ;;
+            *) echo "barlib: popup_graph: unknown flag '$1' — dropped" >&2; shift ;;
+        esac
+    done
+    _barlib_pop_geo
+    local hue
+    if [ -n "$mark_name" ]; then
+        hue=$(mark "$mark_name")
+    elif [ -n "$tone_name" ]; then
+        hue=$(tone "$tone_name")
+    elif [ -n "${BARLIB_MARK:-}" ]; then
+        hue=$(mark "$BARLIB_MARK")
+    else
+        hue=$(tone dim)
+    fi
+    _barlib_tint "$hue"
+    local w=$((_BARLIB_G_W - 2 * _BARLIB_G_GUTTER))
+    _barlib_pop_add "graph:$w" "$_BARLIB_G_H_GRAPH" "${BAR_FONT:-}:Regular:${FS_TINY:-}" '' 0 \
+        width="$w" \
+        padding_left="$((_BARLIB_G_INSET + _BARLIB_G_GUTTER))" \
+        padding_right="$((_BARLIB_G_INSET + _BARLIB_G_GUTTER))" \
+        icon.drawing=off label.drawing=off \
+        graph.color="$hue" graph.fill_color="$_BARLIB_TINT" graph.line_width=1.5
+    local id="$POPUP_ID" p
+    for p in $points; do
+        _BARLIB_ARGS+=(--push "$id" "$(_barlib_fraction "$p")")
+    done
+    return 0
+}
+
+# ── the scrubber ──────────────────────────────────────────────────────────────
 # popup_slider --percentage <0-100> [--width <points>] [--icon <text>]
 #              [--label <text>] [--tone <tone>] [--mark <mark>] [--run <cmd>]
 #
-# The fifth row kind, and the only CONTROL among them: a track you aim at
-# rather than a thing you press. Everything above is a menu item — you read it,
-# you click it, the dropdown gets out of the way. A scrubber is the opposite
-# gesture, which is why it is a kind rather than a `popup_row` with a bar drawn
-# in it, and why `_barlib_pop_add` gives it the one click_script in this file
-# with no close appended. Read the ⚠️ there; it is the whole design.
+# The one row kind that is a CONTROL: a track you aim at rather than a thing
+# you press. Everything above is a menu item — you read it, you click it, the
+# dropdown gets out of the way. A scrubber is the opposite gesture, which is
+# why it is a kind rather than a `popup_bar` with a click on it, and why
+# `_barlib_pop_add` gives it the one click_script in this file with no close
+# appended. Read the ⚠️ there; it is the whole design.
 #
 # --icon and --label are the two CAPTIONS, left and right of the track — the
 # elapsed time and the total, in the shipped consumer. They are plain text in
@@ -1027,13 +1560,16 @@ popup_action() {
 # click_script is a spawn, not a call). What that process can do about it is
 # `popup_set "$POPUP_CLICKED" slider.percentage=…` — see popup_set for why the
 # knob is the widget's to move.
-_BARLIB_SLIDER_W=150
+#
+# --width is the TRACK's; without it the track is whatever the panel has left
+# after two caption columns, and the whole thing is centred in the row.
+_BARLIB_SLIDER_CAPTION_COLS=5
 # The knob is a runtime constant rather than a flag: it is typography, the same
 # as the row fonts, and a second consumer wanting a different one is a flag to
 # add then rather than a decision to hand out now.
 _BARLIB_SLIDER_KNOB='󰝥'
 popup_slider() {
-    local pct=0 width="$_BARLIB_SLIDER_W" icon='' label=''
+    local pct=0 width='' icon='' label=''
     local tone_name=action mark_name='' action=''
     while [ $# -gt 0 ]; do
         case "$1" in
@@ -1047,6 +1583,7 @@ popup_slider() {
             *) echo "barlib: popup_slider: unknown flag '$1' — dropped" >&2; shift ;;
         esac
     done
+    _barlib_pop_geo
     case "$pct" in '' | *[!0-9]*) pct=0 ;; esac
     if [ "$pct" -gt 100 ]; then pct=100; fi
     local fill
@@ -1055,13 +1592,20 @@ popup_slider() {
     else
         fill=$(tone "$tone_name")
     fi
-    _barlib_pop_add "slider:$width" "$_BARLIB_H_ROW" \
-        "${BAR_FONT:-}:Regular:${FS_TINY:-}" "$action" \
-        icon="$icon" icon.color="${SUBTEXT0:-}" \
-        icon.font="${BAR_FONT:-}:Regular:${FS_TINY:-}" \
-        icon.padding_left=10 icon.padding_right=8 \
+    _barlib_adv "${FS_TINY:-10}"
+    local cap_w=$((_BARLIB_SLIDER_CAPTION_COLS * _BARLIB_ADV))
+    if [ -z "$width" ]; then
+        width=$((_BARLIB_G_W - 2 * _BARLIB_G_GUTTER - 2 * cap_w - 2 * _BARLIB_G_GAP))
+        if [ "$width" -lt 60 ]; then width=60; fi
+    fi
+    local cfont="${BAR_FONT:-}:Regular:${FS_TINY:-}"
+    _barlib_pop_add "slider:$width" "$_BARLIB_G_H_ROW" "$cfont" "$action" 0 \
+        align=center \
+        icon="$icon" icon.color="${SUBTEXT0:-}" icon.font="$cfont" \
+        icon.width=dynamic icon.align=left \
+        icon.padding_left="$_BARLIB_G_GUTTER" icon.padding_right="$_BARLIB_G_GAP" \
         label="$label" label.color="${SUBTEXT0:-}" \
-        label.padding_left=8 label.padding_right=12 \
+        label.padding_left="$_BARLIB_G_GAP" label.padding_right="$_BARLIB_G_GUTTER" \
         slider.percentage="$pct" \
         slider.background.height=4 \
         slider.background.corner_radius=2 \
@@ -1070,29 +1614,26 @@ popup_slider() {
         slider.knob="$_BARLIB_SLIDER_KNOB" slider.knob.color="$fill"
 }
 
-# ---- a picture --------------------------------------------------------------
+# ── a picture ─────────────────────────────────────────────────────────────────
 # popup_image --source <path|app.Name> --box <points> [--scale <n>]
 #             [--corner <n>] [--pad-left <px>] [--run <command>]
 #
-# The sixth kind: a row that is entirely an IMAGE — no icon, no label, no
-# padding of its own. Two shapes, both in the shipped consumer, which is what
-# earned it a kind rather than a pile of sb_sets:
+# A row that is entirely an IMAGE — no icon, no label, no padding of its own.
+# Two shapes, both in the shipped consumer, which is what earned it a kind
+# rather than a pile of sb_sets:
 #
 #   * a WELL — `--box <n>` alone. The item is a fixed n-point square and the
 #     image is drawn in it. Media's cover art.
 #   * a CORNER MARK — `--box <n> --pad-left <px>`. No fixed width; the padding
 #     both offsets the image rightwards AND grows the item to fit, so an item
 #     whose only content is the image draws it hard against the right edge of a
-#     row exactly as wide as the popup already was. That is the only right-align
-#     sketchybar has: a popup is a stack of LEFT-aligned items, every item's
-#     background is as wide as its own content, and there is no alignment
-#     property. Media's app-icon badge.
+#     row exactly as wide as the popup already was. Media's app-icon badge.
 #
 # The <px> is a MEASUREMENT of the drawn popup, so it cannot come from here —
-# a row cannot know how wide the rows below it will be, and nothing has any
-# width at all until the popup has been on screen once. The widget takes it,
-# because the widget knows which of its own rows can be the widest; $POPUP_ID
-# and `popup_set` are how it puts the answer back.
+# the widget takes it, because the widget knows which of its own rows can be
+# the widest; $POPUP_ID and `popup_set` are how it puts the answer back. Both
+# shapes are the one place a row is NOT the panel's width: a well is its box,
+# a corner mark is its padding, and the grid leaves them alone.
 #
 # `--source` is a file path or SketchyBar's own `app.<Name>` form, which
 # resolves against the RUNNING application — so a widget drawing one has to
@@ -1123,10 +1664,11 @@ popup_image() {
             return 0
             ;;
     esac
-    _barlib_pop_add image "$box" "${BAR_FONT:-}:Regular:${FS_SMALL:-}" "$action" \
+    _barlib_pop_geo
+    _barlib_pop_add image "$box" "${BAR_FONT:-}:Regular:${FS_SMALL:-}" "$action" 0 \
         icon.drawing=off icon.padding_left=0 icon.padding_right=0 \
         label.drawing=off label.padding_left=0 label.padding_right=0 \
-        background.drawing=on background.color=0x00000000 \
+        background.corner_radius=0 \
         background.image="$source" \
         background.image.scale="$scale" \
         background.image.corner_radius="$corner" \
@@ -1134,14 +1676,15 @@ popup_image() {
     # A well is SIZED; a corner mark is OFFSET. Setting both would pin the item
     # to the box and then push the image out of it.
     if [ -n "$pad" ]; then
-        _BARLIB_ARGS+=(--set "$POPUP_ID" background.image.padding_left="$pad")
+        _BARLIB_ARGS+=(--set "$POPUP_ID" width=dynamic background.image.padding_left="$pad")
     else
-        _BARLIB_ARGS+=(--set "$POPUP_ID" width="$box")
+        _BARLIB_ARGS+=(--set "$POPUP_ID" width="$box" padding_left="$((_BARLIB_G_INSET + _BARLIB_G_GUTTER))")
     fi
     return 0
 }
 
-# popup_note --label <text> — the aside. No icon, no click of its own.
+# popup_note --label <text> — the aside. No icon, no click of its own, on the
+# text column like everything else.
 popup_note() {
     local label=''
     while [ $# -gt 0 ]; do
@@ -1150,8 +1693,44 @@ popup_note() {
             *) echo "barlib: popup_note: unknown flag '$1' — dropped" >&2; shift ;;
         esac
     done
-    _barlib_pop_add note "$_BARLIB_H_NOTE" "${BAR_FONT:-}:Italic:${FS_TINY:-}" '' \
-        icon="" label="$label" label.color="${OVERLAY0:-}"
+    _barlib_pop_geo
+    _barlib_text_cap "${FS_TINY:-10}" "$_BARLIB_G_TEXT_X"
+    _barlib_fit "$label" "$_BARLIB_CAP"
+    _barlib_pop_add note "$_BARLIB_G_H_NOTE" "${BAR_FONT:-}:Italic:${FS_TINY:-}" '' 0 \
+        icon="" label="$_BARLIB_FIT" label.color="${OVERLAY0:-}"
+}
+
+# popup_separator — a hairline from gutter to gutter, with a note's worth of
+# air around it. An item whose only visible part is a one-point background:
+# the row is as tall as a blank tiny-face label (which is what gives the line
+# its margins), and the line is centred in it.
+popup_separator() {
+    _barlib_pop_geo
+    _barlib_pop_add separator 1 "${BAR_FONT:-}:Regular:${FS_TINY:-}" '' 0 \
+        width="$((_BARLIB_G_W - 2 * _BARLIB_G_GUTTER))" \
+        padding_left="$((_BARLIB_G_INSET + _BARLIB_G_GUTTER))" \
+        padding_right="$((_BARLIB_G_INSET + _BARLIB_G_GUTTER))" \
+        icon=" " icon.font="${BAR_FONT:-}:Regular:${FS_TINY:-}" icon.width=dynamic \
+        icon.padding_left=0 icon.padding_right=0 \
+        label.drawing=off \
+        background.height=1 background.corner_radius=0 \
+        background.color="${SURFACE1:-}"
+    return 0
+}
+
+# popup_space [points] — nothing, that tall. The panel's own padding is drawn
+# with it (popup_open adds one above the first row and one below the last);
+# a widget wants one between two buttons, or under a picture.
+popup_space() {
+    local h=${1:-}
+    _barlib_pop_geo
+    case "$h" in
+        '' | *[!0-9]*) h=$_BARLIB_G_H_PAD ;;
+        *) _barlib_px "$h"; h=$_BARLIB_PX ;;
+    esac
+    _barlib_pop_add space "$h" "${BAR_FONT:-}:Regular:${FS_TINY:-}" '' 0 \
+        icon.drawing=off label.drawing=off background.corner_radius=0
+    return 0
 }
 
 # Is the dropdown up? `nil` for an item the bar could not answer about — the
@@ -1176,11 +1755,19 @@ popup_close() {
 # The batch is FLUSHED here rather than at the end of barlib_main, because
 # barpop reads the popup's row rects at arm time — arming before the rows
 # exist would guard a popup of the wrong shape.
+#
+# The panel's own padding is drawn here — one spacer above the first row and
+# one below the last — and so is the CELL FLOOR: `popup.height` is SketchyBar's
+# minimum slot per popup item, 30 by default, and with it in place every row
+# kind's height was a fiction (a 18pt note sat in a 30pt cell). Set to 1, the
+# rows are exactly as tall as they say.
 popup_open() {
     "$SB" --remove "/${_BARLIB_POPUP}\.popup\..*/" 2>/dev/null
     _BARLIB_POP_I=0
+    _BARLIB_POP_PAD=top; popup_space; _BARLIB_POP_PAD=''
     if declare -F popup_rows >/dev/null 2>&1; then popup_rows; fi
-    _barlib_set_on "$_BARLIB_POPUP" popup.drawing=on
+    _BARLIB_POP_PAD=bottom; popup_space; _BARLIB_POP_PAD=''
+    _barlib_set_on "$_BARLIB_POPUP" popup.height=1 popup.drawing=on
     barlib_flush
     SKETCHYBAR_BIN="$SB" /run/current-system/sw/bin/barpop arm "$_BARLIB_POPUP" 2>/dev/null &
     return 0

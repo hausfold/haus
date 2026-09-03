@@ -46,6 +46,7 @@
 # on the value column), and a second two-column row hanging the duration and
 # the who under it with the Join affordance trailing in the value slot.
 # widget: popup      = true
+# widget: mark = plum
 # widget: subscribes = mouse.entered, mouse.exited, mouse.exited.global
 set -u
 export USER="${USER:-$(id -un)}"
@@ -501,9 +502,11 @@ duration() { # duration <minutes>
   else printf '%dh%dm' $((m / 60)) $((m % 60)); fi
 }
 
-# One event: the spine, then the meta line under it. `focus` boxes the spine —
-# the only background in the whole popup, put there with popup_set on the row
-# id the runtime just handed back.
+# One event: the spine, then the meta line under it. A `focus` event — the one
+# the pill is counting down to — is the one whose Join is a BUTTON rather than
+# a badge on its meta line: the thing you opened this dropdown to press, drawn
+# as a thing you press. Every other joinable event keeps the badge, so the
+# panel has one button, and the button says which meeting is next.
 event_rows() { # event_rows <smin> <emin> <sdate> <stime> <title> <who> <join> <band> <focus>
   local smin="$1" emin="$2" sdate="$3" stime="$4" title="$5" who="$6" join="$7"
   local band="$8" focus="$9"
@@ -524,24 +527,29 @@ event_rows() { # event_rows <smin> <emin> <sdate> <stime> <title> <who> <join> <
 
   if [ -n "$join" ]; then
     popup_row --label "$when" --name-tone "$ntone" --value "$title" --tone "$vtone" \
-      --max-chars 46 --run "$SELF open $(popup_quote "$join")"
+      --run "$SELF open $(popup_quote "$join")"
   else
-    popup_row --label "$when" --name-tone "$ntone" --value "$title" --tone "$vtone" \
-      --max-chars 46
-  fi
-  if [ "$focus" = 1 ]; then
-    popup_set "$POPUP_ID" background.drawing=on background.color="$SURFACE1" \
-      background.corner_radius=8 background.height=30
+    popup_row --label "$when" --name-tone "$ntone" --value "$title" --tone "$vtone"
   fi
 
   meta="$(duration $((emin - smin)))"
   [ -n "$who" ] && meta="$meta · $(withwho "$who")"
-  if [ -n "$join" ]; then
-    popup_row --label "$meta" --value "󰕧 Join" --tone action \
+  if [ -n "$join" ] && [ "$focus" != 1 ]; then
+    popup_row --label "$meta" --tone dim --badge "Join" --badge-tone action \
       --run "$SELF open $(popup_quote "$join")"
   else
-    popup_row --label "$meta" --value ""
+    popup_row --label "$meta" --tone dim
   fi
+  if [ -n "$join" ] && [ "$focus" = 1 ]; then
+    popup_button --icon "󰕧" --label "Join" --run "$SELF open $(popup_quote "$join")"
+  fi
+}
+
+# A hairline between two bands, and none above the first: the bands are three
+# sections of one timeline, and a rule is what says where one ends.
+band_break() { # band_break <rows-drawn-so-far>
+  [ "${1:-0}" -gt 0 ] && popup_separator
+  return 0
 }
 
 popup_rows() {
@@ -570,10 +578,10 @@ popup_rows() {
       # that finished an hour ago is the most relevant thing in the band, and a
       # start-keyed window is exactly the filter that would drop it.
       [ "$emin" -ge "$past_min" ] || continue
-      [ "$drawn_done" = 1 ] || { popup_heading --icon "󰄬" --tone mute --label "Done"; drawn_done=1; }
+      [ "$drawn_done" = 1 ] || { band_break "$rows"; popup_heading --icon "󰄬" --tone mute --label "Done"; drawn_done=1; }
       event_rows "$smin" "$emin" "$sdate" "$stime" "$title" "$who" "$join" "done" 0
     elif [ "$smin" -le "$NOW_MIN" ]; then
-      [ "$drawn_now" = 1 ] || { popup_heading --icon "󰔟" --tone warn --label "Now"; drawn_now=1; }
+      [ "$drawn_now" = 1 ] || { band_break "$rows"; popup_heading --icon "󰔟" --tone warn --label "Now"; drawn_now=1; }
       event_rows "$smin" "$emin" "$sdate" "$stime" "$title" "$who" "$join" now "$focus"
     else
       [ "$next_count" -lt "$UPCOMING" ] || continue
@@ -581,7 +589,7 @@ popup_rows() {
       # `--mark plum` is the pill's own mauve on the identity axis — the Next
       # band is the one the pill itself speaks for, so its rule wears the hue
       # the glyph in the bar does.
-      [ "$drawn_next" = 1 ] || { popup_heading --icon "󰃰" --mark plum --label "Next"; drawn_next=1; }
+      [ "$drawn_next" = 1 ] || { band_break "$rows"; popup_heading --icon "󰃰" --mark plum --label "Next"; drawn_next=1; }
       if [ "$focus" = 1 ]; then
         event_rows "$smin" "$emin" "$sdate" "$stime" "$title" "$who" "$join" focus 1
       else

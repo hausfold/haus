@@ -2,6 +2,7 @@
 # widget: interval = 5
 # widget: graph = 48
 # widget: popup = true
+# widget: mark = teal
 #
 # memory.sh — the memory pill: how much RAM is actually spoken for, a rolling
 # graph of it, and a dropdown breaking it down and naming the biggest
@@ -103,6 +104,7 @@ fetch() {
   # history that never happened.
   if [ -z "$MEM_PCT" ]; then return 1; fi
   graph "$MEM_PCT"
+  vitals_history_push "$STATE" "$MEM_PCT"
   pressure_verdict "${MEM_PRESSURE:-1}"
   emit pct="$(printf '%.0f' "$MEM_PCT")" tone="$PRESSURE_TONE"
 }
@@ -136,7 +138,15 @@ popup_rows() {
   fi
   pressure_verdict "${MEM_PRESSURE:-1}"
 
-  popup_heading --icon "$ICON" --label "Memory" --value "${MEM_USED} / ${MEM_TOTAL} GB"
+  # The used/total figure is a BADGE on the heading in the kernel's own
+  # pressure tone — the same verdict the pill wears, for the reason written
+  # above pressure_verdict — and the sparkline under it is the pill's own two
+  # minutes, from the ring fetch keeps (vitals_lib).
+  popup_heading --icon "$ICON" --label "Memory" \
+    --badge "${MEM_USED} / ${MEM_TOTAL} GB" --badge-tone "$PRESSURE_TONE"
+  vitals_history "$STATE"
+  [ -n "$VITALS_POINTS" ] && popup_graph --points "$VITALS_POINTS"
+
   popup_row --label "used" --value "${MEM_USED} GB"
   # Cache is drawn because it is the half of the old pill's lie worth keeping:
   # seeing 12 GB of file cache is what makes "54% used" legible on a 32 GB
@@ -149,10 +159,12 @@ popup_rows() {
   swap=text
   if [ "${MEM_SWAP%%.*}" -gt 0 ] 2>/dev/null; then swap=warn; fi
   popup_row --label "swap" --value "${MEM_SWAP} GB" --tone "$swap"
-  popup_row --label "pressure" --value "$PRESSURE_WORD" --tone "$PRESSURE_TONE"
+  # The verdict is a word, and a word with a colour behind it is a badge.
+  popup_row --label "pressure" --badge "$PRESSURE_WORD" --badge-tone "$PRESSURE_TONE"
 
   if [ ${#TOP_NAME[@]} -gt 0 ]; then
-    popup_note --label "biggest footprints"
+    popup_separator
+    popup_heading --label "Biggest footprints"
     n=0
     while [ "$n" -lt ${#TOP_NAME[@]} ]; do
       # Rows are clickable and each one goes to its app's window. `printf %q`
@@ -176,7 +188,7 @@ popup_rows() {
     fi
   fi
 
-  popup_action --icon "" --label "Activity Monitor" --run "$SELF activity"
+  popup_button --icon "" --label "Activity Monitor" --run "$SELF activity"
 }
 
 # ── the gestures ──────────────────────────────────────────────────────────────

@@ -61,6 +61,8 @@ export SUBTEXT0=0xff888888
 export OVERLAY0=0xff999999
 export OVERLAY1=0xffaaaaaa
 export SURFACE1=0xffbbbbbb
+export SURFACE0=0xffcccccc
+export BASE=0xff000000
 EOF
   cat "$BATS_TEST_DIRNAME/colors-fns.sh" >>"$HOME/.config/sketchybar/colors.sh"
   cat >"$HOME/.config/sketchybar/sizes.sh" <<'EOF'
@@ -69,6 +71,7 @@ export FS_ICON=14
 export FS_LABEL=13
 export FS_SMALL=12
 export FS_TINY=10
+export BAR_SCALE=1
 export PAD_ICON_L=8
 export PAD_ICON_R=4
 export PAD_ICON_SOLO=10
@@ -400,9 +403,9 @@ on_click() { popup_open; }'
   [[ "$batch" == *"Test Font:Regular:12"* ]]  # row
   [[ "$batch" == *"Test Font:Bold:12"* ]]     # action
   [[ "$batch" == *"Test Font:Italic:10"* ]]   # note
-  [[ "$batch" == *"background.height=32"* ]]
-  [[ "$batch" == *"background.height=25"* ]]
-  [[ "$batch" == *"background.height=20"* ]]
+  [[ "$batch" == *"background.height=34"* ]]
+  [[ "$batch" == *"background.height=26"* ]]
+  [[ "$batch" == *"background.height=18"* ]]
 }
 
 @test "every row closes the popup, and an action runs BEFORE that close" {
@@ -564,20 +567,21 @@ exit 0'
 
 # ---- the value column -------------------------------------------------------
 
-@test "popup_row --value puts the name left of a value on its own column" {
+@test "popup_row --value puts the name left and the value flush right" {
   NAME=w SENDER=mouse.clicked widget '
     popup_rows() { popup_row --label user --value "12%"; }
     on_click() { popup_open; }
   '
   grep -q 'icon=user' "$SB_LOG"
   grep -q 'label=12%' "$SB_LOG"
-  # A pixel padding, never trailing spaces: sketchybar sizes an item from its
-  # TRIMMED label and then draws the untrimmed string, so a space-padded row
-  # is clipped by exactly the width of its own padding.
-  grep -qE 'icon\.padding_right=[0-9]+' "$SB_LOG"
-  # The name is the bare string — the column is bought with that padding and
-  # not by padding the name out, which sketchybar would trim and then clip.
+  # The value slot is a fixed width sized from the value, right-aligned in
+  # it: that is what lands every value on the gutter whatever the name did.
+  # Never trailing spaces — sketchybar sizes an item from its TRIMMED label
+  # and then draws the untrimmed string.
+  grep -qE 'label\.width=[0-9]+ label\.align=right' "$SB_LOG"
+  # The name is the bare string in a slot that takes the rest of the row.
   grep -q 'icon=user icon\.color=' "$SB_LOG"
+  grep -qE 'icon\.width=[0-9]+ icon\.align=left' "$SB_LOG"
 }
 
 @test "a value row tones the number, not the name" {
@@ -587,7 +591,7 @@ exit 0'
     popup_rows() { popup_row --label Safari --value "91%" --tone bad; }
     on_click() { popup_open; }
   '
-  grep -q 'label=91% label.color=0xff555555' "$SB_LOG"
+  grep -qE 'label=91% label\.font=[^ ]+( [^ ]+)* label\.color=0xff555555' "$SB_LOG"
   grep -q 'icon=Safari icon.color=0xff1a1a1a' "$SB_LOG"
 }
 
@@ -596,16 +600,19 @@ exit 0'
     popup_rows() { popup_row --label load --value "2.1"; }
     on_click() { popup_open; }
   '
-  grep -q 'label=2.1 label.color=0xff777777' "$SB_LOG"
+  grep -qE 'label=2.1 label\.font=[^ ]+( [^ ]+)* label\.color=0xff777777' "$SB_LOG"
 }
 
-@test "a name longer than the column keeps a gap rather than a negative pad" {
+@test "a name longer than its slot is cut with an ellipsis, never spilled" {
+  # SketchyBar's max_chars cuts and says nothing; the runtime cuts by
+  # character and spends one column on saying so.
   NAME=w SENDER=mouse.clicked widget '
-    popup_rows() { popup_row --label "a-very-long-process-name-indeed" --value "4%"; }
+    popup_rows() { popup_row --label "a-very-long-process-name-indeed-and-then-some-more-words" --value "4%"; }
     on_click() { popup_open; }
   '
-  ! grep -qE 'icon\.padding_right=-' "$SB_LOG"
-  grep -qE 'icon\.padding_right=[0-9]+' "$SB_LOG"
+  grep -q 'icon=a-very-long-process-name-indeed' "$SB_LOG"
+  grep -q '…' "$SB_LOG"
+  ! grep -q 'some-more-words' "$SB_LOG"
 }
 
 @test "popup_heading --value carries glyph and title in one hue" {
@@ -676,15 +683,15 @@ exit 0'
   grep -q 'icon.font=app-font:Regular:16' "$SB_LOG"
 }
 
-@test "a heading naming no font draws exactly as it did before the flag" {
-  # The default is spelled out rather than inherited so there is one code path;
-  # it has to be byte-identical to sketchybarrc's --default icon.font, or every
-  # existing framework heading changes size the day this flag lands.
+@test "a heading naming no font draws its glyph at the label size" {
+  # The default is spelled out rather than inherited so there is one code
+  # path: the glyph sits in a 20pt well, and the bar's own 17pt icon face
+  # would overflow it.
   NAME=w SENDER=mouse.clicked widget '
     popup_rows() { popup_heading --icon C --label CPU; }
     on_click() { popup_open; }
   '
-  grep -q 'icon.font=Test Font:Bold:14' "$SB_LOG"
+  grep -q 'icon.font=Test Font:Bold:13' "$SB_LOG"
 }
 
 @test "--icon-font is refused rather than ignored on a two-column heading" {
@@ -701,44 +708,27 @@ exit 0'
 
 # ---- alignment inside the value column ---------------------------------------
 
-# pad_for <value> — the icon.padding_right of the row whose VALUE is <value>.
-# Anchored on the value rather than the name because the row chrome carries an
-# `icon.padding_right=8 label=` of its own, and the fonts have spaces in them.
-pad_for() {
-  grep -oE "icon\.padding_right=[0-9]+ label=$1 " "$SB_LOG" |
-    head -1 | cut -d= -f2 | cut -d' ' -f1
-}
-
-@test "leading blanks in a value right-align it instead of clipping the row" {
-  # A label is sized TRIMMED and drawn untrimmed, so ` 7%` loses exactly its
-  # own indent off the right edge. The runtime pays for the alignment in the
-  # name's right padding instead — the same mechanism the column already is.
+@test "leading blanks in a value are dropped — the slot right-aligns instead" {
+  # A label is sized TRIMMED and drawn untrimmed, so ` 7%` would lose exactly
+  # its own indent off the right edge. A widget that wrote `%3s` to line its
+  # numbers up gets the same column from the slot's own alignment.
   NAME=w SENDER=mouse.clicked widget '
     popup_rows() {
       popup_row --label session --value "  7%"
       popup_row --label weekly  --value " 46%"
-      popup_row --label weekly  --value "46%"
     }
     on_click() { popup_open; }
   '
-  # The blanks are gone from the label…
   grep -q 'label=7% ' "$SB_LOG"
   grep -q 'label=46% ' "$SB_LOG"
   ! grep -q 'label=  7%' "$SB_LOG"
-  # …and what they bought is that the two numbers land on ONE column: two
-  # leading blanks on a 7-character name and one on a 6-character name are the
-  # same x, which is the whole reason a widget writes `%3s` at all.
-  [ "$(pad_for '7%')" -eq "$(pad_for '46%')" ]
-  # The same value without them sits further left, so the padding is real and
-  # not a constant that happens to match.
-  narrow=$(grep -oE 'icon\.padding_right=[0-9]+ label=46% ' "$SB_LOG" | tail -1 | cut -d= -f2 | cut -d' ' -f1)
-  [ "$(pad_for '46%')" -gt "$narrow" ]
+  [ "$(grep -o 'label.align=right' "$SB_LOG" | wc -l)" -ge 2 ]
 }
 
 @test "an empty --label is a continuation row under the one above it" {
   # The second line of a token block: no name, and the value still lands on
-  # the column. It needs no branch of its own — an empty icon still reserves
-  # its padding — but a widget has to be able to rely on that.
+  # the column. It needs no branch of its own — an empty icon still holds its
+  # slot — but a widget has to be able to rely on that.
   NAME=w SENDER=mouse.clicked widget '
     popup_rows() {
       popup_row --label tokens --value "220Md"
@@ -748,9 +738,6 @@ pad_for() {
   '
   grep -q 'label=220Md ' "$SB_LOG"
   grep -q 'label=590Mm ' "$SB_LOG"
-  # The nameless row buys back exactly the width the name would have taken, so
-  # its value starts where the value above it does rather than at the indent.
-  [ "$(pad_for '590Mm')" -gt "$(pad_for '220Md')" ]
   grep -q 'icon= icon.color=0xff1a1a1a' "$SB_LOG"
 }
 
@@ -767,15 +754,16 @@ pad_for() {
   grep -q 'label=Codex label.color=0xff1a1a1a' "$SB_LOG"
 }
 
-@test "a heading that names no label tone is the ordinary foreground" {
-  # The default has to stay TEXT, or every heading github/cpu/memory already
-  # draw changes colour the day the flag lands.
+@test "a heading's title wears its hue, glyph and title together" {
+  # The colour a converted dropdown lost: a section title in the same hue as
+  # its glyph, which is what every hand-written popup drew and the first
+  # framework cut of this file painted TEXT.
   NAME=w SENDER=mouse.clicked widget '
     popup_rows() { popup_heading --icon C --label CPU --tone warn; }
     on_click() { popup_open; }
   '
   grep -q 'icon=C icon.color=0xff444444' "$SB_LOG"
-  grep -q 'label=CPU label.color=0xff777777' "$SB_LOG"
+  grep -q 'label=CPU label.color=0xff444444' "$SB_LOG"
 }
 
 # ---- the scrubber -----------------------------------------------------------
@@ -869,8 +857,7 @@ on_click() { popup_open; }'
   batch=$(grep -- '--add item' "$SB_LOG")
   [[ "$batch" == *"--set w.popup.0 width=84"* ]]
   [[ "$batch" != *"--set w.popup.0 background.image.padding_left"* ]]
-  [[ "$batch" == *"--set w.popup.1 background.image.padding_left=140"* ]]
-  [[ "$batch" != *"--set w.popup.1 width="* ]]
+  [[ "$batch" == *"--set w.popup.1 width=dynamic background.image.padding_left=140"* ]]
   [[ "$batch" == *"background.image=/tmp/cover.png"* ]]
   [[ "$batch" == *"background.image=app.Zen"* ]]
 }
@@ -1062,7 +1049,7 @@ on_click() { popup_open; }'
     on_click() { popup_open; }
   '
   grep -q -- '--add item agents.pill.popup.0 popup.agents.pill' "$SB_LOG"
-  grep -q -- '--set agents.pill popup.drawing=on' "$SB_LOG"
+  grep -q -- '--set agents.pill popup.height=1 popup.drawing=on' "$SB_LOG"
   ! grep -q -- 'popup.agents ' "$SB_LOG"
 }
 
@@ -1286,4 +1273,317 @@ EOF
     render() { bar_emit haus.w.change; pill --icon x --label ok; }
   '
   grep -q -- '--set w ' "$SB_LOG"
+}
+
+# ---- the grid ----------------------------------------------------------------
+# SketchyBar lays a popup out as a stack of content-width, left-aligned items
+# with no alignment property. Every promise below is about the ONE decision
+# that turns that into a panel: every row is a fixed-width item, and the two
+# text slots are placed inside it. Each fails silently on a real bar — a row
+# that lost its width is a ragged edge, a badge without its slot is a capsule
+# as wide as the column, a 30pt cell floor is a note twice its height.
+
+# row_args <n> — every --set argument aimed at popup row n on the batched
+# add, joined. A row's close is a `--set w popup.drawing=off` INSIDE its
+# click_script, so the batch is split only at the runtime's own verbs and at
+# a `--set w.popup.<id>`, never at a bare `--set`.
+row_args() {
+  grep -- '--add' "$SB_LOG" |
+    awk '{ gsub(/ --(add|subscribe|push) /, "\n&"); gsub(/ --set w\.popup\.[a-z0-9]+ /, "\n&"); print }' |
+    grep -E "^ --set w\.popup\.$1 " | sed -E "s/^ --set w\.popup\.$1 //" | tr '\n' ' '
+}
+
+@test "every row is the panel's width, inset from the frame" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() {
+      popup_heading --icon H --label "Head"
+      popup_row --label "row"
+      popup_action --label "act"
+      popup_note --label "note"
+    }
+    on_click() { popup_open; }
+  '
+  local n
+  for n in 0 1 2 3; do
+    [[ "$(row_args $n)" == *"width=340 padding_left=6 padding_right=6"* ]]
+  done
+}
+
+@test "popup_width widens the panel for the widget that asks, before the first row" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_width 420
+    popup_rows() { popup_row --label "a sentence of a title"; }
+    on_click() { popup_open; }
+  '
+  [[ "$(row_args 0)" == *"width=420 "* ]]
+}
+
+@test "the grid scales with the type" {
+  # haus.ui.scale reaches the type through BAR_SCALE; a panel that did not
+  # follow it would be the same panel with bigger words falling off it.
+  # In the body rather than the environment: the stub sizes.sh exports its
+  # own BAR_SCALE, and the grid is laid lazily at the first row.
+  NAME=w SENDER=mouse.clicked widget '
+    BAR_SCALE=1.25
+    popup_rows() { popup_row --label "r"; }
+    on_click() { popup_open; }
+  '
+  [[ "$(row_args 0)" == *"width=425 "* ]]
+  [[ "$(row_args 0)" == *"background.height=33"* ]]
+}
+
+@test "every row carries a transparent background of its own height" {
+  # A background counts toward an item's height ONLY while it is drawn, so a
+  # row with drawing=off is as tall as its text and the popup's cell floor
+  # wins. Transparent-and-drawn is what makes the heights real.
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_note --label "n"; }
+    on_click() { popup_open; }
+  '
+  [[ "$(row_args 0)" == *"background.drawing=on background.color=0x00000000 background.height=18"* ]]
+}
+
+@test "opening sets the cell floor to 1 and pads the panel top and bottom" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_row --label "r"; }
+    on_click() { popup_open; }
+  '
+  grep -q -- '--set w popup.height=1 popup.drawing=on' "$SB_LOG"
+  grep -q -- '--add item w.popup.top popup.w' "$SB_LOG"
+  grep -q -- '--add item w.popup.bottom popup.w' "$SB_LOG"
+  # The pads are numbered apart, so the widget's first row is still .popup.0.
+  grep -q -- '--add item w.popup.0 popup.w' "$SB_LOG"
+  ! grep -q -- 'w.popup.1 ' "$SB_LOG"
+  grep -qE -- '--set w\.popup\.(top|bottom) [^-]*background\.height=6' "$SB_LOG"
+}
+
+# ---- the widget's own hue ----------------------------------------------------
+
+@test "a heading with no tone wears the mark the widget's header declares" {
+  # The colour a converted pill's dropdown lost: the ladder has no rung for
+  # "this pill's own colour", so `mark =` in the header is where it lives,
+  # read from the file exactly as `segments =` is.
+  NAME=w SENDER=mouse.clicked widget '
+# widget: mark = teal
+    popup_rows() { popup_heading --icon C --label CPU; }
+    on_click() { popup_open; }
+  '
+  grep -q 'icon=C icon.color=0xff7a0002' "$SB_LOG"
+  grep -q 'label=CPU label.color=0xff7a0002' "$SB_LOG"
+}
+
+@test "a heading's own --tone still beats the header's mark" {
+  NAME=w SENDER=mouse.clicked widget '
+# widget: mark = teal
+    popup_rows() { popup_heading --icon C --label Dead --tone warn; }
+    on_click() { popup_open; }
+  '
+  grep -q 'icon=C icon.color=0xff444444' "$SB_LOG"
+}
+
+@test "the header read leaves the widget's own argv alone" {
+  # barlib is SOURCED, and its header read word-splits inside a function on
+  # purpose: a `set --` at file level would eat the CLI mode github's
+  # `refresh` dispatches on after the source.
+  NAME=w SENDER=mouse.clicked widget_raw '
+# widget: mark = teal
+# widget: segments = a, b
+    case "${1:-}" in
+      refresh) sb_set label=refreshed; barlib_flush; exit 0 ;;
+    esac
+    barlib_main "$@"
+  ' refresh
+  grep -q -- '--set w label=refreshed' "$SB_LOG"
+}
+
+@test "a glyph on a heading sits in a well of the heading's tint" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_heading --icon C --label CPU --mark teal; }
+    on_click() { popup_open; }
+  '
+  local r
+  r=$(row_args 0)
+  [[ "$r" == *"icon.background.drawing=on icon.background.color=0x307a0002 icon.background.height=20 icon.background.corner_radius=10"* ]]
+  [[ "$r" == *"icon.width=20 icon.align=center"* ]]
+}
+
+@test "a heading with no glyph draws no well" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_heading --label "What is using it"; }
+    on_click() { popup_open; }
+  '
+  ! grep -q 'icon.background.drawing=on' "$SB_LOG"
+}
+
+# ---- the right column: badge and hint ----------------------------------------
+
+@test "a badge is a capsule in the tone's tint with the tone's words in it" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_row --label pressure --badge critical --badge-tone bad; }
+    on_click() { popup_open; }
+  '
+  local r
+  r=$(row_args 0)
+  [[ "$r" == *"label=critical label.font=Test Font:Bold:10 label.color=0xff555555"* ]]
+  [[ "$r" == *"label.background.drawing=on label.background.color=0x30555555 label.background.height=18 label.background.corner_radius=9"* ]]
+  # The capsule HUGS its words: a fixed label.width would make it as wide as
+  # the whole column, so the slot is cut from the name side instead.
+  [[ "$r" == *"label.width=dynamic"* ]]
+  # 8 columns × 7pt (the tiny face), 8pt of padding each side, 4 of slack,
+  # and the gutter, taken from the 340 the row has.
+  [[ "$r" == *"icon.width=254 icon.align=left"* ]]
+}
+
+@test "a heading badge is the heading's own hue unless told otherwise" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() {
+      popup_heading --icon C --label CPU --mark teal --badge "41%"
+      popup_heading --icon M --label Memory --mark teal --badge "6 GB" --badge-tone warn
+    }
+    on_click() { popup_open; }
+  '
+  [[ "$(row_args 0)" == *"label=41% label.font=Test Font:Bold:10 label.color=0xff7a0002"* ]]
+  [[ "$(row_args 1)" == *"label=6 GB label.font=Test Font:Bold:10 label.color=0xff444444"* ]]
+  # A badge takes the label slot, so glyph and title share the icon slot and
+  # the well is not drawn — the price of a third thing on a two-slot row.
+  [[ "$(row_args 0)" == *"icon=C CPU icon.color=0xff7a0002"* ]]
+  ! grep -q 'icon.background.drawing=on' "$SB_LOG"
+}
+
+@test "a hint is a tiny dim caption flush right" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_action --icon R --label Refresh --hint "2m ago" --run "true"; }
+    on_click() { popup_open; }
+  '
+  local r
+  r=$(row_args 0)
+  [[ "$r" == *"label=2m ago label.font=Test Font:Regular:10 label.color=0xff999999"* ]]
+  [[ "$r" == *"label.align=right"* ]]
+  [[ "$r" == *"icon=R Refresh icon.color=0xff5a5a5a"* ]]
+}
+
+# ---- hover -------------------------------------------------------------------
+
+@test "a row that does something lights up under the pointer, one that does not never does" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() {
+      popup_row --label "go" --run "true"
+      popup_row --label "inert"
+      popup_heading --label "Lane" --run "true"
+      popup_note --label "aside"
+    }
+    on_click() { popup_open; }
+  '
+  grep -q -- '--subscribe w.popup.0 mouse.entered mouse.exited' "$SB_LOG"
+  grep -q -- '--subscribe w.popup.2 mouse.entered mouse.exited' "$SB_LOG"
+  ! grep -q -- '--subscribe w.popup.1 ' "$SB_LOG"
+  ! grep -q -- '--subscribe w.popup.3 ' "$SB_LOG"
+  # The script swaps the row grey and back, addressed by the $NAME sketchybar
+  # exports for the row — no id baked in, so a rebuilt popup keeps it right.
+  grep -q 'mouse.entered) .* --set "$NAME" background.color=0xffcccccc' "$SB_LOG"
+  grep -q 'mouse.exited) .* --set "$NAME" background.color=0x00000000' "$SB_LOG"
+}
+
+# ---- the button --------------------------------------------------------------
+
+@test "a button is a tinted, centred capsule the width of the panel" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_button --icon A --label "Activity Monitor" --run "am"; }
+    on_click() { popup_open; }
+  '
+  local r
+  r=$(row_args 0)
+  [[ "$r" == *"width=320 align=center padding_left=16 padding_right=16"* ]]
+  [[ "$r" == *"label=Activity Monitor label.color=0xff5a5a5a"* ]]
+  [[ "$r" == *"background.color=0x305a5a5a background.corner_radius=8"* ]]
+  [[ "$r" == *"background.height=28"* ]]
+  [[ "$r" == *"click_script=am; "* ]]
+  # Hover brightens the tint one step rather than greying the row.
+  grep -q 'mouse.entered) .* background.color=0x505a5a5a' "$SB_LOG"
+}
+
+@test "a --solid button is the hue itself with the base colour for its words" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_button --label "Allow sleep" --tone bad --solid --run "off"; }
+    on_click() { popup_open; }
+  '
+  local r
+  r=$(row_args 0)
+  [[ "$r" == *"label=Allow sleep label.color=0xff000000"* ]]
+  [[ "$r" == *"background.color=0xff555555"* ]]
+  ! grep -q -- '--subscribe w.popup.0 mouse.entered' "$SB_LOG"
+}
+
+# ---- the bar and the sparkline -----------------------------------------------
+
+@test "popup_bar is a slider with no knob and no gesture" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_bar --label "session · resets 14:20" --percentage 38 --value "38%" --tone watch; }
+    on_click() { popup_open; }
+  '
+  grep -qE -- '--add slider w\.popup\.0 popup\.w [0-9]+' "$SB_LOG"
+  local r
+  r=$(row_args 0)
+  [[ "$r" == *"slider.percentage=38"* ]]
+  [[ "$r" == *"slider.highlight_color=0xff3a3a3a"* ]]
+  [[ "$r" == *"slider.background.color=0xffbbbbbb"* ]]
+  [[ "$r" == *"slider.knob= slider.knob.drawing=off"* ]]
+  [[ "$r" == *"label=38% label.color=0xff3a3a3a"* ]]
+  # A readout closes like a row and never subscribes: the one thing that
+  # separates it from popup_slider.
+  ! grep -q -- '--subscribe w.popup.0 mouse.clicked' "$SB_LOG"
+  [[ "$r" == *"click_script="*"popup.drawing=off"* ]]
+}
+
+@test "bars under one heading share one name column and one track length" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() {
+      popup_bar --label "session" --percentage 38 --value "38%"
+      popup_bar --label "weekly · resets Thu 09:00" --percentage 91 --value "91%"
+    }
+    on_click() { popup_open; }
+  '
+  local a b
+  a=$(grep -oE -- '--add slider w\.popup\.0 popup\.w [0-9]+' "$SB_LOG" | awk '{print $NF}')
+  b=$(grep -oE -- '--add slider w\.popup\.1 popup\.w [0-9]+' "$SB_LOG" | awk '{print $NF}')
+  [ "$a" = "$b" ]
+  [[ "$(row_args 0)" == *"icon.width=150 "* ]]
+  [[ "$(row_args 1)" == *"icon.width=150 "* ]]
+}
+
+@test "popup_graph is an --add graph fed its points on the same batch, oldest first" {
+  NAME=w SENDER=mouse.clicked widget '
+# widget: mark = teal
+    popup_rows() { popup_graph --points "10 40 140 -3"; }
+    on_click() { popup_open; }
+  '
+  grep -q -- '--add graph w.popup.0 popup.w 320' "$SB_LOG"
+  [[ "$(row_args 0)" == *"graph.color=0xff7a0002 graph.fill_color=0x307a0002"* ]]
+  local batch
+  batch=$(grep -- '--add graph' "$SB_LOG")
+  [[ "$batch" == *"--push w.popup.0 0.10 --push w.popup.0 0.40 --push w.popup.0 1.00 --push w.popup.0 0.00"* ]]
+}
+
+# ---- separator and space -----------------------------------------------------
+
+@test "a separator is a one-point line from gutter to gutter" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_separator; }
+    on_click() { popup_open; }
+  '
+  local r
+  r=$(row_args 0)
+  [[ "$r" == *"width=320 padding_left=16 padding_right=16"* ]]
+  [[ "$r" == *"background.height=1 background.corner_radius=0 background.color=0xffbbbbbb"* ]]
+  ! grep -q -- '--subscribe w.popup.0' "$SB_LOG"
+}
+
+@test "popup_space is nothing, that tall, and scales" {
+  NAME=w SENDER=mouse.clicked widget '
+    BAR_SCALE=1.25
+    popup_rows() { popup_space 8; }
+    on_click() { popup_open; }
+  '
+  [[ "$(row_args 0)" == *"background.height=10"* ]]
+  [[ "$(row_args 0)" == *"icon.drawing=off label.drawing=off"* ]]
 }

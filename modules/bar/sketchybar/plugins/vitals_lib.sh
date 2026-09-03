@@ -136,3 +136,38 @@ vitals_focus() { # vitals_focus <name> — bring the app a row names to the fron
 # bar you cross to reach anything else, read as the bar twitching rather than
 # as a readout answering a question — so the breakdown lives only in the
 # left-click dropdown now, which opens BELOW the bar and moves nothing.
+
+# ── the history ring ──────────────────────────────────────────────────────────
+# The last N readings, one per line, beside the sampler's state file. The
+# pill's own graph lives inside SketchyBar and cannot be read back, so a
+# dropdown that wants the same two minutes as a sparkline (`popup_graph`) has
+# to have kept them itself. Pushed from fetch on every tick that produced a
+# reading — never on a click, for the reason `graph` in barlib.sh gives — and
+# read whole on a click. Bash only: this is on the tick path, and a `tail`
+# for forty-eight lines is a fork for nothing.
+VITALS_HISTORY_N=48
+
+vitals_history_push() { # vitals_history_push <state-path> <value>
+  local f="$1.hist" line n
+  local -a rows=()
+  if [ -r "$f" ]; then
+    while IFS= read -r line; do rows+=("$line"); done <"$f"
+  fi
+  rows+=("$2")
+  n=${#rows[@]}
+  if [ "$n" -gt "$VITALS_HISTORY_N" ]; then
+    rows=("${rows[@]:$((n - VITALS_HISTORY_N))}")
+  fi
+  printf '%s\n' "${rows[@]}" >"$f"
+}
+
+VITALS_POINTS=""
+vitals_history() { # vitals_history <state-path> → VITALS_POINTS, oldest first, space-separated
+  local f="$1.hist" line
+  VITALS_POINTS=""
+  [ -r "$f" ] || return 0
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    VITALS_POINTS="${VITALS_POINTS:+$VITALS_POINTS }$line"
+  done <"$f"
+}

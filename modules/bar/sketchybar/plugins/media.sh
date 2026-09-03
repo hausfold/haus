@@ -1,6 +1,7 @@
 #!/bin/bash
 # widget: interval   = 30
 # widget: popup      = true
+# widget: mark       = pink
 # widget: subscribes = mouse.entered, mouse.exited, mouse.exited.global, mouse.scrolled
 #
 # The media pill: what is playing, the gestures that drive it, and the dropdown

@@ -2,6 +2,7 @@
 # widget: interval = 2
 # widget: graph = 48
 # widget: popup = true
+# widget: mark = warm
 #
 # cpu.sh — the CPU pill: a number, a rolling graph of that number, and a
 # dropdown splitting it up and naming what is responsible. A framework widget
@@ -77,6 +78,7 @@ fetch() {
   # a zero here is a dip in the history that never happened.
   if [ -z "$CPU_TOTAL" ]; then return 1; fi
   graph "$CPU_TOTAL"
+  vitals_history_push "$STATE" "$CPU_TOTAL"
   emit pct="$(printf '%.0f' "$CPU_TOTAL")" tone="$(vitals_tone "$CPU_TOTAL")"
 }
 
@@ -100,7 +102,13 @@ popup_rows() {
   vitals_sample "$STATE" cpu 5
   if [ -n "$CPU_TOTAL" ]; then pct="$(printf '%.0f' "$CPU_TOTAL")"; else pct=0; fi
 
-  popup_heading --icon "$ICON" --label "CPU" --value "${pct}%"
+  # The total is a BADGE on the heading, in the ladder's tone for it — the
+  # one number the pill exists for, set apart from the section's name rather
+  # than tacked onto it. The sparkline under it is the pill's own two
+  # minutes, from the ring fetch keeps (vitals_lib).
+  popup_heading --icon "$ICON" --label "CPU" --badge "${pct}%" --badge-tone "$(vitals_tone "$CPU_TOTAL")"
+  vitals_history "$STATE"
+  [ -n "$VITALS_POINTS" ] && popup_graph --points "$VITALS_POINTS"
 
   # Guarded on the split rather than drawn blank: the first click after a bar
   # reload has no previous sample behind it, and `user  %` / `load  · cores` is
@@ -117,7 +125,8 @@ popup_rows() {
   fi
 
   if [ ${#TOP_NAME[@]} -gt 0 ]; then
-    popup_note --label "what's using it"
+    popup_separator
+    popup_heading --label "What's using it"
     n=0
     while [ "$n" -lt ${#TOP_NAME[@]} ]; do
       name="${TOP_NAME[$n]}"
@@ -142,7 +151,9 @@ popup_rows() {
     fi
   fi
 
-  popup_action --icon "" --label "Activity Monitor" --run "$SELF activity"
+  # The way out is a BUTTON, not a row: it is the one thing here that leaves
+  # the bar, and the shape says so.
+  popup_button --icon "" --label "Activity Monitor" --run "$SELF activity"
 }
 
 # ── the gestures ──────────────────────────────────────────────────────────────
