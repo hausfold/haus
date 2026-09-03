@@ -2,14 +2,54 @@
 # `haus add` / `haus desktop` / `haus remove` / `haus update`'s own suite —
 # acquisition step D. Needs a real `nix flake lock` and `nix eval` against a
 # SCAFFOLDED consumer flake, which is exactly what `haus show`'s suite needs
-# and exactly why this one runs the same way: `bash modules/core/haus.sh`
-# directly (no derivation may shell out to `nix`), from the "eval the example
-# host" job, where a real nix exists.
+# and exactly why this one runs the same way: `modules/core/haus.sh` run
+# directly, under the interpreter resolved below (no derivation may shell out to
+# `nix`), from the "eval the example host" job, where a real nix exists.
 #
 # Runs on Linux: none of this is a Mac — it edits a text file and asks Nix to
 # resolve inputs. `haus rebuild` is never called; every write here stops one
 # step short of it, on purpose, the same as the command it tests.
 set -euo pipefail
+
+# ── an interpreter that can actually run haus.sh ─────────────────────────────
+# haus.sh is `#!/usr/bin/env bash` and is written for bash 4+ — the contract
+# test/phase-painter.bats pins for every script that reaches the painter. A
+# bare `bash` is not that: on a Mac it is /bin/bash 3.2, and the subject does
+# not degrade under 3.2, it MIS-PARSES. `coproc` is no keyword there, so the
+# `}` that closes `coproc SNUG { … }` inside snug_open closes the FUNCTION
+# instead, and the lines meant to run inside it run at LOAD time — the first
+# being `exec {SNUG_FD}>&"${SNUG[1]}"`, which under `set -u` kills the run
+# before the suite has asserted anything. CI never saw it: those runners are
+# Linux with bash 5, which is why this only ever bit someone running the suite
+# by hand on a Mac.
+#
+# So the suite re-execs itself under a bash that can read the file, and hands
+# that one on as `$BASH` to every `haus` it spawns. Only a candidate that
+# ANSWERED 4+ is exec'd, so there is no loop to fall into, and no answer at all
+# is a loud failure rather than a suite that skips itself quietly.
+#
+# The same block is in test/haus-settings.sh and test/haus-plan.sh, and
+# test/awake-ui.bats makes the same call as `resolve_bash4`. Copies rather than
+# a sourced helper — the size call AGENTS.md makes for the Ghostty pre-warm, and
+# a suite that cannot bootstrap its own interpreter is a bad place to add a file
+# it has to find first. test/phase-painter.bats pins the INVARIANT rather than
+# the bytes, so a fourth suite that spawns the subject cannot opt out quietly.
+if [ "${BASH_VERSINFO[0]:-0}" -lt 4 ]; then
+  for _bash in /run/current-system/sw/bin/bash /opt/homebrew/bin/bash \
+               "$(command -v bash || true)" /bin/bash; do
+    [ -n "$_bash" ] && [ -x "$_bash" ] || continue
+    [ "$("$_bash" -c 'echo ${BASH_VERSINFO[0]}' 2>/dev/null || echo 0)" -ge 4 ] || continue
+    # Replacing this process IS the point, and the lines below the loop are the
+    # answer for when it never happens. shellcheck 0.9.0 — the version on the
+    # ubuntu image CI lints with — reads any code after an `exec` as dead;
+    # 0.11.0 no longer does, so the directive is for the runner, not for here.
+    # shellcheck disable=SC2093
+    exec "$_bash" "$0" "$@"
+  done
+  printf 'FAIL: haus.sh needs bash 4+ and this is %s — no newer one found\n' \
+    "${BASH_VERSION:-?}" >&2
+  exit 1
+fi
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -128,7 +168,7 @@ NIX
 new_consumer
 export HAUS_CONSUMER="$tmp/consumer"
 
-haus() { bash "$root/modules/core/haus.sh" "$@"; }
+haus() { "$BASH" "$root/modules/core/haus.sh" "$@"; }
 
 # ---- 0: add pins, selects, and the value actually reaches the machine --------
 out="$(haus add -y "git+file://$tmp/writer" 2>&1)"

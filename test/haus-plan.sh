@@ -14,6 +14,49 @@
 # thing worth pinning is that they still read that shape correctly.
 set -euo pipefail
 
+# ── an interpreter that can actually run haus.sh ─────────────────────────────
+# haus.sh is `#!/usr/bin/env bash` and is written for bash 4+ — the contract
+# test/phase-painter.bats pins for every script that reaches the painter. A
+# bare `bash` is not that: on a Mac it is /bin/bash 3.2, and the subject does
+# not degrade under 3.2, it MIS-PARSES. `coproc` is no keyword there, so the
+# `}` that closes `coproc SNUG { … }` inside snug_open closes the FUNCTION
+# instead, and the lines meant to run inside it run at LOAD time — the first
+# being `exec {SNUG_FD}>&"${SNUG[1]}"`, which under `set -u` kills the run
+# before the suite has asserted anything. CI never saw it: those runners are
+# Linux with bash 5, which is why this only ever bit someone running the suite
+# by hand on a Mac.
+#
+# So the suite re-execs itself under a bash that can read the file, and hands
+# that one on as `$BASH` to every `haus` it spawns. Only a candidate that
+# ANSWERED 4+ is exec'd, so there is no loop to fall into, and no answer at all
+# is a loud failure rather than a suite that skips itself quietly.
+#
+# The same block is in test/haus-settings.sh and test/haus-add.sh, and
+# test/awake-ui.bats makes the same call as `resolve_bash4`. Copies rather than
+# a sourced helper — the size call AGENTS.md makes for the Ghostty pre-warm, and
+# a suite that cannot bootstrap its own interpreter is a bad place to add a file
+# it has to find first. test/phase-painter.bats pins the INVARIANT rather than
+# the bytes, so a fourth suite that spawns the subject cannot opt out quietly.
+#
+# And in this suite it is not only the `haus` it spawns: haus.sh is SOURCED
+# below as a library, so this process is the subject's interpreter too.
+if [ "${BASH_VERSINFO[0]:-0}" -lt 4 ]; then
+  for _bash in /run/current-system/sw/bin/bash /opt/homebrew/bin/bash \
+               "$(command -v bash || true)" /bin/bash; do
+    [ -n "$_bash" ] && [ -x "$_bash" ] || continue
+    [ "$("$_bash" -c 'echo ${BASH_VERSINFO[0]}' 2>/dev/null || echo 0)" -ge 4 ] || continue
+    # Replacing this process IS the point, and the lines below the loop are the
+    # answer for when it never happens. shellcheck 0.9.0 — the version on the
+    # ubuntu image CI lints with — reads any code after an `exec` as dead;
+    # 0.11.0 no longer does, so the directive is for the runner, not for here.
+    # shellcheck disable=SC2093
+    exec "$_bash" "$0" "$@"
+  done
+  printf 'FAIL: haus.sh needs bash 4+ and this is %s — no newer one found\n' \
+    "${BASH_VERSION:-?}" >&2
+  exit 1
+fi
+
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 # Physical path: on macOS mktemp hands back /var/folders/… while git reports
 # /private/var/folders/…, and every comparison below would be against two
@@ -456,7 +499,7 @@ com.apple.universalaccess\tcloseViewScrollWheelToggle\tfalse')" \
 # The library hook must not brick a normally-executed haus: `return` outside a
 # sourced script is fatal, so keying only on the variable would make one
 # exported HAUS_LIB turn every later `haus` in that shell into exit 2.
-HAUS_LIB=1 bash "$repo/modules/core/haus.sh" --help >"$tmp/help.out" 2>&1 \
+HAUS_LIB=1 "$BASH" "$repo/modules/core/haus.sh" --help >"$tmp/help.out" 2>&1 \
   || fail "HAUS_LIB in the environment broke a normally-run haus"
 grep -q 'haus plan' "$tmp/help.out" || fail "haus --help printed no usage under HAUS_LIB"
 

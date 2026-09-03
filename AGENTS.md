@@ -427,6 +427,21 @@ mechanism, say so in one line.
   every colour an alias onto snug's generated roles there is no longer a legal
   place for one.
 
+  **A suite that RUNS `haus.sh` names an interpreter that can.**
+  `bash test/haus-settings.sh` on a Mac resolves to /bin/bash 3.2, and `haus.sh`
+  does not degrade there — `coproc` is no keyword in 3.2, so the `}` that closes
+  `coproc SNUG { … }` closes `snug_open` itself, and the fd juggling meant to
+  run inside it runs at LOAD, dying on `${SNUG[1]}` under `set -u` before the
+  first assertion. So `test/haus-settings.sh`, `test/haus-plan.sh` and
+  `test/haus-add.sh` re-exec themselves under a bash 4+ and spawn the subject as
+  `$BASH` — the handle `test/phase-painter.bats`'s own `haus_sh` already uses,
+  and that file pins the rule for every plain suite in `test/`. CI runs
+  `haus-plan.sh` and `haus-add.sh` on Linux under bash 5, where the guard never
+  fires, and does not run `haus-settings.sh` at all — a darwinConfiguration is
+  the one thing that runner cannot evaluate, so linting is all it gets. The
+  invariant is therefore the only thing standing between the next Mac and a
+  suite that dies before it asserts.
+
   **Every ROW with columns in it is budgeted, never declared.** `ui_col` +
   `ui_trow` + `ui_table_data` measure the real window and hand each column what
   it needs; a `%-44s` reserves its width whatever is in the cell and wraps the

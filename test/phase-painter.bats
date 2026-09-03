@@ -608,6 +608,41 @@ haus_snug() {
     || { echo "$f changed shebang without gaining a source of its own"; false; }
 }
 
+@test "a suite that RUNS haus.sh names an interpreter that can" {
+  # The counterpart to the case above, one layer out: `bash test/haus-settings.sh`
+  # on a Mac died at `SNUG[1]: unbound variable` before its first assertion, and
+  # the SUITE was what was wrong — its runner said a bare `bash`, which is
+  # /bin/bash 3.2 there. 3.2 does not merely skip snug_open's coproc: `coproc`
+  # is no keyword, so the `}` that closes it closes the FUNCTION, and the fd
+  # juggling meant to run inside snug_open runs at load, under `set -u`.
+  # Nothing caught it because CI runs these on Linux under bash 5, which is
+  # exactly why the invariant is pinned here instead of on the next Mac.
+  #
+  # Every plain suite in test/, not a hand list: a new one that spawns the
+  # subject inherits the rule rather than quietly opting out of it.
+  local f hits guard first
+  for f in "$BATS_TEST_DIRNAME"/*.sh; do
+    # Lines that name the subject, minus the ones explaining this trap in prose.
+    hits="$(grep -n 'modules/core/haus\.sh' "$f" | grep -v '^[0-9]*:[[:space:]]*#' || true)"
+    [ -n "$hits" ] || continue
+    # The guard has to come BEFORE the first of them. A bare `grep -q` would be
+    # answered by the string anywhere in the file, including below the line it
+    # is supposed to protect and including a comment about this very rule —
+    # which is the weakness the lane-open case above works around by extracting
+    # its snippet first.
+    guard="$(grep -n 'BASH_VERSINFO' "$f" | head -1 | cut -d: -f1)"
+    first="$(head -1 <<<"$hits" | cut -d: -f1)"
+    [ -n "$guard" ] && [ "$guard" -lt "$first" ] \
+      || { echo "$f runs haus.sh with no interpreter guard above the run"; false; }
+    # `/` is NOT excluded before the word: a literal `/bin/bash haus.sh` is the
+    # exact interpreter that started this, so a rule that only caught the bare
+    # spelling would miss the one machine it was written for.
+    hits="$(grep -E '(^|[^[:alnum:]_-])bash[[:space:]]' <<<"$hits" || true)"
+    [ -z "$hits" ] || { echo "$f runs haus.sh under a bash it did not check:"
+                        echo "$hits"; false; }
+  done
+}
+
 @test "neither CLI hardcodes an escape or a glyph index of its own" {
   # The stronger form of the check these files grew: they used to be allowed a
   # palette block of literal `\033[38;5;NNNm`, and 35 ungated escapes had
