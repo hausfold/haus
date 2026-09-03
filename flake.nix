@@ -4403,36 +4403,71 @@
           # a prose line, `builtins.match` anchors the whole line, and a
           # widget with no interval gets no `update_freq=` and never ticks
           # again. `test/bar-widget-glued.sh` keeps that exact line shape.
+          # The `# widget:` header parser's near-miss guard, which exists
+          # because the clock shipped frozen: its `interval` rode the tail of a
+          # prose line, `builtins.match` anchors the whole line, and a widget
+          # with no interval gets no `update_freq=` and never ticks again.
+          #
+          # A shape matrix rather than one fixture, because the guard's whole
+          # difficulty is the LINE it must leave alone: this repo's own comments
+          # quote headers at their reader, and a rule that refuses those would
+          # be a rebuild somebody cannot get past. `test/bar-widget-glued.sh`
+          # holds the exact line that shipped; the rest are written here, where
+          # the shape being asserted and the assertion are one screen apart.
           bar-widget-header =
             let
-              manifest = import ./modules/bar/manifest.nix { lib = nixpkgs.lib; };
+              inherit (nixpkgs) lib;
+              manifest = import ./modules/bar/manifest.nix { inherit lib; };
               probe = f: builtins.tryEval (builtins.deepSeq (manifest.parse f) true);
-              glued = probe ./test/bar-widget-glued.sh;
-              good = probe ./test/bar-widget.sh;
-              interval = (manifest.parse ./test/bar-widget.sh).interval;
+              parsed = f: if (probe f).success then manifest.parse f else null;
+              refused = {
+                "the line the clock shipped" = ./test/bar-widget-glued.sh;
+                "a glued key nobody knows" = builtins.toFile "typo.sh" ''
+                  # prose, and then a declaration. widget: subscribe = haus.example.tick
+                '';
+              };
+              legal = {
+                # Indented, and legal: the parser tolerates it the way pounce's
+                # header grammar does. A double-quoted string, not an indented
+                # one, because `''…''` strips the common indent and that is the
+                # whole point of the case.
+                "an indented header" = builtins.toFile "indented.sh" "    # widget: interval = 10\n";
+                "the third-party fixture" = ./test/bar-widget.sh;
+                "a header beside prose that quotes one" = builtins.toFile "quoted.sh" ''
+                  # widget: interval = 5
+                  # the `# widget: mark =` header is what a heading wears
+                '';
+                "prose about the absence of one" = builtins.toFile "logo.sh" ''
+                  # there is no `# widget:` header for the emitter
+                '';
+              };
+              want =
+                name: f: n:
+                let
+                  got = if parsed f == null then null else (parsed f).interval;
+                in
+                lib.optionalString (got != n)
+                  "echo '${name}: interval parsed as ${builtins.toJSON got}, want ${builtins.toJSON n}' >&2; exit 1";
+              failures = lib.filter (x: x != "") (
+                lib.mapAttrsToList (
+                  name: f:
+                  lib.optionalString (probe f).success "echo '${name} parsed clean; that shape has to be refused, or a pill can still ship frozen' >&2; exit 1"
+                ) refused
+                ++ lib.mapAttrsToList (
+                  name: f:
+                  lib.optionalString (
+                    !(probe f).success
+                  ) "echo '${name} was refused; that shape is legal and somebody cannot build' >&2; exit 1"
+                ) legal
+                ++ [
+                  (want "the third-party fixture" legal."the third-party fixture" 30)
+                  (want "an indented header" legal."an indented header" 10)
+                  (want "a header beside prose that quotes one" legal."a header beside prose that quotes one" 5)
+                ]
+              );
             in
             pkgs.runCommand "haus-bar-widget-header-ok" { } (
-              (
-                if glued.success then
-                  "echo 'a header glued to a prose line parsed clean; a pill can still ship frozen' >&2; exit 1"
-                else
-                  ""
-              )
-              + "\n"
-              + (
-                if good.success then
-                  ""
-                else
-                  "echo 'the near-miss guard rejected a well-formed widget header' >&2; exit 1"
-              )
-              + "\n"
-              + (
-                if interval == 30 then
-                  ""
-                else
-                  "echo 'test/bar-widget.sh interval parsed as ${builtins.toJSON interval}, want 30' >&2; exit 1"
-              )
-              + "\ntouch $out\n"
+              lib.concatStringsSep "\n" (failures ++ [ "touch $out" ]) + "\n"
             );
 
           app-collections = pkgs.runCommand "haus-app-collections-ok" { } ''
