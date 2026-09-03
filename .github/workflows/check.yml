@@ -743,3 +743,33 @@ jobs:
       # before this. Needs bash + bats.
       - name: github bridge signal tests
         run: bats test/github-signal.bats
+
+      # The mail watcher's five decisions (modules/notifications/mail-announce.py).
+      # Every one of them fails silently, and in both directions — too many
+      # cards or none at all: the flood guard that has to answer "nothing" for
+      # a mailbox this Mac has never watched (goimapnotify runs the hook once
+      # at startup, and launchd starts the agent at every login); the same
+      # guard across a UIDVALIDITY change, and its counterpart that must not
+      # keep the old watermark past one, which is what would put every later
+      # message below the line for good; the RFC 2047 decode that is the
+      # difference between a subject and `=?UTF-8?B?…?=`; and the mailbox-name
+      # slug the watermark file is named for, which is `[Gmail]/All Mail` on
+      # the account this was built for. Hermetic: none of the five opens a
+      # socket, which is why they are the five that were split out. Needs bash
+      # + bats + python3.
+      - name: mail watcher decisions
+        run: bats test/mail-announce.bats
+
+      # The other half of the same subject, and the half nothing else covers:
+      # the announcer driven end to end against test/fake-imap.py — a real
+      # socket, a real TLS handshake and a real imaplib. Everything between
+      # those decisions and the card is a response SHAPE (EXAMINE's
+      # UIDVALIDITY, the untagged SEARCH list, `FETCH *`'s sequence-numbered
+      # UID, a header literal with X-GM-THRID glued to the front), and a wrong
+      # parse there is not an error anywhere — it is a Mac that stopped
+      # mentioning mail. TLS rather than plaintext deliberately: a fake that
+      # skipped it would have needed a plaintext seam in the production code,
+      # whose failure mode is a mailbox password crossing a network in the
+      # clear. Needs bash + bats + python3 + openssl.
+      - name: mail watcher, end to end over TLS
+        run: bats test/mail-imap.bats

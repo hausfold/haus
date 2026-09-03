@@ -166,6 +166,10 @@
     "blurb": "Whether waking this Mac needs a password and how long the grace period is, plus the login window itself — name-and-password instead of a list of faces, a message for whoever finds a lost laptop, and which of Shut Down / Restart / Sleep it offers. The login half lands at your next login, which each option says.",
     "order": 114
   },
+  "mail": {
+    "blurb": "Watch a mailbox over IMAP and draw a card per new message, pushed rather than polled. Beside `notifications` because a card is all it produces — and like that switch, it holds no filter of its own: your account's filters decide what arrives, `~/.config/trill/rules.json` decides what a `haus.mail` card then does.",
+    "order": 167
+  },
   "menuBar": {
     "blurb": "The stock menu bar: what the clock shows, and which Control Center glyphs sit beside it. (The hacker bar itself is `bar`.)",
     "order": 115
@@ -1021,6 +1025,35 @@
       },
       "order": 114,
       "owner": "security"
+    },
+    "mail": {
+      "blurb": "Watch a mailbox over IMAP and draw a card per new message, pushed rather than polled. Beside `notifications` because a card is all it produces — and like that switch, it holds no filter of its own: your account's filters decide what arrives, `~/.config/trill/rules.json` decides what a `haus.mail` card then does.",
+      "kind": "room",
+      "optionCount": 6,
+      "options": {
+        "haus.mail.address": {
+          "desktopSafe": false,
+          "reason": "identity"
+        },
+        "haus.mail.enable": {
+          "desktopSafe": true
+        },
+        "haus.mail.host": {
+          "desktopSafe": true
+        },
+        "haus.mail.mailboxes": {
+          "desktopSafe": true
+        },
+        "haus.mail.port": {
+          "desktopSafe": true
+        },
+        "haus.mail.secretCommand": {
+          "desktopSafe": false,
+          "reason": "secret"
+        }
+      },
+      "order": 167,
+      "owner": "notifications"
     },
     "menuBar": {
       "blurb": "The stock menu bar: what the clock shows, and which Control Center glyphs sit beside it. (The hacker bar itself is `bar`.)",
@@ -1925,17 +1958,21 @@
         "asks": [
           "install trill",
           "let haus manage my notification banners",
-          "stop haus notifications falling back to Apple's banner"
+          "stop haus notifications falling back to Apple's banner",
+          "tell me when I get an email",
+          "notify me about new mail in my inbox",
+          "stop announcing my mail"
         ],
-        "cli": "trill send|ask|resolve|ping · trill doctor (exit 5 = can't tell)"
+        "cli": "trill send|ask|resolve|ping · trill doctor (exit 5 = can't tell) · haus-mail-announce --mailbox INBOX … --test (draw a card for the newest message, watermark untouched)"
       },
-      "blurb": "How this desktop's own banners get drawn. haus has *drawn through* trill since `haus-notify` landed — finding it at runtime and falling back to Apple's banner when it isn't there — and that is unconditional, in ../core, whatever this room says. What lives HERE is the narrower question of whether haus installs and pins the bundle, at a fixed path its Full Disk Access grant can survive. Named for the subject rather than the app, like every other room since the 2026-08-16 sweep (../moved.nix).",
+      "blurb": "How this desktop's own banners get drawn. haus has *drawn through* trill since `haus-notify` landed — finding it at runtime and falling back to Apple's banner when it isn't there — and that is unconditional, in ../core, whatever this room says. What lives HERE is the narrower question of whether haus installs and pins the bundle, at a fixed path its Full Disk Access grant can survive. Named for the subject rather than the app, like every other room since the 2026-08-16 sweep (../moved.nix). It also owns the one source haus itself feeds those banners from: `haus.mail`, an IMAP IDLE watcher that draws a card per new message.",
       "exports": [],
       "kind": "room",
       "namespaces": [
-        "notifications"
+        "notifications",
+        "mail"
       ],
-      "optionCount": 1,
+      "optionCount": 7,
       "order": 85,
       "title": "Notifications"
     },

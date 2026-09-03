@@ -79,6 +79,11 @@
     # trill's, not focus's, and a reader meeting them in that order is not
     # surprised twice.
     ./notifications
+    # Split out of ./notifications for the reason ./theme/ports.nix is split
+    # out of ./theme: it is gated on its own option and shares nothing with the
+    # bundle the room places. Its options stay in that room's options.nix all
+    # the same, because `haus.mail` is that room's second address.
+    ./notifications/mail.nix
     ./focus
     # The GitHub room: the machine's webhook endpoint, and the signal the bar's
     # octocat pill and the AI room's lane cache both read instead of polling.

@@ -307,6 +307,14 @@ let
       "requirePassword"
       "requirePasswordDelay"
     ];
+    mail = [
+      "address"
+      "enable"
+      "host"
+      "mailboxes"
+      "port"
+      "secretCommand"
+    ];
     menuBar = [
       "clock.analog"
       "clock.format"
@@ -598,6 +606,14 @@ let
       "tunnel.hostname" = "your-account";
       "tunnel.id" = "your-account";
     };
+    # The watcher's two: one names the mailbox that is yours, the other names
+    # the store its password is kept in. `host`, `port` and `mailboxes` beside
+    # them stay desktop-safe — a provider's server name and IMAP's own spelling
+    # of a folder are facts about a service anyone can use.
+    mail = {
+      address = "identity";
+      secretCommand = "secret";
+    };
     keys."leaderExtras.*.command" = "runs-a-command";
     # Which keyboard is physically in front of you, which is the same class of
     # fact as `locale.inputSources` beside it and gets the same sentence.
@@ -736,6 +752,7 @@ let
     hotCorners = "windows";
     launcher = "launcher";
     lock = "security";
+    mail = "notifications";
     menuBar = "bar";
     notifications = "notifications";
     portless = "development";
@@ -941,6 +958,10 @@ let
       order = 165;
       blurb = "The notification compositor haus already draws through. Trill is the app behind it; this switch is whether haus owns the bundle. It is NOT where a banner's routing lives — that is `~/.config/trill/rules.json`, and haus deliberately puts no second dial in front of it.";
     };
+    mail = {
+      order = 167;
+      blurb = "Watch a mailbox over IMAP and draw a card per new message, pushed rather than polled. Beside `notifications` because a card is all it produces — and like that switch, it holds no filter of its own: your account's filters decide what arrives, `~/.config/trill/rules.json` decides what a `haus.mail` card then does.";
+    };
     focus = {
       order = 170;
       blurb = "One quiet switch: Do Not Disturb, optional Slack status, and your hooks — plus the named scenes around it.";
@@ -1129,7 +1150,7 @@ let
     notifications = {
       title = "Notifications";
       order = 85;
-      blurb = "How this desktop's own banners get drawn. haus has *drawn through* trill since `haus-notify` landed — finding it at runtime and falling back to Apple's banner when it isn't there — and that is unconditional, in ../core, whatever this room says. What lives HERE is the narrower question of whether haus installs and pins the bundle, at a fixed path its Full Disk Access grant can survive. Named for the subject rather than the app, like every other room since the 2026-08-16 sweep (../moved.nix).";
+      blurb = "How this desktop's own banners get drawn. haus has *drawn through* trill since `haus-notify` landed — finding it at runtime and falling back to Apple's banner when it isn't there — and that is unconditional, in ../core, whatever this room says. What lives HERE is the narrower question of whether haus installs and pins the bundle, at a fixed path its Full Disk Access grant can survive. Named for the subject rather than the app, like every other room since the 2026-08-16 sweep (../moved.nix). It also owns the one source haus itself feeds those banners from: `haus.mail`, an IMAP IDLE watcher that draws a card per new message.";
       agent = {
         # `trill`, unlike the shelf's `null`: the room installs no binary, but
         # the runtime verb is real and already on PATH here (../core/trill.sh
@@ -1137,11 +1158,14 @@ let
         # `haus.notifications.compositor` for "silence this app" would be the
         # wrong half — routing lives in ~/.config/trill/rules.json and nothing
         # in the option tree says so.
-        cli = "trill send|ask|resolve|ping · trill doctor (exit 5 = can't tell)";
+        cli = "trill send|ask|resolve|ping · trill doctor (exit 5 = can't tell) · haus-mail-announce --mailbox INBOX … --test (draw a card for the newest message, watermark untouched)";
         asks = [
           "install trill"
           "let haus manage my notification banners"
           "stop haus notifications falling back to Apple's banner"
+          "tell me when I get an email"
+          "notify me about new mail in my inbox"
+          "stop announcing my mail"
         ];
       };
     };
