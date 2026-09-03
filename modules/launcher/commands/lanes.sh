@@ -357,14 +357,19 @@ fi
 # fired from that same no-match bar — re-invoke this picker, so the window
 # holds its loading skeleton instead of fading out and popping back. It says
 # nothing about a ROW pick: `chainActions` is read only in pounce's
-# `commitText`, and `buildCommit`'s `.plain` case hard-codes `.linger` whatever
-# this flag says. So a ⌘↵ refresh over a row — the common one — fades and
-# re-opens, a beat slower and not worth a second commit path. The same fact
-# is why `open_lane` reports a failure as a fresh row rather than into the old
-# window.
+# `commitText`. A row is the other flag, `--chain-rows`, and this step wants a
+# DIFFERENT answer there for each key — which is why both are keyed by action
+# rather than being booleans. `--chain-rows cmd`: ⌘↵ over a row re-execs this
+# picker, so hold the window for it; ↵ over a row OPENS A LANE and presents no
+# further step, so holding it would park a skeleton over your screen until
+# pounce's 8-second fallback. Unchained, that ⌘↵ refresh presented into the fade
+# the linger had just armed — the same race that cost Spawn Agent its prompt box
+# one time in five, only rarer here because a refresh is rarer than a spawn. The
+# same fact is why `open_lane` reports a failure as a fresh row rather than into
+# the old window.
 selected="$(printf '%s\n' "$rows" |
   pounce -p "$PROMPT" -i "$ICON" --chain enter,cmd \
-    --actions "Search transcripts|cmd:Refresh")" || exit 0
+    --chain-rows cmd --actions "Search transcripts|cmd:Refresh")" || exit 0
 [ -n "$selected" ] || exit 0
 
 # ⌘↵ anywhere means "the list is stale, read it live" — no matter what row was
