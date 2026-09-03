@@ -93,6 +93,20 @@ let
   # below and by nothing else; the pin that satisfies it is in that same file.
   piFloor = "0.84.3";
 
+  # The Claude Code release that first offered Fable 5.1, and so the oldest
+  # client haus is willing to hand someone. Same shape as piFloor, different
+  # kind of floor: pi's is a crash, this one is a model quietly missing from
+  # `/model`. The pin that satisfies it is modules/lib/claude-code.nix.
+  claudeFloor = "2.1.255";
+
+  # `null` when the installed claude-code carries no version — which happens
+  # when a host has overlaid it with a wrapper (a symlinkJoin around a patched
+  # build is the shape that drops it). haus cannot judge a version it cannot
+  # read, and the host that built the wrapper made that choice knowingly, so
+  # the assertion below stands down rather than failing a machine that is
+  # almost certainly fine.
+  claudeVersion = agentPackages.claude.version or null;
+
   # This room's own resolved client list, under the name the moved blocks below
   # already used. `clients` (just below) is the same value; both names are kept
   # because the assertions read one and the home payload the other.
@@ -833,6 +847,29 @@ in
         + "before the agent draws. Restore the version pin in "
         + "modules/lib/agent-packages.nix, or drop pi from ai.clients.";
     }
+    # The second version floor, and the one with no symptom. Claude Code gates
+    # MODELS on the client version — Fable 5.1 needs 2.1.255 — so an old build
+    # does not crash, it just serves a `/model` menu missing something the
+    # user's plan includes, with a greyed "Update to 2.1.255+ to use Fable 5.1"
+    # where the model should be. Nobody files that as a haus bug, which is
+    # exactly why haus checks it rather than waiting to be told.
+    #
+    # This passes today because modules/lib/claude-code.nix pins past it. Like
+    # pi's, it is here for the day the pin is deleted: quiet once nixpkgs has
+    # caught up, a named refusal while it has not.
+    {
+      assertion =
+        !(lib.elem "claude" clients)
+        || claudeVersion == null
+        || lib.versionAtLeast claudeVersion claudeFloor;
+      message =
+        "haus.ai.clients names claude, but this pkgs builds Claude Code ${claudeVersion} "
+        + "and haus will not ship older than ${claudeFloor}: Claude Code gates models on "
+        + "the client version, so below that Fable 5.1 is greyed out of `/model` with "
+        + "nothing to explain why. Refresh the manifests with "
+        + "modules/lib/claude-code-update.sh (the pin lives beside them in "
+        + "modules/lib/claude-code.nix), or drop claude from ai.clients.";
+    }
   ];
 
   # ---- the profile: what this room ASKS of the power room --------------------
@@ -947,6 +984,21 @@ in
       };
     };
   };
+
+  # The pin behind claudeFloor, applied here rather than in flake.nix's overlay
+  # list, because the room that INSTALLS a client is the one that has to be
+  # sure of its version: a consumer who bare-imports `darwinModules.ai` never
+  # touches mkHaus, and would otherwise meet the floor assertion with no way to
+  # satisfy it. Ungated by `cfg.enable` — an overlay is evaluation, not
+  # installed state, and gating it would make `pkgs.claude-code` mean two
+  # different things depending on a switch about panes.
+  #
+  # `mkBefore` is load-bearing, not tidiness. A host that patches Claude Code
+  # overlays `claude-code` and reaches for `prev.claude-code`, which must be the
+  # pinned build; module definitions of a list option are NOT concatenated in
+  # import order, and a plain definition here lands AFTER the host's, where
+  # `prev` is already that host's wrapper and `.override` no longer exists.
+  nixpkgs.overlays = lib.mkBefore [ (import ../lib/claude-code.nix) ];
 
   environment.systemPackages = lib.mkIf cfg.enable (
     with pkgs;

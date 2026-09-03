@@ -16,7 +16,8 @@
 # client id fail eval with `attribute '<id>' missing` when a client is added
 # there and forgotten here, and that is the error we want.
 #
-# One entry is not a bare nixpkgs reference, and says why beside itself.
+# One entry is not a bare nixpkgs reference, and says why beside itself; one
+# that IS bare says why its version pin lives a layer down instead.
 pkgs:
 let
   # pi resolves the packages `haus.ai.pi.packages` declares by spawning `npm`
@@ -68,6 +69,13 @@ let
     );
 in
 {
+  # A bare reference, and bare on purpose even though claude-code has a version
+  # floor of its own: that pin sits one layer DOWN, in the overlay at
+  # ./claude-code.nix. Written here it would be `.override { manifest = …; }`
+  # applied to whatever a host's own `claude-code` overlay returned — a wrapper
+  # taking no such argument — and the header's promise above would stop being
+  # true. Pinned underneath, a host's patches ride on top of the pinned version
+  # and this table goes on meaning one thing.
   claude = pkgs.claude-code;
   codex = pkgs.codex;
   opencode = pkgs.opencode;

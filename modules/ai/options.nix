@@ -91,6 +91,17 @@ in
         dropping the client here and installing your own copy alongside; two
         derivations shipping the same `bin/` name collide in one profile.
 
+        Two of them are held ahead of nixpkgs already, and an overlay of yours
+        lands on top of that rather than beside it. `claude` is one: Claude
+        Code gates models on the client version and nixpkgs trails the
+        releases by weeks, so a stock pin means Fable 5.1 sits greyed out in
+        `/model` for no visible reason. `pi` is the other: below 0.84.3 every
+        lane spawned with a prompt dies. Both step aside once nixpkgs passes
+        them. Your overlay sees the pinned build as `prev`, so patching it is
+        the same one-liner it always was, though a wrapper that drops
+        `version` and `meta` also drops the rebuild-time check that the floor
+        is still met.
+
         Ignored entirely when `ai.enable` is off — see `haus._ai.clients`, the
         resolved list every room actually installs from. Before step 4 this was
         an assertion instead ("clients are set but the room is off"), which was
