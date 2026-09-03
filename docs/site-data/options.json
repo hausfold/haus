@@ -4429,7 +4429,7 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "[\n  \"INBOX\"\n]"
+      "text": "[ \"INBOX\" ]"
     },
     "description": "Which mailboxes to watch, spelled exactly as the server spells them.\n\n⚠️ Do not empty this list to mean \"all of them\". The watcher's own\ndefault for an empty list is every mailbox on the account, which on\nGmail is every label plus All Mail — so one arriving message announces\nitself twice, three times, once per label it matched. haus refuses to\nbuild with the list empty for that reason.\n\n`INBOX` is the one name IMAP standardises. Everything else is the\nprovider's own spelling, and Gmail's are bracketed\n(`[Gmail]/All Mail`); `haus-mail-announce` has no way to guess them, so\ntake them from your client or from\n`goimapnotify -conf ~/.config/haus/mail/watch.json -list`.\n",
     "example": {

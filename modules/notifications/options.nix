@@ -138,6 +138,13 @@
     mail.mailboxes = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ "INBOX" ];
+      # Spelled on ONE line for ../host-template.jq: the annotated host file
+      # comments each default with `  # ` and the "is it still legal once
+      # uncommented" check un-comments only the line the option name is on, so a
+      # default that renders across several lines leaves the rest commented and
+      # the file stops parsing. The template's own build catches that loudly —
+      # this is the escape hatch it's telling you to use.
+      defaultText = lib.literalExpression ''[ "INBOX" ]'';
       example = [
         "INBOX"
         "[Gmail]/Starred"
