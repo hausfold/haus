@@ -35,6 +35,14 @@
 # That is why $CONSUMER being a git repo is a hard requirement here and a gate
 # on the CTA in haus.sh: without it there is no undo, so there is no offer.
 #
+# One shape of fix has no commit to revert, and the ending says so rather than
+# printing that line anyway: a break that was never COMMITTED is repaired by
+# returning the tree to HEAD, so HEAD never moves. `git revert HEAD` there would
+# undo whatever you last committed, which is the one thing that was fine. The
+# repo is still the bound — the tree is still recoverable, and the agent still
+# could not leave $CONSUMER — the *undo command* is just not that one. See the
+# `dirty_before` branch at the bottom of this file.
+#
 # ── which evidence, per failure class ───────────────────────────────────────
 #   resolve   evaluation failed. run_phase already captured it — the slice of
 #             $HAUS_LOG from the offset the breadcrumb recorded.

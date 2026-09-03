@@ -781,8 +781,12 @@ in
           chafa # fast terminal image previewer / layout engine
           glowThemed # markdown renderer, Nebelung-styled; NOT pkgs.glow — see
           # the `glowThemed` comment in the let. It ships bin/glow and nothing
-          # else, so this is a swap rather than an addition: two derivations
-          # both claiming bin/glow would be a home.packages collision.
+          # else, so this is a swap: a second derivation claiming bin/glow HERE
+          # would be a home.packages collision, and one in ANOTHER profile would
+          # be worse than a collision, because nothing errors and PATH order
+          # quietly decides whether your markdown is themed. That is why
+          # ../core's toolbelt no longer lists glow, and why its absence there
+          # carries a comment rather than being a gap someone helpfully fills.
           fd # fast finder; used by yazi/zoxide navigation
         ]
         # Editing haus's own Nix is a developer activity; `haus edit` still

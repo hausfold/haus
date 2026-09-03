@@ -364,7 +364,12 @@ STUB
   # wipe whichever failure is parked, however unrelated — a scruff worktree's
   # parked fin taken down by an unrelated successful rebuild of a different
   # $CONSUMER (most often $HOME/.config/nix) minutes later, with nothing said.
+  # A LIVE tree, created rather than merely named: a crumb pointing at a
+  # directory that is gone is deliberately cleared (see the reaped-worktree case
+  # below), so a fixture that skipped the mkdir would pass this test for the
+  # wrong reason and stop testing ownership at all.
   local other="$BATS_TEST_TMPDIR/other-consumer"
+  mkdir -p "$other"
   cat >"$CRUMB" <<EOF
 class=resolve
 host=mbp
@@ -416,6 +421,53 @@ EOF
   haus_sh 'fault_clear; echo REACHED-THE-END'
   [ "$status" -eq 0 ]
   [[ "$output" == *"REACHED-THE-END"* ]]
+}
+
+@test "the owner test survives a trailing slash and a symlinked spelling" {
+  # $CONSUMER is whatever the environment said, so the failing run and the
+  # later successful one can spell one tree two ways. A raw string compare then
+  # reads its OWN crumb as a stranger's and never clears it — and the ask has no
+  # timeout, so the fin sits there until someone presses it and spawns an agent
+  # against a log rotated days ago. Both spellings, because they fail the same
+  # way and are fixed by the same `cd + pwd -P`.
+  local link="$BATS_TEST_TMPDIR/consumer-by-another-name"
+  ln -sfn "$HAUS_CONSUMER" "$link"
+
+  local spelling
+  for spelling in "$HAUS_CONSUMER/" "$link"; do
+    cat >"$CRUMB" <<EOF
+class=resolve
+host=mbp
+consumer=$spelling
+log=$STATE/rebuild.log
+offset=0
+drv=
+gen=418
+when=2026-08-31 14:02:11
+EOF
+    haus_sh 'fault_clear'
+    [ "$status" -eq 0 ]
+    [ ! -e "$CRUMB" ] || fail "a crumb spelled '$spelling' was not recognised as ours"
+  done
+}
+
+@test "a crumb whose consumer is gone clears rather than parking forever" {
+  # A reaped worktree. haus-fix refuses a consumer that is not there ("nothing
+  # to fix"), so leaving that fin up offers something nobody can take — and
+  # nothing else on the machine would ever take it down.
+  cat >"$CRUMB" <<EOF
+class=resolve
+host=mbp
+consumer=$BATS_TEST_TMPDIR/reaped-worktree-that-never-existed
+log=$STATE/rebuild.log
+offset=0
+drv=
+gen=418
+when=2026-08-31 14:02:11
+EOF
+  haus_sh 'fault_clear'
+  [ "$status" -eq 0 ]
+  [ ! -e "$CRUMB" ]
 }
 
 @test "a crumb with no consumer= line clears as before" {

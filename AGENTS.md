@@ -1225,7 +1225,11 @@ mechanism, say so in one line.
     prints the failure exactly as it always did. The CTA also needs `$CONSUMER`
     to be a git repo, because the undo for everything the agent does is
     `git -C ~/.config/nix revert HEAD`, and it runs the client with its
-    permission gate open on that basis alone. `haus.ai.default` and
+    permission gate open on that basis alone. One ending names a different undo
+    and has to: a break that was never COMMITTED is fixed by returning the tree
+    to HEAD, so HEAD never moved and reverting it would undo the wrong commit.
+    The repo is still what bounds the run; only the command changes.
+    `haus.ai.default` and
     `modules/lib/agent-oneshot.nix` are substituted in at build time; the script
     verifies with `nix eval` rather than taking the agent's word, and never
     activates — `haus rebuild` stays the person's.

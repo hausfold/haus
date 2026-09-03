@@ -2336,7 +2336,7 @@ fault_holder_stop() {
 # another tree alone. No crumb, or a crumb with no consumer= line (an older
 # haus), clears as before.
 fault_clear() {
-  local bin owner
+  local bin owner ours
   # `|| true`, and it is load-bearing: this file runs under `set -e`, a missing
   # crumb makes `sed` exit non-zero, and a bare assignment from a failed command
   # substitution takes the whole process with it. No crumb is the ORDINARY case
@@ -2344,7 +2344,23 @@ fault_clear() {
   # `haus rebuild` — the closure diff, the exit code `bench` reads — is gone.
   # Same shape, same reason, as `fault_holder_stop`'s read of the pidfile.
   owner="$(sed -n 's/^consumer=//p' "$HAUS_LOG_DIR/last-failure" 2>/dev/null || true)"
-  [ -n "$owner" ] && [ "$owner" != "$CONSUMER" ] && return 0
+  if [ -n "$owner" ]; then
+    # Compared as PHYSICAL paths, for the reason `consumer_worktree_warning`
+    # sets out at length: $CONSUMER is whatever the environment said, and one
+    # symlinked component or a trailing slash makes two spellings of one tree
+    # look like two trees. Here that reads as a crumb that never clears again —
+    # and the ask carries no timeout, so its fin sits on the ledge until someone
+    # presses it and spawns an agent against a log rotated days ago.
+    #
+    # A crumb whose tree is GONE (a reaped worktree) resolves to nothing, and is
+    # treated as ours to clear rather than left up: `haus fix` refuses a
+    # consumer that is not there, so that fin offers something nobody can take.
+    owner="$(cd "${owner%/}" 2>/dev/null && pwd -P || true)"
+    ours="$(cd "${CONSUMER%/}" 2>/dev/null && pwd -P || printf '%s' "$CONSUMER")"
+    if [ -n "$owner" ] && [ "$owner" != "$ours" ]; then
+      return 0
+    fi
+  fi
   fault_holder_stop
   rm -f "$HAUS_LOG_DIR/last-failure" 2>/dev/null || true
   bin="$(trill_bin)" || return 0
