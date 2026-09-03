@@ -86,6 +86,36 @@ open_window() {
       zmx set "$sess" "lwindow=" >/dev/null 2>&1
       ;;
     ghostty)
+      # Cold start, and it is REACHABLE here rather than theoretical: ⌘W closes
+      # a window and leaves the zmx session running, so quitting Ghostty with an
+      # agent mid-thought is exactly the state the bar's agent row lands in. It
+      # arrives through the cold-Ghostty guard on the main `ghostty)` arm below
+      # rather than by itself — that guard is what makes this the ONE place the
+      # cold start is paid for, and reading it is how this block came to exist.
+      # Asking a not-yet-running Ghostty for a window over Apple Events fails
+      # (scripts/new-window.sh's note): the `tell` does launch the app, but the
+      # `new window` sent before it is ready comes back empty, and empty here is
+      # a `return 1` the caller reports as nothing happening at all.
+      #
+      # `-g`, unlike the pre-warm in scripts/new-window.sh, because this branch
+      # asks for its own window a line later and a foreground warm-up would
+      # leave a stray plain one beside it. What backs that: lanes/lane-open.sh's
+      # pre-warm already ships this exact call for every background lane
+      # (`open $warm_bg -a Ghostty`), and its `why not open -g` note measures a
+      # backgrounded Ghostty coming up windowless — though that measurement is
+      # of `open -na -g … --args`, not of this shape, so it is inherited rather
+      # than proven here. If a stray window ever does appear beside a raised
+      # agent, this flag is the first thing to suspect.
+      #
+      # The poll body is pinned by test/ghostty-prewarm.bats, which is also
+      # where the `-ix ghostty` spelling is stated once for all three sites.
+      if ! pgrep -ix ghostty >/dev/null 2>&1; then
+        open -g -a Ghostty
+        for _ in $(seq 1 40); do
+          pgrep -ix ghostty >/dev/null 2>&1 && break
+          sleep 0.05
+        done
+      fi
       # Same spawn lanes/lane-open.sh uses on this backend, and the same
       # `gwindow=` stamp, so the window it opens is one this script can raise
       # next time. No retry loop around the `zmx set`: unlike a fresh lane,
@@ -192,7 +222,20 @@ case "$backend" in
 
   ghostty)
     gw=$(label gwindow)
-    if [ -z "$gw" ]; then
+    # A Ghostty that is not running holds no window, so the query below has
+    # nothing to find — and asking anyway is far from free: `tell application
+    # "Ghostty"` LAUNCHES the app (scripts/focused-session.sh's note), and a
+    # cold launch opens its own default window, since the config sets
+    # `quit-after-last-window-closed` but leaves `initial-window` alone. That
+    # is exactly the ⌘Q-with-a-lane-running case, and `gwindow=` is still set
+    # there — nothing clears it when a window closes, unlike the aerospace
+    # arm's `lwindow=` — so the stale-id path is the one that gets reached,
+    # not the empty one. Without this guard it cost a stray plain window
+    # beside the one open_window then opened, and made open_window's own
+    # pre-warm a no-op: the launching `tell` had already started Ghostty by
+    # the time its pgrep looked. Fall straight through and pay the cold start
+    # once, where it is guarded.
+    if [ -z "$gw" ] || ! pgrep -ix ghostty >/dev/null 2>&1; then
       open_window && exit 0
       exit 1
     fi

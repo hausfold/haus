@@ -135,11 +135,18 @@ before=""
 # Cold start: `open -a` returns as soon as LaunchServices accepts, and asking a
 # not-yet-running Ghostty for a window over Apple Events just fails.
 #
-# `pgrep -ix ghostty`, not `pgrep -x Ghostty`: the executable inside the bundle
-# is lowercase (`Ghostty.app/Contents/MacOS/ghostty`), so the capitalised form
-# NEVER matched — every ⌘N took the cold-start branch, activated a Ghostty that
-# was already running, and then polled for a full two seconds before asking for
-# the window. Fixed 2026-08-19; the same one-word bug was in lanes/lane-open.sh.
+# `pgrep -ix ghostty`, never the capitalised spelling — test/ghostty-prewarm.bats
+# states that once, for this site and the two others that carry the block. What
+# it cost HERE: every ⌘N took the cold-start branch, activated a Ghostty that was
+# already running, and polled for a full two seconds before asking for the
+# window. Fixed 2026-08-19 (#415), in this file and lanes/lane-open.sh at once.
+#
+# The other two copies stay copies, deliberately: four lines across three
+# scripts do not earn a sourced helper or a pinned-string seam, whatever the
+# ui-load precedent looks like from a distance. test/ghostty-prewarm.bats is
+# what keeps them honest instead — and it pins the INVARIANT rather than the
+# text, because a diff between the copies was green all through the bug above.
+# They were wrong identically.
 if ! pgrep -ix ghostty >/dev/null 2>&1; then
   open -a Ghostty
   for _ in $(seq 1 40); do

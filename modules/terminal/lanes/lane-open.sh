@@ -656,11 +656,13 @@ chmod +x "$launcher"
 # Ghostty window and never pays this, but the palette's Spawn Agent can reach
 # here on a fresh login or after ⌘Q.
 #
-# `pgrep -ix ghostty`, not `pgrep -x Ghostty`: the executable inside the bundle
-# is lowercase (`Ghostty.app/Contents/MacOS/ghostty`), so the capitalised form
-# NEVER matched — every lane took the cold-start branch, activated a running
-# Ghostty and then polled for two seconds before opening its window. Fixed
-# 2026-08-19; same one-word bug was in scripts/new-window.sh.
+# `pgrep -ix ghostty`, never the capitalised spelling — test/ghostty-prewarm.bats
+# states that once, for this site and the two others that carry the block, and
+# pins the 40 × 0.05s ceiling below with it. What it cost HERE: every lane took
+# the cold-start branch, activated a running Ghostty and then polled for two
+# seconds before opening its window. Fixed 2026-08-19 (#415), in this file and
+# scripts/new-window.sh at once — which is also why the copies stay copies
+# rather than becoming a helper this script would have to resolve a path to.
 #
 # `-g` survives on the COLD START alone. That call is a pre-warm — its whole job
 # is to have the process up before the `open -na` below, so the lane's own spawn
