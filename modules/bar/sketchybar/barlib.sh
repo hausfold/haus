@@ -1713,9 +1713,17 @@ _barlib_graph_points() {
 # over); --subtitle-tone the caption (default `dim`; an agent's state
 # colours it). --value is the reading, bold in --value-tone; --badge a
 # capsule; --hint a caption — the same three the row kind takes.
+#
+# `--tone mute` takes the TITLE down a shade with the glyph, exactly as it
+# does on a row: a list of eight reads as eight equal claims on you when two
+# of them are their author saying "not yet". Only `mute`, and only when the
+# widget named no --title-tone of its own — a `dim` glyph keeps its title
+# bright, because dim is the item still being ABOUT something. github's
+# drafts are the case; the rule is the runtime's on both kinds or it is only
+# half a rule.
 popup_item() {
     local title='' subtitle='' icon='' icon_font='' tone_name='' mark_name=''
-    local title_tone=text sub_tone=dim action=''
+    local title_tone=text sub_tone=dim action='' title_tone_set=0
     local value='' value_tone=text badge='' badge_tone='' hint=''
     while [ $# -gt 0 ]; do
         case "$1" in
@@ -1725,7 +1733,7 @@ popup_item() {
             --icon-font) icon_font=$2; shift 2 ;;
             --tone) tone_name=$2; mark_name=''; shift 2 ;;
             --mark) mark_name=$2; tone_name=''; shift 2 ;;
-            --title-tone) title_tone=$2; shift 2 ;;
+            --title-tone) title_tone=$2; title_tone_set=1; shift 2 ;;
             --subtitle-tone) sub_tone=$2; shift 2 ;;
             --value) value=$2; shift 2 ;;
             --value-tone) value_tone=$2; shift 2 ;;
@@ -1748,6 +1756,7 @@ popup_item() {
     else
         hue=$(tone dim)
     fi
+    if [ "$title_tone_set" = 0 ] && [ "$tone_name" = mute ]; then title_tone=dim; fi
     local tfont="${BAR_FONT:-}:Bold:${FS_SMALL:-}"
     local sfont="${BAR_FONT:-}:Regular:${FS_TINY:-}"
 

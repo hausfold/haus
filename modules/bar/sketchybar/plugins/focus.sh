@@ -1,39 +1,49 @@
 #!/bin/bash
-# The focus pill: a crescent moon = listening, moon-and-stars on mauve = quiet.
-# All logic lives in the focus engine (modules/focus → ~/.local/bin/focus); this
-# script only relays clicks and renders state. Kept honest three ways: the
-# engine fires focus_change after its own toggles, the focus-watcher launchd
-# agent fires it when the Focus DB changes (Control Center / iPhone), and
-# update_freq polls as a backstop.
+# focus.sh — the Focus (Do-Not-Disturb) pill
+# (hausfold.co/docs/haus/rooms/bar-widgets). All logic lives in the focus
+# engine (modules/focus → ~/.local/bin/focus); this script only relays clicks
+# and renders state. Kept honest three ways: the engine fires focus_change
+# after its own toggles, the focus-watcher launchd agent fires it when the
+# Focus DB changes (Control Center / iPhone), and the header's interval polls
+# as a backstop — which the diff now makes free when nothing moved, where the
+# hand-written pill used to `--set` on every tick whether the state changed
+# or not.
 #
 # It was a bell (md-bell / md-bell_off) until plugins/trill.sh wanted one. A
 # bell is what a notification IS, so it belongs to the pill that opens the
 # notification inbox; a moon is what every OS that ships a Do-Not-Disturb
-# switch draws on it, macOS's own Control Center included. Two glyphs rather
-# than one recoloured, because the pill has always been readable in the corner
-# of an eye where a mauve pill and a surface one are two grey blobs.
+# switch draws on it, macOS's own Control Center included.
+# widget: interval   = 30
+# widget: subscribes = focus_change
 
-source "$HOME/.config/sketchybar/colors.sh"
-source "$HOME/.config/sketchybar/bar.sh"
+BAR_ITEM=focus
+source "$HOME/.config/sketchybar/barlib.sh"
 
 FOCUS="$HOME/.local/bin/focus"
 
-if [ "${SENDER:-}" = "mouse.clicked" ]; then
+fetch() {
+    emit state="$("$FOCUS" status 2>/dev/null)"
+}
+
+# MAUVE fills the whole pill rather than just the glyph — the same escape
+# calendar.sh's own render() uses for its own fill — so this is sb_set on
+# raw palette keys rather than a tone: quiet is this pill's IDENTITY turning
+# the background over, not a verdict on the ladder.
+render() {
+    if [ "$state" = on ]; then
+        pill --icon "󰖔" --label ""
+        sb_set background.color="$MAUVE" icon.color="$BASE"
+    else
+        pill --icon "󰽥" --label ""
+        sb_set background.color="$SURFACE0" icon.color="$TEXT"
+    fi
+}
+
+on_click() {
     # On failure (no Accessibility grant yet) the engine posts its own
     # "run focus doctor" notification — nothing to handle here.
     "$FOCUS" toggle || true
-fi
+    barlib_tick
+}
 
-if [ "$("$FOCUS" status 2>/dev/null)" = "on" ]; then
-    "$SB" --set "$NAME" \
-        icon="󰖔" \
-        icon.color=$BASE \
-        background.color=$MAUVE \
-        label.drawing=off
-else
-    "$SB" --set "$NAME" \
-        icon="󰽥" \
-        icon.color=$TEXT \
-        background.color=$SURFACE0 \
-        label.drawing=off
-fi
+barlib_main "$@"

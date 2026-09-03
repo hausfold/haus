@@ -111,18 +111,34 @@
 #   src-<i>.tsv   one per configured source, index-keyed. Line 1 is
 #                 `meta<US><state><US><count><US><title><US><worst>`; every
 #                 later line is `row<US><state><US><text><US><url><US><glyph>
-#                 [<US><fix>]`, where <US> is ASCII 0x1f. The three trailing
-#                 fields are the newest additions, which is why they are LAST:
-#                 a cache written by an older generation parses under the
-#                 current reader with them empty, and empty is exactly the
-#                 "no verdict" / "nothing to fix" case both already handle.
-#                 The third is the FIX HANDOFF, `<verdict>:<target>` — what a
+#                 [<US><fix><US><note><US><who><US><when>]`, where <US> is
+#                 ASCII 0x1f. Everything past <glyph> is a later addition, and
+#                 that is why they are LAST rather than beside the field they
+#                 belong with: a cache written by an older generation parses
+#                 under the current reader with them empty, and empty is
+#                 exactly the "no verdict" / "nothing to fix" / "no caption"
+#                 case each already handles. The rule for the next one is the
+#                 same — append, never insert.
+#                 <fix> is the FIX HANDOFF, `<verdict>:<target>` — what a
 #                 "Fix with AI" row hands the fixer. `ci:<branch>` for a ci
 #                 row, `checks-red:<n>` / `conflicts:<n>` for a PR, empty for
 #                 every row an agent lane has no business picking up. The
 #                 verdict travels WITH the target because the fetch is the
 #                 only place that still knows it: the popup would otherwise
 #                 have to guess it back out of the glyph.
+#                 <note> is the verdict as a WORD ("conflicts", "checks red"),
+#                 which used to be glued onto <text> with a middle dot. It is
+#                 its own field because the dropdown draws it as a capsule in
+#                 the row's own tone now, and a word inside the title cannot
+#                 be coloured apart from it.
+#                 <who> and <when> are the row's CAPTION — the author's login
+#                 and the epoch it was opened at. Two fields rather than one
+#                 rendered "julienmartel · 3d" because the cache is minutes
+#                 old by the time anyone opens the dropdown, and an age
+#                 computed at fetch time reads stale in exactly the band where
+#                 it is precise. <when> is an epoch so the popup can spend one
+#                 subtraction on it (`rel_age`) instead. A row with neither is
+#                 drawn as a plain `popup_row` — see popup_rows.
 #                 NOT a tab: tab is an IFS *whitespace* character, so
 #                 `IFS=$'\t' read` folds a run of them into one delimiter and an
 #                 empty field simply vanishes — a source with no title would
@@ -414,11 +430,12 @@ fetch_search() { # fetch_search <index> <query> <limit>
         nodes{
           __typename
           ... on PullRequest {
-            number title url isDraft mergeable reviewDecision
+            number title url isDraft mergeable reviewDecision createdAt
+            author{ login }
             repository{ name }
             commits(last:1){ nodes{ commit{ statusCheckRollup{ state } } } }
           }
-          ... on Issue { number title url repository{ name } }
+          ... on Issue { number title url createdAt author{ login } repository{ name } }
         }
       }
     }' 2>"$err") || {
@@ -453,12 +470,16 @@ fetch_search() { # fetch_search <index> <query> <limit>
   #   (see the ladder in the header), and everything below it is a rung a PR
   #   can actually climb.
   #
-  #   Each verdict also carries its NAME, appended to the row's text in the
-  #   dropdown. Colour puts a row in a tier and the glyph says which member of
-  #   it, but "conflicts" and "changes requested" are peach with a similar mark
-  #   at 11pt — the word is what makes the row readable without a legend. Only
-  #   the verdicts worth acting on carry one; a plain green PR reads as its
-  #   title alone.
+  #   Each verdict also carries its NAME, which the dropdown draws as a
+  #   capsule in the row's own tone. Colour puts a row in a tier and the glyph
+  #   says which member of it, but "conflicts" and "changes requested" are
+  #   peach with a similar mark at 11pt — the word is what makes the row
+  #   readable without a legend. Only the verdicts worth acting on carry one;
+  #   a plain green PR reads as its title and its author alone.
+  #
+  #   The word used to be APPENDED to the row's text with a middle dot, and it
+  #   is its own cache field now for one reason: inside the title it could
+  #   only ever be the title's colour. A capsule is on the ladder.
   rows=$(printf '%s' "$json" | jq -r \
     --arg conflict "$G_CONFLICT" --arg failed "$G_FAILED" --arg running "$G_RUNNING" \
     --arg changes "$G_CHANGES" --arg ready "$G_READY" --arg green "$G_GREEN" \
@@ -478,11 +499,13 @@ fetch_search() { # fetch_search <index> <query> <limit>
        elif $ci == "SUCCESS"                                    then ["ok",   $green,    "",                  ""]
        else ["mute", $none, "", ""] end) as [$state, $glyph, $note, $fix]
     | "row\u001f" + $state
-      + "\u001f" + (.repository.name + " #" + (.number|tostring) + "  " + .title
-                     + (if $note == "" then "" else "  · " + $note end))
+      + "\u001f" + (.repository.name + " #" + (.number|tostring) + "  " + .title)
       + "\u001f" + .url
       + "\u001f" + $glyph
-      + "\u001f" + (if $fix == "" then "" else $fix + ":" + (.number|tostring) end)')
+      + "\u001f" + (if $fix == "" then "" else $fix + ":" + (.number|tostring) end)
+      + "\u001f" + $note
+      + "\u001f" + (.author.login // "")
+      + "\u001f" + (if .createdAt == null then "" else (.createdAt|fromdateiso8601|tostring) end)')
   worst=$(rows_worst "$rows")
   {
     printf 'meta\037%s\037%s\037%s\037%s\n' \
@@ -941,6 +964,35 @@ stamp_epoch() {
   esac
 }
 
+# A span as ONE word — "12s", "5m", "2h", "3d" — or empty for anything that is
+# not an epoch, which is stamp_epoch's rule one function up and the same reason:
+# a corrupt or truncated cache field must read as "no answer" rather than turn
+# every `$((now - x))` below it into an arithmetic error, which inside a popup
+# build means the dropdown simply dies mid-run.
+#
+# The caller adds "ago" where it wants one. The Refresh row does; a PR's age
+# does not — "opened 3d ago" is four words for a caption that has room for the
+# author's name too, and the row above it already reads as a thing that exists
+# now. Both used to spell this ladder out for themselves, which is how one of
+# them ended up saying "72h ago" about a three-day-old cache.
+rel_age() { # rel_age <epoch>
+  local secs
+  case "${1:-}" in "" | *[!0-9]*) return 0 ;; esac
+  secs=$((now - $1))
+  # A clock that went backwards (an NTP step, a cache restored from a backup)
+  # is not a negative age; it is an age of nothing.
+  [ "$secs" -lt 0 ] && secs=0
+  if [ "$secs" -lt 60 ]; then
+    printf '%ss' "$secs"
+  elif [ "$secs" -lt 3600 ]; then
+    printf '%sm' "$((secs / 60))"
+  elif [ "$secs" -lt 86400 ]; then
+    printf '%sh' "$((secs / 3600))"
+  else
+    printf '%sd' "$((secs / 86400))"
+  fi
+}
+
 # ── the dropdown ──────────────────────────────────────────────────────────────
 # The runtime's row kinds and nothing else (hausfold.co/docs/haus/rooms/
 # bar-widgets): it owns every font, every height, the grid, the close-on-click,
@@ -958,7 +1010,12 @@ popup_rows() {
     popup_button --icon "" --label "Copy  gh auth login" --copy "gh auth login"
     popup_note --label "then paste it into a terminal"
   else
+    # Every name `read` below assigns is declared here: without `local` the
+    # loop would leak nine globals out of a function barlib sources into the
+    # widget's own shell.
     local s kind sev count title worst text url glyph fix sections=0
+    local note who when sub age
+    local act=()
     for ((s = 0; s < n_sources; s++)); do
       [ -f "$STATE/src-$s.tsv" ] || continue
       IFS=$'\037' read -r kind sev count title worst < "$STATE/src-$s.tsv"
@@ -986,18 +1043,51 @@ popup_rows() {
         --label "$title" --count "${count:-0}"
 
       local rows_drawn=0
-      while IFS=$'\037' read -r kind sev text url glyph fix; do
+      while IFS=$'\037' read -r kind sev text url glyph fix note who when; do
         [ "$kind" = row ] || continue
         rows_drawn=$((rows_drawn + 1))
         # A row with a URL opens it and closes the popup; one without just
         # closes, which is every row's default. The glyph is the merge verdict
         # (empty from a cache an older generation wrote, which draws as the
         # blank the rows used to have). A `mute` row loses a shade of its TEXT
-        # too — that rule is the runtime's now, not spelled here.
-        if [ -n "$url" ]; then
-          popup_row --icon "$glyph" --tone "$(sev_tone "$sev")" --label "$text" --open "$url"
+        # too, title or label — that rule is the runtime's on both kinds, not
+        # spelled here.
+        #
+        # ── a row with a caption is an ITEM ──────────────────────────────────
+        # A PR is three things (which one, whose it is and how old, what its
+        # merge box says) and a row has two slots, so a search row is a
+        # `popup_item`: the title on one line, "author · age" and the verdict
+        # capsule on the next, both lines one hit area. A `ci` row is a repo
+        # and a branch and a `command` row is whatever a script printed —
+        # neither has a caption to give, so both stay the row they were, at
+        # the row's own height.
+        #
+        # The test is the CACHE, not the source kind: a cache an older
+        # generation wrote has no caption fields at all, so its search rows
+        # draw as the rows they were written as rather than as items with an
+        # empty second line. Same discipline as the trailing fields above.
+        sub='' age=''
+        [ -n "$when" ] && age=$(rel_age "$when")
+        if [ -n "$who" ] && [ -n "$age" ]; then
+          sub="$who · $age"
+        elif [ -n "$who" ]; then
+          sub="$who"
         else
-          popup_row --icon "$glyph" --tone "$(sev_tone "$sev")" --label "$text"
+          sub="$age"
+        fi
+        # One array rather than the two-branch `if` this used to be: with
+        # three flags varying (open, caption, badge) the branches multiply,
+        # and an --open with an empty URL is `open ""`, which is a Finder
+        # window rather than a no-op.
+        act=()
+        [ -n "$url" ] && act=(--open "$url")
+        if [ -n "$sub" ]; then
+          popup_item --icon "$glyph" --tone "$(sev_tone "$sev")" \
+            --title "$text" --subtitle "$sub" --badge "$note" \
+            ${act[@]+"${act[@]}"}
+        else
+          popup_row --icon "$glyph" --tone "$(sev_tone "$sev")" --label "$text" \
+            ${act[@]+"${act[@]}"}
         fi
 
         # ── the "Fix with AI" rows ───────────────────────────────────────────
@@ -1041,14 +1131,9 @@ popup_rows() {
   # The refresh row, always last. Right-clicking the pill does the same thing —
   # two doors on the same action, because the pill is the obvious place to
   # reach for and the row is the discoverable one.
-  local age="never" last secs
+  local age="never" last
   last=$(stamp_epoch)
-  if [ "$last" -gt 0 ]; then
-    secs=$((now - last))
-    if [ "$secs" -lt 60 ]; then age="${secs}s ago"
-    elif [ "$secs" -lt 3600 ]; then age="$((secs / 60))m ago"
-    else age="$((secs / 3600))h ago"; fi
-  fi
+  if [ "$last" -gt 0 ]; then age="$(rel_age "$last") ago"; fi
   popup_separator
   popup_action --icon "" --label "Refresh" --hint "$age" \
     --run "$HOME/.config/sketchybar/plugins/github.sh refresh"

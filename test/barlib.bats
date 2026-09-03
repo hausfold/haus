@@ -1684,6 +1684,24 @@ row_args() {
   ! grep -q -- '--add item w.popup.3 ' "$SB_LOG"
 }
 
+@test "--tone mute takes an item's title down with its glyph; --title-tone wins, dim does not" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() {
+      popup_item --title "draft: rework the ledge" --subtitle "someone · 3d" --tone mute --run "x"
+      popup_item --title "still about something" --subtitle "someone · 3d" --tone dim --run "x"
+      popup_item --title "the widget said so" --subtitle "someone · 3d" --tone mute --title-tone text --run "x"
+    }
+    on_click() { popup_open; }
+  '
+  # Titles are the even-numbered popup items (0, 2, 4 — subtitles fall between).
+  # mute: TONE_DIM, the shade under an item's ordinary TONE_TEXT title.
+  [[ "$(row_args 0)" == *"label=draft: rework the ledge label.color=0xff1a1a1a"* ]]
+  # dim is the GLYPH being subordinate, not the item; the title stays bright.
+  [[ "$(row_args 2)" == *"label=still about something label.color=0xff777777"* ]]
+  # An explicit --title-tone is never second-guessed.
+  [[ "$(row_args 4)" == *"label=the widget said so label.color=0xff777777"* ]]
+}
+
 # ---- the right slot is fair -------------------------------------------------
 
 @test "a long name gives way to the value rather than cutting it to four columns" {

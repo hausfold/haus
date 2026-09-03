@@ -427,21 +427,11 @@ let
   # The focus pill — generic (no personal hardware/service), so unlike the
   # bar.items extras below it rides the Focus room's contribution
   # (`_contrib.bar.focus`, which `haus.focus.enable` is the user's address for),
-  # not an opt-in list. focus_change is fired by the focus engine after its own toggles and by
-  # the focus-watcher agent (modules/focus) when the Focus DB changes; the
-  # update_freq poll is only a backstop for missed events.
-  focusBlock = sb: side: ''
-    ${sb} --add event focus_change
-    ${sb} --add item focus ${side} \
-        --set focus \
-            update_freq=30 \
-            script="$HOME/.config/sketchybar/plugins/focus.sh" \
-            background.color=$SURFACE0 \
-            icon.padding_left=10 \
-            icon.padding_right=10 \
-            label.drawing=off \
-        --subscribe focus mouse.clicked focus_change system_woke
-  '';
+  # not an opt-in list. It converted onto the framework with the other
+  # pill-only plugins: `# widget: subscribes = focus_change` in focus.sh buys
+  # the `--add event` this comment used to spell here, and render() sets both
+  # the icon-solo padding (icon and an empty label, every tick) and the
+  # background fill itself, so there is no style left to carry.
 
   # Every movable pill, emitted only for the bar that owns it. The definitions
   # live once and take TWO arguments: the target bar client, and the group the
@@ -695,7 +685,7 @@ let
     ) "$HOME/.config/sketchybar/plugins/${name}.sh";
 
   mkPluginBlocks = sb: side: {
-    focus = focusBlock sb side;
+    focus = frameworkBlock sb side "focus" { };
     # The clock can opt out of haus's mono face when its dotted zero reads
     # as an 8 at a glance. Its Nerd Font icon remains in the bar default either
     # way; only the dense date/time label follows clock.monoFont.
@@ -752,30 +742,19 @@ let
       '';
     # updates=on is load-bearing: battery.sh hides the pill over the configured
     # threshold, and a when_shown item could never notice charge later dropped.
-    battery = ''
-      ${sb} --add item battery ${side} \
-          --set battery \
-              icon.color=$GREEN \
-              update_freq=30 \
-              updates=on \
-              background.color=$SURFACE0 \
-              script="$HOME/.config/sketchybar/plugins/battery.sh" \
-              click_script="open -a 'System Settings' 'x-apple.systempreferences:com.apple.preference.battery'" \
-          --subscribe battery system_woke power_source_change
-    '';
-    wifi = ''
-      ${sb} --add item wifi ${side} \
-          --set wifi \
-              icon=󰖩 \
-              label.drawing=off \
-              icon.color=$TEAL \
-              background.color=$SURFACE0 \
-              icon.padding_left=10 \
-              icon.padding_right=10 \
-              script="$HOME/.config/sketchybar/plugins/wifi.sh" \
-              click_script="open -a 'System Settings' 'x-apple.systempreferences:com.apple.wifi-settings-extension'" \
-              update_freq=10
-    '';
+    # A framework widget: the header carries the interval and the one builtin
+    # event this pill cares about, on_click carries the click that used to be
+    # a Nix click_script, and every colour is state now — the charge level
+    # decides the tone on each render, so there is no identity default left
+    # to set here.
+    battery = frameworkBlock sb side "battery" {
+      "updates" = "on";
+    };
+    # A framework widget: the click that used to be a Nix click_script is
+    # wifi.sh's on_click now. No style at all — the icon-only padding
+    # (icon.padding_left/right=10) is `pill`'s own icon-solo case, since
+    # every render passes both --icon and an empty --label.
+    wifi = frameworkBlock sb side "wifi" { };
     # The agent lanes pill — four items under a bracket, which is what
     # `# widget: segments = ready, working, done` in agents.sh buys: SketchyBar
     # colours a label exactly once, and this pill says three counts in three
@@ -857,17 +836,16 @@ let
       "background.padding_left" = "8";
       "background.padding_right" = "8";
     };
-    volume = ''
-      ${sb} --add item volume ${side} \
-          --set volume \
-              update_freq=5 \
-              icon.color=$SKY \
-              background.color=$SURFACE0 \
-              background.padding_left=8 \
-              background.padding_right=8 \
-              script="$HOME/.config/sketchybar/plugins/volume.sh" \
-              click_script="open -a 'System Settings' 'x-apple.systempreferences:com.apple.Sound-Settings.extension'"
-    '';
+    # A framework widget: the click that used to be a Nix click_script is
+    # volume.sh's on_click now. `icon.color` stays here rather than becoming
+    # a tone — SKY has no rung of its own on the ladder (it IS `busy`, and
+    # volume has nothing to do with the machine working on something), so
+    # this is the pill's own identity colour, exactly like clock's pink.
+    volume = frameworkBlock sb side "volume" {
+      "icon.color" = "$SKY";
+      "background.padding_left" = "8";
+      "background.padding_right" = "8";
+    };
     # The one meeting you have to be at next, with a click-dropdown that lays
     # the day out as a timeline (done · now · next). A framework widget: the
     # header in calendar.sh carries the popup and the hover subscriptions, the
@@ -913,17 +891,11 @@ let
       "label.padding_right" = "10";
       "label.font" = ''"${barFont}:Bold:${sizes.small}"'';
     };
-    elgato = ''
-      ${sb} --add item elgato ${side} \
-          --set elgato \
-              update_freq=5 \
-              script="$HOME/.config/sketchybar/plugins/elgato.sh" \
-              background.color=$SURFACE0 \
-              icon.padding_left=10 \
-              icon.padding_right=10 \
-              click_script="$HOME/.config/sketchybar/plugins/elgato.sh" \
-          --subscribe elgato mouse.clicked
-    '';
+    # A framework widget: the click that used to re-run the whole script as
+    # its own click_script is elgato.sh's on_click now. No style — the
+    # icon-solo padding is `pill`'s own, since the label is always empty and
+    # every state colour is one of the three the runtime already ladders.
+    elgato = frameworkBlock sb side "elgato" { };
     # The one pill in the bar that crosses the network, and the only one whose
     # tick deliberately does NOT do its own work: github.sh's fetch() reads a
     # cache and detaches the `gh` call, which then --triggers github_update to
@@ -970,20 +942,19 @@ let
     # itself is never dispatched to again and the script that would unhide it
     # never runs. Installing Trill.app would otherwise leave the bell invisible
     # until the next rebuild. See AGENTS.md's box on exactly this trap.
-    trill = ''
-      ${sb} --add item trill ${side} \
-          --set trill \
-              update_freq=30 \
-              updates=on \
-              icon="󰂚" \
-              icon.color=$TEXT \
-              icon.padding_left=10 \
-              icon.padding_right=10 \
-              background.color=$SURFACE0 \
-              label.drawing=off \
-              script="$HOME/.config/sketchybar/plugins/trill.sh" \
-          --subscribe trill mouse.clicked system_woke
-    '';
+    # A framework widget. `updates=on` stays a style knob: trill.sh's own
+    # `pill --hide` sets the pairing on the branch that draws nothing, but
+    # the item needs it live from --add time too, or the very first tick on
+    # a Mac with no Trill.app would hide a pill that never ticks again. The
+    # bell glyph and its padding stay here as well — the script only ever
+    # touches this pill's colour and whether it draws at all, exactly as the
+    # hand-written version did.
+    trill = frameworkBlock sb side "trill" {
+      "updates" = "on";
+      "icon" = ''"󰂚"'';
+      "icon.padding_left" = "10";
+      "icon.padding_right" = "10";
+    };
   };
   # Item blocks sit in an attrset (no inherent order), so emission follows these
   # fixed left-to-right orders — only the ones each bar owns are drawn.

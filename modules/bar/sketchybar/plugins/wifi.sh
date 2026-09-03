@@ -1,28 +1,34 @@
 #!/bin/bash
+# wifi.sh — the Wi-Fi status pill (hausfold.co/docs/haus/rooms/bar-widgets).
+# widget: interval = 10
 
-source "$HOME/.config/sketchybar/colors.sh"
 BAR_ITEM=wifi
-source "$HOME/.config/sketchybar/bar.sh"
+source "$HOME/.config/sketchybar/barlib.sh"
 
-# Get Wi-Fi status using ipconfig (more reliable than networksetup on newer macOS)
-INFO=$(ipconfig getsummary en0)
-LINK_STATUS=$(echo "$INFO" | grep "LinkStatusActive" | awk -F': ' '{print $2}')
-SSID=$(echo "$INFO" | grep "SSID" | awk -F': ' '{print $2}')
+fetch() {
+    local info status ssid
+    info=$(ipconfig getsummary en0)
+    status=$(echo "$info" | grep "LinkStatusActive" | awk -F': ' '{print $2}')
+    ssid=$(echo "$info" | grep "SSID" | awk -F': ' '{print $2}')
+    emit status="${status:-FALSE}" ssid="$ssid"
+}
 
-if [ "$LINK_STATUS" = "TRUE" ]; then
-    LABEL="$SSID"
-    # Fallback if SSID is redacted or missing
-    if [[ "$SSID" == *"<redacted>"* ]] || [ -z "$SSID" ]; then
-        LABEL="Connected"
+# No label ever draws — the pill is icon-only — so both branches pass an
+# empty --label, which is `pill`'s own "absent" case rather than a second
+# label.drawing=off spelled here.
+render() {
+    if [ "$status" = TRUE ]; then
+        # teal is the palette's own hex the raw pill used to set, laundered
+        # through the identity axis rather than a status rung: connected is
+        # not a verdict, it is what this pill IS when it has something to say.
+        pill --icon 󰖩 --label "" --mark teal
+    else
+        pill --icon 󰖪 --label "" --tone bad
     fi
-    
-    "$SB" --set "$NAME" \
-        icon=󰖩 \
-        label.drawing=off \
-        icon.color=$TEAL
-else
-    "$SB" --set "$NAME" \
-        icon=󰖪 \
-        label.drawing=off \
-        icon.color=$RED
-fi
+}
+
+on_click() {
+    open -a 'System Settings' 'x-apple.systempreferences:com.apple.wifi-settings-extension'
+}
+
+barlib_main "$@"
