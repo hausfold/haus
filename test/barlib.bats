@@ -1354,7 +1354,7 @@ row_args() {
   # The pads are numbered apart, so the widget's first row is still .popup.0.
   grep -q -- '--add item w.popup.0 popup.w' "$SB_LOG"
   ! grep -q -- 'w.popup.1 ' "$SB_LOG"
-  grep -qE -- '--set w\.popup\.(top|bottom) [^-]*background\.height=6' "$SB_LOG"
+  grep -qE -- '--set w\.popup\.(top|bottom) [^-]*background\.height=8' "$SB_LOG"
 }
 
 # ---- the widget's own hue ----------------------------------------------------
@@ -1516,26 +1516,34 @@ row_args() {
 
 # ---- the bar and the sparkline -----------------------------------------------
 
-@test "popup_bar is a slider with no knob and no gesture" {
+@test "popup_bar is a name line over a track: a slider with no knob and no gesture" {
   NAME=w SENDER=mouse.clicked widget '
     popup_rows() { popup_bar --label "session · resets 14:20" --percentage 38 --value "38%" --tone watch; }
     on_click() { popup_open; }
   '
-  grep -qE -- '--add slider w\.popup\.0 popup\.w [0-9]+' "$SB_LOG"
-  local r
-  r=$(row_args 0)
-  [[ "$r" == *"slider.percentage=38"* ]]
-  [[ "$r" == *"slider.highlight_color=0xff3a3a3a"* ]]
-  [[ "$r" == *"slider.background.color=0xffbbbbbb"* ]]
-  [[ "$r" == *"slider.knob= slider.knob.drawing=off"* ]]
-  [[ "$r" == *"label=38% label.color=0xff3a3a3a"* ]]
+  # Row 0 is the name and the number, a plain item; row 1 is the track.
+  grep -q -- '--add item w.popup.0 popup.w' "$SB_LOG"
+  grep -qE -- '--add slider w\.popup\.1 popup\.w [0-9]+' "$SB_LOG"
+  local n t
+  n=$(row_args 0)
+  t=$(row_args 1)
+  # The name has the whole line: nothing cut, the number flush right in the tone.
+  [[ "$n" == *"icon=session · resets 14:20 "* ]]
+  [[ "$n" == *"label=38% label.font=Test Font:Bold:12 label.color=0xff3a3a3a"* ]]
+  [[ "$n" == *"label.align=right"* ]]
+  [[ "$t" == *"slider.percentage=38"* ]]
+  [[ "$t" == *"slider.highlight_color=0xff3a3a3a"* ]]
+  [[ "$t" == *"slider.background.color=0xffbbbbbb"* ]]
+  [[ "$t" == *"slider.knob= slider.knob.drawing=off"* ]]
+  [[ "$t" == *"icon.drawing=off label.drawing=off"* ]]
+  [[ "$t" == *"background.height=12"* ]]
   # A readout closes like a row and never subscribes: the one thing that
   # separates it from popup_slider.
-  ! grep -q -- '--subscribe w.popup.0 mouse.clicked' "$SB_LOG"
-  [[ "$r" == *"click_script="*"popup.drawing=off"* ]]
+  ! grep -q -- '--subscribe w.popup.1 mouse.clicked' "$SB_LOG"
+  [[ "$t" == *"click_script="*"popup.drawing=off"* ]]
 }
 
-@test "bars under one heading share one name column and one track length" {
+@test "every bar's track runs from the text column to the gutter, so bars align for free" {
   NAME=w SENDER=mouse.clicked widget '
     popup_rows() {
       popup_bar --label "session" --percentage 38 --value "38%"
@@ -1544,14 +1552,15 @@ row_args() {
     on_click() { popup_open; }
   '
   local a b
-  a=$(grep -oE -- '--add slider w\.popup\.0 popup\.w [0-9]+' "$SB_LOG" | awk '{print $NF}')
-  b=$(grep -oE -- '--add slider w\.popup\.1 popup\.w [0-9]+' "$SB_LOG" | awk '{print $NF}')
+  a=$(grep -oE -- '--add slider w\.popup\.1 popup\.w [0-9]+' "$SB_LOG" | awk '{print $NF}')
+  b=$(grep -oE -- '--add slider w\.popup\.3 popup\.w [0-9]+' "$SB_LOG" | awk '{print $NF}')
   [ "$a" = "$b" ]
-  [[ "$(row_args 0)" == *"icon.width=150 "* ]]
-  [[ "$(row_args 1)" == *"icon.width=150 "* ]]
+  # 340 − 38 (text column) − 10 (gutter); inset by the text column on the left.
+  [ "$a" = 292 ]
+  [[ "$(row_args 1)" == *"width=292 padding_left=44 padding_right=16"* ]]
 }
 
-@test "popup_graph is an --add graph fed its points on the same batch, oldest first" {
+@test "popup_graph is an --add graph, its readings stretched over its width, oldest first" {
   NAME=w SENDER=mouse.clicked widget '
 # widget: mark = teal
     popup_rows() { popup_graph --points "10 40 140 -3"; }
@@ -1559,14 +1568,35 @@ row_args() {
   '
   grep -q -- '--add graph w.popup.0 popup.w 320' "$SB_LOG"
   [[ "$(row_args 0)" == *"graph.color=0xff7a0002 graph.fill_color=0x307a0002"* ]]
+  # A graph is one sample per point of width: four readings pushed as four
+  # would draw in four points of 320. They are resampled to the width with a
+  # straight line between neighbours — the first push is the first reading,
+  # the last push the last (clamped, like `graph`), and every push is on the
+  # same batch as the --add.
+  local batch pushes
+  batch=$(grep -- '--add graph' "$SB_LOG")
+  pushes=$(printf '%s' "$batch" | grep -o -- '--push w.popup.0 [0-9.]*' | wc -l | tr -d ' ')
+  [ "$pushes" = 320 ]
+  [[ "$batch" == *"--push w.popup.0 0.10 --push w.popup.0 0.10 "* ]]
+  [[ "$batch" == *"--push w.popup.0 0.01 --push w.popup.0 0.00 "* ]]
+  # Halfway between the second and third reading is halfway up.
+  [[ "$batch" == *"--push w.popup.0 0.70 "* ]]
+}
+
+@test "popup_graph with one reading is a flat line at its level" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_graph --points "55"; }
+    on_click() { popup_open; }
+  '
   local batch
   batch=$(grep -- '--add graph' "$SB_LOG")
-  [[ "$batch" == *"--push w.popup.0 0.10 --push w.popup.0 0.40 --push w.popup.0 1.00 --push w.popup.0 0.00"* ]]
+  [[ "$batch" == *"--push w.popup.0 0.55 --push w.popup.0 0.55 "* ]]
+  [[ "$batch" != *"--push w.popup.0 0.54"* ]]
 }
 
 # ---- separator and space -----------------------------------------------------
 
-@test "a separator is a one-point line from gutter to gutter" {
+@test "a separator is a one-point line from gutter to gutter, on a twelve-point row" {
   NAME=w SENDER=mouse.clicked widget '
     popup_rows() { popup_separator; }
     on_click() { popup_open; }
@@ -1574,8 +1604,143 @@ row_args() {
   local r
   r=$(row_args 0)
   [[ "$r" == *"width=320 padding_left=16 padding_right=16"* ]]
-  [[ "$r" == *"background.height=1 background.corner_radius=0 background.color=0xffbbbbbb"* ]]
+  # The row is the transparent background every row carries, at the
+  # separator's own height; the LINE is the icon slot's background.
+  [[ "$r" == *"background.drawing=on background.color=0x00000000 background.height=12"* ]]
+  [[ "$r" == *"icon.width=320 icon.align=left"* ]]
+  [[ "$r" == *"icon.background.drawing=on icon.background.height=1 icon.background.corner_radius=0 icon.background.color=0xffbbbbbb"* ]]
   ! grep -q -- '--subscribe w.popup.0' "$SB_LOG"
+}
+
+# ---- the list item -----------------------------------------------------------
+
+@test "popup_item is two lines that are one row: title with the glyph, caption with the reading" {
+  NAME=w SENDER=mouse.clicked widget '
+    BARLIB_MARK=teal
+    popup_rows() {
+      popup_item --icon C --icon-font "Other Font:Regular:14" --title "launch-mission-1" \
+        --subtitle "ready · 32m · workshop" --subtitle-tone bad \
+        --value "⎇ +2 unshipped" --value-tone warn --run "go"
+    }
+    on_click() { popup_open; }
+  '
+  local t s
+  t=$(row_args 0)
+  s=$(row_args 1)
+  # The title line: glyph in the widget'"'"'s mark on the glyph column, in its own
+  # face; the title bold, in the text colour, on the text column.
+  [[ "$t" == *"background.height=22"* ]]
+  [[ "$t" == *"icon=C icon.color=0xff7a0002 icon.font=Other Font:Regular:14"* ]]
+  [[ "$t" == *"label=launch-mission-1 label.color=0xff777777"* ]]
+  [[ "$t" == *"label.font=Test Font:Bold:12"* ]]
+  # The caption line: the caption in its tone from the text column, the
+  # reading bold and flush right in ITS tone — three hues, nothing merged.
+  [[ "$s" == *"background.height=18"* ]]
+  [[ "$s" == *"icon=ready · 32m · workshop icon.color=0xff555555 icon.font=Test Font:Regular:10 icon.padding_left=38"* ]]
+  [[ "$s" == *"label=⎇ +2 unshipped label.font=Test Font:Bold:10 label.color=0xff444444"* ]]
+  [[ "$s" == *"label.align=right"* ]]
+  # Both lines run the action, and both close.
+  [[ "$t" == *"click_script=go; "*"popup.drawing=off"* ]]
+  [[ "$s" == *"click_script=go; "*"popup.drawing=off"* ]]
+}
+
+@test "popup_item lights both lines as one under the pointer" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() {
+      popup_item --title "a" --subtitle "b" --run "go"
+      popup_item --title "inert" --subtitle "still"
+    }
+    on_click() { popup_open; }
+  '
+  grep -q -- '--subscribe w.popup.0 mouse.entered mouse.exited' "$SB_LOG"
+  grep -q -- '--subscribe w.popup.1 mouse.entered mouse.exited' "$SB_LOG"
+  ! grep -q -- '--subscribe w.popup.2 ' "$SB_LOG"
+  ! grep -q -- '--subscribe w.popup.3 ' "$SB_LOG"
+  # Each line'"'"'s script names BOTH ids, so the pair is one highlight from
+  # whichever line the pointer is on.
+  # (On the raw log: row_args splits on the very `--set w.popup.N` the
+  # script carries.)
+  local on off
+  on='mouse.entered) "'"$BATS_TEST_TMPDIR"'/bin/sb" --set w.popup.0 background.color=0xffcccccc --set w.popup.1 background.color=0xffcccccc ;;'
+  off='mouse.exited) "'"$BATS_TEST_TMPDIR"'/bin/sb" --set w.popup.0 background.color=0x00000000 --set w.popup.1 background.color=0x00000000 ;;'
+  grep -qF -- "--set w.popup.0 script=case \"\$SENDER\" in $on $off esac" "$SB_LOG"
+  grep -qF -- "--set w.popup.1 script=case \"\$SENDER\" in $on $off esac" "$SB_LOG"
+}
+
+@test "popup_item with a badge puts a capsule on the caption line; with nothing under the title, one line" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() {
+      popup_item --title "Standup" --subtitle "Today 14:00 · 30m" --badge "Join" --badge-tone action --run "j"
+      popup_item --title "alone"
+    }
+    on_click() { popup_open; }
+  '
+  local s
+  s=$(row_args 1)
+  [[ "$s" == *"label=Join label.font=Test Font:Bold:10 label.color=0xff5a5a5a"* ]]
+  [[ "$s" == *"label.background.drawing=on label.background.color=0x305a5a5a label.background.height=16 label.background.corner_radius=8"* ]]
+  # The one-line item is row 2, and there is no row 3.
+  [[ "$(row_args 2)" == *"label=alone"* ]]
+  ! grep -q -- '--add item w.popup.3 ' "$SB_LOG"
+}
+
+# ---- the right slot is fair -------------------------------------------------
+
+@test "a long name gives way to the value rather than cutting it to four columns" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() {
+      popup_row --label "working · 12m · a-repo-with-a-long-name · and more" --value "⎇ +2 unshipped" --tone warn
+    }
+    on_click() { popup_open; }
+  '
+  local r
+  r=$(row_args 0)
+  # The value is whole; the name wears the ellipsis.
+  [[ "$r" == *"label=⎇ +2 unshipped label.font"* ]]
+  [[ "$r" == *"icon=working · 12m · a"*"… icon.color"* ]]
+}
+
+@test "a value longer than its share is still the one cut" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() {
+      popup_row --label "when" --value "a title so long it would take the whole row and then the name too"
+    }
+    on_click() { popup_open; }
+  '
+  [[ "$(row_args 0)" == *"icon=when icon.color"* ]]
+  [[ "$(row_args 0)" == *"label=a title so long"*"… label.font"* ]]
+}
+
+# ---- a button stands off ----------------------------------------------------
+
+@test "a button after a row gets the panel's pad above it; first, or after a space or button, none" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() {
+      popup_button --label "first" --run "a"
+      popup_row --label "r"
+      popup_button --label "second" --run "b"
+      popup_button --label "third" --run "c"
+    }
+    on_click() { popup_open; }
+  '
+  [[ "$(row_args 0)" == *"label=first"* ]]
+  [[ "$(row_args 1)" == *"label=r"* ]]
+  [[ "$(row_args 2)" == *"icon.drawing=off label.drawing=off"* ]]
+  [[ "$(row_args 2)" == *"background.height=8"* ]]
+  [[ "$(row_args 3)" == *"label=second"* ]]
+  [[ "$(row_args 4)" == *"label=third"* ]]
+}
+
+@test "popup_heading --hint is a tiny dim caption flush right on the title line" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_heading --icon A --label "Agents" --hint "3 ready · 1 working"; }
+    on_click() { popup_open; }
+  '
+  local r
+  r=$(row_args 0)
+  [[ "$r" == *"icon=A Agents icon.color=0xff1a1a1a"* ]]
+  [[ "$r" == *"label=3 ready · 1 working label.font=Test Font:Regular:10 label.color=0xff999999"* ]]
+  [[ "$r" == *"label.align=right"* ]]
 }
 
 @test "popup_space is nothing, that tall, and scales" {
