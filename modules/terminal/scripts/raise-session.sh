@@ -10,7 +10,7 @@
 # search). All three had the same joins, all three spelled AeroSpace, and none
 # of them worked on a machine without a tiler.
 #
-#   raise-session.sh [--or-open] <session>
+#   raise-session.sh [--or-open] [--fullscreen] <session>
 #
 # Exit 0 = a window was raised. Exit 1 = no window has this session; it is
 # detached and still running (the whole point of zmx), and what to do about
@@ -36,11 +36,18 @@ set -u
 
 export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/bin:/bin${PATH:+:$PATH}"
 
+# Two flags, taken in any order, and neither is a session name: the first
+# session argument ends the loop.
 or_open=0
-if [ "${1:-}" = "--or-open" ]; then
-  or_open=1
+fullscreen=0
+while [ $# -gt 0 ]; do
+  case "${1:-}" in
+    --or-open) or_open=1 ;;
+    --fullscreen) fullscreen=1 ;;
+    *) break ;;
+  esac
   shift
-fi
+done
 
 sess="${1:-}"
 [ -n "$sess" ] || exit 1
@@ -108,6 +115,28 @@ APPLESCRIPT
   esac
   return 0
 }
+
+# ── --fullscreen: land ON the window, not on the page it sits in ─────────────
+# The flag is for a caller answering a lane that BLOCKED — clicking its trill
+# fin, which arrives here through lanes/lane-focus.sh. A plain raise onto a page
+# holding five tiled windows says which PAGE wanted you and leaves the window
+# itself to be found by its solid cursor.
+#
+# The take is not spelled here. Fullscreen is a MODE with three rules attached
+# (a solo-window guard, `on` rather than the bare toggle, a bar poke only when
+# the state changed) and those rules are the WINDOWS room's — one copy, in the
+# room that owns <mod>f, so this one is a call rather than a second spelling to
+# drift. It is handed the window ID we just raised, which is what lets it count
+# that window's own page instead of whatever is in front.
+#
+# AeroSpace only, by construction: the ghostty backend has no tiler, so its
+# raise already puts the window in front of everything with nothing to hunt
+# through, and the script below is not on a machine without the windows room.
+#
+# The other three callers of this script deliberately DON'T pass it. The bar's
+# agent rows, ⌘F's ⏎ and the Lanes palette are you going to a window you named;
+# the fin is a window asking for you, and only that one earns the screen.
+fullscreen_take="$HOME/.config/aerospace/fullscreen-toggle.sh"
 
 case "$backend" in
   aerospace)
@@ -188,6 +217,9 @@ case "$backend" in
       exit 1
     fi
     aerospace focus --window-id "$win" >/dev/null 2>&1
+    if [ "$fullscreen" = 1 ] && [ -x "$fullscreen_take" ]; then
+      "$fullscreen_take" on "$win" >/dev/null 2>&1
+    fi
     ;;
 
   ghostty)
