@@ -1,6 +1,7 @@
 #!/bin/bash
 # widget: interval = 15
 # widget: popup = true
+# widget: mark = plum
 #
 # ai_usage.sh — the reader half of the `aiUsage` pill (opt-in via
 # haus.bar.items). Puts rate-limit gauges for AI providers (Claude Code,
@@ -113,36 +114,6 @@ pct_tone() { # pct_tone <pct>
   fi
 }
 
-GAUGE_CELLS=10
-GAUGE_FILL="█"                   # full block — the bar
-GAUGE_TRACK="▁"                  # lower eighth block — the rail it sits on
-gauge() { # gauge <pct> — a meter in block elements, sharing the row's colour
-  # A percentage is a quantity, and a number alone makes you do the comparing.
-  # Ten cells is the most that fits beside the value and the reset time without
-  # pushing the popup wider than the pill it hangs off; at that width one cell
-  # is 10 points, which is finer than the decision the meter is there to serve.
-  #
-  # One item draws one colour, so the track can't be a second, dimmer one — it
-  # has to differ in INK instead: a full block against a one-eighth rail, both
-  # sitting on the same baseline. Two glyphs were tried and rejected on the live
-  # bar — ░ fills an untouched limit with texture, so 0% reads as busy from
-  # across the room, and ▄ renders with gaps between cells in JetBrains Mono, so
-  # a solid 45% reads as five separate things. A rail reads as empty, because it
-  # is; a full block reads as one bar, because it is.
-  #
-  # Bash, not awk, because this runs twice per provider on the click path and an
-  # awk fork costs ~2.4 ms on this machine. Everything the meter needs is
-  # integer arithmetic the shell can already do.
-  local p="${1:-0}" k i out=""
-  [[ "$p" =~ ^[0-9]+$ ]] || p=0
-  ((p > 100)) && p=100
-  k=$(((p * GAUGE_CELLS + 50) / 100))
-  for ((i = 0; i < GAUGE_CELLS; i++)); do
-    if ((i < k)); then out+="$GAUGE_FILL"; else out+="$GAUGE_TRACK"; fi
-  done
-  printf '%s' "$out"
-}
-
 ago() { # ago <seconds> — "90m", "5h 12m", "4d". The old row said `6962m ago`,
   # which is a true number nobody can read as "this feed died on Tuesday".
   awk -v s="${1:-0}" 'BEGIN {
@@ -154,8 +125,9 @@ ago() { # ago <seconds> — "90m", "5h 12m", "4d". The old row said `6962m ago`,
 }
 
 resets_at() { # resets_at <epoch> <now> — "resets 14:20" / "resets Thu 09:00"
-  # Rides in the same label as the value it belongs to, because one item draws
-  # one colour and the reset time is the quieter half of the same fact.
+  # Rides in the NAME of the bar it belongs to (`session · resets 14:20`): the
+  # reset time is the quieter half of the same fact, and the name column is
+  # the quiet one.
   [ "${1:-0}" -gt "${2:-0}" ] 2>/dev/null || return 0
   if [ $(($1 - $2)) -lt 86400 ]; then
     printf 'resets %s' "$(date -r "$1" '+%H:%M')"
@@ -445,8 +417,12 @@ popup_rows() {
     return 0
   fi
 
+  local blocks=0
   for f in "${FILES[@]}"; do
     read_row "$now" "$f"
+    # A hairline between providers, none above the first.
+    [ "$blocks" -gt 0 ] && popup_separator
+    blocks=$((blocks + 1))
     # FS_LABEL, not FS_SMALL: a heading's name is drawn one step up from its
     # rows, and the size passed here is what a NERD-FONT mark (Opencode's 󰏫,
     # Gemini's ✦) is drawn at. Ask for the row size and those clients get a
@@ -465,20 +441,20 @@ popup_rows() {
       popup_row --label "today" --value "\$$ROW_V5" --tone "$c5"
       popup_row --label "monthly" --value "\$$ROW_VW" --tone "$cw"
     else
-      # `%3s%%` right-aligns the number so every gauge starts on one column;
-      # the leading blanks that produces are turned back into padding by
-      # `popup_row --value`, because a label is sized trimmed and drawn
-      # untrimmed. The gauge is what makes 92% and 38% differ before you have
-      # read either number.
+      # A real bar, not a row of block glyphs: the runtime's popup_bar draws
+      # the groove, the fill and the number in three colours, which is what
+      # one item could never do — and it is what makes 92% and 38% differ
+      # before you have read either number. The reset time rides the name,
+      # where a quieter fact about the same limit belongs.
       when=$(resets_at "$ROW_R5" "$now")
       c5=$(pct_tone "$ROW_V5"); [ "$ROW_STALE" = 1 ] && c5=mute
-      popup_row --label "session" --tone "$c5" \
-        --value "$(printf '%3s%%  %s' "$ROW_V5" "$(gauge "$ROW_V5")")${when:+  ·  $when}"
+      popup_bar --label "session${when:+ · $when}" --percentage "$ROW_V5" \
+        --value "${ROW_V5}%" --tone "$c5"
 
       when=$(resets_at "$ROW_RW" "$now")
       cw=$(pct_tone "$ROW_VW"); [ "$ROW_STALE" = 1 ] && cw=mute
-      popup_row --label "weekly" --tone "$cw" \
-        --value "$(printf '%3s%%  %s' "$ROW_VW" "$(gauge "$ROW_VW")")${when:+  ·  $when}"
+      popup_bar --label "weekly${when:+ · $when}" --percentage "$ROW_VW" \
+        --value "${ROW_VW}%" --tone "$cw"
     fi
 
     # Tokens: the score row. Every number above is a fraction of something you
@@ -511,6 +487,7 @@ popup_rows() {
     g_n=$((g_n + 1))
   done
   if [ "$g_n" -gt 1 ] && [ "$g_all" -gt 0 ]; then
+    popup_separator
     popup_heading --icon "∑" --label "Everything"
     token_block "$g_d" "$g_w" "$g_m" "$g_all" text
   fi

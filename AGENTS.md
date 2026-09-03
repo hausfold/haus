@@ -872,9 +872,26 @@ mechanism, say so in one line.
   the one with a dropdown. The runtime (`barlib.sh`, tested by
   `test/barlib.bats` and shellchecked in CI) owns `$SB` routing, the
   `drawing=off`/`updates=on` pairing, tone→hex, the one-batched-call rule,
-  and the whole popup dance (rebuild, batch, `barpop arm &`, the six row
-  kinds' typography), so the bullets below about those only concern the
-  pre-framework plugins — which remain valid and convert on touch.
+  and the whole popup dance (rebuild, batch, `barpop arm &`, the row kinds'
+  typography and the GRID they sit on), so the bullets below about those only
+  concern the pre-framework plugins — which remain valid and convert on touch.
+  - **A dropdown is a panel on a grid, and the grid is barlib's.** SketchyBar
+    lays a popup out as a stack of left-aligned, content-width items with no
+    alignment property, which is why every hand-written popup was a ragged
+    left edge of strings. barlib gives every row a fixed `width` and places
+    the two text slots inside it with their own `width`/`align`, and that is
+    what buys the eleven row kinds — heading (in the widget's `# widget:
+    mark =` hue, glyph in a tinted well), row (`--value` flush right,
+    `--badge` a capsule, `--hint` a caption), action, button (`--solid` for
+    the one primary), bar (a real 4pt track, the slider with no knob), graph
+    (a sparkline; `vitals_lib`'s ring is the shipped feed), note, separator,
+    space, slider and image. Two SketchyBar facts the runtime carries so a
+    widget never has to: a background counts toward an item's height ONLY
+    while drawn, so every row carries a transparent one; and `popup.height`
+    is a 30pt cell FLOOR by default, so `popup_open` sets it to 1 — without
+    both, every row kind's height was a fiction. Rows that do something light
+    up on hover (their own mouse.entered/exited script, SURFACE0 on MANTLE);
+    rows that don't, don't, and that asymmetry is the affordance.
   - **A widget that is NOT haus's is the same file**, named in
     `haus.bar.widgets.<name>.script` instead of dropped in `plugins/`. Same
     header, same parser, same emitter — the only two differences are where it

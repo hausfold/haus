@@ -498,10 +498,17 @@ let
       # off the screen edge — which is the ONE of the five a hand-written
       # block gets wrong silently, since a popup opening the wrong way still
       # opens. A widget wanting a different frame overrides them in `style`.
+      #
+      # The frame is a PANEL, not a tooltip: the pills' own radius, a hairline
+      # border one shade up from the panel rather than two points of the
+      # pills' grey, and the panel colour itself is MANTLE — one shade below
+      # the pills, so a row's hover highlight (SURFACE0, barlib's) reads as a
+      # pill lifting off it. The cell floor (`popup.height`) is barlib's to
+      # set, because the runtime is what draws rows of different heights.
       popupArgs = lib.optionalAttrs m.popup {
-        "popup.background.border_width" = "2";
-        "popup.background.corner_radius" = "10";
-        "popup.background.border_color" = "$SURFACE0";
+        "popup.background.border_width" = "1";
+        "popup.background.corner_radius" = "12";
+        "popup.background.border_color" = "$SURFACE1";
         "popup.background.color" = "$MANTLE";
         "popup.align" = side;
       };
@@ -710,9 +717,9 @@ let
               icon="󰖐" \
               icon.color=$SKY \
               background.color=$SURFACE0 \
-              popup.background.border_width=2 \
-              popup.background.corner_radius=10 \
-              popup.background.border_color=$SURFACE0 \
+              popup.background.border_width=1 \
+              popup.background.corner_radius=12 \
+              popup.background.border_color=$SURFACE1 \
               popup.background.color=$MANTLE \
               ${popupAlign side} \
               script="$HOME/.config/sketchybar/plugins/weather.sh" \

@@ -11,6 +11,7 @@
 # repainted from afar on every tick.
 # widget: interval   = 30
 # widget: popup      = true
+# widget: mark       = warm
 # widget: subscribes = caffeinate_change
 BAR_ITEM=caffeinate
 source "$HOME/.config/sketchybar/barlib.sh"
@@ -146,22 +147,46 @@ render() {
 }
 
 popup_rows() {
+    # The heading says what the pill is DOING, not what it is: the remaining
+    # time as a badge while an assertion is held, nothing while it isn't.
+    # Rebuilt on every open, which is what retired the tick-path repaint of
+    # the stop row's colour.
+    read_awake
+    case "$MODE" in
+        indefinite) popup_heading --icon "󰅶" --label "Keep awake" --badge "until stopped" --badge-tone warn ;;
+        timed) popup_heading --icon "󰅶" --label "Keep awake" --badge "$(fmt_remaining "$REMAINING")" --badge-tone warn ;;
+        *) popup_heading --icon "󰅶" --label "Keep awake" ;;
+    esac
     popup_action --icon "1" --label "1 hour" --run "$AWAKE 1h >/dev/null"
     popup_action --icon "2" --label "2 hours" --run "$AWAKE 2h >/dev/null"
     popup_action --icon "4" --label "4 hours" --run "$AWAKE 4h >/dev/null"
     popup_action --icon "8" --label "8 hours" --run "$AWAKE 8h >/dev/null"
     popup_action --icon "󰅐" --label "Custom hours…" --run "$SELF custom"
     popup_action --icon "∞" --label "Until stopped" --run "$AWAKE indefinitely >/dev/null"
-    # The stop row wears the state it acts on: red while YOUR assertion is the
-    # thing it would end, mute when there is nothing it could end — an agent
-    # hold included, since that one is released by the agent finishing its turn
-    # and by nothing else. Rebuilt on every open, which is what retired the
-    # tick-path repaint of this row's colour.
-    read_awake
+    popup_separator
+    # The stop is a BUTTON that wears the state it acts on: solid red while
+    # YOUR assertion is the thing it would end — the one destructive control
+    # here, drawn as one — and a grey tint when there is nothing it could end,
+    # an agent hold included, since that one is released by the agent
+    # finishing its turn and by nothing else.
     if [ "$MODE" != "off" ]; then
-        popup_action --icon "󰅖" --tone bad --label "Allow sleep" --run "$AWAKE off >/dev/null"
+        popup_button --icon "󰅖" --tone bad --solid --label "Allow sleep" --run "$AWAKE off >/dev/null"
     else
-        popup_action --icon "󰅖" --tone mute --label "Allow sleep" --run "$AWAKE off >/dev/null"
+        popup_button --icon "󰅖" --tone mute --label "Allow sleep" --run "$AWAKE off >/dev/null"
+    fi
+}
+
+# Seconds → "2h 14m" / "38m" / "40s", for the heading's badge. The pill's own
+# countdown lives in fetch and keeps its shorter shape.
+fmt_remaining() { # fmt_remaining <seconds>
+    local s=${1:-0}
+    case "$s" in '' | *[!0-9]*) s=0 ;; esac
+    if [ "$s" -ge 3600 ]; then
+        printf '%dh %dm' $((s / 3600)) $(((s % 3600) / 60))
+    elif [ "$s" -ge 60 ]; then
+        printf '%dm' $((s / 60))
+    else
+        printf '%ds' "$s"
     fi
 }
 

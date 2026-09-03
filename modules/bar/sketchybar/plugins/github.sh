@@ -145,6 +145,7 @@
 # and the `updates=on` that lets a hidden pill come back.
 # widget: interval   = 60
 # widget: popup      = true
+# widget: mark       = blue
 # widget: subscribes = github_update
 set -u
 export USER="${USER:-$(id -un)}"
@@ -156,6 +157,10 @@ export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/etc/profiles/per-user
 # for us.
 BAR_ITEM=github
 source "$HOME/.config/sketchybar/barlib.sh"
+# A wider panel than the runtime's default: this dropdown's rows are PR and
+# issue titles, which are sentences, and the default width would cut every
+# other one to an ellipsis.
+popup_width 420
 source "$HOME/.config/sketchybar/github_config.sh"
 
 # gh by absolute path, not off $PATH. This runs from launchd, where the PATH is
@@ -937,27 +942,30 @@ stamp_epoch() {
 }
 
 # ── the dropdown ──────────────────────────────────────────────────────────────
-# Six row kinds and nothing else (hausfold.co/docs/haus/rooms/bar-widgets):
-# the runtime owns every font, every height, the close-on-click, the batched
-# --add and the
-# barpop arm. What is left here is the only part that is about GitHub.
+# The runtime's row kinds and nothing else (hausfold.co/docs/haus/rooms/
+# bar-widgets): it owns every font, every height, the grid, the close-on-click,
+# the batched --add and the barpop arm. What is left here is the only part
+# that is about GitHub.
 popup_rows() {
   read_cache
 
   if [ "$LEAD_STATE" = auth ]; then
-    # The one actionable failure gets the one actionable row. Clicking it
-    # COPIES the command rather than running it: `gh auth login` is
-    # interactive — it wants a browser, a protocol choice and a paste-back
-    # code — and there is no terminal behind a bar popup to answer any of that.
+    # The one actionable failure gets the one BUTTON. Pressing it COPIES the
+    # command rather than running it: `gh auth login` is interactive — it
+    # wants a browser, a protocol choice and a paste-back code — and there is
+    # no terminal behind a bar popup to answer any of that.
     popup_heading --icon "" --tone warn --label "GitHub CLI is not logged in"
-    popup_action --icon "" --tone mute --label "gh auth login" --copy "gh auth login"
-    popup_note --label "copied to the clipboard when you click it"
+    popup_button --icon "" --label "Copy  gh auth login" --copy "gh auth login"
+    popup_note --label "then paste it into a terminal"
   else
-    local s kind sev count title worst text url glyph fix
+    local s kind sev count title worst text url glyph fix sections=0
     for ((s = 0; s < n_sources; s++)); do
       [ -f "$STATE/src-$s.tsv" ] || continue
       IFS=$'\037' read -r kind sev count title worst < "$STATE/src-$s.tsv"
       [ "$kind" = meta ] || continue
+      # A hairline between sources, none above the first.
+      [ "$sections" -gt 0 ] && popup_separator
+      sections=$((sections + 1))
       # Kept aside because the row loop below reuses `sev` and `glyph` for each
       # row's own state — the section's verdict has to survive that.
       local msev="$sev" mworst="${worst:-none}"
@@ -1041,7 +1049,8 @@ popup_rows() {
     elif [ "$secs" -lt 3600 ]; then age="$((secs / 60))m ago"
     else age="$((secs / 3600))h ago"; fi
   fi
-  popup_action --icon "" --label "Refresh · $age" \
+  popup_separator
+  popup_action --icon "" --label "Refresh" --hint "$age" \
     --run "$HOME/.config/sketchybar/plugins/github.sh refresh"
 }
 

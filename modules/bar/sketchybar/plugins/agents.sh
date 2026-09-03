@@ -1,6 +1,7 @@
 #!/bin/bash
 # widget: interval = 10
 # widget: popup = true
+# widget: mark = violet
 # widget: segments = ready, working, done
 #
 # agents.sh — the reader half of the `agents` bar item (opt-in via
@@ -575,6 +576,9 @@ popup_rows() {
   while IFS=$'\t' read -r _pr epoch kind st target label client cwd; do
     [ -n "$kind" ] || continue
     [ "$shown" -lt "$MAX_BLOCKS" ] || break
+    # A hairline between blocks — and above the first one only when the
+    # summary sits above it, so a one-agent panel is a heading and a line.
+    if [ "$shown" -gt 0 ] || [ ${#files[@]} -gt 1 ]; then popup_separator; fi
     shown=$((shown + 1))
     state_style "$st"
 

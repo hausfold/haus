@@ -24,7 +24,13 @@ let
     "subscribes"
     "graph"
     "segments"
+    "mark"
   ];
+
+  # The identity axis, for `mark =`: a widget's own hue is one of these names
+  # and nothing else. Read from marks.nix rather than restated so a mark
+  # added there is a mark a header can name in the same change.
+  markNames = map (m: m.name) (import ./marks.nix);
 
   splitList = s: lib.filter (x: x != "") (map lib.trim (lib.splitString "," s));
 in
@@ -67,7 +73,7 @@ in
   ];
 
   # parse <path> -> { interval : int|null, popup : bool, subscribes : [str],
-  #                   graph : int|null, segments : [str] }
+  #                   graph : int|null, segments : [str], mark : str|null }
   # Defaults are the manifest's, not the option system's: a widget with no
   # header at all is legal (event-driven, system_woke only).
   parse =
@@ -106,6 +112,7 @@ in
       popup = get "popup" "false";
       graph = get "graph" null;
       segments = splitList (get "segments" "");
+      mark = get "mark" null;
     in
     checked {
       # A boolean spelled as a word, because the header is read by a person
@@ -191,6 +198,20 @@ in
             else
               seg
           ) segments;
+      # `mark = <name>` is the widget's own hue on the identity axis
+      # (marks.nix): what its dropdown headings and sparklines wear when they
+      # name no tone of their own, so a pill that is teal in the bar opens a
+      # teal panel rather than a grey one. barlib reads it from the same
+      # header line at runtime; this is the check that the name is one
+      # mark() can resolve — a typo there paints plum and warns to a log
+      # nobody reads, so it is refused here, at eval, naming the file.
+      mark =
+        if mark == null then
+          null
+        else if builtins.elem mark markNames then
+          mark
+        else
+          throw "bar widget manifest ${pathStr}: mark = ${mark} is not a mark (one of: ${lib.concatStringsSep ", " markNames})";
       # system_woke is always in: every pill haus ships resubscribes to it, a
       # readout that sleeps through wake is stale by exactly how long the lid
       # was down, and no widget has yet wanted to opt out.
