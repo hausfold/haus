@@ -675,6 +675,21 @@ mechanism, say so in one line.
   being the focused one. The same hazard is live for a `new-window.sh` window
   running a command (⌘G's gh-dash, an editor) — it is tiled from outside and
   nothing closes it when the command quits.
+- **The Ghostty cold-start pre-warm is three copies on purpose, and it is
+  pinned by INVARIANT rather than by diff** (`test/ghostty-prewarm.bats`).
+  `new-window.sh`, `lanes/lane-open.sh` and `raise-session.sh` each carry the
+  same four-line `pgrep -ix ghostty` poll; `float-term.sh` and
+  `focused-session.sh` deliberately carry none, and the suite pins those
+  absences too. Do **not** promote it to a sourced helper or a
+  `modules/lib/ui-load.nix`-style pinned string: that pattern earns its
+  indirection at ten carriers of forty lines, not three of four. Size is the
+  reason and reachability is not — every script in this room can resolve a
+  sibling by absolute path and several do
+  (`$HOME/.config/haus/term/zmx-rows.sh`). The reason it is an invariant
+  rather than a byte-diff is the bug
+  itself — `pgrep -x Ghostty` matches nothing, and it was wrong in two of these
+  files *identically*, so a diff of the copies stayed green the whole time it
+  cost every ⌘N two silent seconds.
 - **Touch ID + a multiplexer** (`modules/security`): `reattach = true` is
   required because sudo can run inside one (tmux/screen, or a `zmx` session —
   every terminal window is one); without pam_reattach the Touch ID prompt

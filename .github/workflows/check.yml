@@ -491,6 +491,17 @@ jobs:
       - name: new-window forced-title refusal
         run: bats test/new-window-title.bats
 
+      # The Ghostty cold-start pre-warm, across the three scripts that carry it
+      # — and the two that deliberately don't. `pgrep -x Ghostty` matches
+      # nothing (the executable in the bundle is lower-case), and it was wrong
+      # in two files at once until #415, costing every ⌘N and every lane spawn
+      # two seconds of polling for a process already up, with nothing anywhere
+      # reporting it. A diff between the copies was green throughout — they were
+      # wrong identically — so this pins the invariant instead: the spelling,
+      # the 40 × 0.05s ceiling, and the guard. Needs only bash + bats + awk.
+      - name: ghostty pre-warm
+        run: bats test/ghostty-prewarm.bats
+
       # The `haus rebuild` phase painter and the colour gate both end-user CLIs
       # grew with it. Three silent failure modes: a record `snug run` cannot
       # parse is a line that simply never appears; a repaint that assumes a
