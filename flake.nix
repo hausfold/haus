@@ -3038,6 +3038,56 @@
                 --subscribe pomodoro system_woke haus.example.tick mouse.clicked
           '';
 
+          # ---- bar-widget-intervals --------------------------------------------
+          # A header and a table entry that disagree. `manifest.nix`'s own
+          # near-miss guard covers the declaration the parser cannot SEE (and
+          # covers it for a stranger's widget too, which a check in this file
+          # never could); what neither it nor `bar-widget-header` can see is the
+          # SECOND copy of the number, one file over.
+          #
+          # The table is what the option defaults to on a bundled pill, so a
+          # disagreement makes the bar emit a trailing
+          # `--set <item> update_freq=<the table's number>` on every rebuild
+          # with nobody having asked for one: the header loses, silently, and
+          # the pill ticks at a rate its own file denies.
+          #
+          # Read off the EMITTED file rather than off the two sources, which is
+          # what keeps this check from growing copies of things that already
+          # exist once — the `aiUsage` -> `ai_usage` rename, and the list of
+          # which pills are converted. Every movable pill is drawn on one bottom
+          # bar and none is retuned, so an interval override in that file is the
+          # drift, whichever pill it names. The pills come off `widgets.nix`
+          # itself, so a seventeenth is covered the day it is added.
+          barWidgetOverrides =
+            let
+              lib = nixpkgs.lib;
+              drawn = builtins.attrNames (lib.filterAttrs (_: w: w.movable) (import ./modules/bar/widgets.nix));
+            in
+            lib.filter
+              (
+                l: builtins.match "(\\$SB|/run/[^ ]*sketchybar) --set [A-Za-z0-9_.-]+ update_freq=[0-9]+" l != null
+              )
+              (
+                lib.splitString "\n"
+                  (mkHaus {
+                    inherit system;
+                    username = "you";
+                    hostname = "example";
+                    extraModules = [
+                      {
+                        # The focus pill rides its room's contribution rather
+                        # than an enable of its own, so the room comes on too or
+                        # that one pill is the only one this never reads.
+                        haus.focus.enable = true;
+                        haus.bar.bottom = {
+                          enable = true;
+                          items = lib.genAttrs drawn (_: "left");
+                        };
+                      }
+                    ];
+                  }).config.home-manager.users.you.home.file.".config/sketchybar/bottom_items.sh".text
+              );
+
           desktopProjection = import ./test/desktop-projection.nix {
             inherit pkgs;
             lib = nixpkgs.lib;
@@ -4400,11 +4450,6 @@
           '';
 
           # The `# widget:` header parser's near-miss guard, which exists
-          # because the clock shipped frozen: its `interval` rode the tail of
-          # a prose line, `builtins.match` anchors the whole line, and a
-          # widget with no interval gets no `update_freq=` and never ticks
-          # again. `test/bar-widget-glued.sh` keeps that exact line shape.
-          # The `# widget:` header parser's near-miss guard, which exists
           # because the clock shipped frozen: its `interval` rode the tail of a
           # prose line, `builtins.match` anchors the whole line, and a widget
           # with no interval gets no `update_freq=` and never ticks again.
@@ -4470,6 +4515,33 @@
             pkgs.runCommand "haus-bar-widget-header-ok" { } (
               lib.concatStringsSep "\n" (failures ++ [ "touch $out" ]) + "\n"
             );
+
+          # The other half of the same fact, one layer up: a pill's tick is
+          # declared in its header, and `modules/bar/widgets.nix`'s `interval`
+          # is the DEFAULT of `haus.bar.widgets.<n>.interval` — the same number
+          # in a second file. `bar-widget-header` above refuses a declaration
+          # the parser cannot SEE; this refuses two that disagree.
+          #
+          # A heredoc and not an `echo`: what it prints is a line out of a
+          # generated shell script, and the first apostrophe in one turns
+          # `echo '…'` into a bash syntax error, which is a red build that says
+          # nothing about why.
+          bar-widget-intervals = pkgs.runCommand "haus-bar-widget-intervals-ok" { } ''
+            ${nixpkgs.lib.optionalString (barWidgetOverrides != [ ]) ''
+              cat >&2 <<'OVERRIDE'
+              The bar retunes a pill nobody asked it to:
+
+              ${nixpkgs.lib.concatStringsSep "\n              " barWidgetOverrides}
+
+              That line is emitted only when a `# widget: interval` header and
+              the matching `modules/bar/widgets.nix` entry name different
+              numbers, and the table is the one that wins, so the header is a
+              lie about what the pill does. Make the two agree.
+              OVERRIDE
+              exit 1
+            ''}
+            touch $out
+          '';
 
           app-collections = pkgs.runCommand "haus-app-collections-ok" { } ''
             ${nixpkgs.lib.optionalString (collectionFailures != [ ]) ''

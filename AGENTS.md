@@ -875,6 +875,24 @@ mechanism, say so in one line.
   and the whole popup dance (rebuild, batch, `barpop arm &`, the row kinds'
   typography and the GRID they sit on), so the bullets below about those only
   concern the pre-framework plugins — which remain valid and convert on touch.
+  - **The header is the pill's tick, and it is the only place that number
+    lives.** `# widget: interval = <seconds>` is where a converted pill's
+    `update_freq` comes from, and it is what `intervalOverride` compares
+    `haus.bar.widgets.<name>.interval` against — for a bundled pill and a
+    stranger's alike, since `shipped` reads the same file the emission does.
+    `modules/bar/widgets.nix`'s `interval` is that option's DEFAULT and nothing
+    else, so it is the same number in a second file and the two have to agree:
+    disagreeing, the table wins by emitting a trailing `--set update_freq` over
+    the block and the header becomes a lie about what the pill does. Only the
+    six pills that predate the framework (battery, wifi, volume, elgato, trill,
+    focus) have no header, and the table is their rate. `nix flake check`'s
+    `bar-widget-intervals` refuses a disagreement; `manifest.nix`'s own
+    near-miss guard (`bar-widget-header`) refuses a declaration the parser
+    cannot see, which is what froze the clock until #659. Two rates for ONE
+    pill is refused at eval too: a `style` writing `update_freq` beside a
+    header interval throws in `frameworkItem`, because both land in the same
+    `--set` and the style is the later. `calendar` is the legal shape of that
+    (`haus.bar.calendar.refresh` through `style`, no interval in the header).
   - **A dropdown is a panel on a grid, and the grid is barlib's.** SketchyBar
     lays a popup out as a stack of left-aligned, content-width items with no
     alignment property, which is why every hand-written popup was a ragged
