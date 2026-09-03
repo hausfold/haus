@@ -1,48 +1,45 @@
 #!/bin/bash
+# battery.sh — the battery pill (hausfold.co/docs/haus/rooms/bar-widgets).
+# The header carries the interval and the one builtin event this pill cares
+# about; identity (icon padding, colour keys) has no rung of its own and
+# stays in the Nix style.
+# widget: interval   = 30
+# widget: subscribes = power_source_change
 
+BAR_ITEM=battery
+source "$HOME/.config/sketchybar/barlib.sh"
 [ -f "$HOME/.config/sketchybar/battery_config.sh" ] && source "$HOME/.config/sketchybar/battery_config.sh"
 
-source "$HOME/.config/sketchybar/colors.sh"
-BAR_ITEM=battery
-source "$HOME/.config/sketchybar/bar.sh"
+fetch() {
+    local info percentage charging=0
+    info=$(pmset -g batt)
+    percentage=$(echo "$info" | grep -Eo '[0-9]+%' | cut -d% -f1)
+    echo "$info" | grep -q 'AC Power' && charging=1
+    emit percentage="${percentage:-0}" charging="$charging"
+}
 
-# Get battery info
-BATTERY_INFO=$(pmset -g batt)
-PERCENTAGE=$(echo "$BATTERY_INFO" | grep -Eo "\d+%" | cut -d% -f1)
-CHARGING=$(echo "$BATTERY_INFO" | grep 'AC Power')
-
-# Hide pill if over threshold
-if [ -n "${BAR_BATTERY_HIDE_OVER:-}" ] && [ "$PERCENTAGE" -gt "$BAR_BATTERY_HIDE_OVER" ]; then
-    "$SB" --set "$NAME" drawing=off
-    exit 0
-fi
-
-# Determine icon and color
-if [ -n "$CHARGING" ]; then
-    ICON="󰂄"
-    COLOR=$GREEN
-else
-    if [ "$PERCENTAGE" -gt 80 ]; then
-        ICON="󰁹"
-        COLOR=$GREEN
-    elif [ "$PERCENTAGE" -gt 60 ]; then
-        ICON="󰂀"
-        COLOR=$GREEN
-    elif [ "$PERCENTAGE" -gt 40 ]; then
-        ICON="󰁿"
-        COLOR=$YELLOW
-    elif [ "$PERCENTAGE" -gt 20 ]; then
-        ICON="󰁼"
-        COLOR=$YELLOW
-    else
-        ICON="󰁺"
-        COLOR=$RED
+# Over BAR_BATTERY_HIDE_OVER the pill has nothing worth a glance, and
+# `pill --hide` is the door that keeps hearing the tick so it can come back
+# the moment the charge drops again — see AGENTS.md's box on updates=on.
+render() {
+    if [ -n "${BAR_BATTERY_HIDE_OVER:-}" ] && [ "$percentage" -gt "$BAR_BATTERY_HIDE_OVER" ]; then
+        pill --hide
+        return 0
     fi
-fi
+    local icon tone
+    if [ "$charging" = 1 ]; then
+        icon="󰂄"; tone=ok
+    elif [ "$percentage" -gt 80 ]; then icon="󰁹"; tone=ok
+    elif [ "$percentage" -gt 60 ]; then icon="󰂀"; tone=ok
+    elif [ "$percentage" -gt 40 ]; then icon="󰁿"; tone=watch
+    elif [ "$percentage" -gt 20 ]; then icon="󰁼"; tone=watch
+    else icon="󰁺"; tone=bad
+    fi
+    pill --icon "$icon" --label "${percentage}%" --tone "$tone"
+}
 
-# Update the bar item
-"$SB" --set "$NAME" \
-    drawing=on \
-    icon="$ICON" \
-    icon.color=$COLOR \
-    label="${PERCENTAGE}%"
+on_click() {
+    open -a 'System Settings' 'x-apple.systempreferences:com.apple.preference.battery'
+}
+
+barlib_main "$@"

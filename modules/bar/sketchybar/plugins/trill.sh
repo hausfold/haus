@@ -1,5 +1,6 @@
 #!/bin/bash
-# The trill pill: a bell that opens the notification inbox.
+# trill.sh — the trill pill: a bell that opens the notification inbox
+# (hausfold.co/docs/haus/rooms/bar-widgets).
 #
 # WHY A PILL AT ALL, when Trill.app already installs a menu-bar item of its own
 # with an Inbox row in it: `haus.bar.enable` sets `_HIHideMenuBar`
@@ -10,13 +11,10 @@
 #
 # It renders state and relays clicks and does nothing else. Every verb, flag and
 # exit code below is trill's.
+# widget: interval = 30
 
-source "$HOME/.config/sketchybar/colors.sh"
-# $SB — which bar this pill lives on. haus.bar.bottom.items can move it to the
-# second (bottom) bar, and the two instances are addressed by different
-# binaries; a bare `sketchybar` would always mean the menu bar one.
 BAR_ITEM=trill
-source "$HOME/.config/sketchybar/bar.sh"
+source "$HOME/.config/sketchybar/barlib.sh"
 
 # Resolve trill. Trill.app IS the CLI — one signed executable serves the daemon
 # and every verb — so "is trill installed" is "is that binary on this disk", and
@@ -31,51 +29,66 @@ source "$HOME/.config/sketchybar/bar.sh"
 # the profile can be a generation behind the plugin dir; then the two places
 # every install source puts the bundle, /Applications first for
 # modules/core/trill.sh's reason (a dev build in ~/Applications must not outrank
-# the pinned release). That tail is written this way round even though it is
-# effectively unreachable, so the three copies of the precedence in this repo
-# read alike and none of them teaches the wrong order.
-TRILL=""
-for candidate in \
-    "${TRILL_APP:-}/Contents/MacOS/Trill" \
-    "/run/current-system/sw/bin/trill" \
-    "/Applications/Trill.app/Contents/MacOS/Trill" \
-    "${HOME:-}/Applications/Trill.app/Contents/MacOS/Trill"
-do
-    # An unset $TRILL_APP collapses to a path that cannot exist, so the -x test
-    # is the whole guard: no candidate needs a second one.
-    [ -x "$candidate" ] && { TRILL="$candidate"; break; }
-done
+# the pinned release).
+resolve_trill() {
+    local candidate
+    for candidate in \
+        "${TRILL_APP:-}/Contents/MacOS/Trill" \
+        "/run/current-system/sw/bin/trill" \
+        "/Applications/Trill.app/Contents/MacOS/Trill" \
+        "${HOME:-}/Applications/Trill.app/Contents/MacOS/Trill"; do
+        [ -x "$candidate" ] && { printf '%s' "$candidate"; return 0; }
+    done
+    return 1
+}
 
-# No trill on this Mac: draw NOTHING. The pill is opt-in, so somebody asked for
-# it — but a control that opens an app you don't have has nothing to offer and
-# no state to report, and a permanently dim bell is a bar element you learn to
-# read past. It comes back by itself the moment the app lands: the item block
-# carries `updates=on` so this script keeps running while the pill is hidden,
-# and the two branches at the bottom set `drawing=on` again. Without EITHER
-# half, hiding here would be a one-way door until the next rebuild.
-if [ -z "$TRILL" ]; then
-    "$SB" --set "$NAME" drawing=off
-    exit 0
-fi
+# No trill on this Mac: draw NOTHING (`pill --hide`, the drawing=off/
+# updates=on pairing the runtime owns). It comes back by itself the moment
+# the app lands — the item's own `updates=on` style keeps this tick running
+# while the pill is hidden, which is the other half of that door.
+#
+# Installed, daemon up vs installed, daemon down — the same distinction the
+# elgato and harvest pills draw: "nothing is running" and "I can't ask" look
+# identical if only one of them is drawn.
+fetch() {
+    local trill
+    trill=$(resolve_trill) || { emit present=0; return 0; }
+    if "$trill" ping >/dev/null 2>&1; then
+        emit present=1 up=1
+    else
+        emit present=1 up=0
+    fi
+}
 
-if [ "${SENDER:-}" = "mouse.clicked" ]; then
-    # Right-click (and ⌥-click, which sketchybar reports the same way) narrows
-    # to the asks: the questions parked on trill's ledge that are still waiting
-    # on an answer. Left-click is the whole inbox.
-    # MODIFIER arrives as a COMBINATION ("alt", "cmd,alt", or the literal
-    # "none" on a plain click), hence the glob rather than an equality test.
-    SCOPE=()
-    case "${BUTTON:-left}:${MODIFIER:-none}" in
-        right:* | *:*alt*) SCOPE=(--asks) ;;
-    esac
+render() {
+    if [ "$present" != 1 ]; then
+        pill --hide
+        return 0
+    fi
+    # No --icon: the bell is a fixed identity glyph set once at --add
+    # time in the Nix style, and this widget only ever touches its
+    # colour and whether it draws at all — exactly what the hand-written
+    # pill did.
+    if [ "$up" = 1 ]; then
+        pill --label "" --tone text
+    else
+        pill --label "" --tone mute
+    fi
+}
 
-    "$TRILL" inbox "${SCOPE[@]}" >/dev/null 2>&1
+# open_inbox [scope…] — every click lands here with a different scope: plain
+# is the whole inbox, right-click (and ⌥-click, which sketchybar reports the
+# same way) narrows to the asks — the questions parked on trill's ledge that
+# are still waiting on an answer.
+open_inbox() {
+    local trill
+    trill=$(resolve_trill) || return 0
+    "$trill" inbox "$@" >/dev/null 2>&1
     # 2 is "daemon unreachable" for every trill verb but `ask`, which spends the
     # low numbers on pill indices and reports its own failures up at 69/70/75.
     # It is the ONE code worth acting on: 1 (bad usage) and 3 (refused) both
     # mean trill ran and had something to say, and starting the app would not
-    # change either answer. Anything else is a bad `case` here, not a dead
-    # daemon, so the click does nothing rather than launching an app on a guess.
+    # change either answer.
     if [ $? -eq 2 ]; then
         # The app is on disk, so the honest response to a click is to start it
         # and ask again rather than fail quietly at somebody who just pressed a
@@ -85,27 +98,21 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
         # script that sleeps is a bar that stops redrawing.
         (
             /usr/bin/open -g -b com.hausfold.trill >/dev/null 2>&1 || exit 0
-            # Five seconds of asking, then give up silently: the app is starting
-            # or it isn't, and a notifier that notifies you about the notifier
-            # failing to start is worse than the click that did nothing.
+            # Five seconds of asking, then give up silently.
             for _ in 1 2 3 4 5 6 7 8 9 10; do
                 /bin/sleep 0.5
-                "$TRILL" inbox "${SCOPE[@]}" >/dev/null 2>&1 && break
+                "$trill" inbox "$@" >/dev/null 2>&1 && break
             done
         ) &
     fi
-fi
+    # A click can change whether the daemon answers (it may just have
+    # started it) — refresh so the pill's own tint reflects that immediately
+    # rather than waiting out the interval.
+    barlib_tick
+}
 
-# Installed, daemon up vs installed, daemon down — the same distinction the
-# elgato and harvest pills draw, and for the same reason: "nothing is running"
-# and "I can't ask" look identical if only one of them is drawn.
-# `drawing=on` on BOTH branches, not just the first time: the pill hides itself
-# above when there is no Trill.app, and the block that adds it carries
-# `updates=on` precisely so this tick still runs while it is hidden. Turning
-# drawing back on here is the other half — without it, installing the app would
-# leave a bell that ticks forever and never reappears.
-if "$TRILL" ping >/dev/null 2>&1; then
-    "$SB" --set "$NAME" drawing=on icon.color="$TEXT"
-else
-    "$SB" --set "$NAME" drawing=on icon.color="$OVERLAY0"
-fi
+on_click() { open_inbox; }
+on_right_click() { open_inbox --asks; }
+on_alt_click() { open_inbox --asks; }
+
+barlib_main "$@"

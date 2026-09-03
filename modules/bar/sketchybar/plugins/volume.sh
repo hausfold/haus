@@ -1,33 +1,35 @@
 #!/bin/bash
+# volume.sh — the output-volume pill (hausfold.co/docs/haus/rooms/bar-widgets).
+# widget: interval = 5
 
-# $SB — the bar this pill lives on. It can be either one: the readouts are
-# movable via haus.bar.bottom.items, and a bare `sketchybar` here would keep
-# updating a top-bar item that no longer exists. See bar.sh.
-source "$HOME/.config/sketchybar/bar.sh"
+BAR_ITEM=volume
+source "$HOME/.config/sketchybar/barlib.sh"
 
-# Get volume level
-VOLUME=$(osascript -e 'output volume of (get volume settings)')
-MUTED=$(osascript -e 'output muted of (get volume settings)')
+fetch() {
+    local vol muted
+    vol=$(osascript -e 'output volume of (get volume settings)')
+    muted=$(osascript -e 'output muted of (get volume settings)')
+    emit vol="${vol:-0}" muted="${muted:-false}"
+}
 
-# Determine icon
-if [ "$MUTED" = "true" ]; then
-    ICON="󰖁"
-    LABEL="Muted"
-elif [ "$VOLUME" -gt 66 ]; then
-    ICON="󰕾"
-    LABEL="${VOLUME}%"
-elif [ "$VOLUME" -gt 33 ]; then
-    ICON="󰖀"
-    LABEL="${VOLUME}%"
-elif [ "$VOLUME" -gt 0 ]; then
-    ICON="󰕿"
-    LABEL="${VOLUME}%"
-else
-    ICON="󰖁"
-    LABEL="0%"
-fi
+render() {
+    local icon label
+    if [ "$muted" = "true" ]; then
+        icon="󰖁"; label="Muted"
+    elif [ "$vol" -gt 66 ]; then
+        icon="󰕾"; label="${vol}%"
+    elif [ "$vol" -gt 33 ]; then
+        icon="󰖀"; label="${vol}%"
+    elif [ "$vol" -gt 0 ]; then
+        icon="󰕿"; label="${vol}%"
+    else
+        icon="󰖁"; label="0%"
+    fi
+    pill --icon "$icon" --label "$label"
+}
 
-# Update the bar item
-"$SB" --set $NAME \
-    icon="$ICON" \
-    label="$LABEL"
+on_click() {
+    open -a 'System Settings' 'x-apple.systempreferences:com.apple.Sound-Settings.extension'
+}
+
+barlib_main "$@"
