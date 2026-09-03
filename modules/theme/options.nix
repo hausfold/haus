@@ -14,12 +14,16 @@ in
 {
   options.haus = {
     # Two values, and a third that supplies its own hexes is deliberately not
-    # coming. The description below says why it would only half work — nebelung
-    # renders each port in a derivation — and this is why leaving it out is the
-    # safe half of the bet rather than a deferral: the asymmetry runs one way.
-    # Adding a "custom" flavor later costs a release; taking one away later is a
-    # deprecation on a desktop somebody is already running, and a palette is the
-    # option they would have built the most on top of.
+    # coming, because it would only half work: nebelung renders each tool's port
+    # in a derivation, so a hand-written palette would either have to re-render
+    # all of them at rebuild time or reach only the tools haus injects colours
+    # into directly — never the ones it points at a rendered theme file.
+    #
+    # Leaving it out is the safe half of the bet rather than a deferral: the
+    # asymmetry runs one way. Adding a "custom" flavor later costs a release;
+    # taking one away later is a deprecation on a desktop somebody is already
+    # running, and a palette is the option they would have built the most on
+    # top of.
     theme.flavor = lib.mkOption {
       type = lib.types.enum [
         "mocha"
@@ -28,59 +32,51 @@ in
       default = "mocha";
       example = "latte";
       description = ''
-        Light or dark. "mocha" (the default) is the dark half of Nebelung,
-        which is what haus has always shipped; "latte" is light mode.
+        Light or dark. "mocha" is the dark half of Nebelung, "latte" the light
+        one, and latte is a real source palette rather than the dark one
+        inverted: Catppuccin Latte put through Nebelung's "strip the blue out"
+        rule, so it keeps the same warm-grey ramp and the same calmed accents
+        the other way up. It reaches 7.0:1 for body text before you touch
+        `contrast`. Together with `contrast` that is four palettes, and
+        nebelung's CI measures each one rather than eyeballing it.
 
-        Not an inversion of the dark palette — a different SOURCE palette. Nebelung
-        is "Catppuccin with the blue stripped out", and those rules say nothing
-        about dark, so they apply to Catppuccin Latte just as well: same warm-grey
-        neutral ramp, same calmed accents, the other polarity. Light mode lands at
-        7.0:1 for body text on its own, so it's legible before you reach for
-        contrast = "high" (which takes it to 9.9:1).
+        What follows it: every tool haus themes itself. Ghostty, bat, delta,
+        lsd, yazi, fzf, starship, lazygit, zsh-syntax-highlighting, opencode,
+        the bar and Zen always, and three more that wait on something else:
+        helix when `haus.terminal.editorName` picks it (Nebelung has a port for
+        helix and none for the alternatives), gh-dash under
+        `haus.terminal.ghDash.enable`, and Obsidian once
+        `haus.terminal.obsidianVaults` names a vault. Each one is re-rendered
+        for the flavor rather than recoloured in place.
 
-        An enum rather than a place to supply your own colours, and that is the
-        shape rather than an omission: nebelung renders each tool's port in a
-        derivation, so a hand-written palette would either have to re-render all
-        of them at rebuild time or reach only the tools haus injects colours into
-        directly — never the ones it points at a rendered theme file.
+        Three things it does not reach:
 
-        It composes with `contrast`: the two axes give four palettes, and nebelung's
-        CI measures each one's contrast ratio rather than eyeballing it.
-
-        Honest scope, in two parts.
-
-        What follows it: every tool haus injects colours into or points at a
-        rendered theme — Ghostty, bat, delta, lsd, yazi, fzf, glow, starship,
-        lazygit, opencode, the bar, Zen and Obsidian, plus helix
-        whenever it is the editor `haus.terminal.editorName` selects (Nebelung
-        has a port for helix and none for the alternatives).
-        These are genuinely re-rendered for the flavor, not recoloured in place:
-        whiskers takes different branches for a light flavor (terminal ANSI
-        0/7/8/15 swap, Zen switches its prefers-color-scheme block, delta sets
-        `light = true`).
-
-        What does NOT follow it:
-
-          - the launcher and the shelf, by default. Both read their palette at
-            runtime and can pick per polarity, so haus.launcher.followSystemAppearance
-            and haus.shelf.followSystemAppearance (default true) hand that
-            choice to macOS Light/Dark instead: haus installs every rendered
+          - the launcher and the shelf, which read their palette at runtime and
+            follow macOS Light/Dark instead. haus installs every rendered
             variant into ~/.config/{pounce,perch}/themes/ and writes the
-            dark/light PAIR at your `contrast`. Set either option false to pin
-            that app to this flavor like everything else.
-          - macOS's own Light/Dark appearance, unless you opt in with
-            haus.theme.systemAppearance = "flavor". Left at its default haus
-            does not touch system appearance in either direction, so latte on
-            a dark macOS looks half-done and that half is yours —
-            except in the launcher and the shelf, which read it themselves.
-          - three of the six desktops (haus.wallpaper.style). The hand-made
-            "orbits", "constellation" and "flow" have the dark palette baked into
-            their pixels; "bold" is generated but follows theme.accent rather
-            than the flavor. "minimal" DOES follow it, in every part — field,
-            mark, glow and debug band.
+            dark/light pair at your `contrast`. Set
+            haus.launcher.followSystemAppearance or
+            haus.shelf.followSystemAppearance false to pin one of them to this
+            flavor like everything else.
+          - macOS's own Light/Dark appearance, until you set
+            haus.theme.systemAppearance = "flavor". Left alone haus touches it
+            in neither direction, so latte on a dark macOS looks half-done and
+            that half is yours.
+          - the desktop picture, unless it is "minimal", which follows the
+            flavor in every part: field, mark, glow and debug band. See
+            haus.wallpaper.style for what the others do instead.
       '';
     };
 
+    # No option points the other way, and that is a decision rather than a gap:
+    # there is no desktop-wide "follow the system" that every themed tool obeys.
+    # What CAN follow appearance is a tool that owns its whole window, which is
+    # not the same set as "a tool" — a terminal that flipped on its own would
+    # leave bat, delta, lsd and yazi rendering the other polarity inside it,
+    # since those read their palette once at start and stay pinned to `flavor`.
+    # One switch cannot say that, so following the system stays a per-tool
+    # opt-in: one option on each tool that can honestly carry it.
+    # modules/terminal/ghostty/config holds the mechanics where they bite.
     theme.systemAppearance = lib.mkOption {
       type = lib.types.enum [
         "unmanaged"
@@ -91,61 +87,38 @@ in
       default = "unmanaged";
       example = "flavor";
       description = ''
-        Whether haus also sets macOS's OWN Light/Dark appearance — the one
-        in System Settings ▸ Appearance, which paints Finder, the menu bar and
-        every native app haus can't reach.
+        Whether haus also sets macOS's own Light/Dark appearance, the one in
+        System Settings ▸ Appearance that paints Finder, the menu bar and every
+        native app haus cannot reach.
 
-          unmanaged  (default) leave it alone, in both directions. Your Mac's
-                     appearance stays yours; nothing about a rebuild moves it.
-          flavor     follow haus.theme.flavor — latte sets Light, mocha
-                     sets Dark. This is the one that makes light mode complete
-                     rather than half-done.
+          unmanaged  (default) leave it alone, in both directions. A managed
+                     default would silently revert an appearance you picked in
+                     System Settings on the next rebuild.
+          flavor     follow haus.theme.flavor: latte sets Light, mocha Dark.
+                     The one that makes light mode complete rather than
+                     half-done.
           light      pin Light, whatever the flavor is.
           dark       pin Dark, whatever the flavor is.
 
-        Default "unmanaged" on purpose: a managed default would silently revert
-        an appearance you picked in System Settings on the next rebuild, which
-        is a worse surprise than a half-light machine.
+        haus flips it through System Events at each home-manager activation and
+        confirms the result with `hausax`, which reads AppKit's effective
+        appearance. It never writes `NSGlobalDomain.AppleInterfaceStyle`: that
+        key is inert in both directions on macOS 26 and mirrors the appearance
+        back at you, so a plist read calls an inert write applied.
+        docs/macos-settings.md has the measurement.
 
-        How it is applied, and why it is not a `system.defaults` key. Measured
-        on macOS 26.6 (2026-08-08), NOT recalled from docs:
-        `NSGlobalDomain.AppleInterfaceStyle` is INERT in both directions. Writing
-        "Dark" from a light session does nothing; deleting the key from a dark
-        one does nothing; `activateSettings -u` does not help; a process launched
-        fresh afterwards still reports the old appearance, and no
-        AppleInterfaceThemeChangedNotification is posted. That key is a mirror
-        the appearance system writes, not a lever. So haus drives appearance
-        through System Events (AppleScript) at each home-manager activation,
-        which does flip it live in ~0.3s — and confirms the result with `hausax`
-        (AppKit's effective appearance), never by reading the key back.
+        Two things leave the appearance where it was. System Events needs an
+        Automation grant for whichever app runs the rebuild (System Settings ▸
+        Privacy & Security ▸ Automation); without it macOS refuses, the rebuild
+        says so in a named warning and carries on with everything else. And
+        System Settings ▸ Appearance ▸ Auto keeps switching polarity on its own
+        schedule, which haus does not fight, so there this option holds only
+        until the next scheduled switch. Pick Light or Dark in that panel if
+        you want it to stick.
 
-        Reachability, the same shape as haus.accessibility.increaseContrast:
-        driving System Events needs an Automation grant for whichever app runs
-        the rebuild (System Settings ▸ Privacy & Security ▸ Automation). Without
-        it macOS refuses, the rebuild says so in a named warning and carries on
-        — the appearance just doesn't move, and nothing else is affected.
-
-        One more thing macOS can undo: System Settings ▸ Appearance ▸ **Auto**
-        switches polarity on its own schedule. haus sets the appearance at
-        rebuild time and does not fight it afterwards, so on an Auto machine
-        this option holds only until the next scheduled switch. Pick Light or
-        Dark there if you want it to stick.
-
-        Interaction worth knowing: haus.{launcher,shelf}.followSystemAppearance
-        hand polarity to macOS. Set this to "flavor" and macOS's polarity is in
-        turn haus's, so those two end up following `flavor` transitively —
-        which is usually what you wanted, but it does mean `followSystemAppearance`
-        stops being an independent axis on this machine.
-
-        There is deliberately no option pointing the other way — no
-        desktop-wide "follow the system" that every themed tool obeys. What
-        can follow appearance is a tool that owns its whole WINDOW, which is
-        not the same set as "a tool": a terminal that flipped on its own would
-        leave bat, delta, lsd and yazi rendering the other polarity inside it,
-        since those read their palette once at start and stay pinned to
-        `flavor`. One switch cannot say that, so following the system stays a
-        per-tool opt-in — one option on each tool that can honestly carry it.
-        modules/terminal/ghostty/config holds the mechanics where they bite.
+        Setting "flavor" settles the launcher and the shelf too:
+        haus.{launcher,shelf}.followSystemAppearance hand polarity to macOS,
+        and macOS's polarity is now haus's.
       '';
     };
 
@@ -172,10 +145,11 @@ in
         tests actually assert.
 
         Honest scope. This recolours what haus injects colours into:
-        Ghostty, bat, delta, lsd, yazi, glow, starship, lazygit, the
+        Ghostty, bat, delta, lsd, yazi, starship, lazygit, the
         bar, the launcher and the shelf (at runtime, via
         ~/.config/{pounce,perch}/themes/ — and unlike `flavor`, contrast reaches
-        both on BOTH halves of their light/dark pair), Zen and Obsidian. It does NOT reach:
+        both on BOTH halves of their light/dark pair), Zen, and Obsidian once
+        `haus.terminal.obsidianVaults` names a vault. It does NOT reach:
 
           - macOS itself. For system-wide contrast see
             haus.accessibility.increaseContrast — a separate, FDA-gated
@@ -189,56 +163,40 @@ in
       default = "mauve";
       example = "sapphire";
       description = ''
-        The accent colour, by Catppuccin name (the Nebelung palette is a
+        The accent colour, by Catppuccin name. The Nebelung palette is a
         grey-tinted Catppuccin, so the fourteen names are the same in both
-        flavors — the hue you pick follows haus.theme.flavor). It recolours
-        the tools hacker injects colours into — lazygit, fzf, yazi (including
-        glow-rendered Markdown headings), and the Zen browser — via the matching
-        Nebelung per-accent ports.
+        flavors and the hue you get follows haus.theme.flavor.
 
-        The shelf follows it too, and is the one surface handed the NAME rather than
-        a hex: the shelf resolves it against whichever half of its dark/light
-        pair macOS is showing, so the ember under the notch and a pinned tile
-        wear this accent in both polarities from one key. Left at the shelf's
-        default it accents with its own mark green.
+        What follows it: lazygit, fzf, yazi (including the glow-rendered
+        Markdown in its preview pane), Zen's own UI, the generated desktop
+        picture (the bloom behind the mark in "minimal", the whole sweep in
+        "bold"), the bar's far-left logo pill, the shelf, and any roster app
+        whose Nebelung port ships a per-accent matrix (zed, gh-dash, mpv) once
+        haus.theme.ports places it. The `accent-reach` flake check fingerprints
+        every one of those under three accents, so a surface cannot start or
+        stop following the accent without someone deciding it should.
 
-        Three more things follow it: the generated desktop (the bloom behind
-        the mark in `minimal`, and the whole sweep in `bold` — see
-        haus.wallpaper.style), any roster app whose
-        Nebelung port ships a per-accent matrix (zed, gh-dash, mpv), placed by
-        haus.theme.ports, and the bar's far-left logo pill. Those ports name the
-        theme file after the accent, so changing the accent renames the file the
-        app's own `theme` key points at — re-pick it in the app, or it falls
-        back to stock.
+        The shelf is the one surface handed the name rather than a hex, so the
+        ember under the notch and a pinned tile wear this accent in whichever
+        half of its dark/light pair macOS is showing. Its own default is mark
+        green.
 
-        The bar is the newest and the narrowest of the three: `haus.bar.logo`
-        is the ONLY pill that follows this option. Every other colour on the bar
-        is a fixed palette key, and the palette itself doesn't move — so a
-        machine that changes its accent sees exactly one pill change hue, unless
-        `haus.bar.logo.color` names one of its own.
+        Three limits. A per-accent port names its theme file after the accent,
+        so changing the accent renames the file the app's own `theme` key points
+        at: re-pick it in the app, or it falls back to stock. Single-file
+        dotfiles that bake the palette at their own theme slot (ghostty,
+        starship, tmux, bat, …) keep their built-in colour, and the base palette
+        stays the same Nebelung grey either way, so only the accent hue moves.
+        And `haus.bar.logo` is the only pill this reaches; every other colour on
+        the bar is a fixed palette key, unless `haus.bar.logo.color` names one
+        of its own.
 
-        Honest scope: this moves the accent on those tools, NOT literally
-        everything. Single-file dotfiles that bake the palette at their own
-        theme slot (ghostty, starship, tmux, bat, …) keep their built-in
-        colour and don't follow this option. The base palette stays the same
-        Nebelung grey either way — only the accent hue changes.
-
-        Zen means Zen's own UI, and the web is a second step. haus places the
-        Nebelung userChrome/userContent pair, and nebelung's userContent styles
-        `about:` pages only — github.com and youtube.com are Catppuccin-derived
-        *userstyles*, LESS source compiled rather than copied, which is why no
-        palette file haus writes reaches them on its own. One option does:
-        `haus.zen.userStyles` names the sites you want and haus compiles them
-        with this accent into that same userContent.css, so a rebuild (and a Zen
-        restart) recolours them with nothing to import. Until 2026-08-20 there
-        was a second way — haus deployed the Stylus extension and stamped this
-        accent into a bundle you imported by hand — and it is retired; what the
-        click bought (per-site toggles, self-updating styles, adding one without
-        a rebuild) is what the compiled sheet gives up.
-
-        That reach is pinned by the `accent-reach` flake check, which
-        fingerprints every surface under three accents and fails if one starts
-        or stops following the accent without anyone deciding it should.
+        Zen's own UI is not the web. The Nebelung userContent haus places styles
+        `about:` pages only, so github.com and youtube.com need
+        `haus.zen.userStyles`: name the sites and haus compiles their userstyles
+        with this accent into that same userContent.css, which a rebuild and a
+        Zen restart pick up with nothing to import by hand. No per-site toggle
+        and nothing self-updates, so adding a site takes a rebuild.
       '';
     };
 

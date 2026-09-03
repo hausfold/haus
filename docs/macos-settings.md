@@ -67,7 +67,10 @@ exit 1. With FDA held by the invoking app it writes *and* macOS honours it.
 `modules/lib/restart-map.nix` fires `universalaccessd` **per key**, so a rebuild
 that only sets `increaseContrast` doesn't bounce the daemon.
 
-## The two domains that write and lie
+One key in this domain is the exception and writes-and-lies:
+`FontSizeCategory`, below.
+
+## Domains and keys that write and lie
 
 ### `com.apple.Accessibility` — inert
 
@@ -87,6 +90,11 @@ made, a naive diff calls an inert write "applied", and the usual tiebreaker — 
 freshly launched process — *also* fails. The appearance lives in session state
 the WindowServer owns; `defaults` never reaches it.
 
+Measured 2026-08-08, all four directions: writing `Dark` from a light session
+does nothing, deleting the key from a dark one does nothing, `activateSettings
+-u` does not help either, and no `AppleInterfaceThemeChangedNotification` is
+posted. That key is a mirror the appearance system writes, not a lever.
+
 Only **System Events** moves it, in ~0.3 s, firing
 `AppleInterfaceThemeChangedNotification`. `haus.theme.systemAppearance` drives
 it that way from home-manager activation; `hausax` has an `appearance` key so
@@ -96,6 +104,17 @@ This means `system.defaults.NSGlobalDomain.AppleInterfaceStyle` — a *typed*
 nix-darwin option — is **dead on macOS 26**. The reachability cost is an
 **Automation** grant for whatever app runs the rebuild; refused means the
 appearance doesn't move, not that activation dies.
+
+### `com.apple.universalaccess FontSizeCategory` — stores, notifies nobody
+
+macOS's own text-size setting. The key takes the value and holds it, and **no
+change notification is posted**, so no running app re-reads it and nothing on
+screen moves. There is no restart that fixes it either: the apps that would
+honour a larger text size read the category once.
+
+Display scaling is the lever that works, which is why
+`haus.appearance.largePrint` reaches apps outside haus through
+`haus.displays.main.uiScale` and not through this key.
 
 ## Domains that work, and what has to restart
 

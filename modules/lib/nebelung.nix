@@ -18,6 +18,11 @@
 # the flavor it rendered (catppuccin-latte.conf, "Catppuccin Latte.tmTheme",
 # zen/themes/Latte/), and templates branch on `flavor.dark`. So callers must build
 # paths from nb.flavor rather than writing "mocha" — see modules/terminal.
+#
+# Those branches are why a flavor change is a re-render rather than a recolour,
+# and the three that show it best: the terminal port swaps ANSI 0/7/8/15, Zen
+# switches its prefers-color-scheme block, and delta sets `light = true`. Nothing
+# downstream of a rendered file has to know which flavor it is holding.
 {
   lib,
   nebelung,

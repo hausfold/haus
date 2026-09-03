@@ -29,6 +29,28 @@ machine-written `haus set` overrides
 Later layers win deliberately. **A host must be able to change its desktop with
 a plain assignment** — never `lib.mkForce` for ordinary customization.
 
+Those layers are option priorities, and the numbers matter because one ordering
+in the middle of them surprises people. Lower wins:
+
+| priority | who | example |
+|---|---|---|
+| 100 | the host, plain assignment | `haus.ui.scale = 1.0;` ← wins |
+| 900 | the desktop's leaves | `haus.ui.scale = 1.2;` |
+| 1000 | a room's `mkDefault`, a profile's members included | `haus.ui.scale = 1.4;` |
+| 1500 | the option's own declared default | |
+
+So a host beats both a desktop and a room with a plain value, and never needs
+`lib.mkForce` to do it.
+
+The surprise: a **room-owned profile** sets its members at `mkDefault` too, so a
+desktop that names one of those members beats the profile *even when the host is
+what switched the profile on*. `haus.appearance.largePrint` is the one to watch
+— a desktop pinning `haus.ui.scale` wins over it, and setting the value itself
+in your host is what settles it.
+
+A list-valued option follows the same rule rather than appending: when the host
+names the list, its list replaces the desktop's.
+
 ## What a room is
 
 A nix-darwin module with a public `haus.<room>` option namespace. It may add

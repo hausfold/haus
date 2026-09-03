@@ -1399,7 +1399,15 @@ in
       catppuccin.starship.enable = false;
       catppuccin.delta.enable = false;
       catppuccin.fzf.enable = false;
-      catppuccin.glamour.enable = false; # GLAMOUR_STYLE wired to nebelung above
+      # Not "wired to nebelung instead": this module's only lever is
+      # GLAMOUR_STYLE, which glow 2.x ignores in its default "auto" mode, so
+      # leaving it on would export a variable glow never reads. The Nebelung
+      # style reaches glow by `-s` at the three call sites above (yazi's
+      # previewer, yazi's `glow -p` opener, the `mdcat` alias), which means a
+      # bare `glow` typed at the prompt still renders stock. That gap is real
+      # and tracked, not a claim this line settles — `haus.theme.ports.handled`
+      # still lists "glow", so the roster pass leaves it alone as well.
+      catppuccin.glamour.enable = false;
       catppuccin.helix.enable = false;
       catppuccin.lazygit.enable = false;
       catppuccin.lsd.enable = false;
