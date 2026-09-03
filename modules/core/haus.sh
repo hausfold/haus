@@ -2325,8 +2325,26 @@ fault_holder_stop() {
 # as "what the failure said". So: the crumb goes, the holder goes, and the fin
 # is resolved by key for the case where the holder was already gone (killed -9,
 # a reboot) and only trill still remembers.
+#
+# But only for the SAME $CONSUMER. HAUS_LOG_DIR is one machine-global path, so
+# a naive clear here wipes whichever failure is parked, regardless of which
+# config tree it was about — a scruff worktree's failing rebuild parks its fin,
+# and an unrelated successful rebuild from a different consumer (most often
+# $HOME/.config/nix) would silently take it down minutes later, with nothing
+# said. The crumb already records `consumer=` for exactly this reason: read it
+# back, and leave a crumb — and the holder/fin behind it — that belongs to
+# another tree alone. No crumb, or a crumb with no consumer= line (an older
+# haus), clears as before.
 fault_clear() {
-  local bin
+  local bin owner
+  # `|| true`, and it is load-bearing: this file runs under `set -e`, a missing
+  # crumb makes `sed` exit non-zero, and a bare assignment from a failed command
+  # substitution takes the whole process with it. No crumb is the ORDINARY case
+  # at the end of a successful rebuild, so without this the tail of every clean
+  # `haus rebuild` — the closure diff, the exit code `bench` reads — is gone.
+  # Same shape, same reason, as `fault_holder_stop`'s read of the pidfile.
+  owner="$(sed -n 's/^consumer=//p' "$HAUS_LOG_DIR/last-failure" 2>/dev/null || true)"
+  [ -n "$owner" ] && [ "$owner" != "$CONSUMER" ] && return 0
   fault_holder_stop
   rm -f "$HAUS_LOG_DIR/last-failure" 2>/dev/null || true
   bin="$(trill_bin)" || return 0
