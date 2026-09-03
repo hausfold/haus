@@ -561,6 +561,20 @@ jobs:
       - name: awake's sentence, and the raw fields it must not touch
         run: bats test/awake-ui.bats
 
+      # The background-jobs deck's READERS. `nix flake check`'s `services-deck`
+      # pins the deck's completeness — every launchd job has an entry — and
+      # knows nothing about what the CLI then does with the file, which is where
+      # a wrong answer costs something: a false red line also fires the BTM card
+      # in the permissions deck, and a false green hides a job that has stopped
+      # working. The case it exists for is `last exit code = (never exited)`,
+      # which launchd prints for a job with `runs = 0` — a present field that is
+      # not a number, and so "failed" to any reader testing non-empty-and-not-0.
+      # `launchctl` is faked as a shell FUNCTION rather than a stub on PATH,
+      # because haus.sh prepends its own PATH at load and would shadow a stub.
+      # Needs bash + bats; no painter, so it can sit anywhere.
+      - name: the services deck's probe, verdicts and record encoding
+        run: bats test/services-deck.bats
+
       # `haus-bar-poke` — the both-bars trigger, and the one place that rule
       # lives now that four producers call it instead of writing the pair out.
       # SketchyBar keys its lock file and its mach service on

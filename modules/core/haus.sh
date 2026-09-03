@@ -4354,13 +4354,29 @@ _svc_probe() {
     printf 'absent\037\n'
     return 0
   }
-  case "$(printf '%s\n' "$out" | grep -m1 $'^\tstate = ' || true)" in
-    *"= running"*) verdict=live ;;
-    *) verdict=stopped ;;
+  # Only `not running` earns a stopped verdict, and the asymmetry is deliberate.
+  # launchd has at least a third state — `spawn scheduled`, the window in which
+  # it is starting a job — and a KeepAlive job caught in it is not wedged. A red
+  # line here is not free: it also fires the BTM card in the permissions deck,
+  # so a state this code does not recognise reads as alive rather than putting a
+  # card in front of somebody about a job that is fine.
+  case "$(printf '%s\n' "$out" | grep -m1 $'^\tstate = ' | sed 's/.*= //' || true)" in
+    "not running") verdict=stopped ;;
+    *) verdict=live ;;
   esac
-  # Empty until the job has ever run. That is not a success and must not read as
-  # exit 0, so it stays empty and every caller tests for a number.
+  # 🚨 A job that has NEVER run prints `last exit code = (never exited)` — the
+  # field is there, it just isn't a number. Read raw and tested for emptiness it
+  # is neither empty nor "0", so it used to mean `failed`: `nix-gc` would warn
+  # that the weekly GC had failed for the whole first week after an install, and
+  # github's tunnel — dormant by design until its credentials file appears, and
+  # so at `runs = 0` forever on a machine that never bootstrapped it — would warn
+  # permanently that deliveries never arrive. Both are the false red line this
+  # whole deck exists to remove, so a non-numeric code is normalised away HERE,
+  # once, rather than at each of the three places that read one.
   code="$(printf '%s\n' "$out" | grep -m1 $'^\tlast exit code = ' | sed 's/.*= //' || true)"
+  case "$code" in
+    '' | *[!0-9]*) code="" ;;
+  esac
   printf '%s\037%s\n' "$verdict" "$code"
   return 0
 }
@@ -4399,6 +4415,8 @@ _svc_status() {
   if [ "$liveness" = running ]; then
     printf 'wedged'
   elif [ -n "$code" ] && [ "$code" != 0 ]; then
+    # `code` is a number or empty by the time it gets here — _svc_probe drops
+    # `(never exited)` on the floor, which is the only way this test is safe.
     printf 'failed'
   else
     printf 'ok'
@@ -4431,7 +4449,7 @@ _svc_idle_note() {
 _svc_report() {
   local key domain label liveness title why cost log
   local probe verdict code status
-  local healthy=0 idle=0 absent=0 wedged=0 any=0
+  local healthy=0 idle=0 absent=0 wedged=0 failed=0 any=0
 
   if [ ! -r "$HAUS_SERVICES" ]; then
     info "no services deck at $HAUS_SERVICES (haus rebuild installs it)"
@@ -4456,8 +4474,12 @@ _svc_report() {
         [ -z "$log" ] || info "  why it stopped, if it said: $log"
         ;;
       failed)
+        # NOT counted as idle. It is idle in the launchd sense, but the closing
+        # line is a green tick and a job whose last run failed has not earned a
+        # share of one — counting it there put "0 running, 2 idle by design"
+        # under two warnings about those same two jobs.
         any=1
-        idle=$((idle + 1))
+        failed=$((failed + 1))
         warn "$title — $(_svc_idle_note "$liveness"), and its last run exited $code.${cost:+ Until one succeeds: $cost}"
         [ -z "$log" ] || info "  what it said: $log"
         ;;
@@ -4471,7 +4493,7 @@ _svc_report() {
   # is noise wrapped around a single fact.
   if [ "$absent" -gt 0 ]; then
     any=1
-    info "$absent declared but not loaded into launchd — they start at your next login"
+    info "$absent declared but not loaded into launchd yet — a rebuild or a restart loads them"
   fi
 
   # On Tahoe and later a job that is bootstrapped and dead is usually Background
@@ -4491,7 +4513,7 @@ _svc_report() {
   # section on a tick reading "0 running, 0 idle by design", which is the one
   # shape a health check must never have. Each of those jobs has already said so
   # on its own line, so dropping the summary loses nothing.
-  if [ "$((healthy + idle + absent + wedged))" = 0 ]; then
+  if [ "$((healthy + idle + absent + wedged + failed))" = 0 ]; then
     info "no room on this machine installs a background job"
   elif [ "$((healthy + idle))" -gt 0 ]; then
     ok "$healthy running, $idle idle by design"
@@ -4542,13 +4564,23 @@ cmd_services() {
         bad "$title — bootstrapped but not running"
         ;;
       failed)
+        # Counted ONCE, in `wanting`. It is idle and it wants attention, and
+        # adding it to both made the closing line not add up to the number of
+        # blocks above it — a summary you can't check against what you just read
+        # is worse than no summary.
         wanting=$((wanting + 1))
-        idle=$((idle + 1))
         warn "$title — $(_svc_idle_note "$liveness"), and its last run exited $code"
         ;;
       absent)
         wanting=$((wanting + 1))
-        info "$title — not loaded into launchd yet; it starts at your next login"
+        # Branch on the domain: a user agent is loaded into your login session,
+        # a root daemon into the system at boot, and telling somebody to log out
+        # and back in to start `portless` or `nix-gc` would simply not work.
+        if [ "$domain" = system ]; then
+          info "$title — not loaded into launchd yet; it starts at the next boot"
+        else
+          info "$title — not loaded into launchd yet; it starts at your next login"
+        fi
         ;;
     esac
 

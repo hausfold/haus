@@ -3634,7 +3634,7 @@
           # The deck is what `haus services` draws and what doctor's Background
           # jobs section reports, and BOTH are silent about a job nobody
           # registered — which is exactly how doctor came to name three GUI
-          # agents out of sixteen jobs across ten rooms and nobody noticed for a
+          # agents out of sixteen jobs across nine rooms and nobody noticed for a
           # year. A room that adds a job and forgets its entry reintroduces that
           # bug one job at a time, with no symptom anywhere: the job runs, the
           # deck simply does not mention it.
