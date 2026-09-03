@@ -147,6 +147,7 @@ modules/
                           #   points (lib/contrib.nix). Owns its payload in BOTH
                           #   profiles: scruff + factory + the statusline pair +
                           #   agent-state + agent-desktop-guard + scruff-cache
+                          #   + haus-vm-shot
                           #   (system), and the instructions/skill files
                           #   (home, written into the same
                           #   user terminal writes — home-manager merges the two, and
@@ -1063,13 +1064,16 @@ mechanism, say so in one line.
     the script refuses in words rather than guessing.
     `test/agent-surface.bats` asserts that wiring, end to end.
 
-  Five more live in **`modules/ai`**, which writes the system profile they land
+  Six more live in **`modules/ai`**, which writes the system profile they land
   in, because the room that owns a capability owns its payload:
   **`statusline.sh`** / `statusline-refresh.sh` (the agent HUD, reading `scruff`'s
   registry), **`agent-state`** (the one writer of agent state behind bar's
-  `agents` pill), **`scruff-cache`** (the one warm copy of `scruff --json`) and
-  **`haus-fix`** (`modules/ai/fix.sh` — "Fix it with AI" for a rebuild that
-  failed).
+  `agents` pill), **`scruff-cache`** (the one warm copy of `scruff --json`),
+  **`haus-vm-shot`** (the `screenshot` verb of the tart adapter, wrapped: it
+  prints one line, the host path of a frame captured in a lane's headless
+  guest, so it substitutes into `gh … --attach`; stdout is a path, so no
+  painter) and **`haus-fix`** (`modules/ai/fix.sh` — "Fix it with AI" for a
+  rebuild that failed).
   - `haus-fix` is the one that reaches BACK into core, and the direction is what
     keeps it legal. A failed `haus rebuild` writes
     `~/.local/state/haus/last-failure` (the phase, the host, the log offset, the

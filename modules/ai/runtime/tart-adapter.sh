@@ -9,8 +9,8 @@
 # metacharacters in it is still just a string here, never re-parsed.
 set -euo pipefail
 
-cmd="${1:?usage: tart-adapter.sh <setup|enter|teardown> <lane-name> [lane-path]}"
-lane="${2:?usage: tart-adapter.sh <setup|enter|teardown> <lane-name> [lane-path]}"
+cmd="${1:?usage: tart-adapter.sh <setup|enter|teardown|screenshot> <lane-name> [lane-path|dest.png]}"
+lane="${2:?usage: tart-adapter.sh <setup|enter|teardown|screenshot> <lane-name> [lane-path|dest.png]}"
 user="${SCRUFF_TART_USER:-admin}"
 
 # ⚠️ One name, and setup refuses rather than clones when it is taken. Getting
@@ -49,6 +49,60 @@ enter)
   }
   exec ssh "$user@$ip"
   ;;
+screenshot)
+  # The half of the VM loop that is not scruff's business: pixels out of the
+  # guest and onto THIS machine's disk, where `gh pr create --attach` (gh
+  # 2.99.0+) can upload them into a PR body. A subcommand rather than its own
+  # script because the fact it needs — a lane's VM is named `scruff-<lane>` —
+  # is this file's, and a second copy of that naming rule is a drift shape
+  # (`docs/drift.md`) waiting to happen. `haus-vm-shot` on PATH is one `exec`
+  # into here.
+  #
+  # ⚠️ This verb is HAUS's, outside scruff's adapter contract: scruff only ever
+  # execs setup/enter/teardown, and the generated tart.toml lists only those
+  # three. Spelled `screenshot` rather than `shot` so it cannot be mistaken for
+  # a future scruff-defined `snapshot` — VM snapshots being the obvious verb
+  # for that backend to grow.
+  #
+  # ⚠️ Opt-in, per PR, and only where a human would otherwise have to feel it.
+  # The screenshot is seconds; making it show your change means `haus rebuild`
+  # INSIDE the guest first, which is minutes — that rebuild, not this, is what
+  # a "screenshot every PR" habit would actually cost.
+  out="${3:-${TMPDIR:-/tmp}/$vm.png}"
+  # A directory would let scp land the file inside it and then leave this
+  # script echoing the directory, which `--attach` cannot use.
+  if [ -d "$out" ]; then
+    echo "$out is a directory — give haus-vm-shot a file path, or no path at all" >&2
+    exit 2
+  fi
+  ip=$(tart ip "$vm" --wait 10) || {
+    echo "$vm has no IP — is it running? \`scruff runtime up\` first" >&2
+    exit 1
+  }
+  # A path this script chooses, on the guest's own /tmp — never the caller's
+  # "$out", which routinely names a host directory the guest does not have.
+  remote="/tmp/haus-vm-shot.$$.png"
+  # Reaped on the way out however this ends. `set -e` on a failed scp would
+  # otherwise skip the cleanup and leave the PNG on a guest whose disk is the
+  # real cap on VMs per machine.
+  trap 'ssh "$user@$ip" "rm -f $remote" >/dev/null 2>&1 || true' EXIT
+  # `-x` is not politeness: without it screencapture plays the shutter and
+  # flashes the display it is capturing, and `agent-desktop-guard` refuses the
+  # unpaired form for exactly that reason. Call the binary by absolute path —
+  # a non-interactive ssh gets a minimal PATH — and do NOT wrap it in
+  # `launchctl asuser`, which fails here with "Could not switch to audit
+  # session"; the guest is auto-logged-in at its console, so this is enough.
+  #
+  # Both ssh stdouts go to /dev/null, not to ours: whatever the guest's shell
+  # prints on login (the classic .zshenv echo) would otherwise land inside the
+  # `$( )` a caller wraps this in, and end up in a pull request.
+  ssh "$user@$ip" "/usr/sbin/screencapture -x $remote" >/dev/null
+  scp -q "$user@$ip:$remote" "$out"
+  # stdout is the path and NOTHING else. The caller is an agent composing
+  # `gh pr comment --attach "$(haus-vm-shot lane)"`, so a stray line here does
+  # not go to a terminal — it goes into a pull request.
+  echo "$out"
+  ;;
 teardown)
   # `tart delete` takes no --force (measured against tart 2.30.6: it exits 64,
   # "Unknown option"). It deletes a stopped VM and refuses a running one, so
@@ -58,7 +112,7 @@ teardown)
   tart delete "$vm"
   ;;
 *)
-  echo "unknown tart-adapter.sh subcommand: $cmd — want setup, enter, or teardown" >&2
+  echo "unknown tart-adapter.sh subcommand: $cmd — want setup, enter, teardown, or screenshot" >&2
   exit 1
   ;;
 esac
