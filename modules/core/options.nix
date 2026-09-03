@@ -277,6 +277,99 @@ in
       };
     };
 
+    # ---- the background-jobs deck -------------------------------------------
+    # One launchd job haus installs, contributed by the room that owns it.
+    # `haus services` draws the table; `haus doctor` reports only what wants
+    # attention. Same shape and same argument as the permissions deck above:
+    # doctor can never fall behind a room that grew a job, and a rollback takes
+    # a room's jobs with the room.
+    #
+    # The KEY is the launchd attribute name — `launchd.user.agents.<key>` or
+    # `launchd.daemons.<key>` — and that is load-bearing rather than a
+    # convention. It is what core looks the job up BY: everything mechanical
+    # about a job (its label, where it logs, whether it is meant to be running
+    # right now) is read back out of `config.launchd` at render time instead of
+    # being copied here, so an entry cannot drift from the plist it describes
+    # and a job behind a sub-room condition follows its own `lib.mkIf` for free
+    # — five of them do (`bar-bottom`, `focus-auto`, `focus-watcher`,
+    # `haus-agent-awake`, `haus-lidawake`), and a hand-copied entry would have
+    # had to repeat every one of those gates or report a job that isn't there.
+    #
+    # Which makes this deck the exact opposite of the permissions one in what it
+    # carries: cards there are almost entirely prose because macOS exposes no
+    # facts, and entries here are almost entirely prose because launchd exposes
+    # all of them. Write the half a person needs and nothing launchd already
+    # knows.
+    #
+    # Reading `config.launchd` is not the `config.haus.<room>.*` read core is
+    # forbidden: that rule is about one room reaching into another room's option
+    # surface, and `launchd` is nix-darwin's own shared namespace — the same
+    # direction rooms already contribute Homebrew casks in.
+    _contrib.services = contrib.mkExtensionRegistry {
+      description = ''
+        One launchd job this machine runs, contributed by the room that owns
+        it. Keyed by the launchd attribute name, so core can read the label,
+        the log and the liveness class straight off `config.launchd`.
+      '';
+      options = {
+        domain = lib.mkOption {
+          type = lib.types.enum [
+            "user"
+            "system"
+          ];
+          default = "user";
+          description = ''
+            Which half of `config.launchd` declares it: `user` for
+            `launchd.user.agents.<key>` (an agent in your login session),
+            `system` for `launchd.daemons.<key>` (a root daemon). It is the
+            other half of the lookup key, and it is also what a probe needs —
+            the two live in different launchd domains (`gui/<uid>/` and
+            `system/`) and a job asked for in the wrong one simply is not found.
+          '';
+        };
+
+        title = lib.mkOption {
+          type = lib.types.str;
+          description = ''
+            The job's heading. Lead with what it IS to a person, then the
+            thing: "The tiler — AeroSpace". Never the launchd label, which the
+            table already carries.
+          '';
+        };
+
+        why = lib.mkOption {
+          type = lib.types.str;
+          description = ''
+            One or two sentences: what this job does for the machine while
+            nobody is looking. Written for somebody who has never heard of the
+            room — "keeps your windows tiled and answers the leader key" beats
+            "the AeroSpace agent".
+          '';
+        };
+
+        cost = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          description = ''
+            What actually breaks when it is dead, in the user's terms. Empty
+            when the answer is simply "the feature is absent". This is the half
+            that makes a red line worth reading: a job that cannot say what its
+            death costs is one nobody should be woken up for.
+          '';
+        };
+
+        order = lib.mkOption {
+          type = lib.types.int;
+          default = 50;
+          description = ''
+            Where the job sits in the table, low first. Reserve the low
+            twenties for the ones a person notices missing within seconds — the
+            tiler, the bar, the palette — so a broken desktop reads top-down.
+          '';
+        };
+      };
+    };
+
     # ---- accessibility ----
     # ../lib/reachability.nix's MEASURED classes, one option per key, and
     # deliberately NOTHING else: these are the keys in com.apple.universalaccess

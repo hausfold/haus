@@ -547,7 +547,7 @@ mechanism, say so in one line.
     `snug <verb>` per line from these scripts.
   - **Two streams, and which one is a property of the COMMAND, not the verb.**
     `REPORT=1` is set in the dispatch for `status doctor plan diff permissions
-    btm generations get capture`; those draw entirely on fd 1. Everything else
+    services btm generations get capture`; those draw entirely on fd 1. Everything else
     narrates while it changes the machine and draws entirely on fd 2, because
     stdout carries data only. `die` is the one exception and is always fd 2.
     **Do not make this per-verb.** Half these verbs are called from helpers that
@@ -763,6 +763,42 @@ mechanism, say so in one line.
     because a card nobody can act on trains people to skip the ones they can.
     Runtime facts go in `applies`; a runtime LIST goes in `detail`, whose stdout
     prints under the card (theme's ports card names the apps that way).
+- **A room that installs a LAUNCHD JOB**: it is an entry in the background-jobs
+  deck — one `haus._contrib.services.<launchd attr name>` beside the job, in the
+  room that knows what it is for, never a line in `haus.sh`. Core joins the deck
+  to `config.launchd` and renders `share/haus/services.json` per generation;
+  `haus services` draws the roster and `haus doctor` reports only what wants
+  attention, and neither knows anything about any particular job. Until this
+  deck existed doctor named THREE GUI agents in a `printf` while the repo
+  declared sixteen jobs across nine rooms, and pointed every failure at a
+  `/tmp/<name>.err.log` that was right for two of them. Four rules hold it
+  together:
+  - **The entry carries only what a person needs.** `title`, `why`, `cost` —
+    and `domain`, which is half the lookup key. Everything mechanical is READ
+    off the plist: the label (nix-darwin fills it in), the real log path, and
+    whether the job is meant to be running at all. Never copy one of those into
+    an entry; a copy is a thing that drifts from the plist it describes.
+  - **Gate the entry exactly as the job is gated.** The key IS the launchd
+    attribute name and core looks the job up by it, so an entry whose job is
+    behind a `lib.mkIf` the entry does not repeat names a job the machine has
+    not got. Five of haus's sixteen are gated that way. It is an eval-time
+    assertion, not a silent row.
+  - **Liveness is derived, never declared.** `KeepAlive = true` means the job
+    should be up; an interval means periodic; `WatchPaths` means it wakes on a
+    file; a `KeepAlive` ATTRSET means dormant until its trigger; anything else
+    is a one-shot. Six of the sixteen are healthy precisely BECAUSE they are not
+    running, and a deck that could not tell would draw a red line for the weekly
+    GC every day but Sunday.
+  - **A job's last exit code is a finding; a live job's is not.** An idle job
+    that last exited non-zero has quietly stopped working and nothing else on
+    the machine will ever say so — that is the case this deck was built for. A
+    RUNNING job's last exit is a crash launchd already recovered from, so
+    reporting it would nag forever about something that needs nothing.
+
+  Keep it greppable: `nix flake check`'s `services-deck` reads both sides out of
+  the source, so a job has to be spelled `launchd.user.agents.<name> =` or
+  `launchd.daemons.<name> =` on its own line. That is why `modules/bar` no
+  longer hides its second bar in a `// lib.optionalAttrs` block.
 - **New SketchyBar plugin**: write it as a **barlib widget**. The contract is
   public — <https://hausfold.co/docs/haus/rooms/bar-widgets> — and
   is what a widget author reads; the design record and the migration ledger are

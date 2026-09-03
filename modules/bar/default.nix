@@ -2275,44 +2275,73 @@ lib.mkIf config.haus.bar.enable {
     "memory"
   ]) barvitals;
 
-  launchd.user.agents = {
-    sketchybar = {
-      serviceConfig = {
-        ProgramArguments = withGUIWait barTopPath;
-        KeepAlive = true;
-        RunAtLoad = true;
-        ProcessType = "Interactive";
-        StandardOutPath = "/tmp/sketchybar.out.log";
-        StandardErrorPath = "/tmp/sketchybar.err.log";
-        EnvironmentVariables = {
-          LANG = "en_US.UTF-8";
-          PATH = userPath;
-        };
+  haus._contrib.services.sketchybar = {
+    order = 21;
+    title = "The menu bar — SketchyBar";
+    why = ''
+      Draws the bar across the top of the screen and every pill on it: the
+      clock, the workspaces, the agents, the battery.
+    '';
+    cost = "the menu bar disappears and macOS's own is not restored";
+  };
+
+  # Gated exactly as the second bar is. Not `optionalAttrs` on a shared
+  # attrset like the job below, because an entry is its own option path and
+  # `mkIf` reads plainly here; both spellings drop the attribute, which is what
+  # core's lookup needs.
+  haus._contrib.services.bar-bottom = lib.mkIf cfg.bottom.enable {
+    order = 22;
+    title = "The bottom bar — SketchyBar (second instance)";
+    why = ''
+      The same binary under a second name, drawing the bar along the bottom of
+      the screen with its own set of pills.
+    '';
+    cost = "the bottom bar disappears; the menu bar is unaffected";
+  };
+
+  launchd.user.agents.sketchybar = {
+    serviceConfig = {
+      ProgramArguments = withGUIWait barTopPath;
+      KeepAlive = true;
+      RunAtLoad = true;
+      ProcessType = "Interactive";
+      StandardOutPath = "/tmp/sketchybar.out.log";
+      StandardErrorPath = "/tmp/sketchybar.err.log";
+      EnvironmentVariables = {
+        LANG = "en_US.UTF-8";
+        PATH = userPath;
       };
     };
-  }
-  // lib.optionalAttrs cfg.bottom.enable {
-    # The second bar: the same agent, the same binary, launched under the second
-    # NAME (see `barBottom` above — argv[0] is the whole mechanism) and pointed
-    # at its own config. --config is not optional here: SketchyBar's default is
-    # ~/.config/sketchybar/sketchybarrc for every instance, so without it both
-    # jobs would build the menu bar and the second would just lose the race for
-    # its own lock.
-    bar-bottom = {
-      serviceConfig = {
-        ProgramArguments = guiWait.wrapArgs barBottomPath [
-          "--config"
-          barBottomRc
-        ];
-        KeepAlive = true;
-        RunAtLoad = true;
-        ProcessType = "Interactive";
-        StandardOutPath = "/tmp/bar-bottom.out.log";
-        StandardErrorPath = "/tmp/bar-bottom.err.log";
-        EnvironmentVariables = {
-          LANG = "en_US.UTF-8";
-          PATH = userPath;
-        };
+  };
+
+  # The second bar: the same agent, the same binary, launched under the second
+  # NAME (see `barBottom` above — argv[0] is the whole mechanism) and pointed at
+  # its own config. --config is not optional here: SketchyBar's default is
+  # ~/.config/sketchybar/sketchybarrc for every instance, so without it both jobs
+  # would build the menu bar and the second would just lose the race for its own
+  # lock.
+  #
+  # Spelled as its own attribute path under `lib.mkIf` rather than folded into
+  # the block above with `// lib.optionalAttrs`, which is what it was until the
+  # services deck landed. Same result — the attribute is absent when the bottom
+  # bar is off, which is what core's lookup needs — but `nix flake check`'s
+  # `services-deck` finds a job by reading `launchd.user.agents.<name>` out of
+  # the source, and a job hidden inside an `optionalAttrs` was one it could not
+  # see and so could not hold to having a deck entry.
+  launchd.user.agents.bar-bottom = lib.mkIf cfg.bottom.enable {
+    serviceConfig = {
+      ProgramArguments = guiWait.wrapArgs barBottomPath [
+        "--config"
+        barBottomRc
+      ];
+      KeepAlive = true;
+      RunAtLoad = true;
+      ProcessType = "Interactive";
+      StandardOutPath = "/tmp/bar-bottom.out.log";
+      StandardErrorPath = "/tmp/bar-bottom.err.log";
+      EnvironmentVariables = {
+        LANG = "en_US.UTF-8";
+        PATH = userPath;
       };
     };
   };

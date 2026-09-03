@@ -316,6 +316,20 @@ lib.mkMerge [
     # fail, but a generation mid-switch can leave the PATH momentarily unresolved,
     # and this fires on every write to the DoNotDisturb DB — a 127 per toggle in
     # the log is noise where there used to be none.
+    # The one job in the whole deck with no log at all — the reader draws no log
+    # hint for it rather than the invented `/tmp/<name>.err.log` doctor used to
+    # print for everything.
+    haus._contrib.services.focus-watcher = lib.mkIf config.haus.bar.enable {
+      order = 55;
+      title = "Focus watcher — repaints the bar";
+      why = ''
+        Wakes on every write to macOS's Do Not Disturb database and pokes the
+        bar, so the focus pill changes the moment you turn Focus on from
+        anywhere — Control Centre, a shortcut, another Mac.
+      '';
+      cost = "the bar's focus pill lags until something else repaints it";
+    };
+
     launchd.user.agents.focus-watcher = lib.mkIf config.haus.bar.enable {
       serviceConfig = {
         ProgramArguments = [
@@ -346,6 +360,16 @@ lib.mkMerge [
     # Logs go where every other agent in this repo puts them, and they are the
     # answer to the only question a trigger daemon ever gets asked — "why did my
     # Mac just go quiet?"
+    haus._contrib.services.focus-auto = lib.mkIf wantsTriggers {
+      order = 56;
+      title = "Scene triggers — focus auto";
+      why = ''
+        One `focus auto` tick per interval, which is what enters and leaves a
+        scene on its own — the schedule half of haus.focus.scenes.
+      '';
+      cost = "scenes with a condition never enter or leave by themselves";
+    };
+
     launchd.user.agents.focus-auto = lib.mkIf wantsTriggers {
       serviceConfig = {
         ProgramArguments = [

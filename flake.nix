@@ -3627,6 +3627,79 @@
               touch $out
             '';
 
+          # ---- services-deck ---------------------------------------------------
+          # Every launchd job this repo declares has an entry in the background-
+          # jobs deck, and every entry names a job.
+          #
+          # The deck is what `haus services` draws and what doctor's Background
+          # jobs section reports, and BOTH are silent about a job nobody
+          # registered — which is exactly how doctor came to name three GUI
+          # agents out of sixteen jobs across ten rooms and nobody noticed for a
+          # year. A room that adds a job and forgets its entry reintroduces that
+          # bug one job at a time, with no symptom anywhere: the job runs, the
+          # deck simply does not mention it.
+          #
+          # SOURCE-level and not an eval, deliberately. The obvious check —
+          # compare `config.launchd` against the deck on the example host —
+          # only sees the jobs the hacker desktop turns ON, which is seven of
+          # the sixteen; the github room's three, meridian, portless, the bottom
+          # bar and the two conditional awake jobs would all be invisible to it.
+          # Reading the declarations out of the source sees a job whatever
+          # switches it on.
+          #
+          # The price is that both sides have to be spelled the way this greps
+          # for. That is why `modules/bar` no longer folds its second bar into a
+          # `// lib.optionalAttrs` block — see the comment there. A job hidden
+          # from this pattern is not a check failure, it is a check that passes
+          # while looking at nothing, so the non-empty guards below matter as
+          # much as the diff does.
+          services-deck = pkgs.runCommand "haus-services-deck-ok" { } ''
+            jobs=$(mktemp); entries=$(mktemp)
+
+            grep -rhoE '^[[:blank:]]*launchd\.(user\.agents|daemons)\.[A-Za-z0-9_-]+[[:blank:]]*=' \
+              ${./modules} \
+              | sed -E 's/^[[:blank:]]*launchd\.(user\.agents|daemons)\.//; s/[[:blank:]]*=$//' \
+              | sort -u > "$jobs" || true
+
+            grep -rhoE '^[[:blank:]]*haus\._contrib\.services\.[A-Za-z0-9_-]+[[:blank:]]*=' \
+              ${./modules} \
+              | sed -E 's/^[[:blank:]]*haus\._contrib\.services\.//; s/[[:blank:]]*=$//' \
+              | sort -u > "$entries" || true
+
+            # A vacuous pass is the failure mode this check is most likely to
+            # have, so it is refused outright: haus has declared launchd jobs
+            # since the first bar landed, and finding none means the spelling
+            # moved out from under the pattern, not that the jobs went away.
+            test -s "$jobs" || {
+              echo 'no launchd job declarations found under modules/ — the spelling this' >&2
+              echo 'check greps for has moved. Fix the pattern; do not delete the check.' >&2
+              exit 1
+            }
+
+            missing=$(comm -23 "$jobs" "$entries")
+            orphan=$(comm -13 "$jobs" "$entries")
+            status=0
+
+            if [ -n "$missing" ]; then
+              echo 'these launchd jobs have no haus._contrib.services entry, so `haus' >&2
+              echo 'services` and `haus doctor` say nothing about them at all:' >&2
+              printf '%s\n' "$missing" | sed 's/^/  /' >&2
+              echo 'Add one beside the job, in the room that owns it — title, why, cost.' >&2
+              echo 'Everything mechanical (label, log, liveness) is read off the plist.' >&2
+              status=1
+            fi
+
+            if [ -n "$orphan" ]; then
+              echo 'these haus._contrib.services entries name no launchd job in this repo:' >&2
+              printf '%s\n' "$orphan" | sed 's/^/  /' >&2
+              echo 'An entry is keyed by the launchd ATTRIBUTE name — check the spelling.' >&2
+              status=1
+            fi
+
+            [ "$status" -eq 0 ] || exit 1
+            touch $out
+          '';
+
           # Tolerance in OUR reader is not a licence to use it in OUR commands.
           # modules/launcher/header-grammar.nix accepts an indented header, a tab
           # after the `#`, `pounce:name` and so on, because a user hand-writing a

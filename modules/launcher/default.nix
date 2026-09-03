@@ -1308,6 +1308,16 @@ lib.mkIf config.haus.launcher.enable {
     + lib.concatStringsSep "; " unknownWorkspaceEntries
   );
 
+  haus._contrib.services.pounce = {
+    order = 23;
+    title = "The command palette — pounce";
+    why = ''
+      Answers ⌘Space and holds the event tap every app-scoped chord rides on —
+      ⌘F, ⌘L, ⌘↵ and the rest only exist while this is running.
+    '';
+    cost = "⌘Space opens nothing and every terminal chord stops firing";
+  };
+
   launchd.user.agents.pounce = {
     serviceConfig = {
       Label = "com.hausfold.pounce";
