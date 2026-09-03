@@ -1,102 +1,65 @@
-# What haus gives an unattended merge shift
+# The night shift's haus-side internals
 
-**Four levers, and they are the whole of haus's side.** The tool that merges is
-[hausfold/factory](https://github.com/hausfold/factory) — a flake input this
-layer ships on `PATH` with `haus.ai.enable`, along with its two agent skills
-(`factory` and `nightshift`). Its README is the manual for the shift itself: the
-verbs, tier 1 and the floor under it, the budget governor, the watchdog. This
-page is only what a shift reaches for **here**, in the four places it touches
-haus rather than the forge.
+**The operator guide moved.** What a person *sets and runs* to leave a merge
+shift going overnight — `haus.power.lidAwake.while = "always"`, the
+`haus-fix-github` call, and the two warnings that come with them — is
+[hausfold.co/docs/haus/night-shift](https://hausfold.co/docs/haus/night-shift),
+where haus's user-facing behaviour belongs. This file is the half that stayed:
+the seams a shift leans on here, each of them a live way to break a night
+silently and none of them visible from the shift's own side.
 
-Nothing on this page is a `haus.*` option factory knows about. The tool is
+The tool that merges is [hausfold/factory](https://github.com/hausfold/factory)
+— a flake input this layer ships on `PATH` with `haus.ai.enable`, along with its
+two agent skills (`factory` and `nightshift`). Its README is the manual for the
+shift itself: the verbs, tier 1 and the floor under it, the budget governor, the
+watchdog. Nothing below is a `haus.*` option factory knows about. The tool is
 repo-agnostic and deliberately names none of this; the wiring is the layer's, so
 the layer is where it is written down.
 
-## 1. The lid — `haus.power.lidAwake`
+## Why the `always` lid hold draws nothing
 
-macOS sleeps on lid-close whatever `caffeinate` says, so a shift on a closed lid
-needs `pmset -a disablesleep 1` held for its duration. That lever is the power
-room's:
+A machine holding the lid open through the power room alone has **nothing on
+screen saying so**, and that is structural rather than an oversight. The bar's
+coffee pill reads the AI room's user-agent hold file; the power room's root
+daemon over `disablesleep` never writes one — that is the power room's shape and
+it has never had a pill. So the `always` hold is invisible, which is the exact
+failure `modules/core/lidawake.sh`'s own header names: a Mac that never sleeps
+again with nothing to say why.
 
-```nix
-haus.power.lidAwake = {
-  enable = true;
-  while  = "always";
-};
-```
+The consequence (your shift's banners stop, the hold does not) is on the site,
+because it is a warning a person acts on. The mechanism is here, because a
+reader who is not editing the bar or the power room can do nothing with it. If
+either half moves, move both.
 
-`enable` is off by default because closing the lid is the one gesture everybody
-reads as "stop", so a host that wants a shift has to say so.
+What `requirePower`, `maxHold` and `linger` each do under `always` is the
+site's, because it is what a person picks. The fact under all three is here:
+`always` has no agent signal, so two of the dials have nothing to act on. Change
+a default and the page needs the edit, not this file.
 
-**`haus.ai.keepAwake` is not this lever, and reaching for it is the mistake to
-avoid.** It is the AI room's profile and means *while my agents work* at every
-one of its stops — `lid` included, which switches `haus.power.lidAwake.enable`
-on at `mkDefault` but still rides the agents signal rather than becoming an
-unconditional hold. That signal lingers five minutes past the last turn, and a
-foreman loop wakes on a cadence measured in tens of minutes, so it drops in
-every gap. `while = "always"` has to be named directly, in the host's power
-block.
+## `haus-fix-github`'s endings that produce no lane
 
-**Know what that costs before you set it: a machine holding the lid open through
-the power room alone has nothing on screen saying so.** The bar's coffee pill
-reads the AI room's user-agent hold file, and the power room's root daemon over
-`disablesleep` never writes one — that is the power room's shape and it has
-never had a pill. So the `always` hold is invisible, which is the exact failure
-`lidawake.sh`'s own header names: a Mac that never sleeps again with nothing to
-say why. A shift's own banners are the only receipt, and they stop when the
-shift does; `haus.power.lidAwake` does not. If the lid stays shut and the fans
-stay on the morning after, this is the first thing to check.
+The contract and the no-local-checkout ending are on the site: that is what a
+person types. What is here is the observability, which is a *caller's* problem
+rather than an operator's.
 
-The three neighbours stay at their defaults on purpose. `requirePower` keeps
-unplugging as the way to say stop. `maxHold` does not apply: its 8-hour cap is a
-failsafe for an *agent* hold that leaked, and `always` has no signal to leak, so
-a twelve-hour shift is not cut off at hour eight. `linger` does not apply for the
-same reason — only `while = "agents"` has anything to linger for.
-
-## 2. The fixer lane — `haus-fix-github`
-
-A red default branch that is worth a machine gets one, and on a machine with
-the AI room on there is already a binary for it: `haus-fix-github`, what the
-bar's GitHub pill runs behind *Fix with AI*. It reaches `PATH` only when
-`haus.ai.enable` is on **and** `haus.ai.default` names a client that is actually
-in `haus.ai.clients` — a fixer that cannot fix must not be findable — so a
-caller checks for it rather than assuming it. A shift's `CI-RED <repo> <url>` line is its argv already filled in — the
-verdict is `ci`, the selector is the default branch, the URL is the failed run:
-
-```sh
-haus-fix-github main ci "$url"
-```
-
-Calling it rather than improvising a spawn is the point. Resolving the local
-checkout, picking a client, taking the double-click lock and cleaning up a lane
-the open seam refused are all this binary's, and none of them is worth
-re-deriving in prose at 3 a.m.
-
-**The spawn is a background one, and that is not a nicety.** The machine is
-somebody's desk whether or not they are asleep at it, so the lane must not raise
-a window or take focus — `HAUS_LANE_BACKGROUND=1` is what the binary already
-sets. The receipt is a banner under `--source haus.github.fix` and the lane's
-row in the agents pill.
-
-**It can build; it cannot activate.** The repo's own tests run in the lane's
-checkout and `bench try` builds against its branch, but `bench try switch` is
-refused to an agent in a worktree unless it is told `BENCH_AGENT_SWITCH=1`,
-which a shift never sets — activation is machine-wide and serial. A red `main`
-that only reproduces on activation is diagnosed and proposed overnight, never
-confirmed; the confirmation is the morning's.
-
-**A repo with no local checkout gets a banner and no lane**, which is the whole
-of what a shift can do about a red branch it cannot reach. The walk starts from
-the repo's basename across `haus.ai.repoRoots` and scruff's registry, so a
-checkout cloned under another name is the same ending as no checkout at all.
+Two strings the site deliberately does not carry, because only a caller needs
+them. **`HAUS_LANE_BACKGROUND=1`** is what makes the spawn silent, and the
+binary already sets it — anything else that spawns a lane on a sleeping desk
+sets it itself, and `modules/launcher/commands/spawn-agent.sh` is the other
+caller to copy. **`CI-RED <repo> <url>`** is factory's own cue for a red default
+branch (`ai/nightshift/SKILL.md`), and it is *most* of the argv: the URL is the
+run, the verdict is `ci` because that is the only failure this line reports, and
+the selector is the one field the line does NOT carry — the caller has to know
+that repo's default branch name. That is the whole join between factory's output
+and this binary, it exists in neither repo's code, and it is why the two names
+are written down together here.
 
 **Three of the endings that produce no lane leave nothing behind but the
 banner** — nothing in `haus.ai.clients` on `PATH`, no local checkout, and a lane
-already running under the lock. A fourth leaves nothing at all, and it is the
-one above: where the binary was never installed, the caller gets
-`command not found`, and neither the screen nor
-`~/.local/state/haus/github-fix.log` records that a lane was wanted. Whatever
-asks for a lane has to log the asking itself.
+already running under the lock. A fourth leaves nothing at all: where the binary
+was never installed, the caller gets `command not found`, and neither the screen
+nor `~/.local/state/haus/github-fix.log` records that a lane was wanted.
+**Whatever asks for a lane has to log the asking itself.**
 
 `~/.local/state/haus/github-fix.log` takes the spawn's stderr unconditionally,
 so a successful spawn can write there too; a failure is only the case that
@@ -105,7 +68,13 @@ exit 2) are both decided before the fork and *are* visible in the status —
 everything after that point is forked and exits 0, so the resolve and the spawn
 are the unobservable half.
 
-## 3. The budget feed — `usage-claude.tsv`
+**"It can build; it cannot activate" is `bench`'s doing, not this binary's**,
+which is why only the consequence is on the site. `bench try` builds against the
+lane's branch; `bench try switch` is refused to an agent in a worktree unless it
+is told `BENCH_AGENT_SWITCH=1`, which a shift never sets, because activation is
+machine-wide and serial. Nothing in `haus-fix-github` enforces it.
+
+## The budget feed — `usage-claude.tsv`
 
 factory's metered budget gate reads a TSV, and on this machine that file is
 haus's: `~/.cache/claude-statusline/usage-claude.tsv`. Nothing in factory writes
@@ -158,14 +127,14 @@ a fixer lane on this machine is a Claude Code lane.
 Code macOS app renders none and pushes nothing, and what gates the refresher's
 poll is not its caller but its bearer — the `Claude Code-credentials` keychain
 item, which the macOS app never writes and a terminal `claude` renews in place
-whenever a pane runs. **Drive a foreman from a terminal pane, not the desktop
-app**, or it spends against percentages from whenever one last was.
+whenever a pane runs. Hence the site's "start it from a terminal" warning; this
+is the reason under it.
 
 A feed that stops does not mis-spend for long; it stops the gate. The 5-hour
 reset stamp is bounded to the window it names, so a row can be at most five
 hours stale before a metered reader gives up on it.
 
-## 4. What a night puts on screen
+## What a night puts on screen
 
 Four `--source` strings, and only the first is the shift's own. Nothing routes
 any of them until `~/.config/trill/rules.json` names one, because no match means

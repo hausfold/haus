@@ -205,19 +205,31 @@ pkgs.runCommand "haus-agent-skill-${version}"
     # "never closed" check and let `name:`/`description:` match a sentence. Real
     # frontmatter is two keys; 12 lines is generous and still nowhere near the
     # body.
-    head -1 "$skill" | grep -qx -- '---' \
+    # ⚠️ Every check from here down reads a FILE, never a pipeline, and that is
+    # load-bearing rather than a style. `grep -q` and `grep -m1` exit the moment
+    # they match, so `head`/`tail`/`printf` feeding one can be killed by SIGPIPE
+    # mid-write; nixpkgs' setup.sh sets `-o pipefail`, so the derivation then
+    # dies **exit 141 with nothing on either stream** — no guard message, no
+    # clue which line. It is a race, so it passes local rebuilds and loses on a
+    # loaded runner: measured 2026-09-03 on #650, twelve clean local rebuilds
+    # against one red Actions run on a diff that touched no shell at all. The
+    # widest window was `tail -n +2 "$skill" | head -n "$close"`, where the
+    # reader wants four lines and the writer has the whole file to push. Keep
+    # new guards file-fed; a pipe here is a flake nobody can debug from the log.
+    [ "$(head -1 "$skill")" = '---' ] \
       || { echo "SKILL.md does not open with YAML frontmatter — no client will load it" >&2; exit 1; }
-    close=$(tail -n +2 "$skill" | head -12 | grep -n -m1 -x -- '---' | cut -d: -f1 || true)
+    close=$(awk 'NR > 1 && NR <= 13 && $0 == "---" { print NR; exit }' "$skill")
     [ -n "$close" ] \
       || { echo "SKILL.md frontmatter block is never closed in its first 12 lines" >&2; exit 1; }
-    front="$(tail -n +2 "$skill" | head -n "$close")"
+    front=frontmatter.txt
+    sed -n "2,''${close}p" "$skill" > "$front"
 
     # The `name:` key and the directory this installs into are two identifiers
     # for one skill — the path a client scans and the string it routes on. haus
     # writes `<client skills dir>/haus/SKILL.md` (modules/ai's agentHomes, and
     # `haus skill install` says it again in bash), so this name is not a free
     # choice: rename it and the skill installs under a name nothing asks for.
-    printf '%s\n' "$front" | grep -qx 'name: haus' \
+    grep -qx 'name: haus' "$front" \
       || { echo "SKILL.md has no 'name: haus' line — it must match the directory it installs into" >&2; exit 1; }
 
     # One PHYSICAL line, by design, and it is the most important line in the
@@ -225,7 +237,7 @@ pkgs.runCommand "haus-agent-skill-${version}"
     # whether to load the skill at all. A YAML folded scalar (`>-` plus an
     # indented body) is valid YAML that these greps would silently stop
     # checking, so the family standard says one line.
-    printf '%s\n' "$front" | grep -qE '^description: .{80,}' \
+    grep -qE '^description: .{80,}' "$front" \
       || { echo "SKILL.md description is missing, too short to route on, or wrapped onto a second line" >&2; exit 1; }
 
     # A routing document that grew into a manual stops being read as one. haus's
