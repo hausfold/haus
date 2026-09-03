@@ -768,16 +768,17 @@ in
           to that workspace and follows it there, an arrow navigates, `-`/`=`
           resizes.
 
-            - "caps" (default): Caps Lock. AeroSpace can't bind Caps Lock itself,
-              so haus remaps it to F18 with hidutil and binds that.
+            - "caps": Caps Lock, and what the hacker desktop picks. AeroSpace
+              can't bind Caps Lock itself, so haus remaps it to F18 with hidutil
+              and binds that.
             - "alt-space": the leader without giving up Caps Lock. No remap at all.
-            - "none": no leader. Caps Lock stays Caps Lock, launch mode is
-              unreachable, and nothing is remapped — the setting for a mouse-first
-              machine, or for a Mac you are handing to someone else. What the leader
-              fronted is still reachable: apps through the palette, window moves
-              through service mode's join-with and the palette's own commands.
-              Workspace focus and the workspace throws go away with it — they
-              live only in launch mode.
+            - "none" (the default): no leader. Caps Lock stays Caps Lock, launch
+              mode is unreachable, and nothing is remapped — the setting for a
+              mouse-first machine, or for a Mac you are handing to someone else.
+              What the leader fronted is still reachable: apps through the
+              palette, window moves through service mode's join-with and the
+              palette's own commands. Workspace focus and the workspace throws
+              go away with it — they live only in launch mode.
 
           The remap is re-applied at every activation and does not survive a
           reboot, so moving off "caps" ends it — at the latest, at next boot.
@@ -799,12 +800,13 @@ in
           What opens the command palette. Registered in-process by the
           daemon, so it's near-instant and doesn't go through AeroSpace.
 
-          "cmd-space" (default) is the one value that also DISABLES Spotlight's
-          own ⌘Space, because the two can't share it. Every other value leaves
-          Spotlight alone — including "none", which hands the palette's job back
-          to Spotlight entirely. That's a fix as much as an option: haus used
-          to take Spotlight's ⌘Space away unconditionally, even where nothing
-          claimed it.
+          "cmd-space" — what the hacker and everyday desktops both pick — is the
+          one value that also DISABLES Spotlight's own ⌘Space, because the two
+          can't share it. Every other value leaves Spotlight alone, including
+          "none", the default, which hands the palette's job back to Spotlight
+          entirely. That's a fix as much as an option: haus used to take
+          Spotlight's ⌘Space away unconditionally, even where nothing claimed
+          it.
 
           Only meaningful with haus.launcher.enable.
         '';
@@ -830,11 +832,11 @@ in
           instead, not this option. So does focusing by DIRECTION, which is the
           leader then an arrow.
 
-          "alt" (default) is ⌥. The alternatives are for **non-US keyboard
-          layouts**, where ⌥ is a character layer of its own rather than a spare
-          modifier — on AZERTY it is where `{` `}` `[` `]` `|` `\` `@` `#` `~`
-          and `€` are typed, so a machine that owns too much of ⌥ cannot write
-          code.
+          "alt" is ⌥, and what the hacker desktop picks. The alternatives are
+          for **non-US keyboard layouts**, where ⌥ is a character layer of its
+          own rather than a spare modifier — on AZERTY it is where `{` `}` `[`
+          `]` `|` `\` `@` `#` `~` and `€` are typed, so a machine that owns too
+          much of ⌥ cannot write code.
 
           Measured on `com.apple.keylayout.French` with the hacker desktop: all
           ten of those characters still type with "alt" live, under either
@@ -865,10 +867,11 @@ in
           Nothing on a stock macOS collides either: the only ⌃⌥ system hotkeys
           are input-source switching (⌃⌥Space, off by default) and hyper-F13.
 
-          "none" drops the modifier chords entirely: no layout chords, no
-          service mode. Combined with `leader = "none"` that's a machine where the
-          tiler tiles and the keyboard is left alone — mouse-first. The cheatsheet
-          follows, so it never advertises a key that does nothing.
+          "none", the default, drops the modifier chords entirely: no layout
+          chords, no service mode. Combined with `leader = "none"` that's a
+          machine where the tiler tiles and the keyboard is left alone —
+          mouse-first. The cheatsheet follows, so it never advertises a key that
+          does nothing.
 
           Only meaningful with haus.windows.enable.
         '';
