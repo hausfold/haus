@@ -620,15 +620,25 @@ haus_snug() {
   #
   # Every plain suite in test/, not a hand list: a new one that spawns the
   # subject inherits the rule rather than quietly opting out of it.
-  local f hits
+  local f hits guard first
   for f in "$BATS_TEST_DIRNAME"/*.sh; do
     # Lines that name the subject, minus the ones explaining this trap in prose.
     hits="$(grep -n 'modules/core/haus\.sh' "$f" | grep -v '^[0-9]*:[[:space:]]*#' || true)"
     [ -n "$hits" ] || continue
-    grep -q 'BASH_VERSINFO' "$f" \
-      || { echo "$f runs haus.sh with no interpreter guard of its own"; false; }
-    hits="$(grep -E '(^|[^[:alnum:]_/-])bash[[:space:]]' <<<"$hits" || true)"
-    [ -z "$hits" ] || { echo "$f runs haus.sh under whatever \`bash\` names:"
+    # The guard has to come BEFORE the first of them. A bare `grep -q` would be
+    # answered by the string anywhere in the file, including below the line it
+    # is supposed to protect and including a comment about this very rule —
+    # which is the weakness the lane-open case above works around by extracting
+    # its snippet first.
+    guard="$(grep -n 'BASH_VERSINFO' "$f" | head -1 | cut -d: -f1)"
+    first="$(head -1 <<<"$hits" | cut -d: -f1)"
+    [ -n "$guard" ] && [ "$guard" -lt "$first" ] \
+      || { echo "$f runs haus.sh with no interpreter guard above the run"; false; }
+    # `/` is NOT excluded before the word: a literal `/bin/bash haus.sh` is the
+    # exact interpreter that started this, so a rule that only caught the bare
+    # spelling would miss the one machine it was written for.
+    hits="$(grep -E '(^|[^[:alnum:]_-])bash[[:space:]]' <<<"$hits" || true)"
+    [ -z "$hits" ] || { echo "$f runs haus.sh under a bash it did not check:"
                         echo "$hits"; false; }
   done
 }

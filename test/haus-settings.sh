@@ -29,6 +29,11 @@ if [ "${BASH_VERSINFO[0]:-0}" -lt 4 ]; then
                "$(command -v bash || true)" /bin/bash; do
     [ -n "$_bash" ] && [ -x "$_bash" ] || continue
     [ "$("$_bash" -c 'echo ${BASH_VERSINFO[0]}' 2>/dev/null || echo 0)" -ge 4 ] || continue
+    # Replacing this process IS the point, and the lines below the loop are the
+    # answer for when it never happens. shellcheck 0.9.0 — the version on the
+    # ubuntu image CI lints with — reads any code after an `exec` as dead;
+    # 0.11.0 no longer does, so the directive is for the runner, not for here.
+    # shellcheck disable=SC2093
     exec "$_bash" "$0" "$@"
   done
   printf 'FAIL: haus.sh needs bash 4+ and this is %s — no newer one found\n' \
