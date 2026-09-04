@@ -132,3 +132,19 @@ EOF
   run -1 --separate-stderr bash "$SUBJECT" nonsense my-lane
   [[ "$stderr" == *screenshot* ]]
 }
+
+# vmnet hands the same 192.168.64.x addresses out again from one clone to the
+# next, so a known_hosts entry written by one lane refuses every later lane that
+# lands on that address — here that is a pull request that never gets its
+# picture. test/vm-runtime.bats holds the same rule for `setup` and `enter`.
+@test "the capture path keeps disposable guests out of known_hosts" {
+  run -0 bash "$SUBJECT" screenshot my-lane "$OUT"
+  while read -r line; do
+    case "$line" in
+      ssh\ * | scp\ *) [[ "$line" == *"UserKnownHostsFile=/dev/null"* ]] || {
+        echo "writes known_hosts: $line" >&2
+        return 1
+      } ;;
+    esac
+  done <"$LOG"
+}

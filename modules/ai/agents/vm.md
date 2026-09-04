@@ -17,7 +17,7 @@ here) and a base image named by `SCRUFF_TART_BASE`; the room brings `tart`
 itself.
 
 ```sh
-scruff runtime up    my-lane --backend tart   # clone the image, boot it headless
+scruff runtime up    my-lane --backend tart   # clone, boot headless, wait for ssh
 scruff runtime enter my-lane --backend tart   # ssh in
 scruff runtime down  my-lane --backend tart   # delete the clone
 ```
@@ -94,6 +94,25 @@ you did not make.
 
 None of this is gated on the user's Mac: work that runs over `ssh` somewhere else
 is never a desktop interruption, however loudly it redraws over there.
+
+## When the guest looks unreachable
+
+`scruff runtime up` returns once **sshd answered**, not once the guest took a
+DHCP lease, so an address it printed was reachable a moment ago. A guest that
+never answers is told to you instead, with the path of its boot log
+(`$TMPDIR/scruff-<lane>.boot.log`) — read that before anything else, and know
+that the clone is still on disk either way: `scruff runtime down` or `tart
+delete scruff-<lane>` reclaims it.
+
+If ssh or ping fails anyway, do **not** start debugging the network.
+hausfold/haus#663 spent two sessions ruling these out and none of them wants
+re-running: the guest image (Remote Login is on, no guest firewall), the host
+bridge (`bridge100` has both `vmenet` members, ARP resolves, routes are
+present), Claude Code's own sandbox (`dangerouslyDisableSandbox` changes
+nothing), and Tailscale. The one thing that has ever separated a failure from a
+success there is the pane it ran in — a second pane reached the same class of
+guest cleanly at the same moment — so try it once from a fresh pane, and if
+that works, take the fresh pane and move on. Two minutes, not twenty.
 
 ## When the VM cannot answer
 

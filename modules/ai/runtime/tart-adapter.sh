@@ -21,6 +21,23 @@ user="${SCRUFF_TART_USER:-admin}"
 # unless you `tart list`.
 vm_exists() { tart list --quiet 2>/dev/null | grep -qx "$1"; }
 
+# ⚠️ Every ssh and scp into a guest carries these, and both options are
+# consequences of the clone being disposable rather than of anything about
+# security. vmnet hands the same 192.168.64.x addresses out again from one lane
+# to the next, so an address is a DIFFERENT host, with a different key, every
+# time a clone is made; an entry for it in the user's known_hosts turns the next
+# lane's first ssh into a REMOTE HOST IDENTIFICATION HAS CHANGED refusal, and
+# that wedge outlives the VM that caused it — every later lane that lands on the
+# address inherits it. So these hosts are never written to known_hosts at all.
+# The far end is a VM this machine cloned itself, minutes ago, on a private
+# bridge it also owns; there is nothing else that could be answering.
+ssh_opts=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR)
+# The non-interactive form: never stop for a password prompt, and give up on an
+# unreachable address in seconds rather than on TCP's own timetable. Used by
+# `screenshot` and by setup's readiness probe; `enter` is a person's shell and
+# takes neither.
+ssh_quiet=(-o BatchMode=yes -o ConnectTimeout=5)
+
 vm="scruff-$lane"
 
 case "$cmd" in
@@ -37,9 +54,44 @@ setup)
   # not once it shuts down. `--dir` shares the lane's worktree in over
   # virtiofs rather than copying it — mirrors scruff's own reflink-not-copy
   # bias (SPEC.md §6.3) for the same COW reason.
-  tart run "$vm" --no-graphics --dir="work:$path" &
+  #
+  # ⚠️ The redirect is the load-bearing half of that, not `disown`. `disown`
+  # takes the job out of this shell's table; it does not take our stdout and
+  # stderr away from a child that has already inherited them, and this child
+  # outlives the script by the entire life of the VM. A caller that reads this
+  # step through a pipe or a `$( )` — which is what an agent running `scruff
+  # runtime up` always is — then waits on a pipe the guest holds open for
+  # hours, with the VM up and reachable the whole time and nothing anywhere
+  # saying so. Measured 2026-09-04: `scruff runtime up … | tail` never
+  # returned, `scruff` itself long gone, `lsof` showing `tart run` still on fds
+  # 1 and 2 of that pipe. To a FILE and not /dev/null, because a guest that
+  # never takes an address explains itself nowhere else.
+  boot_log="${TMPDIR:-/tmp}/$vm.boot.log"
+  tart run "$vm" --no-graphics --dir="work:$path" >"$boot_log" 2>&1 &
   disown
-  ip=$(tart ip "$vm" --wait 60)
+  if ! ip=$(tart ip "$vm" --wait 60); then
+    echo "$vm never took an address — its boot log is $boot_log" >&2
+    echo "stopping it; \`tart delete $vm\` reclaims the disk" >&2
+    tart stop "$vm" 2>/dev/null || true
+    exit 1
+  fi
+  # ⚠️ An address is not a shell. `tart ip` answers the moment the guest takes a
+  # DHCP lease, which is most of a minute before sshd accepts anything, so a
+  # setup that returned here would hand its caller a guest that refuses every
+  # command sent to it — which is exactly what hausfold/haus#663 looks like from
+  # the outside ("reported the clone booted and got a DHCP lease, but ssh never
+  # reached it"). Wait for the thing the caller actually needs, and report the
+  # address only once something on the far end has answered on it.
+  ssh_wait="${SCRUFF_TART_SSH_WAIT:-180}"
+  deadline=$((SECONDS + ssh_wait))
+  until ssh "${ssh_opts[@]}" "${ssh_quiet[@]}" "$user@$ip" true 2>/dev/null; do
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      echo "$vm is at $ip but sshd did not answer inside ${ssh_wait}s — its boot log is $boot_log" >&2
+      echo "it is still running: \`scruff runtime down $lane --backend tart\`, or \`tart delete $vm\`, reclaims the disk" >&2
+      exit 1
+    fi
+    sleep 2
+  done
   echo "$vm is up at $ip — the lane is mounted at /Volumes/My Shared Files/work — \`scruff runtime enter\` to ssh in"
   ;;
 enter)
@@ -47,7 +99,7 @@ enter)
     echo "$vm has no IP — is it running? \`scruff runtime up\` first" >&2
     exit 1
   }
-  exec ssh "$user@$ip"
+  exec ssh "${ssh_opts[@]}" "$user@$ip"
   ;;
 screenshot)
   # The half of the VM loop that is not scruff's business: pixels out of the
@@ -85,7 +137,7 @@ screenshot)
   # Reaped on the way out however this ends. `set -e` on a failed scp would
   # otherwise skip the cleanup and leave the PNG on a guest whose disk is the
   # real cap on VMs per machine.
-  trap 'ssh "$user@$ip" "rm -f $remote" >/dev/null 2>&1 || true' EXIT
+  trap 'ssh "${ssh_opts[@]}" "${ssh_quiet[@]}" "$user@$ip" "rm -f $remote" >/dev/null 2>&1 || true' EXIT
   # `-x` is not politeness: without it screencapture plays the shutter and
   # flashes the display it is capturing, and `agent-desktop-guard` refuses the
   # unpaired form for exactly that reason. Call the binary by absolute path —
@@ -96,8 +148,8 @@ screenshot)
   # Both ssh stdouts go to /dev/null, not to ours: whatever the guest's shell
   # prints on login (the classic .zshenv echo) would otherwise land inside the
   # `$( )` a caller wraps this in, and end up in a pull request.
-  ssh "$user@$ip" "/usr/sbin/screencapture -x $remote" >/dev/null
-  scp -q "$user@$ip:$remote" "$out"
+  ssh "${ssh_opts[@]}" "${ssh_quiet[@]}" "$user@$ip" "/usr/sbin/screencapture -x $remote" >/dev/null
+  scp "${ssh_opts[@]}" "${ssh_quiet[@]}" -q "$user@$ip:$remote" "$out"
   # stdout is the path and NOTHING else. The caller is an agent composing
   # `gh pr comment --attach "$(haus-vm-shot lane)"`, so a stray line here does
   # not go to a terminal — it goes into a pull request.

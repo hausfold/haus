@@ -473,6 +473,15 @@ jobs:
       - name: vm-shot tests
         run: bats test/vm-shot.bats
 
+      # The other half of the same adapter: standing a lane's guest up and
+      # getting a shell in it. Every failure it pins looks like a working
+      # machine from the outside — a `runtime up` that never returns because the
+      # guest inherited the caller's stdout, an address reported before sshd
+      # answers on it, a known_hosts entry that refuses the next lane to land on
+      # a reused address. That is what hausfold/haus#663 cost two sessions.
+      - name: vm-runtime tests
+        run: bats test/vm-runtime.bats
+
       # float-term's `recenter` — the pass that centres a spawned popup on the
       # size it actually is. Pure arithmetic over two rectangles with AX and the
       # screen probe stubbed, so it runs here rather than needing a Mac and a
