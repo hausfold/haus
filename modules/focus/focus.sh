@@ -993,8 +993,8 @@ doctor() {
         echo "  [ok] signed pounce has the focus subcommand — focus rides its TCC grants"
         echo "       (grant Accessibility + Full Disk Access to Pounce.app once, done)"
     else
-        echo "  [~~] no signed pounce with 'focus' — using the per-surface fallback"
-        echo "       (needs a pounce with the focus subcommand + launcher.signingIdentity set)"
+        echo "  [~~] no pounce with 'focus' — using the per-surface fallback"
+        echo "       (needs a pounce with the focus subcommand)"
     fi
 
     if /usr/bin/defaults read com.apple.symbolichotkeys AppleSymbolicHotKeys 2>/dev/null \

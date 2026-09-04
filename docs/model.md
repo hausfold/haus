@@ -82,8 +82,7 @@ The registry classifies every top-level `haus.*` namespace as one of three:
 
 **Classification and desktop-safety are separate questions.** Every public
 option also states whether desktop data may set it, and the answer is explicit
-rather than inferred from the namespace: most launcher settings belong in a
-desktop, while a signing identity belongs only in a host; semantic display
+rather than inferred from the namespace: semantic display
 scaling can belong in a desktop, a physical display UUID cannot. Host config may
 set any public option; desktop config is rejected when it reaches a host-only
 leaf.
@@ -174,8 +173,7 @@ The evaluated value has one closed shape: **a plain attrset whose only top-level
 key is `haus`**. A desktop is not a module function, has no `imports` or
 `_module`, cannot name `system.*`, `home-manager.*` or activation hooks, and
 sets only desktop-safe public `haus.*` leaves. Identity, secrets, account
-coordinates, signing identities and hardware identifiers are host-only even when
-a room uses them. Structural validation enforces the closed shape *before* a
+coordinates and hardware identifiers are host-only even when a room uses them. Structural validation enforces the closed shape *before* a
 full host evaluation proves the remaining option names and values are valid.
 
 **One desktop per host** removes desktop-versus-desktop precedence from the user

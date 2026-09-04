@@ -25,8 +25,10 @@
       inputs.catppuccin.follows = "catppuccin";
     };
 
-    # The command palette. Its overlay puts `pounce`, `pounce-commands` and
-    # `pounce-skill` in pkgs.
+    # The command palette. Its overlay puts `pounce`, `pounce-app`,
+    # `pounce-commands` and `pounce-skill` in pkgs; modules/launcher installs
+    # `pounce-app` — the CI-built, notarized release app, which is what keeps
+    # the Accessibility grant stable across rebuilds.
     # pounce compiles its DEFAULT nebelung palette in at build time (variants
     # load at runtime from ~/.config/pounce/themes/); point it at haus's own
     # nebelung so that default can't drift from the rest of the theme.
@@ -3251,7 +3253,6 @@
             test/desktops/host-only-path.nix: haus.terminal.obsidianVaults is host-only, so a shared desktop may not set it. It names a path on this disk, so it is a fact about one filesystem rather than an opinion a shared desktop can hold about every machine.
             test/desktops/host-only-secret.nix: haus.focus.slack.tokenCommand is host-only, so a shared desktop may not set it. It points at a secret, or at the store this machine keeps its secrets in, so it belongs to one person on one Mac.
             test/desktops/host-only-secret.nix: haus.secrets.provider is host-only, so a shared desktop may not set it. It points at a secret, or at the store this machine keeps its secrets in, so it belongs to one person on one Mac.
-            test/desktops/host-only-signing.nix: haus.launcher.signingIdentity is host-only, so a shared desktop may not set it. It names a code-signing identity in one login keychain, which exists on exactly one Mac and cannot be meaningfully published.
             test/desktops/host-only-widget-command.nix: haus.bar.widgets.<name>.command is host-only, so a shared desktop may not set it. It is a shell command this machine runs, and a desktop is a file you can read to know what it does. A leaf carrying a command is exactly what stops that being true.
             test/desktops/host-only-widget-script.nix: haus.bar.widgets.<name>.script is host-only, so a shared desktop may not set it. It is a shell command this machine runs, and a desktop is a file you can read to know what it does. A leaf carrying a command is exactly what stops that being true.
             test/desktops/host-only-widget-script.nix: haus.bar.widgets.<name>.style is host-only, so a shared desktop may not set it. It is a shell command this machine runs, and a desktop is a file you can read to know what it does. A leaf carrying a command is exactly what stops that being true.
@@ -3317,7 +3318,6 @@
             host-only-package.nix class=desktop ok=false sets=1 rooms=appearance silent=12
             host-only-path.nix class=desktop ok=false sets=1 rooms=development silent=12
             host-only-secret.nix class=desktop ok=false sets=2 rooms=focus+security silent=11
-            host-only-signing.nix class=desktop ok=false sets=1 rooms=launcher silent=12
             host-only-widget-command.nix class=desktop ok=false sets=2 rooms=bar silent=12
             host-only-widget-script.nix class=desktop ok=false sets=2 rooms=bar silent=12
             imports.nix class=desktop ok=false sets=1 rooms=haus silent=13

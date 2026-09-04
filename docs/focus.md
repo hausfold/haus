@@ -24,8 +24,9 @@ wrapper around a Shortcuts shortcut. haus takes the declarative route instead:
    end-of-activation `activateSettings -u` applies it without a logout. The
    binding *is* Nix config.
 2. **pounce presses it.** `pounce focus toggle` posts the CGEvent. **No new TCC
-   grant** — the stable-signing machinery in `modules/launcher` exists precisely
-   so pounce's Accessibility grant survives rebuilds, and focus rides it.
+   grant** — the daemon runs the notarized release app, whose Developer ID
+   requirement anchors on hausfold's team, so pounce's Accessibility grant
+   survives rebuilds and focus rides it.
 3. **The engine shells out to pounce** for the flip and runs the hooks.
 
 Requires `launcher.enable`. Why a real Focus rather than faked notification
@@ -48,9 +49,9 @@ Hotkey 175 is a blind toggle, and the user can also flip Focus from Control
 Center or their phone — so **reading** state matters more here, not less.
 
 pounce reads `~/Library/DoNotDisturb/DB/Assertions.json`. That needs **Full Disk
-Access**, and pounce's stable signing identity means the grant survives
-rebuilds — the same trick as Accessibility. So pounce is the one TCC-privileged
-agent: it can both flip DND and report it (`pounce focus status`), which makes
+Access**, and because the daemon runs the Developer-ID-signed release app, the
+grant survives rebuilds the same way Accessibility does. So pounce is the one
+TCC-privileged agent: it can both flip DND and report it (`pounce focus status`), which makes
 `focus on`/`off` deterministic (read, then toggle only if needed) rather than
 blind.
 
@@ -173,7 +174,7 @@ Slack status flipped twice.
   reaches classic DND only.
 - **One one-time TCC checkbox.** Full Disk Access for pounce can't be granted
   programmatically. `focus doctor` and the bootstrap interview walk it; the
-  stable-signing trick makes it stick forever after.
+  team-anchored signature makes it stick forever after.
 - **No Slack app provisioning.** Token creation is a one-time documented
   walkthrough.
 

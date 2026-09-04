@@ -286,7 +286,6 @@ let
       "items.<name>.workspaces"
       "plugins"
       "scale"
-      "signingIdentity"
       "windowMode"
       "windowSwitcher"
     ];
@@ -625,7 +624,6 @@ let
     # Which keyboard is physically in front of you, which is the same class of
     # fact as `locale.inputSources` beside it and gets the same sentence.
     keys.layout = "your-region";
-    launcher.signingIdentity = "keychain";
     locale = wholeNamespace "locale" "your-region";
     power = wholeNamespace "power" "this-hardware";
     roster = {
@@ -683,7 +681,6 @@ let
     browser-code.why = "It installs browser extensions, or writes raw enterprise policy into a file haus owns as root: code reaching your browser through what is supposed to be readable data.";
     haus-writes-it.why = "haus sets this itself, so the roster can still say which module put an app on disk. It is a generated fact about this machine rather than an input anyone writes.";
     identity.why = "It names you rather than a machine: your commit identity, the addresses that are yours, the account whose repositories this Mac works on. A desktop that set it would put its author's details on your work.";
-    keychain.why = "It names a code-signing identity in one login keychain, which exists on exactly one Mac and cannot be meaningfully published.";
     local-path.why = "It names a path on this disk, so it is a fact about one filesystem rather than an opinion a shared desktop can hold about every machine.";
     needs-pkgs.why = "It takes a `pkgs` value, and desktop data is evaluated with no module arguments to take one from. The `…Name` leaf beside it is the desktop-safe half of the pair.";
     one-network.why = "It names a device on your own network by host or IP, which is a fact about your desk. Left empty, the pill discovers the device itself, and that is what a shared desktop should leave it doing.";

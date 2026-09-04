@@ -191,11 +191,13 @@ in
         between pages is the ⌃⇥ walk's job, the same division of labour as
         windowNav's focus keys above.
 
-        Needs the daemon to hold an Accessibility grant — in practice, set
-        haus.launcher.signingIdentity so the grant survives rebuilds. Without
-        the grant the event tap can't install and stock ⌘Tab keeps working, so
-        this default is safe on a fresh, not-yet-granted install. false leaves
-        ⌘Tab native even when the grant is there.
+        Needs the daemon to hold an Accessibility grant. The daemon runs the
+        release app (whose team-anchored signing requirement is what keeps the
+        grant alive across rebuilds), so on a haus machine this is a one-time
+        approval, not a rebuild-by-rebuild ritual. Without the grant the event
+        tap can't install and stock ⌘Tab keeps working, so this default is safe
+        on a fresh, not-yet-granted install. false leaves ⌘Tab native even when
+        the grant is there.
       '';
     };
 
@@ -217,10 +219,9 @@ in
         haus.launcher.autoQuit.exclude is for.
 
         Reads the same window snapshot as the ⌘Tab switcher, so it wants the
-        same Accessibility grant (set haus.launcher.signingIdentity so it
-        survives rebuilds) and shares the observers rather than taking its own.
-        Without the grant it stays off and says so in the log rather than
-        guessing.
+        same Accessibility grant (a one-time approval of the release app) and
+        shares the observers rather than taking its own. Without the grant it
+        stays off and says so in the log rather than guessing.
 
         Off by default: this changes when your apps die, which is a thing you
         feel, and the muscle memory it suits is not everyone's.
@@ -636,33 +637,6 @@ in
         haus.terminal.ghDash.enable, the lane commands by the AI room), and
         haus.launcher.items.<addr>.listed = false hides a row you would rather
         reach only by key.
-      '';
-    };
-
-    launcher.signingIdentity = lib.mkOption {
-      type = lib.types.str;
-      default = "";
-      example = "Developer ID Application: Jane Doe (ABCDE12345)";
-      description = ''
-        A code-signing identity in your login keychain — either its SHA-1 or
-        (preferred) its full common name. The pounce daemon is re-signed with
-        it so a macOS Accessibility (TCC) grant survives rebuilds. List yours:
-          security find-identity -v -p codesigning
-
-        Prefer a "Developer ID Application" identity passed BY NAME (e.g.
-        "Developer ID Application: Jane Doe (TEAMID)"): its designated
-        requirement anchors on the stable team OU, so the grant survives even
-        a certificate renewal (the renewed cert keeps the same name/team but
-        gets a new SHA — a hardcoded SHA would silently fall back to unsigned).
-        This is also the identity the Homebrew build is signed with, so both
-        install paths share one identity. An "Apple Development" cert works too
-        but expires yearly and pins the specific cert, so it's less durable.
-
-        Changing this once invalidates the existing grant (the requirement
-        changes) — re-approve pounce in Accessibility a single time after.
-
-        Leave empty to run it unsigned (the palette works, but auto-paste
-        and other Accessibility-gated features stay off).
       '';
     };
 

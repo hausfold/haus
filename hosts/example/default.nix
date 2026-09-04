@@ -32,10 +32,9 @@
   #   gco = null;
   # };
 
-  # pounce signing. Find your identity's SHA-1 with:
-  #   security find-identity -v -p codesigning
-  # Leave "" to run pounce unsigned (palette works; Accessibility features off).
-  haus.launcher.signingIdentity = "";
+  # pounce signing is haus's problem now, not the host's: the daemon runs the
+  # CI-built notarized release app (pkgs.pounce-app), whose Developer ID
+  # requirement keeps the Accessibility grant across rebuilds on its own.
 
   # Where secretspec finds secret VALUES on this machine. Default "keyring" is
   # the local macOS keychain (no accounts, values re-entered once per Mac —
