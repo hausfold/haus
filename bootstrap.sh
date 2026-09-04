@@ -856,9 +856,9 @@ $IMPORTS_LINE
   haus.git.email = "$GIT_EMAIL";
   haus.git.signingKey = "$GIT_SIGNING"; # GPG key id; "" disables signing.
 
-  # pounce code-signing identity (SHA-1 from: security find-identity -v -p codesigning).
-  # "" runs pounce unsigned — the palette works, Accessibility features stay off.
-  haus.launcher.signingIdentity = "";
+  # pounce code-signing is haus's problem now, not the host's: the daemon runs
+  # the CI-built notarized release app (pkgs.pounce-app), whose Developer ID
+  # requirement keeps the Accessibility grant across rebuilds on its own.
 $opt_lines$settings_block
   # Homebrew never deletes an undeclared cask by default (cleanup = "none"); set
   # haus.homebrew.cleanup = "zap" only once every app you keep is listed.

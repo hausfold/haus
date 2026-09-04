@@ -59,9 +59,10 @@
 // grants: Pounce, for the palette commands and the ⌘-chords its event tap owns,
 // and SketchyBar, for the bar's agent peek (modules/bar/sketchybar/plugins/
 // agents.sh calls `float-term.sh spawn` directly). Pounce's grant survives a
-// rebuild because pounce is re-signed with a stable identity
-// (haus.launcher.signingIdentity); sketchybar is an adhoc-signed store path, so
-// its grant is re-asked whenever that path moves. Both are one card in the
+// rebuild because the daemon runs the CI-built release app, signed with
+// hausfold's Developer ID — its requirement anchors on the team, not a
+// per-build cdhash. Sketchybar is an adhoc-signed store path, so its grant is
+// re-asked whenever that path moves. Both are one card in the
 // manual-click deck rather than a surprise.
 //
 // A denied or stale grant costs the pin and nothing else: the popup still

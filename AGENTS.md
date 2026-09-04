@@ -365,9 +365,8 @@ mechanism, say so in one line.
 
 ## Rules
 
-- **Never hardcode identity.** Anything personal (git name/email/signing key,
-  the pounce signing cert) is a `haus.*` option set by the host — see
-  `options.nix`.
+- **Never hardcode identity.** Anything personal (git name/email/signing key)
+  is a `haus.*` option set by the host — see `options.nix`.
 - A **dynamic attr key** (`${username}`) can't be defined across multiple
   statements — set `home-manager.users.${username}` once per module. Pass it as
   a module *function* (`{ lib, pkgs, ... }: {...}`) when you need
@@ -655,21 +654,23 @@ mechanism, say so in one line.
   wedge. `modules/lib/gui-wait.nix` polls for Dock/Finder/SystemUIServer and
   runs from `/bin/bash` (boot volume, not the /nix APFS volume that isn't
   mounted yet). It exports `.wrap` (wrap an executable — windows, bar) and
-  `.script` (the snippet alone — pounce, which re-signs before exec'ing). Don't
+  `.script` (the snippet alone — pounce, whose daemon execs the store
+  release app after it). Don't
   "simplify" it away, and **keep the 60 s deadline**: the polls answer "is the
   session up *yet*", and unbounded they can't tell a cold boot from a GUI
   process that is simply absent, so a KeepAlive restart parks the agent forever
   with a live pid and nothing in the log. (That is why `core` leaves Finder's
   `QuitMenuItem` off.) Recover a wedged agent: `launchctl bootout` then
   `bootstrap`.
-- **pounce self-signing** (`modules/launcher`): macOS keys an Accessibility
-  (TCC) grant to a code-signing identity, but a store build is adhoc-signed
-  (cdhash changes every rebuild). When `haus.launcher.signingIdentity` is set,
-  the daemon wrapper copies `Pounce.app` to `~/.local/state/pounce` and re-signs
-  it with a stable identity so the grant survives rebuilds. Don't repoint the
-  agent at the store path. One-time on a new machine: `pounce
-  --request-accessibility`, approve the prompt (and the keychain "Always Allow"
-  dialog the first time `codesign` runs).
+- **pounce release delivery** (`modules/launcher`): macOS keys an Accessibility
+  (TCC) grant to an app's code-signing requirement, and the daemon runs the
+  CI-built notarized release app (`pkgs.pounce-app`, pinned by pounce's own
+  `nix/release.nix`), whose Developer ID requirement anchors on hausfold's
+  team — so the grant survives every rebuild with no per-user identity. A
+  source-build app would be adhoc-signed and lose the grant each rebuild; the
+  only place one runs is `bench try`'s dev-app injection, which re-signs it
+  with a keychain identity first. One-time on a new machine:
+  `pounce --request-accessibility`, approve the prompt.
 - **Homebrew tap-trust** (`modules/core`): `HOMEBREW_NO_REQUIRE_TAP_TRUST=1` via
   `/etc/homebrew/brew.env` — third-party taps fail trust checks under sudo
   activation. That file is also the only place a `HOMEBREW_*` setting reaches

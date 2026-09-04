@@ -1,15 +1,14 @@
 # Launcher — Pounce, wired into the system. Runs the pounce daemon as a
 # launch agent and frees ⌘Space for it.
 #
-# The daemon needs a STABLE code-signing identity so a macOS Accessibility (TCC)
-# grant survives rebuilds — a store path's adhoc cdhash changes every build,
-# losing any grant keyed to it. The nix sandbox can't reach the login keychain,
-# so when you provide `haus.launcher.signingIdentity` we sign impurely here in
-# the Aqua session: copy Pounce.app to a fixed writable path, codesign it with
-# that identity (a Developer ID cert by name gives the most durable designated
-# requirement → grant persists across rebuilds and cert renewals), and exec the
-# daemon from that copy. A marker records which store
-# path the copy was signed from, so we only re-sign when pounce actually changed.
+# The daemon runs the CI-built, notarized Pounce.app that pounce's flake
+# ships as `pkgs.pounce-app` (pinned by version + sha256 in pounce's own
+# nix/release.nix, rewritten by its release workflow after every tag). The
+# app's designated requirement anchors on hausfold's Developer ID team, so a
+# macOS Accessibility (TCC) grant survives every rebuild and cert renewal —
+# which is why haus carries no per-user signing identity any more: a store
+# build's adhoc cdhash used to lose the grant on every rebuild, and the
+# launcher used to re-sign it impurely from the login keychain to fight that.
 {
   config,
   lib,
@@ -34,8 +33,6 @@ let
     args.hostname or (
       if (config.networking.hostName or null) != null then config.networking.hostName else "this Mac"
     );
-
-  identity = config.haus.launcher.signingIdentity;
 
   # The resolved keymap (../lib/keys.nix). pounce needs it twice over: the palette
   # hotkey it registers in-process, and the cheatsheet — which must never teach a
@@ -143,19 +140,13 @@ let
   # k.leader is known non-null.
   leaderGlyph = if k.leader != null then k.leader.glyph else "";
 
-  # What the running signed copy was signed FROM — the store path, identity AND
-  # bundle-ID schema. The daemon writes this to the .signed-from marker; both the
-  # re-sign guard (in the daemon script) and the kickstart activation compare
-  # against it. Encoding the identity too means changing EITHER the pounce
-  # version, signingIdentity OR identifier invalidates the marker → re-sign +
-  # bounce. The identifier suffix is what forces the one-time
-  # com.local.pounce → com.hausfold.pounce migration even if the package pin and
-  # certificate did not move.
-  # (Store path alone would silently keep a stale identity on an identity-only
-  # change.) Unsigned mode keeps the bare store path, matching old behaviour.
-  signedFrom =
-    "${pkgs.pounce}/Applications/Pounce.app"
-    + lib.optionalString (identity != "") "@@${identity}@@com.hausfold.pounce";
+  # Which store app the daemon runs from. Both the re-sign guard (in the daemon
+  # script) and the kickstart activation compare against it, so a pounce bump
+  # (a new store path) bounces the daemon instead of leaving the old image
+  # running until the next log-in. There is no identity or bundle-id suffix:
+  # the release app ships the canonical com.hausfold.pounce identifier and a
+  # team-anchored requirement, and haus doesn't rewrite either.
+  appPin = "${pkgs.pounce-app}/Applications/Pounce.app";
 
   # Whether Fn is taken away from macOS at the HID layer rather than read with
   # an event tap — haus.launcher.fnKey. Named once: it decides both the key
@@ -654,44 +645,17 @@ let
       action = sceneOffDescription;
     };
 
-  # Wait for the GUI session (→ the /nix volume + an unlocked login keychain)
-  # before touching the store path or codesign. Exec'ing via /bin/bash (boot
-  # volume) also sidesteps the cold-boot exit-78 race for store-path executables.
-  # Shared with windows/bar, and bounded — see ../lib/gui-wait.nix for why the
-  # bound matters (an unbounded wait for Finder wedges the daemon after ⌘Q).
+  # Wait for the GUI session (→ the /nix volume) before exec'ing the store
+  # app. Exec'ing via /bin/bash (boot volume) also sidesteps the cold-boot
+  # exit-78 race for store-path executables. Shared with windows/bar, and
+  # bounded — see ../lib/gui-wait.nix for why the bound matters (an unbounded
+  # wait for Finder wedges the daemon after ⌘Q).
   guiWait = (import ../lib/gui-wait.nix).script;
 
-  # Unsigned: just run the daemon from the store. Signed: copy + re-sign first.
-  daemonScript =
-    if identity == "" then
-      ''
-        ${guiWait}
-        exec "${pkgs.pounce}/Applications/Pounce.app/Contents/MacOS/pounce" --daemon
-      ''
-    else
-      ''
-        ${guiWait}
-        STORE_APP="${pkgs.pounce}/Applications/Pounce.app"
-        STATE_DIR="$HOME/.local/state/pounce"
-        DEST="$STATE_DIR/Pounce.app"
-        MARKER="$STATE_DIR/.signed-from"
-
-        if [ ! -d "$DEST" ] || [ "$(/bin/cat "$MARKER" 2>/dev/null)" != "${signedFrom}" ]; then
-          /bin/mkdir -p "$STATE_DIR"
-          /bin/rm -rf "$DEST"
-          if /bin/cp -R "$STORE_APP" "$DEST" \
-             && /bin/chmod -R u+w "$DEST" \
-             && /usr/bin/plutil -replace CFBundleIdentifier -string com.hausfold.pounce "$DEST/Contents/Info.plist" \
-             && /usr/bin/codesign --force --identifier com.hausfold.pounce -s "${identity}" "$DEST"; then
-            /usr/bin/printf '%s' "${signedFrom}" > "$MARKER"
-          else
-            echo "pounce: codesign failed, falling back to unsigned store binary (no Accessibility)" >&2
-            /bin/rm -f "$MARKER"
-            exec "$STORE_APP/Contents/MacOS/pounce" --daemon
-          fi
-        fi
-        exec "$DEST/Contents/MacOS/pounce" --daemon
-      '';
+  daemonScript = ''
+    ${guiWait}
+    exec "${pkgs.pounce-app}/Applications/Pounce.app/Contents/MacOS/pounce" --daemon
+  '';
   # ---- haus.launcher.items → config.json's `items` map ---------------------
   #
   # pounce owns the schema (its ItemSettings.swift): one map keyed by an item's
@@ -1111,7 +1075,6 @@ lib.mkIf config.haus.launcher.enable {
     pane = panes.accessibility;
     steps = [
       "Turn Pounce on in the list"
-      "The first time, macOS also asks the keychain to allow codesign — choose Always Allow, or the grant is re-requested on every rebuild"
     ];
   };
 
@@ -1392,11 +1355,11 @@ lib.mkIf config.haus.launcher.enable {
   # Attribute the launch agent to Pounce.app in Login Items & Extensions.
   # Without an AssociatedBundleIdentifiers key, macOS Background Task Management
   # falls back to the signing certificate's owner: the agent execs /bin/bash and
-  # the daemon copy is signed with an *individual* Developer ID, so a desktop
-  # install showed the maintainer's legal name instead of "Pounce". This is the
-  # haus-side counterpart to the standalone Homebrew fix (hausfold/homebrew-tap#7);
-  # the daemon self-registers the bundle via LSRegisterURL (hausfold/pounce#29)
-  # so Launch Services can resolve com.hausfold.pounce → the running signed copy.
+  # the app is signed with hausfold's Developer ID, so the row would show the
+  # org name instead of "Pounce". This is the haus-side counterpart to the
+  # standalone Homebrew fix (hausfold/homebrew-tap#7); the daemon self-registers
+  # the bundle via LSRegisterURL (hausfold/pounce#29) so Launch Services can
+  # resolve com.hausfold.pounce → the app.
   #
   # nix-darwin's launchd serviceConfig submodule is strictly typed with no
   # AssociatedBundleIdentifiers option (and no freeform escape on this pin), so
@@ -1465,7 +1428,11 @@ lib.mkIf config.haus.launcher.enable {
     in
     {
       home.packages = [
-        pkgs.pounce
+        # The app the daemon runs — the CI-built notarized release, whose bin/
+        # pounce symlink is the CLI every client execs. Its designated
+        # requirement anchors on hausfold's Developer ID team, which is what
+        # makes the Accessibility grant survive rebuilds.
+        pkgs.pounce-app
         # The generic command library, plus haus's own commands layered on
         # via runtime discovery. Same-filename scripts shadow pounce built-ins.
         # `plugins` installs each named command and propagates only ITS CLI
@@ -1956,14 +1923,12 @@ lib.mkIf config.haus.launcher.enable {
           );
 
       # A rebuild swaps the store path under the KeepAlive'd daemon, but launchd
-      # keeps the OLD image running until something bounces it. The .signed-from
-      # marker records the store path + identity the running copy was signed from
-      # — when it lags (a pounce bump OR a signingIdentity change), kick the agent;
-      # the respawn re-copies + re-signs. A stable identity normally keeps the
-      # Accessibility grant; the one-time com.local.pounce →
-      # com.hausfold.pounce identifier migration deliberately changes the code
-      # requirement, so that activation needs one fresh approval. Clipboard
-      # history is on disk, so the bounce itself loses nothing.
+      # keeps the OLD image running until something bounces it. The .app-pin
+      # marker records the store app the running daemon was started from — when
+      # it lags (a pounce bump re-pins the app), kick the agent; the respawn
+      # execs the new build. The team-anchored signing requirement means the
+      # Accessibility grant rides along untouched. Clipboard history is on
+      # disk, so the bounce itself loses nothing.
       # Marker match → unchanged → no bounce. Runs in home-manager activation, i.e.
       # after nix-darwin has loaded the new agent plist.
       #
@@ -1971,9 +1936,8 @@ lib.mkIf config.haus.launcher.enable {
       # startup, rather than per open like the rest of config.json, so a rebuild
       # that touches haus.launcher.autoQuit would otherwise write the file and
       # change nothing until the next login. It gets its own marker instead of
-      # being folded into .signed-from, because that one also drives the re-copy
-      # + re-sign in the daemon script — and a settings change has no business
-      # re-signing the app.
+      # being folded into .app-pin, because a settings change has no business
+      # looking like an app swap.
       home.activation.kickstartPounce = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
         # Retire the pre-hausfold launchd label explicitly. nix-darwin normally
         # unloads removed plists, but a stale KeepAlive job must never survive
@@ -1981,9 +1945,13 @@ lib.mkIf config.haus.launcher.enable {
         $DRY_RUN_CMD /bin/launchctl bootout "gui/$(/usr/bin/id -u)/org.nixos.pounce" 2>/dev/null || true
 
         pounceBounce=0
-        if [ "$(/bin/cat "$HOME/.local/state/pounce/.signed-from" 2>/dev/null)" != "${signedFrom}" ]; then
+        if [ "$(/bin/cat "$HOME/.local/state/pounce/.app-pin" 2>/dev/null)" != "${appPin}" ]; then
           pounceBounce=1
         fi
+        # The marker predates the release delivery under a name that described
+        # what it drove then; a machine carrying the old file bounces once (the
+        # new marker is absent) and the old name is swept here.
+        $DRY_RUN_CMD /bin/rm -f "$HOME/.local/state/pounce/.signed-from" || true
         # Named .auto-quit for what it used to track alone; it now holds every
         # startup-only setting (see startupState). Kept under the old name so an
         # existing machine isn't left with a stranded file — the v2- prefix is
