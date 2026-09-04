@@ -180,14 +180,15 @@
         ],
         "nixpkgs": [
           "nixpkgs"
-        ]
+        ],
+        "prebuilt": "prebuilt_2"
       },
       "locked": {
-        "lastModified": 1788478808,
-        "narHash": "sha256-7REgShCpiABezZzfs0IcMWNyBNiItDEZvb9ekqxvp0Q=",
+        "lastModified": 1788490075,
+        "narHash": "sha256-irtGhZd5/vdW1L8s20TOqV/uGrxDRvCl51Y4S8bhWoc=",
         "owner": "hausfold",
         "repo": "pounce",
-        "rev": "3d0200db7a54f44b7c425d953e806ee078ead447",
+        "rev": "4918818995f8353df2b6644d6ea0686851319905",
         "type": "github"
       },
       "original": {
@@ -211,6 +212,20 @@
       ]
     },
     "prebuilt_2": {
+      "flake": false,
+      "locked": {
+        "path": "./nix/dev-app",
+        "type": "path"
+      },
+      "original": {
+        "path": "./nix/dev-app",
+        "type": "path"
+      },
+      "parent": [
+        "pounce"
+      ]
+    },
+    "prebuilt_3": {
       "flake": false,
       "locked": {
         "path": "./nix/dev-app",
@@ -306,7 +321,7 @@
         "nixpkgs": [
           "nixpkgs"
         ],
-        "prebuilt": "prebuilt_2"
+        "prebuilt": "prebuilt_3"
       },
       "locked": {
         "lastModified": 1788422351,
