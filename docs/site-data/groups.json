@@ -115,9 +115,6 @@
     "identity": {
       "why": "It names you rather than a machine: your commit identity, the addresses that are yours, the account whose repositories this Mac works on. A desktop that set it would put its author's details on your work."
     },
-    "keychain": {
-      "why": "It names a code-signing identity in one login keychain, which exists on exactly one Mac and cannot be meaningfully published."
-    },
     "local-path": {
       "why": "It names a path on this disk, so it is a fact about one filesystem rather than an opinion a shared desktop can hold about every machine."
     },

@@ -1970,7 +1970,7 @@ lib.mkIf config.haus.launcher.enable {
             # `|| true` like every sibling here: activation runs under `set -eu`,
             # and a bookkeeping file must never be able to fail a rebuild. Losing
             # the write just means one redundant bounce next time.
-            $DRY_RUN_CMD /bin/sh -c '/bin/mkdir -p "$HOME/.local/state/pounce" && /usr/bin/printf "%s" "${startupState}" > "$HOME/.local/state/pounce/.auto-quit"' || true
+            $DRY_RUN_CMD /bin/sh -c '/bin/mkdir -p "$HOME/.local/state/pounce" && /usr/bin/printf "%s" "${startupState}" > "$HOME/.local/state/pounce/.auto-quit" && /usr/bin/printf "%s" "${appPin}" > "$HOME/.local/state/pounce/.app-pin"' || true
           fi
         fi
       '';

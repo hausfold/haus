@@ -66,7 +66,7 @@ checked ones. Reach for `system.defaults.*` or `homebrew.*` only when nothing in
 `haus.*` covers it, and say that you did.
 
 **Ask before touching identity or secrets.** `haus.git.*`, signing keys, anything
-under `haus.secrets.*`, and the launcher signing identity are the user's.
+under `haus.secrets.*` are the user's.
 
 **For a value, prefer `haus set <path> <value>` to a hand edit.** It writes an
 ordinary module under `hosts/<host>/settings/`, type-checks it and rebuilds, and

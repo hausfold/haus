@@ -216,7 +216,7 @@ modules/
   bar/                    # SketchyBar + barpop (Swift, xcrun-compiled): the pill
                           #   dropdowns' click-outside dismissal
   security/               # auth policy: Touch ID sudo + passwordless activation
-  launcher/               # the palette daemon (launchd + self-signing);
+  launcher/               # the palette daemon (launchd; runs the notarized release app);
                           #   item-grammar.nix mirrors pounce's item-key grammar,
                           #   pinned to the LOCKED pounce by `pounce-item-grammar`
   shelf/                  # the perch notch file shelf, installed via the perch flake input
