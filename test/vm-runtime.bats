@@ -52,7 +52,10 @@ EOF
   cat >"$STUB/ssh" <<EOF
 #!/usr/bin/env bash
 echo "ssh \$*" >>"$LOG"
-[ -n "\${SSH_REFUSES:-}" ] && exit 255
+if [ -n "\${SSH_REFUSES:-}" ]; then
+  echo "Permission denied (publickey)." >&2
+  exit 255
+fi
 exit 0
 EOF
 
@@ -85,7 +88,7 @@ EOF
 # An address is not a shell. Reporting one the moment the lease lands is what
 # makes the next command in the loop fail against a guest that is merely still
 # booting.
-@test "setup waits for sshd before it reports the address" {
+@test "setup probes sshd on the address it is about to report" {
   run -0 bash "$SUBJECT" setup my-lane "$LANE"
   grep -q '^ssh .*admin@192.168.64.5 true' "$LOG"
 }
@@ -95,6 +98,38 @@ EOF
   [ -z "$output" ]
   [[ "$stderr" == *"sshd did not answer"* ]]
   [[ "$stderr" == *"$TMPDIR/scruff-my-lane.boot.log"* ]]
+}
+
+# `tart delete` refuses a RUNNING VM and has no --force, and this path leaves the
+# guest running on purpose. Naming it here would hand the user an error on the
+# one path the wait exists to make legible.
+@test "the sshd timeout names a recovery that works on a running guest" {
+  SSH_REFUSES=1 SCRUFF_TART_SSH_WAIT=0 run -1 --separate-stderr bash "$SUBJECT" setup my-lane "$LANE"
+  [[ "$stderr" == *"scruff runtime down my-lane --backend tart"* ]]
+  [[ "$stderr" != *"tart delete"* ]]
+}
+
+# BatchMode turns "this image wants a password" into a probe that can never
+# succeed, and swallows the one line that says so. The boot log is the guest's
+# side and never carries it.
+@test "the sshd timeout repeats what the last ssh attempt said" {
+  SSH_REFUSES=1 SCRUFF_TART_SSH_WAIT=0 run -1 --separate-stderr bash "$SUBJECT" setup my-lane "$LANE"
+  [[ "$stderr" == *"Permission denied (publickey)."* ]]
+}
+
+# Seconds, and a typo in an env var must not be read as one.
+@test "a non-numeric SCRUFF_TART_SSH_WAIT is refused, not misread" {
+  SCRUFF_TART_SSH_WAIT=2m run -2 --separate-stderr bash "$SUBJECT" setup my-lane "$LANE"
+  [[ "$stderr" == *"is not a number"* ]]
+}
+
+# Neither log outlives the guest it describes.
+@test "teardown takes the clone's logs with it" {
+  run -0 bash "$SUBJECT" setup my-lane "$LANE"
+  [ -f "$TMPDIR/scruff-my-lane.boot.log" ]
+  run -0 bash "$SUBJECT" teardown my-lane
+  [ ! -e "$TMPDIR/scruff-my-lane.boot.log" ]
+  [ ! -e "$TMPDIR/scruff-my-lane.probe.log" ]
 }
 
 # A clone with no address is tens of GB of disk and real CPU with nothing on the
@@ -123,7 +158,9 @@ EOF
 # `enter` is a person's shell: a batch-mode ssh there could not ask for a
 # password, and a five-second connect timeout is not a person's patience.
 @test "enter opens an interactive shell, not a batch one" {
+  : >"$LOG" # only `enter`'s own call is in scope here
   run -0 bash "$SUBJECT" enter my-lane
   grep -q '^ssh .*admin@192.168.64.5' "$LOG"
-  ! grep -q '^ssh .*BatchMode.*admin@192.168.64.5$' "$LOG"
+  ! grep -q 'BatchMode' "$LOG"
+  ! grep -q 'ConnectTimeout' "$LOG"
 }

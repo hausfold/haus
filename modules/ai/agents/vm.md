@@ -34,13 +34,25 @@ Usually easier than sitting inside it:
 
 ```sh
 guest=$(tart ip scruff-my-lane)
-ssh admin@"$guest" 'haus rebuild'
-ssh admin@"$guest" '/usr/sbin/screencapture -x /tmp/s.png'   # real pixels
-scp admin@"$guest":/tmp/s.png ./shot.png                     # fetch it, then look
-haus-vm-shot my-lane                                         # or those two in one verb,
-                                                             # guest tidied up after
-ssh admin@"$guest" '/usr/bin/osascript -e "tell application \"System Events\" to keystroke space using command down"'
+vmssh=(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR)
+"${vmssh[@]}" admin@"$guest" 'haus rebuild'
+"${vmssh[@]}" admin@"$guest" '/usr/sbin/screencapture -x /tmp/s.png'   # real pixels
+scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    admin@"$guest":/tmp/s.png ./shot.png                              # fetch it, then look
+haus-vm-shot my-lane                                                  # or those two in one
+                                                                      # verb, guest tidied
+                                                                      # up after
+"${vmssh[@]}" admin@"$guest" '/usr/bin/osascript -e "tell application \"System Events\" to keystroke space using command down"'
 ```
+
+⚠️ **Those two options are not optional, and a bare `ssh admin@<guest>` is the
+trap.** vmnet hands the same `192.168.64.x` addresses out again from one clone
+to the next, so an address is a different host with a different key every time.
+A first connection either dies on `Host key verification failed` (nothing
+answers a host-key prompt in an agent's shell) or writes an entry that turns
+every later lane landing on that address into a `REMOTE HOST IDENTIFICATION HAS
+CHANGED` refusal — a wedge that outlives the VM that caused it. `scruff runtime
+enter` and `haus-vm-shot` already carry them; anything you type yourself has to.
 
 Four things that are easy to get wrong:
 
@@ -98,21 +110,29 @@ is never a desktop interruption, however loudly it redraws over there.
 ## When the guest looks unreachable
 
 `scruff runtime up` returns once **sshd answered**, not once the guest took a
-DHCP lease, so an address it printed was reachable a moment ago. A guest that
-never answers is told to you instead, with the path of its boot log
-(`$TMPDIR/scruff-<lane>.boot.log`) — read that before anything else, and know
-that the clone is still on disk either way: `scruff runtime down` or `tart
-delete scruff-<lane>` reclaims it.
+DHCP lease, so an address it printed was reachable a moment ago. It waits up to
+`SCRUFF_TART_SSH_WAIT` seconds (180) for that answer, and says which address it
+is waiting on while it does. A guest that never answers is told to you instead,
+with the path of its boot log (`$TMPDIR/scruff-<lane>.boot.log`) and whatever
+the last ssh attempt printed — read those before anything else.
+
+The clone is still on disk either way, and how you reclaim it depends on which
+failure you got: a guest that never took an address has already been stopped, so
+`tart delete scruff-<lane>` works; one that has an address but no sshd was left
+RUNNING on purpose, so it takes `scruff runtime down <lane> --backend tart` —
+`tart delete` refuses a running VM and there is no `--force`.
 
 If ssh or ping fails anyway, do **not** start debugging the network.
 hausfold/haus#663 spent two sessions ruling these out and none of them wants
 re-running: the guest image (Remote Login is on, no guest firewall), the host
 bridge (`bridge100` has both `vmenet` members, ARP resolves, routes are
 present), Claude Code's own sandbox (`dangerouslyDisableSandbox` changes
-nothing), and Tailscale. The one thing that has ever separated a failure from a
-success there is the pane it ran in — a second pane reached the same class of
-guest cleanly at the same moment — so try it once from a fresh pane, and if
-that works, take the fresh pane and move on. Two minutes, not twenty.
+nothing), and Tailscale. The mechanical half of that report turned out to be
+this script rather than the network, and is fixed; what is left over is one
+observation, worth exactly one try: a second pane reached the same class of
+guest cleanly at the same moment one pane could not. So if it still fails after
+the checks above, try it once from a fresh pane, take that pane if it works, and
+hand the rest back. Two minutes, not twenty.
 
 ## When the VM cannot answer
 

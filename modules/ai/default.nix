@@ -627,6 +627,13 @@ let
         # TCC rows that let `screencapture`/`osascript` work over SSH, the
         # macOS 26 capture prompt — were all measured on 26.x. Cloning a bare
         # base works too, but a lane that clones one has no haus to test.
+        #
+        # `setup` returns when the guest answers ssh, not when it takes a DHCP
+        # lease, so the address it prints is one you can use. SCRUFF_TART_SSH_WAIT
+        # is how long it will wait for that answer (seconds, 180 by default) —
+        # raise it for a slow first boot, and read the boot log it names if it
+        # gives up. A bare base image authenticates `admin` by PASSWORD, and the
+        # wait is key-only, so that is the image whose wait times out.
         kind     = "runtime"
         id       = "tart"
         setup    = ["${script}", "setup", "{{.Name}}", "{{.Path}}"]

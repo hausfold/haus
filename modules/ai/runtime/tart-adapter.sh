@@ -38,6 +38,32 @@ ssh_opts=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLeve
 # takes neither.
 ssh_quiet=(-o BatchMode=yes -o ConnectTimeout=5)
 
+# ⚠️ `ConnectTimeout` bounds the TCP connect and NOTHING after it, and the gap
+# is exactly where setup's readiness probe lives: macOS's sshd is launchd
+# socket-activated, so early in a boot the connect succeeds instantly against a
+# socket launchd is holding while the daemon behind it is not serving yet. A
+# probe that stalls in the banner or auth exchange there has no client-side
+# timeout to end it, and would sit past the deadline for as long as the guest
+# felt like — a silent hang inside the wait that exists to prevent one. So each
+# probe gets a wall of its own, and its stderr is kept: `BatchMode` turns "this
+# image wants a password" into a probe that can never succeed, and without the
+# text nothing anywhere would say so.
+ssh_probe() {
+  local pid waited=0
+  ssh "${ssh_opts[@]}" "${ssh_quiet[@]}" "$user@$1" true 2>"$probe_err" &
+  pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    if [ "$waited" -ge 15 ]; then
+      kill "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+      return 1
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  wait "$pid"
+}
+
 vm="scruff-$lane"
 
 case "$cmd" in
@@ -83,15 +109,36 @@ setup)
   # reached it"). Wait for the thing the caller actually needs, and report the
   # address only once something on the far end has answered on it.
   ssh_wait="${SCRUFF_TART_SSH_WAIT:-180}"
+  case "$ssh_wait" in
+  '' | *[!0-9]*)
+    echo "SCRUFF_TART_SSH_WAIT is seconds, and \`$ssh_wait\` is not a number" >&2
+    exit 2
+    ;;
+  esac
+  probe_err="${TMPDIR:-/tmp}/$vm.probe.log"
+  # Said out loud, because a minute of `tart ip` and up to three of this with
+  # nothing on either stream is the same dead terminal the leak above produced —
+  # the symptom, arrived at honestly. fd 2, so `screenshot`'s stdout contract is
+  # untouched by it.
+  echo "waiting up to ${ssh_wait}s for sshd on $ip …" >&2
   deadline=$((SECONDS + ssh_wait))
-  until ssh "${ssh_opts[@]}" "${ssh_quiet[@]}" "$user@$ip" true 2>/dev/null; do
+  until ssh_probe "$ip"; do
     if [ "$SECONDS" -ge "$deadline" ]; then
       echo "$vm is at $ip but sshd did not answer inside ${ssh_wait}s — its boot log is $boot_log" >&2
-      echo "it is still running: \`scruff runtime down $lane --backend tart\`, or \`tart delete $vm\`, reclaims the disk" >&2
+      if [ -s "$probe_err" ]; then
+        echo "the last attempt said: $(tail -n 1 "$probe_err")" >&2
+      fi
+      # ⚠️ `tart delete` is NOT the recovery here, and this is the one message
+      # where getting that wrong costs most. The guest is deliberately left
+      # RUNNING so it can be looked at, and `tart delete` refuses a running VM
+      # (no --force; see teardown below, where the stop IS the force). So the
+      # verb that works is the one that stops it first.
+      echo "it is still running: \`scruff runtime down $lane --backend tart\` reclaims the disk" >&2
       exit 1
     fi
     sleep 2
   done
+  rm -f "$probe_err"
   echo "$vm is up at $ip — the lane is mounted at /Volumes/My Shared Files/work — \`scruff runtime enter\` to ssh in"
   ;;
 enter)
@@ -162,6 +209,9 @@ teardown)
   # stopped makes it fail, which is not a reason to leave the clone on disk.
   tart stop "$vm" 2>/dev/null || true
   tart delete "$vm"
+  # The clone's own paper trail goes with it. Neither file outlives the guest it
+  # describes, and `$TMPDIR` is where a lane's next `setup` will write them again.
+  rm -f "${TMPDIR:-/tmp}/$vm.boot.log" "${TMPDIR:-/tmp}/$vm.probe.log"
   ;;
 *)
   echo "unknown tart-adapter.sh subcommand: $cmd — want setup, enter, teardown, or screenshot" >&2
