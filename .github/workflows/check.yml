@@ -118,6 +118,18 @@ jobs:
       #                            @import left to fetch at page load
       #   userstyles-important     and each one's declarations survive the site's
       #                            own cascade
+      #   services-deck            the background-jobs deck against `config.launchd`:
+      #                            an entry with no job, and a job whose room never
+      #                            put a card in the deck
+      #   swift-bin                no room builds Swift by hand — every one-file
+      #                            helper goes through modules/lib/swift-bin.nix
+      #   ui-load-sync             every carrier of snug's painter bootstrap against
+      #                            the one copy in modules/lib/ui-load.nix
+      #   yazi-opener-args         every yazi opener names its files with yazi's own
+      #                            `%s` and not the shell's `"$@"`. yazi 26 stopped
+      #                            passing them as arguments and substitutes them into
+      #                            the run string instead, so the old spelling still
+      #                            parses, still runs, and hands the command no file
       #   tool-skills              every skill name modules/ai lists is one the
       #                            pinned tool actually ships — a home file, so
       #                            a wrong name is a failed `haus rebuild`.
@@ -143,6 +155,13 @@ jobs:
       # from the eval, never from this list:
       #   nix eval --json .#checks.x86_64-linux --apply builtins.attrNames
       #
+      # ⚠️ And a third time, found the same way on 2026-09-05: the census said
+      # twenty-four and the eval said twenty-seven. `services-deck`, `swift-bin`
+      # and `ui-load-sync` had been running unlisted; `yazi-opener-args` was
+      # added and listed in the same change. The darwin sentence below was three
+      # short in the same reading — it said fifteen and named fifteen, and the
+      # eval said eighteen.
+      #
       # All but the last two mirror a rule that lives in another repo, in a
       # generated dotfile, in a shell script, or in a README — where drift is
       # silent.
@@ -163,7 +182,7 @@ jobs:
       #   nix eval --json .#checks.x86_64-linux   --apply builtins.attrNames
       #   nix eval --json .#checks.aarch64-darwin --apply builtins.attrNames
       #
-      # The darwin-only FIFTEEN fingerprint a real evaluated system, so they
+      # The darwin-only EIGHTEEN fingerprint a real evaluated system, so they
       # stay guarded and don't run here — they fire on a Mac, by hand, or not at
       # all: catalogue (every desktop and compat alias raised as a real system),
       # fragment-compat (the retired top-level fragments' old spelling against
@@ -172,7 +191,8 @@ jobs:
       # desktop quietly stopping short of what the module defaults used to give),
       # accent-reach, scale-reach, font-reach, standalone-modules, ai-room,
       # app-collections, login-note, desktop-seam, editor-choice,
-      # bar-bottom-focus, bar-bottom-groups, and settings-writes (what each
+      # bar-bottom-focus, bar-bottom-groups, bar-third-party-widget,
+      # bar-widget-header, bar-widget-intervals, and settings-writes (what each
       # shipping desktop actually WRITES across §5.6's ten macOS settings
       # groups, and which file supplied it — the layer below the declared
       # `null` every other surface reads).
