@@ -714,7 +714,9 @@ haus — the everyday CLI for a haus machine.
                       --dir PATH writes somewhere else. On a normal haus machine
                       there is nothing to do: haus.ai.skill already installed it,
                       as read-only Nix symlinks, and it says so rather than
-                      failing on a permission error
+                      failing on a permission error. A file that is there and
+                      differs is left alone and the run exits 2, so a caller
+                      learns it was only partly honoured
   haus permissions    walk everything on this Mac that needs a person: each grant
                       or click, why this machine wants it, and a button. Confirms
                       what macOS lets it confirm and says so about the rest.
@@ -4227,6 +4229,10 @@ cmd_skill_install() {
       *) die "unknown flag '$1' — usage: haus skill install [--client ${clients// /|}] [--dir PATH]" ;;
     esac
   done
+  # Two answers to "where", where only one can be honoured. Picking silently
+  # would write somewhere the caller named a different path for.
+  [ -z "$dir" ] || [ -z "$client" ] ||
+    die "--dir and --client both name a destination — pass one"
 
   skill_dir
   local src="$SKILL_DIR"
@@ -4302,14 +4308,15 @@ cmd_skill_install() {
     done
   done
 
-  # Exit 0 either way. "Already installed, by us, and unwritable for that
-  # reason" is the desired end state holding, not a failure — a non-zero here
-  # would make every agent that ran this on a normal haus machine report a
-  # broken command and try again with more force.
+  # "Already installed, by us, and unwritable for that reason" is the desired
+  # end state holding, not a failure — a non-zero here would make every agent
+  # that ran this on a normal haus machine report a broken command and try
+  # again with more force. So `nixed` never reaches the exit code; only
+  # `skipped` does, at the end.
   if [ "$wrote" -eq 0 ] && [ "$skipped" -eq 0 ] && [ "$nixed" -gt 0 ]; then
     say "nothing to install: haus.ai.skill already installed this skill here, as read-only Nix symlinks."
     hint "to place a copy somewhere haus does not manage: haus skill install --dir <path>"
-    return
+    return 0
   fi
   say "skills: $wrote written, $((nixed + skipped)) left alone"
   # The one thing a copy in a CLIENT directory costs, said at the moment it is
@@ -4321,6 +4328,13 @@ cmd_skill_install() {
   # sets no `backupFileExtension` at all and simply refuses to activate.
   [ -n "$wrote_client" ] && hint \
     "these are real files, and haus.ai.skill wants to link the same paths — remove them before you switch that room on, or the next rebuild backs them up (or refuses)"
+  # A file that exists and differs is the caller's request NOT honoured, and
+  # that is what the exit code is for (A3 in the workshop's agent-surface
+  # standard). 2 rather than die's 1: every usage refusal above exits 1, and
+  # "you asked wrong" and "I declined to overwrite" send an agent down
+  # different paths — the first is retried with the flag fixed, the second is
+  # a diff to read.
+  [ "$skipped" -eq 0 ] || exit 2
   return 0
 }
 
