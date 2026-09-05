@@ -4226,7 +4226,7 @@ cmd_skill_install() {
       # the command with no message on either stream.
       --dir)    dir="${2:-}";    [ -n "$dir" ]    || die "--dir needs a path"; shift 2 ;;
       --client) client="${2:-}"; [ -n "$client" ] || die "--client needs one of: $clients"; shift 2 ;;
-      *) die "unknown flag '$1' — usage: haus skill install [--client ${clients// /|}] [--dir PATH]" ;;
+      *) die "unknown flag '$1' — usage: haus skill install [--client ${clients// /|} | --dir PATH]" ;;
     esac
   done
   # Two answers to "where", where only one can be honoured. Picking silently
@@ -4329,8 +4329,9 @@ cmd_skill_install() {
   [ -n "$wrote_client" ] && hint \
     "these are real files, and haus.ai.skill wants to link the same paths — remove them before you switch that room on, or the next rebuild backs them up (or refuses)"
   # A file that exists and differs is the caller's request NOT honoured, and
-  # that is what the exit code is for (A3 in the workshop's agent-surface
-  # standard). 2 rather than die's 1: every usage refusal above exits 1, and
+  # that is what the exit code is for: A3 of the workshop's agent-surface
+  # standard asks for the tool's own "refused" code, and haus had none, so
+  # this is it. 2 rather than die's 1: every usage refusal above exits 1, and
   # "you asked wrong" and "I declined to overwrite" send an agent down
   # different paths — the first is retried with the flag fixed, the second is
   # a diff to read.
