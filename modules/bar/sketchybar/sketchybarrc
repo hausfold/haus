@@ -114,15 +114,13 @@ sketchybar --default \
 # left-side pills. A GLYPH, not an image: haus.bar.logo.icon picks it,
 # haus.bar.logo.size sizes it, and everything else this pill does (the state
 # colour, the hover sweep, leader mode) is a colour change — which SketchyBar
-# can only apply to text. A `background.image`, which is how the hacker
-# cat-ears mark was drawn here until now, takes no tint at all, so it could
-# follow neither haus.theme.accent nor any state. That is why there is no
+# can only apply to text. A `background.image` takes no tint at all, so it
+# could follow neither haus.theme.accent nor any state. That is why there is no
 # option to point this at a file: every one of the four things below would
 # have to be dropped to keep the ability.
 #
-# The item id is `haus.logo`. It was `apple.logo` from the original scaffold
-# right through the ears, long after the last Apple glyph left it; the three
-# readers are this file, plugins/logo.sh and plugins/launch_mode.sh.
+# The item id is `haus.logo`; the three readers are this file,
+# plugins/logo.sh and plugins/launch_mode.sh.
 #
 # One item, five gestures, all of them in plugins/logo.sh (see there) — a
 # barlib widget whose block is THIS one, hand-written because the pill is not
