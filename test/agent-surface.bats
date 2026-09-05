@@ -346,7 +346,11 @@ haus_sh() { # haus_sh <VAR=val…> <snippet>
   mkdir -p "$d/haus"
   echo 'someone edited this' >"$d/haus/SKILL.md"
   haus_sh 'cmd_skill_install --client codex 2>&1'
-  [ "$status" -eq 0 ] || fail "$output"
+  # 2, not 0: the request was only partly honoured, and a caller has to be
+  # able to tell that from "nothing to do". Not 1 either — that is every usage
+  # refusal in this verb, and "you asked wrong" is a different next move from
+  # "I declined to overwrite".
+  [ "$status" -eq 2 ] || fail "want exit 2 (refused), got $status: $output"
   [ "$(cat "$d/haus/SKILL.md")" = 'someone edited this' ] || fail "clobbered a hand-edited skill"
   [[ "$output" == *"exists and differs"* ]] || fail "$output"
   [[ "$output" == *"$SKILL/SKILL.md"* ]] || fail "did not say what to diff it against: $output"
@@ -375,6 +379,32 @@ haus_sh() { # haus_sh <VAR=val…> <snippet>
   [ "$status" -eq 1 ] || fail "accepted an unknown client"
   haus_sh 'cmd_skill_install --force 2>/dev/null'
   [ "$status" -eq 1 ] || fail "accepted an unknown flag"
+}
+
+# Two answers to "where", where only one can be honoured. This used to take
+# --dir and drop --client on the floor.
+@test "--dir and --client together are refused rather than silently ranked" {
+  mkdir -p "$FAKEHOME/.claude"
+  haus_sh "cmd_skill_install --dir '$FAKEHOME/scratch' --client claude 2>&1"
+  [ "$status" -eq 1 ] || fail "accepted both flags: $output"
+  [[ "$output" == *"both name a destination"* ]] || fail "$output"
+  [ ! -e "$FAKEHOME/scratch" ] || fail "wrote to --dir and ignored --client"
+  [ ! -e "$FAKEHOME/.claude/skills" ] || fail "wrote to --client and ignored --dir"
+}
+
+# An empty value is an unset shell variable — `--dir "$scratch"` with `scratch`
+# unset — and a verb that fell through to discovery there would write into
+# every agent client on the machine while the caller believed it had named one
+# throwaway path.
+@test "an empty flag value writes nowhere, rather than everywhere" {
+  mkdir -p "$FAKEHOME/.claude" "$FAKEHOME/.codex"
+  haus_sh 'cmd_skill_install --dir "" 2>&1'
+  [ "$status" -eq 1 ] || fail "accepted an empty --dir: $output"
+  [[ "$output" == *"--dir needs a path"* ]] || fail "$output"
+  haus_sh 'cmd_skill_install --client "" 2>&1'
+  [ "$status" -eq 1 ] || fail "accepted an empty --client: $output"
+  [[ "$output" == *"--client needs one of"* ]] || fail "$output"
+  [ -z "$(find "$FAKEHOME" -name SKILL.md)" ] || fail "an empty value fell through to discovery"
 }
 
 @test "a flag with nothing after it says so" {
