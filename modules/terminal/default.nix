@@ -1265,6 +1265,18 @@ in
             run = batPreviewer;
           }
         ];
+        # An opener names its files with yazi's OWN placeholder, `%s` — never
+        # the shell's `"$@"`. yazi 26 stopped handing the paths to the opener
+        # as positional arguments and now substitutes them into the run string
+        # itself (`%s` all of them, `%s1` just the first, `%d1` their
+        # directory), shell-quoting each one, which is why `%s` is written
+        # BARE: wrapping it in quotes of your own doubles them. It is
+        # substitution, so it fails the quiet way — `"$@"` still parses, still
+        # runs, and the command simply gets no file. `bat` with no file reads
+        # stdin, so Enter on any text file replaced yazi with a blank pager
+        # that hung until ^C; `glow -p` and image-preview.sh did the same for
+        # markdown and images. Previewers are unaffected: those go through
+        # `piper`, which does its own `$1`/`$w` substitution.
         settings.opener = {
           read = [
             {
@@ -1272,28 +1284,28 @@ in
               # even though Enter has suspended yazi and given it the whole
               # terminal. Resolve the live terminal width at open time so the
               # fullscreen pager wraps where the visible window ends.
-              run = ''glow -s "${glowStyle}" -w "$(tput cols)" -p "$@"'';
+              run = ''glow -s "${glowStyle}" -w "$(tput cols)" -p %s'';
               block = true;
               desc = "glow";
             }
           ];
           pager = [
             {
-              run = ''bat --style=full --paging=always "$@"'';
+              run = "bat --style=full --paging=always %s";
               block = true;
               desc = "bat";
             }
           ];
           image_preview = [
             {
-              run = ''~/.config/haus/term/image-preview.sh "$@"'';
+              run = "~/.config/haus/term/image-preview.sh %s";
               block = true;
               desc = "Preview";
             }
           ];
           open = [
             {
-              run = ''open "$@"'';
+              run = "open %s";
               orphan = true;
               desc = "Open";
             }

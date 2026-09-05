@@ -4414,6 +4414,36 @@
                     ${pkgs.writeText "actual" (namespaceGuardAssertTable + "\n")}
             touch $out
           '';
+          # ---- yazi-opener-args -----------------------------------------------
+          # yazi 26 hands an opener its files by SUBSTITUTING them into the run
+          # string (`%s` all of them, `%s1` the first) and stopped passing them
+          # as shell arguments. So the pre-26 spelling, `"$@"`, still parses,
+          # still runs, and the command simply gets NO file: `bat` reads stdin
+          # instead, and Enter on any text file replaces yazi with a blank
+          # pager that hangs until ^C, logging nothing anywhere. Substitution
+          # fails the quiet way, which is what earns this a check rather than a
+          # comment. modules/terminal is the only room that writes an opener,
+          # so the guard is a read of that one block.
+          yazi-opener-args = pkgs.runCommand "haus-yazi-opener-args-ok" { } ''
+            block=$(sed -n '/settings\.opener = {/,/settings\.open\.rules/p' \
+              ${./modules/terminal/default.nix} | grep 'run = ' || true)
+            if [ -z "$block" ]; then
+              echo "found no yazi opener run strings — has settings.opener moved?" >&2
+              exit 1
+            fi
+            if printf '%s\n' "$block" | grep -q '[$]@'; then
+              echo "a yazi opener still names its files the shell's way:" >&2
+              printf '%s\n' "$block" | grep '[$]@' >&2
+              echo "fix: name them with yazi's own %s — bare, it quotes each path itself" >&2
+              exit 1
+            fi
+            if printf '%s\n' "$block" | grep -qv '%s'; then
+              echo "a yazi opener names no file at all:" >&2
+              printf '%s\n' "$block" | grep -v '%s' >&2
+              exit 1
+            fi
+            touch $out
+          '';
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-darwin" system) {
           # ---- bar-third-party-widget ------------------------------------------
