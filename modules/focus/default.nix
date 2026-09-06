@@ -10,11 +10,15 @@
 # obscure chord at activation, and the engine presses that chord
 # synthetically. No Shortcuts app, nothing to author by hand.
 #
-# TCC honesty: the synthetic keypress needs Accessibility on whatever app
-# invokes focus (palette runs inherit pounce's grant; the pill needs sketchybar
-# granted once), and exact state reads of Assertions.json need Full Disk
-# Access — without it focus falls back to remembering its own last toggle.
-# `focus doctor` checks and explains all of it.
+# TCC honesty: the synthetic keypress needs Accessibility, and exact state
+# reads of Assertions.json need Full Disk Access. focus.sh forwards both
+# through the signed Pounce.app the launcher room keeps (`pounce focus toggle`
+# for the press, `pounce focus status` for the read), so one pair of grants on
+# it covers the pill, the palette and the CLI. Without a focus-capable pounce
+# it falls back per surface: the keypress is attributed to whatever app invoked
+# focus (sketchybar for the pill, the terminal for the CLI), and with no Full
+# Disk Access there the state is focus's own last toggle. `focus doctor` checks
+# and explains all of it.
 {
   config,
   lib,

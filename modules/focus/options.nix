@@ -25,11 +25,18 @@
 
         Honest scope: focus flips the built-in Do Not Disturb, not named Focus
         modes, and it doesn't manage which apps break through — curate that
-        once in System Settings. The keypress needs an Accessibility grant on
-        whatever app invokes focus (palette runs inherit pounce's; the pill
-        needs one on sketchybar itself, and TCC keys that to the binary — so
-        it is asked again after a rebuild that moves it). `focus doctor` walks
-        those steps.
+        once in System Settings.
+
+        Two grants, both on Pounce.app: the keypress needs Accessibility, and
+        reading the state back needs Full Disk Access. With the launcher room
+        on, focus forwards both through the signed Pounce.app it keeps, so that
+        one pair of checkboxes covers the pill, the palette and the CLI, and it
+        survives rebuilds. Without a launcher, whatever app invokes focus needs
+        the grants itself: sketchybar for the pill, which TCC keys to the
+        binary and asks for again after a rebuild moves it, and your terminal
+        for the CLI. Without Full Disk Access the state is focus's own memory,
+        which drifts when you toggle from Control Center or your phone. `focus
+        doctor` checks each and prints the fix.
       '';
     };
 
