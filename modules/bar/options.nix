@@ -607,8 +607,7 @@ in
       default = builtins.fromJSON ''"\uf015"''; # nf-fa-home, U+F015
       example = "⌂";
       description = ''
-        The glyph in the far-left logo pill — the one that was an Apple menu
-        until it was the hacker cat-ears mark. Any single character your bar
+        The glyph in the far-left logo pill. Any single character your bar
         font can draw; the default is Nerd Font's `nf-fa-home` (`U+F015`), a
         solid house.
 
