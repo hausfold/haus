@@ -1103,6 +1103,36 @@ lib.mkIf config.haus.launcher.enable {
     steps = [ "Turn Pounce on in the list" ];
   };
 
+  # Two default palette commands send Apple events to System Events — Lock
+  # Screen (the ⌃⌘Q keystroke) and Force Quit (the process roster) — and so
+  # does every user-written command with a `tell application` in it. Each
+  # script is a
+  # child of the daemon, so macOS books the request against Pounce, asks on
+  # the first send, and refuses SILENTLY when the grant is missing or the
+  # dialog was dismissed: Lock Screen does nothing, Force Quit lists nothing,
+  # and no log says why. Lock Screen's keystroke also needs card 30's
+  # Accessibility grant, and fails the same silent way without it, so a Lock
+  # Screen still dead with this granted is that card's. No `check` and no
+  # `prompt`, for the deck's first rule — every API that reports an Automation
+  # grant asks for it first.
+  haus._contrib.permissions.launcher-automation = {
+    order = 33;
+    title = "Automation — pounce, for System Events";
+    why = ''
+      Lock Screen sends the ⌃⌘Q keystroke through System Events and Force Quit
+      reads its process list from it. macOS asks on the first one; this card
+      is for putting the grant back if that dialog was dismissed. A command of
+      your own that tells an app gets a prompt of its own, one per app.
+    '';
+    cost = "Lock Screen does nothing and Force Quit lists nothing, with no error anywhere";
+    applies = "command -v pounce >/dev/null 2>&1";
+    pane = panes.automation;
+    steps = [
+      "Turn System Events on underneath Pounce"
+      "The row only exists once something has asked — if Pounce is not there, run Lock Screen once from the palette and come back"
+    ];
+  };
+
   # Published so another room can run one of these scripts directly instead of
   # keeping a second copy of it — bar's logo pill is the first caller (the
   # option in ./options.nix says why a bar plugin can't resolve this itself).
