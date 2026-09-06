@@ -4,9 +4,8 @@
 # A tool's `<tool>-skill` derivation lays out `$out/<skill-name>/SKILL.md` (the
 # family standard, the workshop's `docs/agent-surface.md`), and a tool may
 # ship more than one: scruff ships `scruff` (drive the lane lifecycle) and `handoff`
-# (write the brief a `scruff spawn --prompt-file` lane opens on), factory ships
-# `factory` (the merge verbs) and `nightshift` (the loop that drives them).
-# pounce, perch, trill and nebelung ship one each, named for themselves.
+# (write the brief a `scruff spawn --prompt-file` lane opens on).
+# factory, pounce, perch, trill and nebelung ship one each, named for themselves.
 #
 # Split out of modules/ai/default.nix so `nix flake check` can build it. The
 # room installs the result as home files, which puts it on every machine's
@@ -67,12 +66,12 @@ let
         "handoff"
       ];
     }
-    # factory ships two skills and they are not two copies of one: `factory`
-    # teaches the verbs (what to run when the user says "merge the safe PRs"),
-    # `nightshift` teaches the LOOP that drives them — the cadence, the fixer
-    # cap, what to do with each line a pass printed. The tool is one pass at a
-    # time on purpose, so the thing that decides to call it again is judgement
-    # rather than a flag, and that judgement is what the second skill is.
+    # factory ships ONE skill, and the tool's shape is why: a live lease starts
+    # `factory watchdog run`, and that runner passes `factory shift` on its own
+    # cadence, putting every red default branch through four gates written in
+    # code. The loop is a process rather than instructions a session follows,
+    # so what a skill is for is the verbs around it — grant the lease, read the
+    # log in the morning, explain a refusal.
     #
     # Ungated, like scruff's: the AI room puts `factory` on PATH on every
     # machine that has the room at all, so the skill is never teaching an agent
@@ -81,10 +80,7 @@ let
     # this layer entirely — and `factory doctor` is what answers it.
     {
       drv = factory-skill;
-      names = [
-        "factory"
-        "nightshift"
-      ];
+      names = [ "factory" ];
     }
     # nebelung is the one entry with no binary behind it, and it is ungated for
     # that reason: the palette is the machine's theme whatever rooms are on, so

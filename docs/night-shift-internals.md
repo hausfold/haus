@@ -10,7 +10,7 @@ silently and none of them visible from the shift's own side.
 
 The tool that merges is [hausfold/factory](https://github.com/hausfold/factory)
 — a flake input this layer ships on `PATH` with `haus.ai.enable`, along with its
-two agent skills (`factory` and `nightshift`). Its README is the manual for the
+agent skill (`factory`). Its README is the manual for the
 shift itself: the verbs, tier 1 and the floor under it, the budget governor, the
 watchdog. Nothing below is a `haus.*` option factory knows about. The tool is
 repo-agnostic and deliberately names none of this; the wiring is the layer's, so
@@ -46,13 +46,16 @@ Two strings the site deliberately does not carry, because only a caller needs
 them. **`HAUS_LANE_BACKGROUND=1`** is what makes the spawn silent, and the
 binary already sets it — anything else that spawns a lane on a sleeping desk
 sets it itself, and `modules/launcher/commands/spawn-agent.sh` is the other
-caller to copy. **`CI-RED <repo> <url>`** is factory's own cue for a red default
-branch (`ai/nightshift/SKILL.md`), and it is *most* of the argv: the URL is the
-run, the verdict is `ci` because that is the only failure this line reports, and
-the selector is the one field the line does NOT carry — the caller has to know
-that repo's default branch name. That is the whole join between factory's output
-and this binary, it exists in neither repo's code, and it is why the two names
-are written down together here.
+caller to copy. The second is the **argv**, and it is the reason `fixer.command`
+cannot name this binary. factory's runner appends `<repo> <default branch> <run
+url>` to whatever that key holds; `haus-fix-github` takes `<selector> <verdict>
+<url>`. Three words meet three words in a different order, and `ci` — the
+verdict, because a red default branch is the only failure a fixer lane is
+handed — is carried by neither side. So `fixer.command` on a haus machine names
+a shim whose whole body is `haus-fix-github "$2" ci "$3"`: drop the repo word,
+put the branch in the selector, write the verdict in. Nothing in either repo
+checks that shim, which is why the two argv shapes are written down together
+here.
 
 **Three of the endings that produce no lane leave nothing behind but the
 banner** — nothing in `haus.ai.clients` on `PATH`, no local checkout, and a lane

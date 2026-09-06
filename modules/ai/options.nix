@@ -488,15 +488,15 @@ in
         have open?" or "hand this off to a fresh session" reaches for `scruff`
         rather than `git worktree`.
 
-        Seven skills on any machine. Two are haus's own: `haus` (this
+        Six skills on any machine. Two are haus's own: `haus` (this
         machine's setup) and `hausfold` (carrying a complaint about anything we
         make upstream — which repo owns the symptom, the `report` verb that
         fills its bug form's diagnostics field in, and the fork to a pull
         request; it files nothing without asking you first). Then scruff's
         own two — `scruff` (the lane lifecycle) and `handoff` (turning work into a
         brief a cold session can act on, ending on the clipboard or in a new
-        lane) — factory's two: `factory` (the merge verbs) and `nightshift`
-        (the loop that drives them while nobody is watching) — and `nebelung`
+        lane) — factory's `factory` (the merge verbs; a live lease runs the
+        shift itself, so the skill is what an agent does around it) — and `nebelung`
         (this machine's exact palette, rendered from the lock rather than
         remembered). A tool whose room is OPTIONAL adds its own only when that
         room is on: `trill` (sending a notification) with

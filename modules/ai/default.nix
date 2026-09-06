@@ -233,7 +233,7 @@ let
     revision this machine pins (`haus update` regenerates it), as is every other
     skill haus installed. `hausfold/` is haus's second skill and is edited in
     hausfold/haus beside the first; `scruff/` and `handoff/` are scruff's, edited in
-    hausfold/scruff; `factory/` and `nightshift/` are factory's, edited in
+    hausfold/scruff; `factory/` is factory's, edited in
     hausfold/factory; `nebelung/` is nebelung's, and half of it is rendered from
     that repo's palette files rather than written;${lib.optionalString config.haus.notifications.compositor " `trill/` is trill's, here because `haus.notifications.compositor` is on;"}${lib.optionalString config.haus.launcher.enable " `pounce/` is pounce's, here because `haus.launcher.enable` is on;"}${lib.optionalString config.haus.shelf.enable " `perch/` is perch's, here because `haus.shelf.enable` is on;"} they arrive on a lock bump. Not everything beside them
     is generated: ${clientScopeNote.${client}} that you can edit live with no
@@ -1104,10 +1104,9 @@ in
       # lanes; factory closes the pull requests nobody needed to read, merging
       # only what a filter the user typed can vouch for and leaving everything
       # with taste in it for the morning. On PATH beside `scruff` because the
-      # two agent skills this room installs (`factory`, `nightshift`) are
-      # instructions for driving it, and an instruction whose binary is not
-      # there is worse than no instruction — the same argument `tart` below
-      # rides on.
+      # agent skill this room installs (`factory`) is instructions for driving
+      # it, and an instruction whose binary is not there is worse than no
+      # instruction — the same argument `tart` below rides on.
       #
       # Nothing here configures it, and that is deliberate rather than an
       # omission: what may merge is AUTHORITY, so it lives in a machine-local
