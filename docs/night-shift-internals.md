@@ -10,11 +10,11 @@ silently and none of them visible from the shift's own side.
 
 The tool that merges is [hausfold/factory](https://github.com/hausfold/factory)
 — a flake input this layer ships on `PATH` with `haus.ai.enable`, along with its
-agent skill (`factory`). Its README is the manual for the
-shift itself: the verbs, tier 1 and the floor under it, the budget governor, the
-watchdog. Nothing below is a `haus.*` option factory knows about. The tool is
-repo-agnostic and deliberately names none of this; the wiring is the layer's, so
-the layer is where it is written down.
+agent skill (`factory`). Its README is the manual for the shift itself: the
+verbs, tier 1 and the floor under it, the budget governor, the runner. Nothing
+below is a `haus.*` option factory knows about. The tool is repo-agnostic and
+deliberately names none of this; the wiring is the layer's, so the layer is
+where it is written down.
 
 ## Why the `always` lid hold draws nothing
 
@@ -42,7 +42,7 @@ The contract and the no-local-checkout ending are on the site: that is what a
 person types. What is here is the observability, which is a *caller's* problem
 rather than an operator's.
 
-Two strings the site deliberately does not carry, because only a caller needs
+Two things the site deliberately does not carry, because only a caller needs
 them. **`HAUS_LANE_BACKGROUND=1`** is what makes the spawn silent, and the
 binary already sets it — anything else that spawns a lane on a sleeping desk
 sets it itself, and `modules/launcher/commands/spawn-agent.sh` is the other
@@ -53,8 +53,9 @@ url>` to whatever that key holds; `haus-fix-github` takes `<selector> <verdict>
 verdict, because a red default branch is the only failure a fixer lane is
 handed — is carried by neither side. So `fixer.command` on a haus machine names
 a shim whose whole body is `haus-fix-github "$2" ci "$3"`: drop the repo word,
-put the branch in the selector, write the verdict in. Nothing in either repo
-checks that shim, which is why the two argv shapes are written down together
+put the branch in the selector, write the verdict in. `factory doctor` blocks
+on a `fixer.command` PATH cannot find, so what goes unchecked is not the
+program but its ARGV — which is why the two shapes are written down together
 here.
 
 **Three of the endings that produce no lane leave nothing behind but the

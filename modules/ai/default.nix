@@ -233,8 +233,8 @@ let
     revision this machine pins (`haus update` regenerates it), as is every other
     skill haus installed. `hausfold/` is haus's second skill and is edited in
     hausfold/haus beside the first; `scruff/` and `handoff/` are scruff's, edited in
-    hausfold/scruff; `factory/` is factory's, edited in
-    hausfold/factory; `nebelung/` is nebelung's, and half of it is rendered from
+    hausfold/scruff; `factory/` is factory's, edited in hausfold/factory;
+    `nebelung/` is nebelung's, and half of it is rendered from
     that repo's palette files rather than written;${lib.optionalString config.haus.notifications.compositor " `trill/` is trill's, here because `haus.notifications.compositor` is on;"}${lib.optionalString config.haus.launcher.enable " `pounce/` is pounce's, here because `haus.launcher.enable` is on;"}${lib.optionalString config.haus.shelf.enable " `perch/` is perch's, here because `haus.shelf.enable` is on;"} they arrive on a lock bump. Not everything beside them
     is generated: ${clientScopeNote.${client}} that you can edit live with no
     rebuild. `ls -l` the path before assuming which kind it is.
