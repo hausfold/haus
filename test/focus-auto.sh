@@ -39,6 +39,7 @@ mkdir -p "$TMP/bin" "$TMP/home"
 build_engine() { # $1 = path to the scene table
     sed -e "s|@jq@|/usr/bin/jq|" \
         -e "s|@keyCode@|105|" \
+        -e "s|@pounceBin@|''|" \
         -e "s|@slackEnabled@|0|" \
         -e "s|@slackTokenCommand@|''|" \
         -e "s|@slackTokenHint@|'run: haus-secret --check'|" \

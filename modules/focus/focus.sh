@@ -120,15 +120,17 @@ SLACK_SNOOZE=@slackSnooze@
 SLACK_SNOOZE_MINUTES=1440 # failsafe cap; turning it off ends it earlier
 HOOKS=(@hooks@)
 
-# The stable-signed pounce copy (modules/launcher keeps its TCC grants alive
-# across rebuilds). When it's new enough to have the `focus` subcommand, focus
-# rides its Accessibility + Full Disk Access grants for the press AND the
-# state read — one pair of checkboxes covers every surface. The probe greps
-# --help because an OLDER pounce treats unknown args as ClientMode and would
-# open the palette; never call `focus` unprobed.
-POUNCE_SIGNED="$HOME/.local/state/pounce/Pounce.app/Contents/MacOS/pounce"
+# The pounce the launcher room runs: the notarized release app straight from
+# the store, whose team-anchored signature is what keeps its TCC grants alive
+# across rebuilds. When it has the `focus` subcommand, focus rides its
+# Accessibility + Full Disk Access grants for the press AND the state read —
+# one pair of checkboxes covers every surface. Empty with the launcher room
+# off (no daemon to forward to). The probe greps --help because an OLDER
+# pounce treats unknown args as ClientMode and would open the palette; never
+# call `focus` unprobed.
+POUNCE_BIN=@pounceBin@
 pounce_focus_available() {
-    [ -x "$POUNCE_SIGNED" ] && "$POUNCE_SIGNED" --help 2>/dev/null | grep -q "focus status"
+    [ -n "$POUNCE_BIN" ] && [ -x "$POUNCE_BIN" ] && "$POUNCE_BIN" --help 2>/dev/null | grep -q "focus status"
 }
 
 note() { printf 'focus: %s\n' "$*" >&2; }
@@ -147,14 +149,14 @@ poke_bar() {
     [ -x "$BAR_POKE" ] && "$BAR_POKE" focus_change >/dev/null 2>&1 || true
 }
 
-# on|off. Exact when the signed pounce can report it (its FDA grant) or when
+# on|off. Exact when the launcher's pounce can report it (its FDA grant) or when
 # Assertions.json is readable directly (the calling app's own FDA); otherwise
 # falls back to our own last write. Blind spots in fallback mode: toggles
 # made from Control Center or another device.
 focus_state() {
     local s db
     if pounce_focus_available; then
-        s=$("$POUNCE_SIGNED" focus status 2>/dev/null) || s=""
+        s=$("$POUNCE_BIN" focus status 2>/dev/null) || s=""
         case "$s" in on | off)
             echo "$s"
             return
@@ -177,11 +179,11 @@ focus_state() {
 # the CLI forwards the press to the resident daemon whenever the calling
 # context lacks the grant (TCC checks the RESPONSIBLE process — sketchybar
 # for the pill, your terminal for the CLI — never the pounce binary itself),
-# so the one Accessibility checkbox on the signed Pounce.app covers every
+# so the one Accessibility checkbox on the launcher's Pounce.app covers every
 # surface. Fallback: System Events — only without a focus-capable pounce;
 # then the keystroke is attributed to the app that invoked focus.
 press_hotkey() {
-    if pounce_focus_available && "$POUNCE_SIGNED" focus toggle 2>/dev/null; then
+    if pounce_focus_available && "$POUNCE_BIN" focus toggle 2>/dev/null; then
         return 0
     fi
     /usr/bin/osascript -e "tell application \"System Events\" to key code $KEY_CODE using {control down, option down, shift down, command down}" >/dev/null 2>&1
@@ -989,11 +991,16 @@ auto_probe() {
 doctor() {
     echo "focus doctor — the one-time setup, checked:"
 
+    local pstate=""
     if pounce_focus_available; then
-        echo "  [ok] signed pounce has the focus subcommand — focus rides its TCC grants"
+        echo "  [ok] the launcher's Pounce.app has the focus subcommand — focus rides its TCC grants"
         echo "       (grant Accessibility + Full Disk Access to Pounce.app once, done)"
+        pstate=$("$POUNCE_BIN" focus status 2>/dev/null) || pstate=""
+    elif [ -z "$POUNCE_BIN" ]; then
+        echo "  [~~] launcher room off — no pounce daemon to forward to; per-surface fallback"
+        echo "       (haus.launcher.enable puts one Pounce.app behind every surface)"
     else
-        echo "  [~~] no pounce with 'focus' — using the per-surface fallback"
+        echo "  [~~] this pounce has no 'focus' subcommand — using the per-surface fallback"
         echo "       (needs a pounce with the focus subcommand)"
     fi
 
@@ -1004,17 +1011,20 @@ doctor() {
         echo "  [!!] hotkey 175 not bound yet — run 'darwin-rebuild switch' (modules/focus binds it at activation)"
     fi
 
-    if /bin/cat "$DB" >/dev/null 2>&1; then
+    if [ "$pstate" = on ] || [ "$pstate" = off ]; then
+        echo "  [ok] Focus state reads exact through Pounce.app (its Full Disk Access grant)"
+    elif /bin/cat "$DB" >/dev/null 2>&1; then
         echo "  [ok] Focus state reads exact (Assertions.json reachable from this context)"
     else
         echo "  [~~] no Full Disk Access here → state falls back to focus's own memory and"
         echo "       can drift if you toggle Focus from Control Center or your phone."
-        echo "       Fix: System Settings → Privacy & Security → Full Disk Access, add the"
-        echo "       app that runs focus (your terminal for the CLI, sketchybar for the pill)."
+        echo "       Fix: System Settings → Privacy & Security → Full Disk Access, add"
+        echo "       Pounce.app (with the launcher on), or else the app that runs focus"
+        echo "       (your terminal for the CLI, sketchybar for the pill)."
     fi
 
     echo "  [??] Accessibility can't be probed without actually toggling. With the"
-    echo "       signed pounce above, its daemon presses on behalf of every surface"
+    echo "       launcher's pounce above, its daemon presses on behalf of every surface"
     echo "       (pill, palette, CLI) — the one grant on Pounce.app is enough."
     echo "       Without it, the app invoking focus needs its own grant (System"
     echo "       Settings → Privacy & Security → Accessibility)."

@@ -29,14 +29,14 @@
 
         Two grants, both on Pounce.app: the keypress needs Accessibility, and
         reading the state back needs Full Disk Access. With the launcher room
-        on, focus forwards both through the signed Pounce.app it keeps, so that
-        one pair of checkboxes covers the pill, the palette and the CLI, and it
+        on, focus forwards both through the Pounce.app it runs, so that one
+        pair of checkboxes covers the pill, the palette and the CLI, and it
         survives rebuilds. Without a launcher, whatever app invokes focus needs
         the grants itself: sketchybar for the pill, which TCC keys to the
         binary and asks for again after a rebuild moves it, and your terminal
         for the CLI. Without Full Disk Access the state is focus's own memory,
         which drifts when you toggle from Control Center or your phone. `focus
-        doctor` checks each and prints the fix.
+        doctor` says which route is live and what is left to grant.
       '';
     };
 

@@ -12,7 +12,7 @@
 #
 # TCC honesty: the synthetic keypress needs Accessibility, and exact state
 # reads of Assertions.json need Full Disk Access. focus.sh forwards both
-# through the signed Pounce.app the launcher room keeps (`pounce focus toggle`
+# through the notarized Pounce.app the launcher room runs (`pounce focus toggle`
 # for the press, `pounce focus status` for the read), so one pair of grants on
 # it covers the pill, the palette and the CLI. Without a focus-capable pounce
 # it falls back per surface: the keypress is attributed to whatever app invoked
@@ -41,6 +41,18 @@ let
   # (a shell-quoted literal at runtime), the outer quotes it for the build cmd.
   shq = v: lib.escapeShellArg (lib.escapeShellArg v);
   hooksStr = lib.concatMapStringsSep " " (h: lib.escapeShellArg (toString h)) cfg.hooks;
+
+  # The pounce focus forwards to: the notarized release app the launcher room
+  # runs from the store — the same expression as its daemon's exec line, so
+  # the two are one closure and one TCC identity. Empty with the launcher off:
+  # no daemon means nothing to forward a press to, focus.sh's per-surface
+  # fallback is the whole story then, and the release app is not pulled into
+  # a closure that never runs it.
+  pounceBin =
+    if config.haus.launcher.enable then
+      "${pkgs.pounce-app}/Applications/Pounce.app/Contents/MacOS/pounce"
+    else
+      "";
 
   # Scenes are DATA, not generated shell: the engine reads this file at runtime
   # and the option surface is the only thing that decides what a scene may do.
@@ -125,6 +137,7 @@ let
       --subst-var-by jq ${pkgs.jq}/bin/jq \
       --subst-var-by uiSh ${pkgs.snug}/share/ui.sh \
       --subst-var-by keyCode ${toString keyCode} \
+      --subst-var-by pounceBin ${shq pounceBin} \
       --subst-var-by slackEnabled ${if cfg.slack.enable then "1" else "0"} \
       --subst-var-by slackTokenCommand ${shq slackTokenCommand} \
       --subst-var-by slackTokenHint ${shq slackTokenHint} \
