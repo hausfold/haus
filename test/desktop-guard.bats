@@ -135,6 +135,69 @@ silent() {
   asks 'BENCH_AGENT_SWITCH=1 bench try switch'
 }
 
+# ---- prose ------------------------------------------------------------------
+
+@test "prose is not a command: heredoc bodies, comments and quoted text" {
+  # Two weeks of transcripts put 357 prompts on this guard and ~300 of them
+  # were words, not verbs: a `python3 - <<'PY'` editing a doc that says
+  # `haus rebuild`, a README body, a commit message, a grep pattern. Every
+  # shape here was a real prompt on 2026-08-23 → 09-06.
+  silent "python3 - <<'PY'
+p='docs/rebuild.md'
+s=open(p).read()
+old = '''| haus rebuild | the phase painter is a coprocess |'''
+s=s.replace(old, old)
+open(p,'w').write(s)
+PY"
+  silent 'cat > README.md <<EOF
+## Verify
+haus rebuild
+launchctl kickstart -k gui/501/org.nixos.pounce
+sketchybar --reload ~/.config/sketchybar/sketchybarrc
+open -a Ghostty
+killall Dock
+EOF'
+  silent 'cat <<-EOF > note.md
+	tart run scruff-lane
+	EOF'
+  silent 'git commit -m "$(cat <<'"'"'EOF'"'"'
+docs: say what haus rebuild does
+
+sudo killall Dock is what broke it
+EOF
+)"'
+  silent 'grep -n "launchd\|LaunchAgent\|open -a\|activationScript" modules/shelf/default.nix'
+  silent "printf '%s\n' '    [ -n \"\$back\" ] && aerospace focus --window-id \"\$back\" >/dev/null 2>&1 && return 0'"
+  silent 'echo "the haus rebuild phase painter"; echo "darwin-rebuild switch is machine-wide"'
+  silent '# haus rebuild is what /rebuild runs
+echo hi'
+  silent 'gh pr create --body "- `haus rebuild`, then `sketchybar --reload x`
+- osascript -e activate is the old way"'
+}
+
+@test "the command after the prose still asks" {
+  # A body with no terminator is left alone, so a `<<` inside a quoted string
+  # cannot eat the rest of the command; an apostrophe inside a body cannot
+  # swallow what follows it; and a here-string is not a heredoc.
+  asks "cat > note.txt <<'EOF'
+don't
+EOF
+killall Dock"
+  asks "python3 - <<'PY'
+print('haus rebuild')
+PY
+haus rebuild"
+  asks 'echo "a <<EOF b"; killall Dock'
+  asks 'cat <<< "hello"; killall Dock'
+  asks 'haus rebuild   # what /rebuild runs'
+  asks '/opt/homebrew/bin/aerospace layout tiling --window-id "$wid"'
+  silent '/opt/homebrew/bin/aerospace layout --help 2>&1 | head -20; aerospace focus --help'
+  asks 'HAUS_CONSUMER="$PWD" haus rebuild 2>&1 | tail -40'
+  asks 'if true; then open -a Ghostty; fi'
+  asks 'cd "$SP" && nohup tart run scruff-lane > tart.log 2>&1 &'
+  asks "bash -c 'true; killall Dock'"
+}
+
 # ---- another machine's screen -----------------------------------------------
 
 @test "a lane's VM over ssh is not this screen" {
@@ -198,11 +261,10 @@ silent() {
 }
 
 @test "the guard stays cheap, and a command too big to parse is gated not exempted" {
-  # The filter is O(n²) in one line's length, and this hook runs before EVERY
-  # Bash call in every lane. Two gates keep that invisible: it is skipped
-  # entirely for a command with no ssh-family word in it, and skipped past
-  # 32 KB — where skipping means the desktop patterns see the WHOLE command,
-  # so a huge remote one asks rather than slipping through.
+  # The segmenter is O(n²) in one line's length, and this hook runs before
+  # EVERY Bash call in every lane. One gate keeps that invisible: it is skipped
+  # past 32 KB — where skipping means the desktop patterns see the WHOLE
+  # command, unanchored, so a huge remote one asks rather than slipping through.
   local big start
   big="$(head -c 200000 /dev/zero | tr '\0' 'x')"
   start=$SECONDS
@@ -220,6 +282,9 @@ silent() {
   silent 'scruff runtime up my-lane --backend tart'
   asks 'tart run scruff-lane'
   asks 'tart run scruff-lane --dir=work:/lane'
+  # Reading the help opens nothing — 3 of 14 `tart run` prompts in two weeks
+  # were this line.
+  silent 'tart run --help 2>&1 | head -60'
 }
 
 # ---- haus report -------------------------------------------------------------
