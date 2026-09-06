@@ -63,6 +63,63 @@ let
   agentPackages = import ../lib/agent-packages.nix pkgs;
   agentClients = config.haus._ai.clients;
 
+  # The auto-mode classifier's picture of this machine (`haus.ai.autoMode.*`,
+  # modules/ai/options.nix), rendered into the `autoMode` block that
+  # claudeCodeSettings below merges into ~/.claude/settings.json. Only the
+  # lists that are SET become keys — Claude Code keeps its own defaults for a
+  # section the file does not name — and each one gets the `"$defaults"`
+  # marker in front while keepDefaults is on, unless the list already carries
+  # it somewhere, which is how a rule is placed ahead of the built-ins. All
+  # four empty renders nothing, and `writeAutoMode` is then false, so the jq
+  # program below does not even name the key: `ai.instructions`'s rule, a
+  # block Claude Code (or `claude auto-mode`) wrote itself is never clobbered
+  # just because haus has no opinion. An empty list is "haus does not name
+  # this section", not "write an empty one" — there is no way to spell an
+  # explicitly empty override here, and that is the right default when the
+  # section it would empty is a list of refusals.
+  #
+  # Not gated on `claude` being in `ai.clients`, for the same reason nothing
+  # else in this program is: the file is written whenever the room is on,
+  # because a hand-installed Claude Code reads it too and a machine without
+  # one pays nothing for a key it never opens. Gating here would be the worst
+  # of both — the hooks and the statusline arrive, and the one thing that
+  # stops that client asking about ordinary work does not.
+  #
+  # Merged PER SECTION rather than assigned: `.autoMode` is one object with
+  # four independent lists in it, and `claude auto-mode` writes to the same
+  # object. Setting it whole would mean a host that names only `allow`
+  # deleting an `environment` and a `hard_deny` the user wrote with the CLI —
+  # taking a refusal away as a side effect of adding a permission, silently.
+  # So haus owns the sections it NAMES and leaves the rest of the object
+  # alone. A section haus stops naming keeps whatever it last wrote, the same
+  # way `ai.instructions` going empty leaves the file it wrote in place.
+  #
+  # The `if type == "object"` guard is about the ABORT, not the merge: `+`
+  # against a string or null is a jq error, `&& mv` then leaves settings.json
+  # untouched and the activation dies — and a dead activation step means the
+  # whole rebuild stops before /run/current-system moves. A malformed
+  # `.autoMode` costs its own contents, never the generation.
+  #
+  # A store file and `--slurpfile`, not an `--argjson` argument: the
+  # environment alone runs to several KB of prose full of quotes and dollar
+  # signs, and a path is the one thing that survives the nix'' → sh'' → jq""
+  # escaping layers untouched.
+  autoModeCfg = agentsCfg.autoMode;
+  autoModeSections = lib.filterAttrs (_: v: v != [ ]) {
+    environment = autoModeCfg.environment;
+    allow = autoModeCfg.allow;
+    soft_deny = autoModeCfg.softDeny;
+    hard_deny = autoModeCfg.hardDeny;
+  };
+  autoModeWithDefaults =
+    l: if autoModeCfg.keepDefaults && !(lib.elem "$defaults" l) then [ "$defaults" ] ++ l else l;
+  writeAutoMode = autoModeSections != { };
+  autoModeFile = pkgs.writeText "claude-auto-mode.json" (
+    builtins.toJSON (lib.mapAttrs (_: autoModeWithDefaults) autoModeSections)
+  );
+  autoModeJqArgs = lib.optionalString writeAutoMode "--slurpfile auto ${autoModeFile}";
+  autoModeJq = lib.optionalString writeAutoMode " | .autoMode = ((.autoMode | if type == \\\"object\\\" then . else {} end) + \\$auto[0])";
+
   fontsCfg = config.haus.fonts; # terminal font family/size (core installs the package)
 
   # ---- the terminal's hotkeys ------------------------------------------------
@@ -2533,6 +2590,17 @@ in
       # every rebuild. The hook itself is scruff's and exits 0 no matter what — no
       # trill installed, daemon down, garbage payload — so wiring it on a
       # machine without trill is a silent no-op, never a broken session.
+      # `.autoMode` is the classifier's picture of this machine
+      # (`haus.ai.autoMode.*`), and it is SET whole, like the worktree events:
+      # while the option names anything, the block is haus's, and a rebuild
+      # puts back what `claude auto-mode reset` or a hand edit changed. With
+      # the option empty the key is not in the program at all — see
+      # `writeAutoMode` at the top of this file — so a block Claude Code wrote
+      # itself is not touched. The prose arrives through `--slurpfile` from a
+      # store file rather than inline, because it is KB of quotes and dollar
+      # signs and the escaping stack here has bitten once already (the pi
+      # block below).
+      #
       # Claude Code settings/hooks/statusline are agent tooling; a machine that
       # runs no agents should not have its ~/.claude/settings.json rewritten.
       home.activation.claudeCodeSettings = lib.mkIf agentsCfg.enable (
@@ -2542,7 +2610,7 @@ in
             mkdir -p "''${settings%/*}"
             tmp="$settings.hm-seed"
             if [ -s "$settings" ]; then base="$settings"; else base="$tmp.base"; printf "{}" > "$base"; fi
-            ${pkgs.jq}/bin/jq ".hooks.WorktreeCreate = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook create\"}]}]
+            ${pkgs.jq}/bin/jq ${autoModeJqArgs} ".hooks.WorktreeCreate = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook create\"}]}]
               | .hooks.WorktreeRemove = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook remove\"}]}]
               | .hooks.PreToolUse = (((.hooks.PreToolUse // []) | map(select([.hooks[]?.command] | any(. == \"/run/current-system/sw/bin/agent-desktop-guard\" or . == \"/run/current-system/sw/bin/agent-desktop-ask\") | not))) + [{matcher: \"Bash|mcp__computer-use__.*\", hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/agent-desktop-guard\"}]}])
               | .hooks.Notification = (((.hooks.Notification // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
@@ -2554,9 +2622,13 @@ in
               | .disableAgentView = true
               | .spinnerTipsEnabled = false
               | .statusLine = {type: \"command\", command: \"/run/current-system/sw/bin/claude-statusline\", refreshInterval: 12}
-              | .footerLinksRegexes = [{type: \"regex\", pattern: \"(?<owner>[A-Za-z0-9_.-]+)/(?<repo>[A-Za-z0-9_.-]+)#(?<pr>[0-9]+)\", url: \"https://github.com/{owner}/{repo}/pull/{pr}\", label: \"{repo}#{pr}\"}]" \
+              | .footerLinksRegexes = [{type: \"regex\", pattern: \"(?<owner>[A-Za-z0-9_.-]+)/(?<repo>[A-Za-z0-9_.-]+)#(?<pr>[0-9]+)\", url: \"https://github.com/{owner}/{repo}/pull/{pr}\", label: \"{repo}#{pr}\"}]${autoModeJq}" \
               "$base" > "$tmp" && mv "$tmp" "$settings"
-            rm -f "$tmp.base"
+            # Both, not just the base — the reason the piSettings block below
+            # spells out: when jq fails the `&& mv` short-circuits, and a
+            # half-written "$tmp" would otherwise sit beside the real
+            # settings file forever, looking like something Claude should read.
+            rm -f "$tmp" "$tmp.base"
           ' "$HOME/.claude/settings.json"
         ''
       );

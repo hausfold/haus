@@ -65,6 +65,14 @@ let
       "reduceTransparency"
     ];
     ai = [
+      # Host-only (below), all five: the classifier's picture of one machine,
+      # and the switch that decides whether Claude Code's own refusals stay
+      # in front of it.
+      "autoMode.allow"
+      "autoMode.environment"
+      "autoMode.hardDeny"
+      "autoMode.keepDefaults"
+      "autoMode.softDeny"
       "clients"
       "default"
       "enable"
@@ -529,6 +537,16 @@ let
   # they could. The name is the option's; the sentence is the table's.
   hostOnly = {
     ai.instructions = "agent-context";
+    # `agent-context`'s neighbour rather than `agent-context` itself: both are
+    # private context written for one machine, but the sentence a reader meets
+    # has to say what the leaf DOES, and these four lists are not instructions
+    # an agent reads. They are what a classifier judges the agent against, and
+    # the fifth leaf decides whether that classifier keeps its own refusals.
+    ai."autoMode.allow" = "agent-trust";
+    ai."autoMode.environment" = "agent-trust";
+    ai."autoMode.hardDeny" = "agent-trust";
+    ai."autoMode.keepDefaults" = "agent-trust";
+    ai."autoMode.softDeny" = "agent-trust";
     # The one AI leaf that reaches OUT of its own namespace: `keepAwake =
     # "lid"` turns on `haus.power.lidAwake`, and `power` is host-only entire
     # (below) for a reason that does not stop applying just because the
@@ -678,6 +696,7 @@ let
   # provably share it. A name used exactly once is fine and normal.
   hostOnlyReasons = {
     agent-context.why = "Your own always-on instructions to coding agents: the private working context you write for your own machine, not something a stranger's file should arrive holding.";
+    agent-trust.why = "It tells the safety classifier what this machine is and what is ordinary on it, so it decides which tool calls run without asking. A desktop that set it would be granting that trust on a machine it has never seen, about repos, hosts and secrets that are not its author's.";
     browser-code.why = "It installs browser extensions, or writes raw enterprise policy into a file haus owns as root: code reaching your browser through what is supposed to be readable data.";
     haus-writes-it.why = "haus sets this itself, so the roster can still say which module put an app on disk. It is a generated fact about this machine rather than an input anyone writes.";
     identity.why = "It names you rather than a machine: your commit identity, the addresses that are yours, the account whose repositories this Mac works on. A desktop that set it would put its author's details on your work.";
@@ -881,7 +900,7 @@ let
     };
     ai = {
       order = 80;
-      blurb = "The AI room: whether this machine runs coding agents at all, which clients it installs, which one the agent keybinding spawns, where the palette looks for a repo to spawn one on, and the two files haus ships into every one of their homes — your instructions, and the `haus` skill. Spelled `haus.agents.*` before 2026-08-13, with the switch under `haus.developer.agents`; both are gone rather than aliased.";
+      blurb = "The AI room: whether this machine runs coding agents at all, which clients it installs, which one the agent keybinding spawns, where the palette looks for a repo to spawn one on, the two files haus ships into every one of their homes — your instructions, and the `haus` skill — and what Claude Code's auto-mode classifier is told about this machine. Spelled `haus.agents.*` before 2026-08-13, with the switch under `haus.developer.agents`; both are gone rather than aliased.";
     };
     # 90 was `claude`, folded into `agents` on 2026-08-11: both of its options
     # describe a file EVERY client reads, at its own path. Left free rather than
@@ -1196,7 +1215,7 @@ let
     ai = {
       title = "AI";
       order = 100;
-      blurb = "Coding agents: which clients this machine installs, the worktree lifecycle around them, and the instructions and `haus` skill every client reads.";
+      blurb = "Coding agents: which clients this machine installs, the worktree lifecycle around them, the instructions and `haus` skill every client reads, and what Claude Code's auto-mode classifier is told about this machine.";
       agent = {
         cli = "scruff";
         asks = [

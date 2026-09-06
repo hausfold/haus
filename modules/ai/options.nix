@@ -477,6 +477,139 @@ in
       '';
     };
 
+    # ---- the auto-mode classifier's picture of this machine -----------------
+    #
+    # Claude Code's `auto` permission mode (terminal sets
+    # `permissions.defaultMode`) runs a safety classifier over every tool call
+    # and judges it against an `autoMode` block in ~/.claude/settings.json: an
+    # `environment` (what this machine and its repos are) and three rule lists
+    # (`allow`, `soft_deny`, `hard_deny`), all prose. Without one it assumes a
+    # stranger's laptop and prompts for the ordinary work of this one — on the
+    # machine this was written for, two weeks of transcripts held 54 denials
+    # for cross-repo commits, ssh into a lane's own VM and `gh pr merge` on a
+    # solo-owned repo.
+    #
+    # Four lists and a switch. modules/terminal's claudeCodeSettings renders
+    # them into that block, beside the hooks it already merges; all four lists
+    # empty writes nothing at all, `ai.instructions`'s rule. Written whenever
+    # the room is on rather than only when `claude` is in `ai.clients`, like
+    # every other key that merge writes: a hand-installed Claude Code reads
+    # the same file. Spelled camelCase here and snake_case in the file,
+    # because the file's keys are Claude Code's.
+    ai.autoMode.environment = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [
+        "**Organization**: a one-person org. Every repo under ~/code is owned solo; the user is the only committer and the only reviewer."
+        "**Host containment**: this Mac is a personal single-user workstation. A lane may boot a disposable headless macOS VM with `tart` on 192.168.64.0/24; nothing there is production or shared."
+      ];
+      description = ''
+        What Claude Code's auto-mode classifier is told about this machine.
+        In `auto` permission mode, the one haus sets, a classifier judges
+        every tool call before it runs, against this picture: one fact per
+        string, in prose, the way you would describe the setup to a new
+        engineer. Which repos are yours, where secrets live, which hosts are
+        disposable, what counts as production. Without it the classifier
+        assumes a stranger's laptop and asks about the ordinary work of this
+        one.
+
+        Written to the `autoMode.environment` key of `~/.claude/settings.json`
+        on every rebuild, merged in beside everything else the file holds.
+        Each of the four lists is owned per SECTION: a rebuild re-asserts the
+        ones you set and leaves the rest of the block alone, so a host that
+        names only `allow` never deletes a `hard_deny` written with `claude
+        auto-mode`. Inside a section you do set, that CLI's edits and a hand
+        edit last until the next rebuild. Empty (the default) means haus does
+        not name the section at all, not that it writes an empty one.
+
+        Only Claude Code reads this file, but haus writes it whenever the AI
+        room is on rather than only when `claude` is in `ai.clients` — the
+        same rule the hooks and the statusline beside it follow, because a
+        hand-installed Claude Code reads it too.
+
+        Claude Code's own default entries stay in front of yours while
+        `ai.autoMode.keepDefaults` is on. `claude auto-mode config` prints the
+        result, `claude auto-mode critique` reviews it.
+      '';
+    };
+
+    ai.autoMode.allow = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [
+        "Lane VMs: anything sent over ssh to a tart guest on 192.168.64.0/24 is work on a disposable VM the lane created. sudo, killall, reboots and deleting the VM are all fine there."
+      ];
+      description = ''
+        What is ordinary on this machine: exceptions to the classifier's own
+        refusals, one per string, each opening with a short title. A rule
+        here is what stops a lane being asked to confirm `gh pr merge` on a
+        repo you own solo, or `rm -rf` inside a VM it booted itself. The
+        user's own words in the conversation are the other thing that can
+        lift a refusal; a rule here lifts it for every session.
+
+        Written to `autoMode.allow`, with Claude Code's built-in allow rules in
+        front of yours while `ai.autoMode.keepDefaults` is on. Same lifecycle
+        as `ai.autoMode.environment`.
+      '';
+    };
+
+    ai.autoMode.softDeny = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [
+        "NAS Volumes: writing to or deleting anything on the QNAP's data volumes, whatever the mount path."
+      ];
+      description = ''
+        What the classifier should stop and ask about, unless the user's own
+        words or an `ai.autoMode.allow` rule say otherwise. Claude Code ships
+        its own list (force pushes, `curl | bash`, production deploys,
+        reading secrets). Yours join it while `ai.autoMode.keepDefaults` is
+        on; with that off, yours REPLACE it, and the built-in refusals are
+        gone.
+
+        Written to `autoMode.soft_deny`. Same lifecycle as
+        `ai.autoMode.environment`.
+      '';
+    };
+
+    ai.autoMode.hardDeny = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [
+        "Keychain Export: `security dump-keychain`, or copying any credential to a file, in any session, for any reason."
+      ];
+      description = ''
+        Boundaries no rule and no instruction can cross: the classifier
+        refuses these outright. Claude Code's own list is one entry,
+        exfiltration to hosts it does not know. Same shape as
+        `ai.autoMode.softDeny`, same `ai.autoMode.keepDefaults` rule, and the
+        same warning with more weight behind it: a list written without the
+        built-ins is a hard boundary that is gone.
+
+        Written to `autoMode.hard_deny`. Same lifecycle as
+        `ai.autoMode.environment`.
+      '';
+    };
+
+    ai.autoMode.keepDefaults = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Keep Claude Code's own built-in entries in front of yours, in every
+        `ai.autoMode` list you set. That is the `"$defaults"` marker Claude
+        Code reads in each list: haus puts it first unless you wrote it
+        yourself somewhere in that list, so a rule that should read before
+        the built-ins can.
+
+        Off, each list you set is written exactly as written, and a list
+        without `"$defaults"` replaces Claude Code's own for that section
+        entirely. For `ai.autoMode.softDeny` and `ai.autoMode.hardDeny` that
+        means the built-in refusals are gone. Turn this off only when the
+        effective config you want is yours alone, and read it back with
+        `claude auto-mode config` before trusting it.
+      '';
+    };
+
     ai.skill = lib.mkOption {
       type = lib.types.bool;
       default = true;

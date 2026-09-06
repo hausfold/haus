@@ -146,6 +146,112 @@
     "readOnly": false,
     "type": "null or boolean"
   },
+  "haus.ai.autoMode.allow": {
+    "declarations": [
+      "modules/ai/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ ]"
+    },
+    "description": "What is ordinary on this machine: exceptions to the classifier's own\nrefusals, one per string, each opening with a short title. A rule\nhere is what stops a lane being asked to confirm `gh pr merge` on a\nrepo you own solo, or `rm -rf` inside a VM it booted itself. The\nuser's own words in the conversation are the other thing that can\nlift a refusal; a rule here lifts it for every session.\n\nWritten to `autoMode.allow`, with Claude Code's built-in allow rules in\nfront of yours while `ai.autoMode.keepDefaults` is on. Same lifecycle\nas `ai.autoMode.environment`.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"Lane VMs: anything sent over ssh to a tart guest on 192.168.64.0/24 is work on a disposable VM the lane created. sudo, killall, reboots and deleting the VM are all fine there.\"\n]"
+    },
+    "loc": [
+      "haus",
+      "ai",
+      "autoMode",
+      "allow"
+    ],
+    "readOnly": false,
+    "type": "list of string"
+  },
+  "haus.ai.autoMode.environment": {
+    "declarations": [
+      "modules/ai/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ ]"
+    },
+    "description": "What Claude Code's auto-mode classifier is told about this machine.\nIn `auto` permission mode, the one haus sets, a classifier judges\nevery tool call before it runs, against this picture: one fact per\nstring, in prose, the way you would describe the setup to a new\nengineer. Which repos are yours, where secrets live, which hosts are\ndisposable, what counts as production. Without it the classifier\nassumes a stranger's laptop and asks about the ordinary work of this\none.\n\nWritten to the `autoMode.environment` key of `~/.claude/settings.json`\non every rebuild, merged in beside everything else the file holds.\nEach of the four lists is owned per SECTION: a rebuild re-asserts the\nones you set and leaves the rest of the block alone, so a host that\nnames only `allow` never deletes a `hard_deny` written with `claude\nauto-mode`. Inside a section you do set, that CLI's edits and a hand\nedit last until the next rebuild. Empty (the default) means haus does\nnot name the section at all, not that it writes an empty one.\n\nOnly Claude Code reads this file, but haus writes it whenever the AI\nroom is on rather than only when `claude` is in `ai.clients` — the\nsame rule the hooks and the statusline beside it follow, because a\nhand-installed Claude Code reads it too.\n\nClaude Code's own default entries stay in front of yours while\n`ai.autoMode.keepDefaults` is on. `claude auto-mode config` prints the\nresult, `claude auto-mode critique` reviews it.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"**Organization**: a one-person org. Every repo under ~/code is owned solo; the user is the only committer and the only reviewer.\"\n  \"**Host containment**: this Mac is a personal single-user workstation. A lane may boot a disposable headless macOS VM with `tart` on 192.168.64.0/24; nothing there is production or shared.\"\n]"
+    },
+    "loc": [
+      "haus",
+      "ai",
+      "autoMode",
+      "environment"
+    ],
+    "readOnly": false,
+    "type": "list of string"
+  },
+  "haus.ai.autoMode.hardDeny": {
+    "declarations": [
+      "modules/ai/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ ]"
+    },
+    "description": "Boundaries no rule and no instruction can cross: the classifier\nrefuses these outright. Claude Code's own list is one entry,\nexfiltration to hosts it does not know. Same shape as\n`ai.autoMode.softDeny`, same `ai.autoMode.keepDefaults` rule, and the\nsame warning with more weight behind it: a list written without the\nbuilt-ins is a hard boundary that is gone.\n\nWritten to `autoMode.hard_deny`. Same lifecycle as\n`ai.autoMode.environment`.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"Keychain Export: `security dump-keychain`, or copying any credential to a file, in any session, for any reason.\"\n]"
+    },
+    "loc": [
+      "haus",
+      "ai",
+      "autoMode",
+      "hardDeny"
+    ],
+    "readOnly": false,
+    "type": "list of string"
+  },
+  "haus.ai.autoMode.keepDefaults": {
+    "declarations": [
+      "modules/ai/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Keep Claude Code's own built-in entries in front of yours, in every\n`ai.autoMode` list you set. That is the `\"$defaults\"` marker Claude\nCode reads in each list: haus puts it first unless you wrote it\nyourself somewhere in that list, so a rule that should read before\nthe built-ins can.\n\nOff, each list you set is written exactly as written, and a list\nwithout `\"$defaults\"` replaces Claude Code's own for that section\nentirely. For `ai.autoMode.softDeny` and `ai.autoMode.hardDeny` that\nmeans the built-in refusals are gone. Turn this off only when the\neffective config you want is yours alone, and read it back with\n`claude auto-mode config` before trusting it.\n",
+    "loc": [
+      "haus",
+      "ai",
+      "autoMode",
+      "keepDefaults"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.ai.autoMode.softDeny": {
+    "declarations": [
+      "modules/ai/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ ]"
+    },
+    "description": "What the classifier should stop and ask about, unless the user's own\nwords or an `ai.autoMode.allow` rule say otherwise. Claude Code ships\nits own list (force pushes, `curl | bash`, production deploys,\nreading secrets). Yours join it while `ai.autoMode.keepDefaults` is\non; with that off, yours REPLACE it, and the built-in refusals are\ngone.\n\nWritten to `autoMode.soft_deny`. Same lifecycle as\n`ai.autoMode.environment`.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"NAS Volumes: writing to or deleting anything on the QNAP's data volumes, whatever the mount path.\"\n]"
+    },
+    "loc": [
+      "haus",
+      "ai",
+      "autoMode",
+      "softDeny"
+    ],
+    "readOnly": false,
+    "type": "list of string"
+  },
   "haus.ai.clients": {
     "declarations": [
       "modules/ai/options.nix"
