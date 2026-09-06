@@ -11,25 +11,27 @@
   options.haus.apps = {
     # ---- GUI editors ------------------------------------------------------
     # A GUI editor pick is a roster cask, same shape as the writing pack's
-    # apps — not `haus.terminal.editorName`, which is the CLOSED set haus
-    # actually installs itself with no cask involved (helix/neovim/vim/nano).
-    # A cask here is what lets `haus.homebrew.adopt` do its job: pick VS Code
-    # when you already have it some other way, and activation adopts the
-    # existing app instead of installing a second copy.
+    # apps. `haus.terminal.editorName` installs THE editor — zed by default,
+    # or vscode/cursor, as the same cask entries these write, at the same
+    # `mkDefault`, so both doors landing on one app is one roster line — and
+    # these are for a SECOND one: the Cursor you keep for one project on a
+    # Zed machine. A cask is what lets `haus.homebrew.adopt` do its job: pick
+    # VS Code when you already have it some other way, and activation adopts
+    # the existing app instead of installing a second copy.
     #
     # Turning one of these on installs the app; it does NOT touch
     # `haus.terminal.editor` ($EDITOR/$VISUAL and every "open in an editor"
-    # action) — set that yourself, or let the installer's GUI-editor prompt
-    # set both together.
+    # action). Name it in `haus.terminal.editorName` for that.
     vscode = {
       enable = lib.mkOption {
         type = lib.types.bool;
         default = false;
         description = ''
           Install Visual Studio Code as the roster entry `vscode` (cask
-          `visual-studio-code`). Already have it installed some other way?
-          `haus.homebrew.adopt` (on by default) adopts it instead of
-          installing a second copy.
+          `visual-studio-code`), beside whatever `haus.terminal.editorName`
+          installs — name it THERE to make it the editor. Already have it
+          installed some other way? `haus.homebrew.adopt` (on by default)
+          adopts it instead of installing a second copy.
         '';
       };
     };
@@ -39,9 +41,11 @@
         type = lib.types.bool;
         default = false;
         description = ''
-          Install Cursor as the roster entry `cursor` (cask `cursor`).
-          Already have it installed some other way? `haus.homebrew.adopt`
-          (on by default) adopts it instead of installing a second copy.
+          Install Cursor as the roster entry `cursor` (cask `cursor`), beside
+          whatever `haus.terminal.editorName` installs — name it THERE to make
+          it the editor. Already have it installed some other way?
+          `haus.homebrew.adopt` (on by default) adopts it instead of
+          installing a second copy.
         '';
       };
     };
@@ -51,9 +55,12 @@
         type = lib.types.bool;
         default = false;
         description = ''
-          Install Zed as the roster entry `zed` (cask `zed`). Already have it
-          installed some other way? `haus.homebrew.adopt` (on by default)
-          adopts it instead of installing a second copy.
+          Install Zed as the roster entry `zed` (cask `zed`). Redundant on a
+          machine whose `haus.terminal.editorName` is `zed` (the default),
+          which writes the same entry; this is for keeping Zed on a machine
+          that edits in something else. Already have it installed some other
+          way? `haus.homebrew.adopt` (on by default) adopts it instead of
+          installing a second copy.
         '';
       };
     };

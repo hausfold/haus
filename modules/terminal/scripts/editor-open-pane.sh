@@ -1,6 +1,7 @@
 #!/bin/zsh
 
-# Open a file OR a directory in haus's editor, in a new tiled Ghostty window.
+# Open a file OR a directory in haus's editor. A terminal editor gets a new
+# tiled Ghostty window; a GUI editor gets none — it IS the window.
 # @editor@ is baked from haus.terminal.editor at build time (the one editor the
 # whole of haus uses — same value as $EDITOR). Called by the EditorOpen.app
 # file-association handler (a file), and by nix-config-open.sh (a file plus a
@@ -29,19 +30,50 @@ else
     TARGET="$FILE_PATH"
 fi
 
-# A line number, when the caller had one (a clicked `foo.rs:26`), is spelled
-# differently by every editor and there is no portable flag: helix takes it
-# glued to the path, VS Code wants --goto, and everything vi-shaped (vim,
-# nvim, nano, emacs) takes `+N` BEFORE the file. Unknown editors get the `+N`
-# form, which is the widest convention; a directory target never gets one.
 EDITOR_CMD=(@editor@)
+
+# A GUI editor is keyed on the command's BASENAME, not on which enum value
+# haus.terminal.editorName holds, so a host's own `haus.terminal.editor =
+# "subl -w"` on a helix machine is treated the same as the zed default. The
+# blocking flag comes off for this one call: `--wait`/`-w` is for git, which
+# needs the file closed before it continues, and an opener that blocked would
+# leave the palette's or the bar's process hanging until the tab was closed.
+GUI=""
+case "${EDITOR_CMD[1]:t}" in
+    zed|code|codium|cursor|subl)
+        GUI=1
+        EDITOR_CMD=("${(@)EDITOR_CMD:#(-w|--wait)}")
+        ;;
+esac
+
+# A line number, when the caller had one (a clicked `foo.rs:26`), is spelled
+# differently by every editor and there is no portable flag: helix, Zed and
+# Sublime take it glued to the path, VS Code wants --goto, and everything
+# vi-shaped (vim, nvim, nano, emacs) takes `+N` BEFORE the file. Unknown
+# editors get the `+N` form, which is the widest convention; a directory
+# target never gets one.
 PRE_ARGS=()
 if [ -n "$LINE" ] && [ "$TARGET" != "." ]; then
     case "${EDITOR_CMD[1]:t}" in
-        hx|helix) TARGET="$TARGET:$LINE" ;;
+        hx|helix|zed|subl) TARGET="$TARGET:$LINE" ;;
         code|codium|cursor) PRE_ARGS=(--goto); TARGET="$TARGET:$LINE" ;;
         *) PRE_ARGS=("+$LINE") ;;
     esac
+fi
+
+if [ -n "$GUI" ]; then
+    # The callers arrive with launchd's PATH (the bar's pill, the palette's
+    # command, the file-association app), which has no Homebrew in it — and
+    # a cask's CLI is a Homebrew symlink. The terminal branch never had this
+    # problem because the login shell inside the new window rebuilt PATH.
+    export PATH="/opt/homebrew/bin:/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:/usr/local/bin:/usr/bin:/bin${PATH:+:$PATH}"
+    # The project root first, then the file: Zed, VS Code and Sublime open the
+    # folder as the workspace and the file inside it, which is what the
+    # terminal branch's window cwd was for.
+    if [ "$TARGET" = "." ]; then
+        exec "${EDITOR_CMD[@]}" "$DIR_PATH"
+    fi
+    exec "${EDITOR_CMD[@]}" "$DIR_PATH" "${PRE_ARGS[@]}" "$TARGET"
 fi
 
 # `exec zsh` after the editor so quitting it leaves a shell rather than closing

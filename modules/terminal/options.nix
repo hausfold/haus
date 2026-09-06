@@ -175,27 +175,33 @@ in
     terminal.editorName = lib.mkOption {
       type = lib.types.enum (builtins.attrNames editors);
       # The desktop-safe half of the pair, and the one that actually INSTALLS
-      # something. helix is the room's own default rather than a hacker
-      # opinion carried in the desktop: a terminal room with no editor is not
+      # something. zed is the room's own default rather than a hacker opinion
+      # carried in the desktop: a terminal room with no editor is not
       # unopinionated, it is broken — git alone would drop you into whatever
       # $EDITOR the machine happened to have. Same reasoning as
-      # `fonts.mono.name`, which keeps supplying a patched family.
-      default = "helix";
-      example = "neovim";
+      # `fonts.mono.name`, which keeps supplying a patched family. It was
+      # helix until 2026-09-06; most people edit in a window, and Zed is the
+      # GUI editor Nebelung has a port for.
+      default = "zed";
+      example = "helix";
       description = ''
-        Which editor this room installs. `helix` (the default) is the one haus
-        is themed around; `neovim`, `vim` and `nano` are installed as-is,
-        with no Nebelung theme — Nebelung has a port for helix and not for
-        them.
+        Which editor this room installs. `zed` (the default) arrives as a
+        roster cask, painted from the palette, with its Nix, TOML, Swift,
+        HTML, Dockerfile and Make extensions installed on first launch;
+        `vscode` and `cursor` are casks too, in their own colours. `helix` is
+        the terminal editor haus themes; `neovim`, `vim` and `nano` are
+        installed as-is, with no Nebelung theme — Nebelung has a port for zed
+        and helix and not for the rest.
 
         Setting this also moves `haus.terminal.editor`, since that defaults to
-        whatever the chosen editor answers to on PATH (`hx`, `nvim`, `vim`,
-        `nano`). Choosing here is the whole gesture: the editor is installed
-        AND every "open in an editor" action follows it.
+        whatever the chosen editor answers to on PATH (`zed --wait`, `code -w`,
+        `hx`, `nvim`, …). Choosing here is the whole gesture: the editor is
+        installed AND every "open in an editor" action follows it — in a new
+        terminal window for a terminal editor, in the app itself for a GUI one.
 
         A desktop may set this. To point haus at an editor it does not
-        install — a GUI one, or something from your own host file — leave this
-        alone and set `haus.terminal.editor` instead.
+        install — something from your own host file — leave this alone and
+        set `haus.terminal.editor` instead.
       '';
     };
 
@@ -204,7 +210,7 @@ in
       # Host-only, and permanently so: this value is EXECUTED — baked into the
       # window opener, the palette command and the bar's nix-open item. That is
       # the reason a desktop chooses with `editorName` above rather than here.
-      # It is still the last word, though: a host naming "code -w" beats the
+      # It is still the last word, though: a host naming "subl -w" beats the
       # enum's command, which is what makes the enum a closed set without
       # making it a cage.
       default = editors.${config.haus.terminal.editorName}.command;
@@ -215,21 +221,25 @@ in
       # things that read it after: hausfold.co's generator wraps the whole
       # string in a code span (nested backticks come out as broken markdown)
       # and moves anything longer into the body as "see below".
-      defaultText = lib.literalMD "the command for haus.terminal.editorName — hx for helix";
-      example = "code -w";
+      defaultText = lib.literalMD "haus.terminal.editorName's command — zed --wait for zed";
+      example = "subl -w";
       description = ''
         The ONE editor command haus uses everywhere. It's the shell command
         for $EDITOR / $VISUAL (git, etc.) AND what every "open in an editor"
         action launches — the "Nix Config" palette command, the bar's nix-open
-        item, and the file-association hijack. Those open the target in a new
-        terminal WINDOW running this command, so a terminal editor is the
-        natural fit for haus; a GUI editor's CLI works too (e.g. "code" or
-        "code -w" to block).
+        item, and the file-association hijack. A terminal editor opens the
+        target in a new terminal WINDOW running this command. A GUI editor's
+        CLI (`zed`, `code`, `cursor`, `subl`, …) is handed the project root
+        and the file directly, no window in between, with the blocking flag
+        git needs (`-w`, `--wait`) dropped for that one call.
 
         It defaults to the command for `haus.terminal.editorName`, so choosing an
         editor there is enough. Set this only for the case that option cannot
         express: pointing haus at something it does not install. Naming a
-        command here does NOT install it — that machine has to already have it.
+        command here does NOT install it — that machine has to already have it
+        — and the editor `editorName` names is still installed beside it, as
+        the fallback (Zed by default); name `nano` there if you would rather
+        not carry one.
       '';
     };
 
@@ -239,8 +249,9 @@ in
       description = ''
         When true, build a small opener app and make it the default handler
         for ~80 text/code extensions (json, md, ts, nix, rs, go, kdl, …), so
-        opening or clicking those files opens them in haus.terminal.editor in
-        a terminal window. The app declares the types itself (not just `duti`) so
+        opening or clicking those files opens them in haus.terminal.editor — a
+        GUI editor directly, a terminal editor in a new terminal window. The
+        app declares the types itself (not just `duti`) so
         extensions nothing else on the machine declares still bind. Off by
         default: silently rewriting your file associations is a jarring,
         hard-to-undo change, so it's strictly opt-in. (Extensionless executables

@@ -64,9 +64,10 @@
   #   "Library/Mobile Documents/iCloud~md~obsidian/Documents/notes"
   # ];
 
-  # haus's own app picks — a GUI editor, or a whole saved collection in one
-  # line. Each is a roster entry like any other once it's on, so you can give it
-  # a leader letter or pin a different build from here:
+  # haus's own app picks — a second editor beside the one haus.terminal.editorName
+  # installs, or a whole saved collection in one line. Each is a roster entry
+  # like any other once it's on, so you can give it a leader letter or pin a
+  # different build from here:
   # haus.apps.vscode.enable = true;
   # haus.apps.packs.writing.enable = true;
 
@@ -105,7 +106,7 @@
   #   homebrew.casks = [ "some-cask" ];
 
   # The shell/terminal layer ships in the `terminal` module (zsh, starship, git,
-  # yazi, ghostty, helix — all Nebelung-themed). To add YOUR personal bits on
+  # yazi, ghostty, zed — all Nebelung-themed). To add YOUR personal bits on
   # top (extra packages, private aliases, the rare env var every shell needs),
   # extend home-manager — per-project secrets belong in secretspec instead:
   #

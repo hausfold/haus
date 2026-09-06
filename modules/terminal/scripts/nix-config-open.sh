@@ -7,7 +7,7 @@
 # from mkHaus's hostname at build time, for the same reason as pounce's
 # rebuild.sh: the flake's host attr name can't be guessed at runtime. Configs
 # that don't follow the hosts/<name> convention fall back to opening the flake
-# root itself (in helix, that's the file picker).
+# root itself (a workspace in Zed, the file picker in helix).
 NIX_CONFIG_DIR="${HAUS_FLAKE:-$HOME/.config/nix}"
 TARGET="$NIX_CONFIG_DIR"
 HOST_FILE="$NIX_CONFIG_DIR/hosts/@hostname@/default.nix"

@@ -1175,16 +1175,21 @@
           # `haus.terminal.editorName` is the desktop-safe half of the editor pair
           # (modules/lib/editors.nix). What makes it worth a check rather than a
           # type is that ONE assignment has to move four unrelated things at
-          # once: the package that lands in the profile, $EDITOR/$VISUAL, the
-          # Nebelung theme file, and whether this room claims the `helix` port
-          # for `haus doctor`. Three of the four fail SILENTLY when they drift
-          # — you get an editor with no theme, or a doctor that says a tool is
-          # handled on a machine that never installed it — so the table reads
-          # all four back off a fully evaluated machine, once per enum value.
+          # once: what lands on the machine (a package in the profile, or a
+          # roster cask), $EDITOR/$VISUAL, the Nebelung theme file, and whether
+          # this room claims the editor's port for `haus doctor`. Three of the
+          # four fail SILENTLY when they drift — you get an editor with no
+          # theme, or a doctor that says a tool is handled on a machine that
+          # never installed it — so the table reads all four back off a fully
+          # evaluated machine, once per enum value.
           #
-          # The last row is the escape hatch: `editor` is host-only and still
-          # the last word, so a host naming a command the layer never installs
-          # keeps the enum's PACKAGE and overrides only what runs.
+          # Two rows after the enum. The escape hatch: `editor` is host-only
+          # and still the last word, so a host naming a command the layer
+          # never installs keeps the enum's PACKAGE and overrides only what
+          # runs. And the double door: terminal writes the chosen editor's
+          # roster cask and `haus.apps.zed.enable` writes the same entry, and
+          # a host turning both on has to get ONE roster line rather than a
+          # conflict — that row evaluates the merge, which is what throws.
           editorHome =
             mods:
             (mkHaus {
@@ -1196,27 +1201,46 @@
           editorRow =
             name:
             let
+              row = (import ./modules/lib/editors.nix).${name};
               full = editorHome [ { haus.terminal.editorName = name; } ];
               home = full.home-manager.users.you;
               hasPkg = want: builtins.any (p: (p.pname or "") == want) home.home.packages;
-              installed = hasPkg name;
+              hasCask = id: (full.haus.roster ? ${id}) && full.haus.roster.${id}.cask == row.cask;
+              # How the editor arrives, read off the same table the room reads:
+              # a nixpkgs package in the profile, a roster cask, or (helix) its
+              # own home-manager module, whose package is in the profile too.
+              installed =
+                if row.package != null then
+                  (if hasPkg name then "pkg" else "NOTHING")
+                else if row.cask != null then
+                  (if hasCask name then "cask" else "NOTHING")
+                else
+                  (if hasPkg name then "hm" else "NOTHING");
               # Read separately from `installed`, because the drift worth
               # catching is the one where nothing goes MISSING: drop the
               # `lib.mkIf` from `programs.helix` and every row still says
-              # installed=yes while helix rides along on all four machines.
+              # installed while helix rides along on all seven machines. The
+              # cask column is the same question for the other themed editor.
               helixPkg = hasPkg "helix";
-              themed = home.home.file ? ".config/helix/themes/nebelung.toml";
-              port = builtins.elem "helix" full.haus.theme.ports.handled;
+              zedCask = (full.haus.roster ? zed) && full.haus.roster.zed.cask == "zed";
+              themed =
+                nixpkgs.lib.optional (home.home.file ? ".config/helix/themes/nebelung.toml") "helix"
+                ++ nixpkgs.lib.optional (home.home.file ? ".config/zed/themes/nebelung.json") "zed";
+              ports = builtins.filter (p: builtins.elem p full.haus.theme.ports.handled) [
+                "helix"
+                "zed"
+              ];
               yn = b: if b then "yes" else "no";
+              orNone = xs: if xs == [ ] then "none" else builtins.concatStringsSep "," xs;
             in
-            "${name} EDITOR=${home.home.sessionVariables.EDITOR} installed=${yn installed} "
-            + "helix-pkg=${yn helixPkg} helix-theme=${yn themed} helix-port=${yn port}";
+            "${name} EDITOR=${home.home.sessionVariables.EDITOR} installed=${installed} "
+            + "helix-pkg=${yn helixPkg} zed-cask=${yn zedCask} themes=${orNone themed} ports=${orNone ports}";
           editorOverrideRow =
             let
               full = editorHome [
                 {
                   haus.terminal.editorName = "neovim";
-                  haus.terminal.editor = "code -w";
+                  haus.terminal.editor = "subl -w";
                 }
               ];
               home = full.home-manager.users.you;
@@ -1224,15 +1248,42 @@
             in
             "host override EDITOR=${home.home.sessionVariables.EDITOR} "
             + "installed=${if installed then "neovim" else "NOTHING"}";
-          editorTable = builtins.concatStringsSep "\n" (
-            map editorRow (builtins.attrNames (import ./modules/lib/editors.nix)) ++ [ editorOverrideRow ]
-          );
+          # One row per cask editor, not just zed: the merge holds only while
+          # modules/lib/editors.nix and modules/apps/default.nix spell the
+          # SAME `name` and `cask`, and a rename on either side becomes a
+          # conflicting-definitions error only on a host with both doors on.
+          editorTwiceRow =
+            name:
+            let
+              full = editorHome [
+                {
+                  haus.terminal.editorName = name;
+                  haus.apps.${name}.enable = true;
+                }
+              ];
+              entry = full.haus.roster.${name};
+            in
+            "${name} twice cask=${entry.cask} name=${entry.name}";
+          editorTable =
+            let
+              table = import ./modules/lib/editors.nix;
+              caskEditors = builtins.filter (n: table.${n}.cask != null) (builtins.attrNames table);
+            in
+            builtins.concatStringsSep "\n" (
+              map editorRow (builtins.attrNames table) ++ [ editorOverrideRow ] ++ map editorTwiceRow caskEditors
+            );
           expectedEditorTable = ''
-            helix EDITOR=hx installed=yes helix-pkg=yes helix-theme=yes helix-port=yes
-            nano EDITOR=nano installed=yes helix-pkg=no helix-theme=no helix-port=no
-            neovim EDITOR=nvim installed=yes helix-pkg=no helix-theme=no helix-port=no
-            vim EDITOR=vim installed=yes helix-pkg=no helix-theme=no helix-port=no
-            host override EDITOR=code -w installed=neovim
+            cursor EDITOR=cursor -w installed=cask helix-pkg=no zed-cask=no themes=none ports=none
+            helix EDITOR=hx installed=hm helix-pkg=yes zed-cask=no themes=helix ports=helix
+            nano EDITOR=nano installed=pkg helix-pkg=no zed-cask=no themes=none ports=none
+            neovim EDITOR=nvim installed=pkg helix-pkg=no zed-cask=no themes=none ports=none
+            vim EDITOR=vim installed=pkg helix-pkg=no zed-cask=no themes=none ports=none
+            vscode EDITOR=code -w installed=cask helix-pkg=no zed-cask=no themes=none ports=none
+            zed EDITOR=zed --wait installed=cask helix-pkg=no zed-cask=yes themes=zed ports=zed
+            host override EDITOR=subl -w installed=neovim
+            cursor twice cask=cursor name=Cursor
+            vscode twice cask=visual-studio-code name=Visual Studio Code
+            zed twice cask=zed name=Zed
           '';
 
           composedConfig =
@@ -1902,12 +1953,18 @@
           # are byte-identical. Anything in between is PARTIAL and fails loudly,
           # because it means the accent reaches a surface for some accents only.
           #
-          # zed is here as the ROSTER-PORT case (modules/theme/ports.nix): the
-          # accent-matrix ports spell the choice `<accent>` in their path, and
-          # resolving that is what keeps them installable. It's the one row whose
-          # fingerprint is a FILENAME rather than a file's contents — the port
-          # renames its theme file per accent, which is exactly the behaviour to
-          # pin, since the app's own `theme` key then points at the old name.
+          # zed is here TWICE, as two different surfaces. `zed-roster-port` is
+          # the ROSTER-PORT case (modules/theme/ports.nix): the accent-matrix
+          # ports spell the choice `<accent>` in their path, and resolving that
+          # is what keeps them installable. It's the one row whose fingerprint
+          # is a FILENAME rather than a file's contents — the port renames its
+          # theme file per accent, which is exactly the behaviour to pin, since
+          # the app's own `theme` key then points at the old name. `zed-editor`
+          # is the other door: since 2026-09-06 zed is the default editor and
+          # terminal wires its theme ITSELF (the port renamed under one fixed
+          # name, so the key never moves — modules/terminal's `zedTheme`),
+          # claiming the port so the roster pass leaves it alone. One machine
+          # cannot show both, which is why the second one is its own eval.
           accentSurfaces =
             accent:
             let
@@ -1925,6 +1982,12 @@
                       # shipped PNGs by design; `bold` follows the accent too,
                       # through one interpolation that predates this check.
                       haus.wallpaper.style = "minimal";
+                      # Not the default editor, so terminal does NOT claim the
+                      # zed port here and the roster pass below is what places
+                      # it — the subject of the `zed-roster-port` row. helix
+                      # rather than neovim so the `helix pinned` row keeps its
+                      # file too.
+                      haus.terminal.editorName = "helix";
                       # Not in the default desktop — added here so the roster-port
                       # accent path has a subject at all.
                       haus.roster.zed = {
@@ -1945,6 +2008,16 @@
                   ];
                 }).config;
               hm = cfg.home-manager.users.you;
+              # The default desktop, untouched but for the accent: zed as the
+              # editor, its theme placed by terminal. Only the `zed-editor` row
+              # reads this one.
+              hmEditor =
+                (mkHaus {
+                  inherit system;
+                  username = "you";
+                  hostname = "example";
+                  extraModules = [ { haus.theme.accent = accent; } ];
+                }).config.home-manager.users.you;
               file =
                 target:
                 let
@@ -1983,6 +2056,10 @@
               zen = hm.home.activation.zenNebelung.data;
               wallpaper = hm.home.activation.hausWallpaper.data;
               zed-roster-port = targetsUnder ".config/zed/themes/";
+              # A store path, like glow-wrapper: the renamed port is a
+              # derivation whose input is the per-accent file, so the path
+              # moves when the accent reaches it and holds when it does not.
+              zed-editor = toString hmEditor.home.file.".config/zed/themes/nebelung.json".source;
               # perch takes the accent by catppuccin ROLE NAME rather than by
               # hex — it resolves the name against whichever half of its
               # dark/light pair macOS is showing — so the fingerprint that moves
@@ -2034,7 +2111,7 @@
             }";
           accentTable = builtins.concatStringsSep "\n" (map accentRow (builtins.attrNames accentA));
           # Alphabetical because the rows are `attrNames` — self-sorting, so a new
-          # surface can't be added in a spot that hides it. Eleven move, seven hold.
+          # surface can't be added in a spot that hides it. Twelve move, seven hold.
           expectedAccentTable = ''
             bar moves
             bar-logo moves
@@ -2052,6 +2129,7 @@
             starship pinned
             wallpaper moves
             yazi moves
+            zed-editor moves
             zed-roster-port moves
             zen moves
           '';
@@ -2880,12 +2958,12 @@
             map (name: "${name} ${desktopReadback desktopRows.${name}}") (builtins.attrNames desktopRows)
           );
           expectedDesktopTable = ''
-            blank scale=1.000000 bar=no internal=(unset) list=(unset) editor=helix/hx desktop=desktops/blank.nix
-            builder-default scale=1.000000 bar=yes internal=(unset) list=(unset) editor=helix/hx desktop=desktops/hacker.nix
-            by-hand scale=1.100000 bar=no internal=(unset) list=(unset) editor=helix/hx desktop=test/desktops/valid-other.nix
+            blank scale=1.000000 bar=no internal=(unset) list=(unset) editor=zed/zed --wait desktop=desktops/blank.nix
+            builder-default scale=1.000000 bar=yes internal=(unset) list=(unset) editor=zed/zed --wait desktop=desktops/hacker.nix
+            by-hand scale=1.100000 bar=no internal=(unset) list=(unset) editor=zed/zed --wait desktop=test/desktops/valid-other.nix
             host-override scale=1.500000 bar=yes internal=larger-text list=from-desktop-a+from-desktop-b editor=neovim/nvim desktop=test/desktops/valid-sample.nix
             list-override scale=1.350000 bar=yes internal=larger-text list=from-host editor=neovim/nvim desktop=test/desktops/valid-sample.nix
-            no-desktop scale=1.000000 bar=no internal=(unset) list=(unset) editor=helix/hx desktop=(none)
+            no-desktop scale=1.000000 bar=no internal=(unset) list=(unset) editor=zed/zed --wait desktop=(none)
             one-desktop scale=1.350000 bar=yes internal=larger-text list=from-desktop-a+from-desktop-b editor=neovim/nvim desktop=test/desktops/valid-sample.nix
           '';
 

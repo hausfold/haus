@@ -451,7 +451,7 @@
       "_type": "literalExpression",
       "text": "false"
     },
-    "description": "Install Cursor as the roster entry `cursor` (cask `cursor`).\nAlready have it installed some other way? `haus.homebrew.adopt`\n(on by default) adopts it instead of installing a second copy.\n",
+    "description": "Install Cursor as the roster entry `cursor` (cask `cursor`), beside\nwhatever `haus.terminal.editorName` installs — name it THERE to make\nit the editor. Already have it installed some other way?\n`haus.homebrew.adopt` (on by default) adopts it instead of\ninstalling a second copy.\n",
     "loc": [
       "haus",
       "apps",
@@ -492,7 +492,7 @@
       "_type": "literalExpression",
       "text": "false"
     },
-    "description": "Install Visual Studio Code as the roster entry `vscode` (cask\n`visual-studio-code`). Already have it installed some other way?\n`haus.homebrew.adopt` (on by default) adopts it instead of\ninstalling a second copy.\n",
+    "description": "Install Visual Studio Code as the roster entry `vscode` (cask\n`visual-studio-code`), beside whatever `haus.terminal.editorName`\ninstalls — name it THERE to make it the editor. Already have it\ninstalled some other way? `haus.homebrew.adopt` (on by default)\nadopts it instead of installing a second copy.\n",
     "loc": [
       "haus",
       "apps",
@@ -510,7 +510,7 @@
       "_type": "literalExpression",
       "text": "false"
     },
-    "description": "Install Zed as the roster entry `zed` (cask `zed`). Already have it\ninstalled some other way? `haus.homebrew.adopt` (on by default)\nadopts it instead of installing a second copy.\n",
+    "description": "Install Zed as the roster entry `zed` (cask `zed`). Redundant on a\nmachine whose `haus.terminal.editorName` is `zed` (the default),\nwhich writes the same entry; this is for keeping Zed on a machine\nthat edits in something else. Already have it installed some other\nway? `haus.homebrew.adopt` (on by default) adopts it instead of\ninstalling a second copy.\n",
     "loc": [
       "haus",
       "apps",
@@ -6065,12 +6065,12 @@
     ],
     "default": {
       "_type": "literalMD",
-      "text": "the command for haus.terminal.editorName — hx for helix"
+      "text": "haus.terminal.editorName's command — zed --wait for zed"
     },
-    "description": "The ONE editor command haus uses everywhere. It's the shell command\nfor $EDITOR / $VISUAL (git, etc.) AND what every \"open in an editor\"\naction launches — the \"Nix Config\" palette command, the bar's nix-open\nitem, and the file-association hijack. Those open the target in a new\nterminal WINDOW running this command, so a terminal editor is the\nnatural fit for haus; a GUI editor's CLI works too (e.g. \"code\" or\n\"code -w\" to block).\n\nIt defaults to the command for `haus.terminal.editorName`, so choosing an\neditor there is enough. Set this only for the case that option cannot\nexpress: pointing haus at something it does not install. Naming a\ncommand here does NOT install it — that machine has to already have it.\n",
+    "description": "The ONE editor command haus uses everywhere. It's the shell command\nfor $EDITOR / $VISUAL (git, etc.) AND what every \"open in an editor\"\naction launches — the \"Nix Config\" palette command, the bar's nix-open\nitem, and the file-association hijack. A terminal editor opens the\ntarget in a new terminal WINDOW running this command. A GUI editor's\nCLI (`zed`, `code`, `cursor`, `subl`, …) is handed the project root\nand the file directly, no window in between, with the blocking flag\ngit needs (`-w`, `--wait`) dropped for that one call.\n\nIt defaults to the command for `haus.terminal.editorName`, so choosing an\neditor there is enough. Set this only for the case that option cannot\nexpress: pointing haus at something it does not install. Naming a\ncommand here does NOT install it — that machine has to already have it\n— and the editor `editorName` names is still installed beside it, as\nthe fallback (Zed by default); name `nano` there if you would rather\nnot carry one.\n",
     "example": {
       "_type": "literalExpression",
-      "text": "\"code -w\""
+      "text": "\"subl -w\""
     },
     "loc": [
       "haus",
@@ -6086,12 +6086,12 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "\"helix\""
+      "text": "\"zed\""
     },
-    "description": "Which editor this room installs. `helix` (the default) is the one haus\nis themed around; `neovim`, `vim` and `nano` are installed as-is,\nwith no Nebelung theme — Nebelung has a port for helix and not for\nthem.\n\nSetting this also moves `haus.terminal.editor`, since that defaults to\nwhatever the chosen editor answers to on PATH (`hx`, `nvim`, `vim`,\n`nano`). Choosing here is the whole gesture: the editor is installed\nAND every \"open in an editor\" action follows it.\n\nA desktop may set this. To point haus at an editor it does not\ninstall — a GUI one, or something from your own host file — leave this\nalone and set `haus.terminal.editor` instead.\n",
+    "description": "Which editor this room installs. `zed` (the default) arrives as a\nroster cask, painted from the palette, with its Nix, TOML, Swift,\nHTML, Dockerfile and Make extensions installed on first launch;\n`vscode` and `cursor` are casks too, in their own colours. `helix` is\nthe terminal editor haus themes; `neovim`, `vim` and `nano` are\ninstalled as-is, with no Nebelung theme — Nebelung has a port for zed\nand helix and not for the rest.\n\nSetting this also moves `haus.terminal.editor`, since that defaults to\nwhatever the chosen editor answers to on PATH (`zed --wait`, `code -w`,\n`hx`, `nvim`, …). Choosing here is the whole gesture: the editor is\ninstalled AND every \"open in an editor\" action follows it — in a new\nterminal window for a terminal editor, in the app itself for a GUI one.\n\nA desktop may set this. To point haus at an editor it does not\ninstall — something from your own host file — leave this alone and\nset `haus.terminal.editor` instead.\n",
     "example": {
       "_type": "literalExpression",
-      "text": "\"neovim\""
+      "text": "\"helix\""
     },
     "loc": [
       "haus",
@@ -6099,7 +6099,7 @@
       "editorName"
     ],
     "readOnly": false,
-    "type": "one of \"helix\", \"nano\", \"neovim\", \"vim\""
+    "type": "one of \"cursor\", \"helix\", \"nano\", \"neovim\", \"vim\", \"vscode\", \"zed\""
   },
   "haus.terminal.floatBorder": {
     "declarations": [
@@ -6173,7 +6173,7 @@
       "_type": "literalExpression",
       "text": "false"
     },
-    "description": "When true, build a small opener app and make it the default handler\nfor ~80 text/code extensions (json, md, ts, nix, rs, go, kdl, …), so\nopening or clicking those files opens them in haus.terminal.editor in\na terminal window. The app declares the types itself (not just `duti`) so\nextensions nothing else on the machine declares still bind. Off by\ndefault: silently rewriting your file associations is a jarring,\nhard-to-undo change, so it's strictly opt-in. (Extensionless executables\nlike `bench` are NOT covered — macOS gates the public.unix-executable\nhandler behind an interactive dialog; set it by hand once if wanted:\n`duti -s com.hausfold.editoropen public.unix-executable all`.)\n",
+    "description": "When true, build a small opener app and make it the default handler\nfor ~80 text/code extensions (json, md, ts, nix, rs, go, kdl, …), so\nopening or clicking those files opens them in haus.terminal.editor — a\nGUI editor directly, a terminal editor in a new terminal window. The\napp declares the types itself (not just `duti`) so\nextensions nothing else on the machine declares still bind. Off by\ndefault: silently rewriting your file associations is a jarring,\nhard-to-undo change, so it's strictly opt-in. (Extensionless executables\nlike `bench` are NOT covered — macOS gates the public.unix-executable\nhandler behind an interactive dialog; set it by hand once if wanted:\n`duti -s com.hausfold.editoropen public.unix-executable all`.)\n",
     "loc": [
       "haus",
       "terminal",
@@ -6232,7 +6232,7 @@
       "_type": "literalExpression",
       "text": "\"mauve\""
     },
-    "description": "The accent colour, by Catppuccin name. The Nebelung palette is a\ngrey-tinted Catppuccin, so the fourteen names are the same in both\nflavors and the hue you get follows haus.theme.flavor.\n\nWhat follows it: lazygit, fzf, yazi, glow (the Markdown in yazi's\npreview pane and at your own prompt alike), Zen's own UI, the generated\ndesktop picture (the bloom behind the mark in \"minimal\", the whole sweep in\n\"bold\"), the bar's far-left logo pill, the shelf, and any roster app\nwhose Nebelung port ships a per-accent matrix (zed, gh-dash, mpv) once\nhaus.theme.ports places it. The `accent-reach` flake check fingerprints\nevery one of those under three accents, so a surface cannot start or\nstop following the accent without someone deciding it should.\n\nThe shelf is the one surface handed the name rather than a hex, so the\nember under the notch and a pinned tile wear this accent in whichever\nhalf of its dark/light pair macOS is showing. Its own default is mark\ngreen.\n\nThree limits. A per-accent port names its theme file after the accent,\nso changing the accent renames the file the app's own `theme` key points\nat: re-pick it in the app, or it falls back to stock. Single-file\ndotfiles that bake the palette at their own theme slot (ghostty,\nstarship, tmux, bat, …) keep their built-in colour, and the base palette\nstays the same Nebelung grey either way, so only the accent hue moves.\nAnd `haus.bar.logo` is the only pill this reaches; every other colour on\nthe bar is a fixed palette key, unless `haus.bar.logo.color` names one\nof its own.\n\nZen's own UI is not the web. The Nebelung userContent haus places styles\n`about:` pages only, so github.com and youtube.com need\n`haus.zen.userStyles`: name the sites and haus compiles their userstyles\nwith this accent into that same userContent.css, which a rebuild and a\nZen restart pick up with nothing to import by hand. No per-site toggle\nand nothing self-updates, so adding a site takes a rebuild.\n",
+    "description": "The accent colour, by Catppuccin name. The Nebelung palette is a\ngrey-tinted Catppuccin, so the fourteen names are the same in both\nflavors and the hue you get follows haus.theme.flavor.\n\nWhat follows it: lazygit, fzf, yazi, glow (the Markdown in yazi's\npreview pane and at your own prompt alike), Zen's own UI, the generated\ndesktop picture (the bloom behind the mark in \"minimal\", the whole sweep in\n\"bold\"), the bar's far-left logo pill, the shelf, and any roster app\nwhose Nebelung port ships a per-accent matrix (zed, gh-dash, mpv) once\nhaus.theme.ports places it. The `accent-reach` flake check fingerprints\nevery one of those under three accents, so a surface cannot start or\nstop following the accent without someone deciding it should.\n\nThe shelf is the one surface handed the name rather than a hex, so the\nember under the notch and a pinned tile wear this accent in whichever\nhalf of its dark/light pair macOS is showing. Its own default is mark\ngreen.\n\nThree limits. A per-accent port names its theme file after the accent,\nso changing the accent renames the file the app's own `theme` key points\nat: re-pick it in the app, or it falls back to stock. (Zed as THE\neditor is the exception — the Development room places its port under\none fixed name and writes the key, so the accent just arrives.) Single-file\ndotfiles that bake the palette at their own theme slot (ghostty,\nstarship, tmux, bat, …) keep their built-in colour, and the base palette\nstays the same Nebelung grey either way, so only the accent hue moves.\nAnd `haus.bar.logo` is the only pill this reaches; every other colour on\nthe bar is a fixed palette key, unless `haus.bar.logo.color` names one\nof its own.\n\nZen's own UI is not the web. The Nebelung userContent haus places styles\n`about:` pages only, so github.com and youtube.com need\n`haus.zen.userStyles`: name the sites and haus compiles their userstyles\nwith this accent into that same userContent.css, which a rebuild and a\nZen restart pick up with nothing to import by hand. No per-site toggle\nand nothing self-updates, so adding a site takes a rebuild.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"sapphire\""
@@ -6274,7 +6274,7 @@
       "_type": "literalExpression",
       "text": "\"mocha\""
     },
-    "description": "Light or dark. \"mocha\" is the dark half of Nebelung, \"latte\" the light\none, and latte is a real source palette rather than the dark one\ninverted: Catppuccin Latte put through Nebelung's \"strip the blue out\"\nrule, so it keeps the same warm-grey ramp and the same calmed accents\nthe other way up. It reaches 7.0:1 for body text before you touch\n`contrast`. Together with `contrast` that is four palettes, and\nnebelung's CI measures each one rather than eyeballing it.\n\nWhat follows it: every tool haus themes itself. Ghostty, bat, delta,\nlsd, yazi, glow, fzf, starship, lazygit, zsh-syntax-highlighting,\nopencode, the bar and Zen always, and three more that wait on something\nelse: helix when `haus.terminal.editorName` picks it (Nebelung has a\nport for helix and none for the alternatives), gh-dash under\n`haus.terminal.ghDash.enable`, and Obsidian once\n`haus.terminal.obsidianVaults` names a vault. Each one is re-rendered\nfor the flavor rather than recoloured in place.\n\nThree things it does not reach:\n\n  - the launcher and the shelf, which read their palette at runtime and\n    follow macOS Light/Dark instead. haus installs every rendered\n    variant into ~/.config/{pounce,perch}/themes/ and writes the\n    dark/light pair at your `contrast`. Set\n    haus.launcher.followSystemAppearance or\n    haus.shelf.followSystemAppearance false to pin one of them to this\n    flavor like everything else.\n  - macOS's own Light/Dark appearance, until you set\n    haus.theme.systemAppearance = \"flavor\". Left alone haus touches it\n    in neither direction, so latte on a dark macOS looks half-done and\n    that half is yours.\n  - the desktop picture, unless it is \"minimal\", which follows the\n    flavor in every part: field, mark, glow and debug band. See\n    haus.wallpaper.style for what the others do instead.\n",
+    "description": "Light or dark. \"mocha\" is the dark half of Nebelung, \"latte\" the light\none, and latte is a real source palette rather than the dark one\ninverted: Catppuccin Latte put through Nebelung's \"strip the blue out\"\nrule, so it keeps the same warm-grey ramp and the same calmed accents\nthe other way up. It reaches 7.0:1 for body text before you touch\n`contrast`. Together with `contrast` that is four palettes, and\nnebelung's CI measures each one rather than eyeballing it.\n\nWhat follows it: every tool haus themes itself. Ghostty, bat, delta,\nlsd, yazi, glow, fzf, starship, lazygit, zsh-syntax-highlighting,\nopencode, the bar and Zen always, and three more that wait on something\nelse: the editor when `haus.terminal.editorName` picks zed (the\ndefault) or helix (Nebelung has a port for those two and none for the\nrest), gh-dash under `haus.terminal.ghDash.enable`, and Obsidian once\n`haus.terminal.obsidianVaults` names a vault. Each one is re-rendered\nfor the flavor rather than recoloured in place.\n\nThree things it does not reach:\n\n  - the launcher and the shelf, which read their palette at runtime and\n    follow macOS Light/Dark instead. haus installs every rendered\n    variant into ~/.config/{pounce,perch}/themes/ and writes the\n    dark/light pair at your `contrast`. Set\n    haus.launcher.followSystemAppearance or\n    haus.shelf.followSystemAppearance false to pin one of them to this\n    flavor like everything else.\n  - macOS's own Light/Dark appearance, until you set\n    haus.theme.systemAppearance = \"flavor\". Left alone haus touches it\n    in neither direction, so latte on a dark macOS looks half-done and\n    that half is yours.\n  - the desktop picture, unless it is \"minimal\", which follows the\n    flavor in every part: field, mark, glow and debug band. See\n    haus.wallpaper.style for what the others do instead.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"latte\""

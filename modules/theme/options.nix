@@ -43,9 +43,9 @@ in
         What follows it: every tool haus themes itself. Ghostty, bat, delta,
         lsd, yazi, glow, fzf, starship, lazygit, zsh-syntax-highlighting,
         opencode, the bar and Zen always, and three more that wait on something
-        else: helix when `haus.terminal.editorName` picks it (Nebelung has a
-        port for helix and none for the alternatives), gh-dash under
-        `haus.terminal.ghDash.enable`, and Obsidian once
+        else: the editor when `haus.terminal.editorName` picks zed (the
+        default) or helix (Nebelung has a port for those two and none for the
+        rest), gh-dash under `haus.terminal.ghDash.enable`, and Obsidian once
         `haus.terminal.obsidianVaults` names a vault. Each one is re-rendered
         for the flavor rather than recoloured in place.
 
@@ -183,7 +183,9 @@ in
 
         Three limits. A per-accent port names its theme file after the accent,
         so changing the accent renames the file the app's own `theme` key points
-        at: re-pick it in the app, or it falls back to stock. Single-file
+        at: re-pick it in the app, or it falls back to stock. (Zed as THE
+        editor is the exception — the Development room places its port under
+        one fixed name and writes the key, so the accent just arrives.) Single-file
         dotfiles that bake the palette at their own theme slot (ghostty,
         starship, tmux, bat, …) keep their built-in colour, and the base palette
         stays the same Nebelung grey either way, so only the accent hue moves.
