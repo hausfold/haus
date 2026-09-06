@@ -2787,7 +2787,14 @@ cmd_edit() {
   host="$(host_name)"
   f="$CONSUMER/hosts/$host/default.nix"
   [ -f "$f" ] || die "no host file at $f"
-  exec "${EDITOR:-hx}" "$f"
+  # $EDITOR is a COMMAND, not a binary — `zed --wait` by default, `code -w`
+  # for a host that picked that — so it is split into words before the exec;
+  # quoted whole it names a program called "zed --wait" and fails. `vi` as
+  # the fallback because every Mac has one and haus no longer ships hx on
+  # every machine.
+  local -a ed
+  read -ra ed <<<"${EDITOR:-vi}"
+  exec "${ed[@]}" "$f"
 }
 
 # ---- haus set / get / unset / reset ----------------------------------------

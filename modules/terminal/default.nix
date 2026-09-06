@@ -244,12 +244,23 @@ in
   # overridable by app id from a host, and (see the note by home.packages) able
   # to collide loudly with a cask of the same name instead of silently.
   #
-  # It is the only app this room installs. A media player used to sit here too,
+  # The chosen editor is the other one, when it arrives as a cask (zed, vscode,
+  # cursor — modules/lib/editors.nix). Keyed by the enum value and written at
+  # `mkDefault`, which is exactly the shape the Apps room's own
+  # `haus.apps.<name>.enable` writes, so a host that turns both on gets ONE
+  # roster entry — equal values at equal priority merge — and `nix flake
+  # check`'s `editor-choice` pins that. A media player used to sit here too,
   # purely because this room's hijack code was next door; an editorial pick is
   # not shell config, and modules/apps is the room whose whole job it is.
   haus.roster = {
     duti = {
       package = lib.mkDefault pkgs.duti;
+    };
+  }
+  // lib.optionalAttrs (editor.cask != null) {
+    ${terminalCfg.editorName} = {
+      name = lib.mkDefault editor.name;
+      cask = lib.mkDefault editor.cask;
     };
   };
 
@@ -270,7 +281,11 @@ in
   # The chosen editor's port is the second one, for the same reason: on a
   # neovim machine this room installs no helix, so claiming helix here would
   # promise a theme for a tool that is not there. `editor.port` is null for
-  # every editor Nebelung has no port for, which is all of them but helix.
+  # every editor Nebelung has no port for, which is all of them but zed and
+  # helix. Claiming zed here is also what keeps the roster pass off it: this
+  # room places the port under ONE name (see `zedTheme`) and points Zed's
+  # `theme` key at it, where the pass would drop the per-accent file and
+  # leave the click to the person.
   haus.theme.ports.handled = [
     "bat"
     "delta"
@@ -401,6 +416,44 @@ in
       # would still read `moves`. `-f`, because a directory there would be as
       # wrong as nothing.
       #
+      # Zed's theme, from the nebelung port — RENAMED. The port renders the
+      # accent matrix as `catppuccin-<accent>.json`, each file carrying its
+      # own inner name ("Catppuccin Mocha (green)"), and Zed selects a theme
+      # by that inner name in settings.json. Placed as-is, changing the accent
+      # would rename the theme the `theme` key points at and Zed would fall
+      # back to stock — the "three limits" caveat in haus.theme.accent's own
+      # doc, made real. So the file lands under one fixed name with one fixed
+      # inner name, the way helix's `nebelung.toml` does, and the key this
+      # room writes into settings.json never moves. `accent-reach` pins that
+      # the accent still arrives (the `zed-editor` row moves), and the guard
+      # is glowStyle's: a flavor/accent past what the pinned nebelung renders
+      # stops the build instead of landing a dangling symlink.
+      zedThemeSource = "${nebelungRoot}/zed/themes/catppuccin-${accent}.json";
+      zedTheme =
+        pkgs.runCommand "zed-theme-nebelung-${nbFlavor}-${accent}.json" { nativeBuildInputs = [ pkgs.jq ]; }
+          (
+            checkedRef.guard [
+              {
+                path = zedThemeSource;
+                test = "-f";
+                problem = [
+                  "terminal: the pinned nebelung renders no Zed port at"
+                  "  ${zedThemeSource}"
+                  "  (haus.theme.flavor/accent moved past what it ships)"
+                ];
+                remedies = [
+                  "haus.theme.accent — pick one the pinned nebelung renders"
+                  "haus.theme.flavor — the port matrix is rendered per flavor"
+                  "(haus authors) nix flake update nebelung"
+                ];
+              }
+            ]
+            + ''
+              jq '.name = "Nebelung" | .themes |= map(.name = "Nebelung")' \
+                ${lib.escapeShellArg zedThemeSource} > "$out"
+            ''
+          );
+
       # Written once and pasted into BOTH builders that spell `glowStyle` into
       # their output. Two build paths, one rule: neither is "the one place the
       # build can see the file" on its own, because a machine can have the
@@ -798,8 +851,9 @@ in
           bun
           fnm # node version manager (used by the initContent below)
         ]
-        # The chosen editor, unless it is helix — that one arrives through
-        # `programs.helix` below, which carries its settings and theme too.
+        # The chosen editor, unless it arrives another way: helix through
+        # `programs.helix` below, which carries its settings and theme too, and
+        # the GUI ones as the roster cask `haus.roster` above writes.
         ++ lib.optional (editor.package != null) pkgs.${editor.package}
         # The coding-agent clients, one package per `ai.clients` entry.
         # Unlisted means uninstalled, and `ai.default` is asserted to be a
@@ -1441,6 +1495,44 @@ in
         ];
       };
 
+      # Zed, the default editor, is configured by its home-manager module and
+      # INSTALLED by the roster cask above — `package = null` is that split:
+      # the module only writes settings.json. Kept mutable (its default), so
+      # Zed can still write its own settings and activation merges these in
+      # over the top; a Zed-side change to one of these keys lasts until the
+      # next rebuild, which is the deal every themed tool here makes. The
+      # price of that merge, paid knowingly: home-manager does it with jq and
+      # a JSON5 reader that is a python3 application, so a default machine
+      # carries a Python interpreter it did not before. A store symlink
+      # (`mutableUserSettings = false`) would drop it, and with it Zed's own
+      # ability to save a setting from its UI — the wrong trade for an
+      # editor.
+      #
+      # What is set, and only this: the theme (the fixed inner name `zedTheme`
+      # renders, placed under home.file below), the mono font the terminal
+      # already wears, and the extensions Zed installs on first launch for the
+      # languages a haus checkout is written in and Zed does not ship —
+      # `auto_install_extensions`, so a machine with no network the first time
+      # simply gets them the next. No keymap, no vim mode, no AI settings:
+      # those are the person's.
+      programs.zed-editor = lib.mkIf (terminalCfg.editorName == "zed") {
+        enable = true;
+        package = null;
+        extensions = [
+          "nix"
+          "toml"
+          "swift"
+          "html"
+          "dockerfile"
+          "make"
+        ];
+        userSettings = {
+          theme = "Nebelung";
+          buffer_font_family = fontsCfg.mono.name;
+          terminal.font_family = fontsCfg.mono.name;
+        };
+      };
+
       # Catppuccin: `catppuccin.flavor` is the single source of truth — every
       # integration follows it. Raw dotfiles nix can't inject into (the ghostty
       # config) name the flavor manually; keep them in sync.
@@ -1470,6 +1562,10 @@ in
       # true, rather than the promise it was when a bare `glow` rendered stock.
       catppuccin.glamour.enable = false;
       catppuccin.helix.enable = false;
+      # `autoEnable` follows `programs.zed-editor.enable` and writes stock
+      # catppuccin's dark/light pair into the same `theme` key this room sets
+      # to the renamed port — a hard conflict at eval, not a silent override.
+      catppuccin.zed.enable = false;
       catppuccin.lazygit.enable = false;
       catppuccin.lsd.enable = false;
       catppuccin.yazi.enable = false;
@@ -1849,6 +1945,13 @@ in
       // lib.optionalAttrs (terminalCfg.editorName == "helix") {
         ".config/helix/themes/nebelung.toml".source =
           "${nebelungRoot}/helix/themes/default/catppuccin_${nbFlavor}.toml";
+      }
+      # Zed's, the same way and for the same reason — `zedTheme` above is the
+      # port renamed so `programs.zed-editor`'s `theme = "Nebelung"` survives
+      # an accent change. Zed watches this directory, so a rebuild that moves
+      # the accent repaints the open window without a restart.
+      // lib.optionalAttrs (terminalCfg.editorName == "zed") {
+        ".config/zed/themes/nebelung.json".source = zedTheme;
       }
       # ── ~/.profile — the file two spawn paths read before this room's ────
       # Not a shell we configure and not one anybody types in, which is exactly
