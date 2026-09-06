@@ -2,7 +2,8 @@
 # build-golden-vm.sh — bake the macOS image agent lanes clone from.
 #
 #   ./script/build-golden-vm.sh [--base tahoe-base] [--name haus-golden]
-#                               [--ref v2026.08.22] [--desktop hacker] [--keep]
+#                               [--ref v2026.08.22] [--desktop hacker]
+#                               [--disk-size 90] [--keep]
 #
 # `scruff runtime up <lane> --backend tart` clones an image and boots it headless
 # (modules/ai/runtime/tart-adapter.sh). Which image is the whole question: a
@@ -40,6 +41,7 @@ NAME="${HAUS_VM_NAME:-haus-golden}"
 REF="${HAUS_VM_REF:-}"
 DESKTOP="${HAUS_VM_DESKTOP:-hacker}"
 GUEST_USER="${HAUS_VM_USER:-admin}"
+DISK_GB="${HAUS_VM_DISK_GB:-90}"
 KEEP=
 
 # ${VAR} inside these, never $VAR, whenever the next character is one of this
@@ -57,8 +59,9 @@ while [ $# -gt 0 ]; do
     --name)    NAME="${2:?--name needs an image name}"; shift 2 ;;
     --ref)     REF="${2:?--ref needs a git tag or rev}"; shift 2 ;;
     --desktop) DESKTOP="${2:?--desktop needs a name}"; shift 2 ;;
+    --disk-size) DISK_GB="${2:?--disk-size needs a size in GB}"; shift 2 ;;
     --keep)    KEEP=1; shift ;;
-    -h|--help) sed -n '2,6p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,7p' "$0"; exit 0 ;;
     *) die "unknown flag $1 — try --help" ;;
   esac
 done
@@ -113,6 +116,18 @@ trap cleanup_on_fail EXIT
 say "cloning $BASE → $NAME (APFS copy-on-write, seconds)…"
 tart clone "$BASE" "$NAME"
 
+# The base ships a 50 GB disk and a raised house fills 45 of it, so every
+# clone of the image used to inherit ~5 GB of headroom — enough for a lane to
+# boot, not enough for `haus update` once nixpkgs has moved, which filled it
+# mid-build. Grow the disk now, while the VM is stopped: tart only ever grows
+# a disk, and the base's tart-guest-agent grows the partition and the APFS
+# container to match at the next boot (step 1.5 waits for that; measured
+# 2026-09-05: --disk-size 90 came up as an 83 GiB container, 42 GiB free
+# after the switch). The file stays sparse on the host, so the preflight
+# above still measures the right thing.
+say "growing ${NAME}'s disk to ${DISK_GB} GB…"
+tart set "$NAME" --disk-size "$DISK_GB"
+
 say "booting $NAME headless…"
 # --no-graphics gives a full WindowServer with nothing rendered to the host
 # display — the entire reason this is safe to run while someone is using the
@@ -134,6 +149,29 @@ for _ in $(seq 1 60); do
 done
 ssh "${SSH_OPTS[@]}" -o BatchMode=yes "$GUEST_USER@$IP" true 2>/dev/null \
   || die "no passwordless SSH to $GUEST_USER@$IP — the base image is meant to carry the key"
+
+# ---- 1.5 wait for the disk to be grown -------------------------------------
+# The cirruslabs base runs tart-guest-agent as a daemon (`--run-daemon` implies
+# `--resize-disk`), and at every boot it grows the partition and then the APFS
+# container out to whatever `tart set --disk-size` made the disk. That is the
+# whole reason the resize above needs no diskutil step — and it is a
+# diskmanagementd operation running on its own schedule, next to the Nix
+# installer's, which adds a volume to the same container. On the one bake
+# where the two overlapped they deadlocked for good: partition grown,
+# container not, the installer stuck at "Create an encrypted APFS volume"
+# and every new ssh session wedged behind them (2026-09-05). So nothing
+# touches the disk until the container has reached its size. `df` rather
+# than `diskutil`: statfs is a syscall, while a diskutil query queues on
+# diskmanagementd — behind the very operation it would be waiting for.
+say "waiting for the guest to grow its APFS container to ${DISK_GB} GB…"
+grown() {
+  guest <<EOS
+df -k / | awk -v gb="$DISK_GB" 'NR == 2 { exit !(\$2 * 1024 >= (gb - 2) * 1e9) }'
+EOS
+}
+for _ in $(seq 1 36); do grown 2>/dev/null && break; sleep 5; done
+grown 2>/dev/null \
+  || die "$NAME's APFS container has not grown to ${DISK_GB} GB after 3 min — \`ssh $GUEST_USER@$IP diskutil apfs list\`; the base's tart-guest-agent is meant to do this at boot"
 
 # ---- 2. raise the house ----------------------------------------------------
 # The PINNED raw URL, never hausfold.co/hacker.sh: the worker resolves the
