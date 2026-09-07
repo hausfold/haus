@@ -145,6 +145,52 @@ in
   # grants only the first still has an unpinned agent peek and no idea why,
   # which is the whole reason both are named in `steps`.
   #
+  # The pin is ONE grant per summoner and it is Automation → GHOSTTY. That is
+  # measured, not reasoned: on a haus-golden guest (Tahoe 26.6.2, 2026-09-06)
+  # each of pounce's two Automation rows was written into TCC.db by hand and ⌘Y
+  # summoned:
+  #
+  #   System Events | Ghostty | popup lands…      | level
+  #   allowed       | allowed | over its summoner | 3 (pinned)
+  #   denied        | allowed | wherever it likes | 3 (pinned)
+  #   allowed       | denied  | over its summoner | 0
+  #   denied        | denied  | wherever it likes | 0
+  #
+  # The same held with sketchybar summoning the agent peek, and removing or
+  # denying sketchybar's Accessibility row cost the placement, never the pin.
+  # The two are orthogonal because floatpin addresses the popup's Ghostty by
+  # pid and never goes through System Events. WHERE a popup lands is
+  # float-term.sh's four `tell application "System Events"` calls plus the
+  # summoner's Accessibility, which for the palette are cards 33 and 30 — so
+  # this card names Ghostty and only Ghostty rather than every grant in the
+  # flow. (sketchybar has no card for either: the agents pill declares no
+  # permissions in modules/bar/widgets.nix, which is that room's to fix.)
+  #
+  # The grants also arrive ONE PER SUMMON, which is what the third step is
+  # about. Measured on the same guest against pounce 2026.09.06: the first ⌘Y
+  # raises the System Events dialog and its popup is neither placed nor pinned,
+  # the second raises the Ghostty one and comes out pinned, the third asks
+  # nothing. A popup can never be pinned by the dialog it raised — floatpin
+  # bounds its send at 1.5 s and nobody answers in that — and a dialog left
+  # STANDING is worse than a denial: tccd holds every Apple event from that
+  # summoner until it is answered or 120 s pass, so the next ⌘Y hangs that long
+  # before its window appears.
+  #
+  # ⚠️ An old Pounce cannot be asked at all, and this is the one failure the
+  # pane cannot fix. tccd applies the hardened-runtime policy of the
+  # RESPONSIBLE process to floatpin's event, and a Pounce without
+  # com.apple.security.automation.apple-events is refused with `Policy
+  # disallows prompt for com.hausfold.pounce; access to kTCCServiceAppleEvents
+  # denied` — no dialog, no row, and Ghostty never appears under Pounce in the
+  # pane. That was every release up to 2026.09.03-2; 2026.09.06 carries the
+  # entitlement (hausfold/pounce#134) and is what this flake's lock pins. The
+  # System Events half was never refused that way, because the ask comes from
+  # /usr/bin/osascript, which carries Apple's own allow-prompting entitlement —
+  # which is why card 33 worked on a Pounce this card could not use. `detail`
+  # reads the installed bundle's entitlements with codesign, prompting for
+  # nothing, so a machine still on an older release is told rather than sent
+  # looking for a row that cannot exist.
+  #
   # Listed whenever the option is on rather than gated on pounce existing: a
   # bar-without-launcher machine has exactly one of the two summoners, and it is
   # the one whose grant does NOT survive a version bump (sketchybar is an
@@ -164,14 +210,37 @@ in
       Keeping the ⌘Y peek panel, ⌘G's gh-dash, the bar's agent peek and the
       palette's own windows above the tiling means asking each popup's Ghostty
       process to raise its window level, and macOS books that request against
-      whichever app summoned it rather than against haus.
+      whichever app summoned it rather than against haus. Ghostty is the whole
+      of what the pinning needs. Landing a popup over the window you summoned
+      it from is a separate ask of System Events, which for the palette is the
+      next card.
     '';
     cost = "popups still open in front, then sink behind the first tiled window you click";
+    # Prints only on a Pounce too old to be asked — see the ⚠️ above. codesign
+    # reads the bundle on disk and prompts for nothing.
+    detail = ''
+      # Every arm exits quietly rather than guessing: no pounce, an unreadable
+      # bundle, a codesign that errored. A card that says "too old" about a
+      # Pounce it could not actually read would send someone updating for
+      # nothing, which is worse than saying nothing at all.
+      bin="$(command -v pounce 2>/dev/null)" || exit 0
+      [ -n "$bin" ] || exit 0
+      app="$(dirname "$(dirname "$(dirname "$(readlink -f "$bin")")")")"
+      case "$app" in *.app) ;; *) exit 0 ;; esac
+      ents="$(codesign -d --entitlements - "$app" 2>/dev/null)" || exit 0
+      case "$ents" in *automation.apple-events*) exit 0 ;; esac
+      # The version is only knowable from a store path; unnamed is better than
+      # a slash where a version should be.
+      v="$(basename "$(dirname "$(dirname "$app")")")"
+      case "$v" in *-pounce-app-*) v=" (''${v#*-pounce-app-})" ;; *) v="" ;; esac
+      echo "this Pounce$v is too old to be asked for Ghostty: no Apple Events entitlement, so there is no dialog and no row to turn on"
+      echo "run 'haus update'. Pounce 2026.09.06 and newer carry it, and palette popups open in front and sink until then. This is Pounce's half only: the bar's agent peek asks on its own behalf"
+    '';
     pane = panes.automation;
     steps = [
-      "Turn Ghostty on underneath Pounce — that covers ⌘Y, ⌘G and every palette window"
-      "Turn Ghostty on underneath SketchyBar too, if you use the bar's agent peek — it summons its own popup and needs its own grant"
-      "A popup already on screen keeps its old behaviour — summon a fresh one to check"
+      "Turn Ghostty on underneath Pounce, which covers ⌘Y, ⌘G and every palette window"
+      "Turn Ghostty on underneath SketchyBar too if you use the bar's agent peek, which summons its own popup and needs its own grant"
+      "An app only appears here once it has asked, and it asks for one thing per summon: expect two dialogs, and a third popup before everything is pinned. A popup already on screen keeps the behaviour it opened with, so summon a fresh one to check"
     ];
   };
 
