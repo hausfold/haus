@@ -79,7 +79,8 @@ modules/
                           #   with terminal's is an error)
     agents/               # the two skills every client in haus.ai.clients gets (agentHomes
                           #   has the paths): `haus` and `hausfold/SKILL.md`, plus the consumer
-                          #   starter pair `haus doctor` offers. skill.nix builds the package
+                          #   starter pair `haus doctor` offers (`consumer-AGENTS.md` +
+                          #   `consumer-CLAUDE.md`). skill.nix builds the package
                           #   and holds the A4 guard: frontmatter, `name:` vs install dir,
                           #   description length, the 150-LINE CAP, no `@placeholder@`, no
                           #   unshipped references/ pointer — read off $out, since SKILL.md is
@@ -113,7 +114,8 @@ modules/
                           #   `haus.github.hooks` is a declaration `haus doctor` diffs; rooms
                           #   subscribe via haus._contrib.github.subscribers
   secrets/                # secretspec, provider per host; the haus._contrib.secrets deck →
-                          #   ~/.config/haus/secretspec.toml, read by `haus-secret`
+                          #   ~/.config/haus/secretspec.toml, read by `haus-secret`. A room
+                          #   declares a NEED — names and prose, never a value
   portless/               # haus.portless: .localhost URLs; a ROOT daemon on :443, the npm
                           #   tarball with no lockfile
   meridian/               # haus.ai.meridian: loopback Anthropic API off a Claude Max
@@ -168,8 +170,9 @@ The `example` host is placeholder identity (user `you`); real testing is a
 consumer (`~/.config/nix`, host `mbp`) through `bench try`, which builds
 against this checkout, uncommitted edits included; `bench ship` ripples the
 locks once committed. CI (`.github/workflows/check.yml`) evaluates the example
-host and runs `nix flake check`, shellcheck and the `test/` suites (`bats
-test/*.bats`, `bash test/*.sh`). A suite that renders through snug needs
+host and runs `nix flake check`, shellcheck, `bats test/*.bats` and the `bash`
+suites it can (`test/haus-settings.sh` is lint-only — it evaluates a
+darwinConfiguration, which a Linux runner cannot). A suite that renders through snug needs
 `HAUS_UI_SH` first — CI's "snug's painter, at the pinned rev" step writes it
 into `$GITHUB_ENV`; below a render suite the role cases SKIP, which reads as
 green. `nixfmt` formats `.nix` files.
@@ -222,8 +225,9 @@ PR; hardcoded identity. Advisory, never a gate.
     3.2 has no `coproc`, so `test/haus-settings.sh`, `test/haus-plan.sh` and
     `test/haus-add.sh` re-exec under a bash 4+ and spawn the subject as `$BASH`
     (`test/phase-painter.bats`'s `haus_sh` handle pins it for every plain
-    suite). CI runs the first two under bash 5 and cannot run
-    `bash test/haus-settings.sh` at all.
+    suite). CI runs `haus-plan.sh` and `haus-add.sh` under bash 5 and cannot run
+    `test/haus-settings.sh` at all — it evaluates a darwinConfiguration, so it
+    gets shellcheck only.
   - **Every ROW with columns is budgeted, never declared**: `ui_col` +
     `ui_trow` + `ui_table_data` measure the real window. The four table
     painters — `haus.sh`, `haus-show.sh`, `modules/focus/focus.sh`,
@@ -234,7 +238,14 @@ PR; hardcoded identity. Advisory, never a gate.
   - **The bootstrap is spelled ONCE, in `modules/lib/ui-load.nix`** —
     `ui_resolve` (fill `HAUS_UI_SH` and stop) and `ui_load` (source once,
     lazily; `UI_READY` only when everything `UI_WANT` names arrived), held
-    verbatim by all ten carriers. `ui-load-sync` diffs each against the source
+    verbatim by all ten carriers with its three traps: the path lives in
+    `HAUS_UI_SH` and **never `UI_SH`** (ui.sh's own source-twice guard — a
+    carrier holding it there makes ui.sh return before defining anything: no
+    error, no colour, and a GREEN suite, since every role is legitimately empty
+    with no painter); a `BASH_VERSINFO -ge 4` guard, because 3.2 half-loads
+    ui.sh into three `bad substitution` errors and a painter that draws nothing;
+    and `source … || true`, so a failing source can't abort a `set -euo
+    pipefail` caller. `ui-load-sync` diffs each against the source
     (`uiLoadCarriers` is the list), `test/phase-painter.bats` diffs them against
     each other. Edit there, re-copy. Per carrier: how the path arrives, when
     `ui_load` runs, and `UI_WANT` naming every verb the script CALLS.
@@ -268,7 +279,9 @@ PR; hardcoded identity. Advisory, never a gate.
     `plan` fork one; `update`, `rollback`, `set` and every report fork nothing.
     `SNUG_TRIED` keeps a snug that died dead for the command. A background job
     that draws needs its own duplicate of the write end; one that draws nothing
-    must `snug_detach`, or `snug_close` never returns.
+    must `snug_detach`, or `snug_close` never returns. **Never call `snug
+    <verb>` per line** from these scripts — a fork per row is the cost the
+    coprocess exists to avoid, and it needs no coprocess to happen.
   - **Two streams, per COMMAND, never per verb.** `REPORT=1` is set in the
     dispatch for `status doctor plan diff permissions services btm generations
     get capture`; those draw on fd 1. Everything else narrates on fd 2, stdout
@@ -320,9 +333,9 @@ PR; hardcoded identity. Advisory, never a gate.
   (`test/new-window-title.bats` pins it). `scripts/focused-session.sh` and
   `scripts/raise-session.sh` keep their impostor subtraction; `lane-open.sh`'s
   ghostty backend keeps its own AppleScript, which returns the window id.
-- **Ghostty does not close a TILED window when its process exits** (1.3.1,
-  `quit-after-last-window-closed` off) inside an instance that owns other
-  windows. `modules/terminal/scripts/launch.sh` runs `aerospace close` on its
+- **Ghostty does not close a TILED window when its process exits** (1.3.1). With
+  `wait-after-command` off, `Surface.childExited` prints and calls `close()` —
+  dropped for an AeroSpace-tiled window inside an instance that owns others. `modules/terminal/scripts/launch.sh` runs `aerospace close` on its
   own window id, gated on that id also being focused. A `new-window.sh` window
   running a command (⌘G's gh-dash, an editor) has the same hazard.
 - **The Ghostty pre-warm is three copies on purpose, pinned by INVARIANT**
@@ -361,8 +374,11 @@ PR; hardcoded identity. Advisory, never a gate.
   - *Presentation only*: a `haus._contrib.<B>.<feature>` extension point
     (`modules/lib/contrib.nix`). B declares it in its `options.nix`, A writes a
     plain attrset, B renders it inside its own `mkIf config.haus.<B>.enable`
-    (`modules/ai/default.nix`, `modules/focus/default.nix`). No room reads
-    `config.haus.ai.*` to decide what to draw.
+    (`modules/ai/default.nix`, `modules/focus/default.nix`). In production:
+    `_contrib.bar.agents`, `_contrib.launcher.agents`,
+    `_contrib.development.agents`, `_contrib.bar.focus`,
+    `_contrib.launcher.focus`. No room reads `config.haus.ai.*` to decide what
+    to draw.
   - *Functional, with a substitute*: detect at RUNTIME and fall back —
     `lanes/lane-open.sh` picks `HAUS_WINDOW_BACKEND=aerospace|ghostty` by
     `command -v aerospace`; `modules/terminal/default.nix` warns, not asserts.
@@ -386,7 +402,10 @@ PR; hardcoded identity. Advisory, never a gate.
   `share/haus/services.json`; `haus services` draws it, `haus doctor` reports
   what wants attention. The entry carries only `title`, `why`, `cost`, `domain`
   — label, log path and liveness are READ off the plist. Gate it exactly as the
-  job is gated (an eval-time assertion otherwise). Keep it greppable:
+  job is gated (an eval-time assertion otherwise). **An idle job's last exit
+  code is a finding; a live one's is not** — an idle job that exited non-zero
+  has quietly stopped and nothing else says so, while a running job's last exit
+  is a crash launchd already recovered from. Keep it greppable:
   `services-deck` reads both sides out of the source, so a job is spelled
   `launchd.user.agents.<name> =` or `launchd.daemons.<name> =` on its own line,
   never inside `// lib.optionalAttrs`.
@@ -433,9 +452,10 @@ PR; hardcoded identity. Advisory, never a gate.
     <event> [key=value…]` (`modules/core/haus-bar-poke.sh`, on PATH, pinned by
     `test/bar-poke.bats`). Core's, because it reads
     `haus.roster.sketchybar.binPath` rather than the bar room, and exits 0 with
-    no bar. Two triggers are deliberately not this: one
-    that only wakes `aerospace_watcher.sh` on the top bar, and a single-pill
-    repaint on `$SB`.
+    no bar. The logo pill's reload row execs the palette's
+    `modules/launcher/commands/reload-bar.sh` rather than carrying a second
+    copy. Two triggers are deliberately not this: one that only wakes
+    `aerospace_watcher.sh` on the top bar, and a single-pill repaint on `$SB`.
   - **Every reload names its rc** (`--reload
     ~/.config/sketchybar/bar-bottomrc`): a bare `sketchybar --reload` replays the
     generation `bar-bottom` BOOTED on. Diagnose with `ps -o command= -p <pid>`
@@ -482,8 +502,9 @@ PR; hardcoded identity. Advisory, never a gate.
   dangling symlink in `~`. Raw dotfiles nix can't inject into (ghostty `config`)
   reference the rendered file. Adding a flavor: a nebelung `VARIANTS` entry, an
   enum value in `modules/theme/options.nix`, a `theme-variants` row, `nix flake
-  update nebelung`, and `modules/theme/default.nix`'s `appearanceWanted` — an
-  unknown flavor silently gets Dark.
+  update nebelung`, and `modules/theme/default.nix`'s `appearanceWanted`, which
+  maps flavor → macOS Light/Dark for `haus.theme.systemAppearance = "flavor"` —
+  an unknown flavor silently gets Dark.
 - **The chord layer is pounce's, not Ghostty's** (`modules/launcher`'s
   `appHotkeys`, cross-referenced by `modules/terminal/ghostty/config`, taught by
   `modules/terminal/term-bindings.nix`): every terminal chord that runs a
