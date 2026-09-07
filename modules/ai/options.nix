@@ -390,6 +390,43 @@ in
       '';
     };
 
+    # ---- the merge runner, supervised ---------------------------------------
+    # A switch about SUPERVISION, not about authority. What may merge lives in
+    # `~/.config/factory/config.json` and in a lease file no pull request can
+    # edit (see `ai.enable`'s description and the note beside `factory` in
+    # default.nix); this option only decides whether launchd is the thing
+    # keeping the runner that reads them alive.
+    ai.factory.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = config.haus.ai.enable;
+      defaultText = lib.literalExpression "config.haus.ai.enable";
+      description = ''
+        Let launchd own `factory watchdog run` — the loop that runs a merge
+        shift on a cadence while a lease is live.
+
+        **On its own this merges nothing.** With no lease the runner exits
+        within a fifth of a second and launchd simply starts it again later, so
+        a machine that has never run `factory lease grant` sees a job that does
+        nothing at all. The lease is the switch; this is what stops a runner
+        dying at 3 a.m. from being the end of the night.
+
+        What it buys over `factory lease grant`'s own spawn: that one is a
+        detached child of your shell, so a reboot, a panic or an out-of-memory
+        kill takes it and nothing brings it back — the lease stands with
+        nobody exercising it, and you find out in the morning. Under launchd
+        the same death is a restart, and factory's own pidfile keeps the two
+        from ever being two runners.
+
+        On by default with the room, because the cost of the off state is a
+        job that exits immediately and the cost of the on state is a night that
+        silently stopped. Turn it off on a machine where `factory` is driven by
+        hand and a runner appearing behind you would be a surprise.
+
+        Needs `ai.enable`: `factory` is on PATH because that room put it there,
+        so with the room off there is no binary for launchd to keep alive.
+      '';
+    };
+
     ai.repoRoots = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [

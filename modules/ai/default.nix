@@ -89,6 +89,37 @@ let
       (builtins.readFile ./fix-github.sh)
   );
 
+  # `haus-factory-fixer` — the three words factory's runner appends, in the
+  # three words `haus-fix-github` takes. It exists because those two shapes do
+  # not line up and never will: the runner appends `<repo> <default branch>
+  # <run url>` to whatever `fixer.command` holds, `haus-fix-github` takes
+  # `<selector> <verdict> <url>`, and `ci` — the verdict, because a red default
+  # branch is the only failure a fixer lane is ever handed — is carried by
+  # neither side. So the repo word is dropped, the branch becomes the selector,
+  # and the verdict is written in. docs/night-shift-internals.md is where that
+  # mismatch is written down.
+  #
+  # A binary rather than a line of JSON in someone's config, because
+  # `factory doctor` blocks on a `fixer.command` PATH cannot find and checks
+  # nothing about its ARGV — a shim on PATH is the half that can be verified.
+  # Refusing the wrong argv is the point of the guard: factory turns a non-zero
+  # exit into `fixer-failed` with the stderr quoted and cards it, so a
+  # misconfigured `fixer.command` says so on screen instead of opening a lane
+  # on a branch nobody named.
+  #
+  # The absolute path is `agentAwakePoke`'s, for its reason: the runner may be
+  # a launchd job whose PATH names nothing of ours, and this generation's
+  # `haus-fix-github` is the one that should run.
+  hausFactoryFixer = pkgs.writeShellScriptBin "haus-factory-fixer" ''
+    set -eu
+    if [ "$#" -ne 3 ]; then
+      echo "haus-factory-fixer: expected <repo> <branch> <run url> from factory's runner, got $# argument(s)" >&2
+      echo "  fixer.command should be exactly [\"haus-factory-fixer\"] — factory appends the three." >&2
+      exit 64
+    fi
+    exec /run/current-system/sw/bin/haus-fix-github "$2" ci "$3"
+  '';
+
   # The pi release that first accepted `--`. Named once, read by the assertion
   # below and by nothing else; the pin that satisfies it is in that same file.
   piFloor = "0.84.3";
@@ -701,6 +732,17 @@ let
     exec /run/current-system/sw/bin/haus-bar-poke caffeinate_change
   '';
 
+  # ---- the merge runner, under launchd (haus.ai.factory.enable) -------------
+  factoryRunnerOn = cfg.enable && cfg.factory.enable;
+
+  # A launchd agent inherits `/usr/bin:/bin:/usr/sbin:/sbin` and nothing else,
+  # and this one shells out past its own wrapper twice: `fixer.command` (the
+  # shim above, in the system profile) and the after-merge hooks a policy names,
+  # which on this family's machines are `bench pull` and `bench ship` out of the
+  # user profile. Homebrew is in for the same reason it is in the github room's
+  # copy of this line — a hook is whatever the person wrote.
+  factoryPath = "/run/current-system/sw/bin:/etc/profiles/per-user/${username}/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+
   onOff = b: if b then "on" else "off";
 
   # `toString 1.0` is "1.000000", which reads like a precision the option
@@ -998,6 +1040,15 @@ in
       "haus.ai.keepAwake = \"${cfg.keepAwake}\" needs haus.ai.enable. The signal it waits on is "
       + "written by the agent hooks this room installs, so with the room off nothing would ever "
       + "report a turn and nothing is installed."
+    )
+    # Same shape as the one above and the same reason it is a warning rather
+    # than an assertion: what you get is a machine with no runner, which is the
+    # status quo everywhere factory is driven by hand, not a broken one.
+    ++ lib.optional (!cfg.enable && cfg.factory.enable) (
+      "haus.ai.factory.enable asks launchd to keep `factory watchdog run` alive, but "
+      + "haus.ai.enable is off and this room is what puts `factory` on PATH, so no job is "
+      + "installed. The option follows haus.ai.enable by default, so this only happens when a "
+      + "host or desktop set it on purpose -- drop the line, or turn the room on."
     );
 
   # ---- the payload: the system profile ---------------------------------------
@@ -1068,6 +1119,86 @@ in
           else
             toString (config.haus.power.lidAwake.maxHold * 60);
       };
+    };
+  };
+
+  # ---- the payload: factory's runner, kept alive by launchd ------------------
+  # `factory watchdog run` is the night shift's loop: while a lease is live it
+  # runs `factory shift` every `runner.interval`, puts each red default branch
+  # through four gates and spawns `fixer.command` for the ones that pass. All of
+  # that is factory's, in code, and none of it is a `haus.*` option — what may
+  # merge is authority, and it lives in `~/.config/factory/config.json` and a
+  # lease file no pull request can edit.
+  #
+  # WHAT THIS AGENT IS FOR IS THE LINE ABOVE THE LOOP. There used to be a
+  # second process here: a watchdog session whose job was to notice that the
+  # foreman had stopped and say so. The foreman turned out to be four string
+  # checks and a retry counter, so it is code now — and the only thing left for
+  # a supervisor to do is restart a runner that died. `KeepAlive` IS that
+  # supervisor. A reboot, a panic or an OOM kill is a restart within seconds
+  # instead of a lease standing all night with nobody exercising it, and no
+  # agent pane has to survive until morning for a docs PR to merge at 3 a.m.
+  #
+  # ⚠️ `ThrottleInterval` is load-bearing, not tuning, and it costs the case
+  # that matters NOTHING — which is only true because launchd measures the
+  # window from the last SPAWN rather than from the exit. Measured here, with a
+  # probe job at `ThrottleInterval = 20`: killed 8s after it started, launchd
+  # waited the remaining 12s; killed after 30s alive, it came back in under a
+  # second. A runner passing under a live lease has been up at least one
+  # `runner.interval` before anything can kill it, so the kill -9 this agent
+  # exists for is an IMMEDIATE restart at any throttle value.
+  #
+  # What the value paces is the idle case, and that one needs pacing: `run`
+  # exits 0 in ~0.2s with no live lease (measured), which is the state of this
+  # machine almost all the time, and the default 10-second throttle would make
+  # that ~8,600 spawns a day for nothing. Five minutes makes it 288, and even if
+  # a restart ever did wait the whole window it is four times inside
+  # `runner.interval` (1200s) and nine times inside `watchdog.stale` (2700s).
+  #
+  # Do not reach for `SuccessfulExit = false` instead. It would cost nothing
+  # when idle, which is its whole appeal, and it would leave the job DOWN after
+  # every lease-less exit — so a `factory lease grant` typed anywhere else,
+  # another pane or an ssh session, would be supervised by nothing at all,
+  # which is the whole failure this agent exists to close.
+  #
+  # One runner per machine is factory's own invariant, not this file's: `run`
+  # claims `watchdog.pid` and a second one prints "already running" and exits 0.
+  # So launchd's copy and the one `lease grant` spawns can never both pass.
+  #
+  # An AGENT and not a daemon, for `haus-agent-awake`'s reason turned around:
+  # it merges as YOU. `gh`'s credentials, the lease and the shift log are all
+  # in your login session, and root has none of them. Not wrapped in gui-wait
+  # either — it talks to no GUI process, so the cold-boot race cannot reach it.
+  haus._contrib.services.haus-factory = lib.mkIf factoryRunnerOn {
+    order = 48;
+    title = "The merge runner — factory watchdog";
+    why = ''
+      While you have granted a merge lease, this runs a shift every twenty
+      minutes: merges the pull requests your filter can vouch for, and opens a
+      fixer lane for a default branch that went red. With no lease it exits
+      immediately and does nothing.
+    '';
+    cost = "a granted lease stops being exercised — pull requests wait for the morning instead of merging overnight";
+  };
+
+  launchd.user.agents.haus-factory = lib.mkIf factoryRunnerOn {
+    serviceConfig = {
+      Label = "com.hausfold.factory";
+      ProgramArguments = [
+        "${pkgs.factory}/bin/factory"
+        "watchdog"
+        "run"
+      ];
+      KeepAlive = true;
+      RunAtLoad = true;
+      ThrottleInterval = 300;
+      ProcessType = "Background";
+      # The shift's own record is factory's (`~/.cache/factory/shift-*.log`),
+      # which is what a person reads in the morning. These two are the crash
+      # channel: a runner that could not start writes here and nowhere else.
+      StandardOutPath = "/tmp/haus-factory.out.log";
+      StandardErrorPath = "/tmp/haus-factory.err.log";
+      EnvironmentVariables.PATH = factoryPath;
     };
   };
 
@@ -1250,6 +1381,11 @@ in
     # button whose spawn opens a dead pane is the dead-pane failure with a
     # bar row in front of it instead of a palette behind it.
     ++ lib.optional (lib.elem cfg.default clients) hausFixGithub
+    # `haus-factory-fixer` — the argv shim above. Same gate for the same
+    # reason: it is one `exec` onto `haus-fix-github`, so shipping it where
+    # that binary is absent is a `fixer.command` factory's doctor calls fine
+    # and every lane it spawns dies in.
+    ++ lib.optional (lib.elem cfg.default clients) hausFactoryFixer
   );
 
   # What this room ships into home: per-client instructions and skill files,

@@ -16,6 +16,63 @@ below is a `haus.*` option factory knows about. The tool is repo-agnostic and
 deliberately names none of this; the wiring is the layer's, so the layer is
 where it is written down.
 
+## launchd owns the runner, and `ThrottleInterval` is why it can
+
+`factory watchdog run` is the loop. `haus.ai.factory.enable` — on by default
+with the AI room — is the per-user launchd agent `com.hausfold.factory` that
+keeps one alive, and it is a switch about SUPERVISION rather than about
+authority: the lease and `~/.config/factory/config.json` decide what merges,
+this decides only what happens when the process reading them dies.
+
+There used to be a second process here. The runner's four fixer gates were a
+skill an agent session re-read on every wakeup, that session was the foreman,
+and factory's watchdog measured whether the foreman was still alive. The gates
+turned out to be four string checks and a retry counter, so they are code now,
+and the only supervision left is restarting something that died. **`KeepAlive`
+is that supervisor**, which is what the alternative — a second haus-side
+process watching the first — would have had to reinvent worse.
+
+**The measured fact under the plist is that `run` exits.** With no live lease
+it returns 0 in about 0.2 seconds, and that is the state of a machine almost
+all of the time. `KeepAlive = true` at launchd's default ten-second throttle
+would make that roughly 8,600 spawns a day for nothing, so the agent sets
+`ThrottleInterval = 300`, which is 288 a day.
+
+**That costs the crash case nothing, because launchd measures the throttle from
+the last SPAWN rather than from the exit.** Measured with a probe job at
+`ThrottleInterval = 20`: killed eight seconds after it started, launchd waited
+out the remaining twelve; killed after thirty seconds alive, it was back in
+under a second. A runner passing under a live lease has been up for at least one
+`runner.interval` before anything can kill it, so the kill this agent exists for
+is an immediate restart whatever the throttle says. And in the worst case the
+window is still four times inside `runner.interval` (1200s) and nine times
+inside `watchdog.stale` (2700s), so a restarted runner is passing again long
+before factory would call the gap a stall.
+
+**`SuccessfulExit = false` is the wrong shape here and looks like the right
+one.** It costs nothing when idle, which is its whole appeal — and it leaves
+the job DOWN after every lease-less exit, so a `factory lease grant` typed in
+another pane or over ssh is supervised by nothing at all. The runner that grant
+spawns is a detached child of your shell; the reboot, panic or OOM kill that
+takes it is exactly the case this agent exists for.
+
+Two runners can never both pass, and that is factory's invariant rather than
+this file's: `run` claims `watchdog.pid`, and a second one prints `already
+running` and exits 0. So launchd's copy and `lease grant`'s coexist safely, and
+whichever claimed first is the one doing the work.
+
+**It is an agent, not a daemon, because it merges as YOU.** `gh`'s credentials,
+the lease and the shift log all live in your login session and root has none of
+them. Its `PATH` is written out in `modules/ai/default.nix` for the reason every
+launchd `PATH` in this repo is: an agent inherits `/usr/bin:/bin:/usr/sbin:/sbin`
+and this one shells out past factory's own wrapper twice — to `fixer.command`
+in the system profile, and to whatever after-merge hooks the policy names, which
+on this family's machines are `bench pull` and `bench ship` out of the user
+profile.
+
+The launchd log (`/tmp/haus-factory.{out,err}.log`) is the crash channel only.
+What a person reads in the morning is factory's own `~/.cache/factory/shift-*.log`.
+
 ## Why the `always` lid hold draws nothing
 
 A machine holding the lid open through the power room alone has **nothing on
@@ -51,12 +108,26 @@ cannot name this binary. factory's runner appends `<repo> <default branch> <run
 url>` to whatever that key holds; `haus-fix-github` takes `<selector> <verdict>
 <url>`. Three words meet three words in a different order, and `ci` — the
 verdict, because a red default branch is the only failure a fixer lane is
-handed — is carried by neither side. So `fixer.command` on a haus machine names
-a shim whose whole body is `haus-fix-github "$2" ci "$3"`: drop the repo word,
-put the branch in the selector, write the verdict in. `factory doctor` blocks
-on a `fixer.command` PATH cannot find, so what goes unchecked is not the
-program but its ARGV — which is why the two shapes are written down together
-here.
+handed — is carried by neither side.
+
+So the layer ships the shim rather than describing it: **`haus-factory-fixer`**,
+on PATH beside `haus-fix-github` and gated the same way, drops the repo word,
+puts the branch in the selector and writes the verdict in. What a policy names
+is the whole of it:
+
+```json
+"fixer": { "command": ["haus-factory-fixer"] }
+```
+
+That file is still the person's — `~/.config/factory/config.json` is authority,
+and haus writes none of it, which is why `factory doctor`'s `no fixer.command`
+line is the thing that reminds you. The shim refuses any argv that is not
+exactly three words, at exit 64, because factory turns a non-zero exit into
+`fixer-failed` with the stderr quoted and cards it: a `fixer.command` with a
+stray flag in it says so on screen instead of opening a lane on a branch nobody
+named. `factory doctor` blocks on a `fixer.command` PATH cannot find, so what
+goes unchecked is not the program but its ARGV — which is the whole reason the
+shim exists as a binary instead of a paragraph.
 
 **Three of the endings that produce no lane leave nothing behind but the
 banner** — nothing in `haus.ai.clients` on `PATH`, no local checkout, and a lane

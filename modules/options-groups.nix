@@ -76,6 +76,12 @@ let
       "clients"
       "default"
       "enable"
+      # Desktop-safe, and the reason is that it is a supervision switch rather
+      # than an authority one: what may merge lives in a machine-local config
+      # and a lease file, neither of them an option, so a desktop that turns
+      # this on gets a job that exits immediately until somebody grants a lease
+      # at the keyboard.
+      "factory.enable"
       "instructions"
       "keepAwake"
       "meridian.enable"
