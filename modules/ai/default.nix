@@ -1161,6 +1161,19 @@ in
   # another pane or an ssh session, would be supervised by nothing at all,
   # which is the whole failure this agent exists to close.
   #
+  # ⚠️ THE DECK STAYS HONEST BECAUSE OF A LAUNCHD STATE, not because of this
+  # entry. `KeepAlive = true` makes core's `svcLiveness` class this `running`,
+  # and `haus doctor` calls a `running` job that is not live WEDGED — which on a
+  # machine with no lease would be a red line for the majority state, the exact
+  # false red the deck was built to delete. It is not, and the measurement is
+  # why: a `KeepAlive` job waiting out its throttle prints `state = spawn
+  # scheduled`, never `not running`, and `_svc_probe` reads only `not running`
+  # as stopped (modules/core/haus.sh:4424-4433, whose comment names this case).
+  # Sampled every 30s across a full 300s window on a probe job: `spawn
+  # scheduled` throughout, `runs` ticking at the boundary. So doctor reads `ok`
+  # and `_perm_agent_wedged` puts up no login-items card. Anything that changes
+  # `ThrottleInterval` here, or that state test there, has to re-check the pair.
+  #
   # One runner per machine is factory's own invariant, not this file's: `run`
   # claims `watchdog.pid` and a second one prints "already running" and exits 0.
   # So launchd's copy and the one `lease grant` spawns can never both pass.

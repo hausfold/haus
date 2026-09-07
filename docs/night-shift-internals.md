@@ -56,6 +56,19 @@ another pane or over ssh is supervised by nothing at all. The runner that grant
 spawns is a detached child of your shell; the reboot, panic or OOM kill that
 takes it is exactly the case this agent exists for.
 
+**The services deck stays honest because of a launchd state, not because of the
+entry.** `KeepAlive = true` puts this job in core's `running` liveness class,
+and `haus doctor` calls a `running` job that is not live *wedged* — which on a
+machine with no lease would be a permanent red line for the majority state, the
+exact false red the deck exists to delete. It is not, because a `KeepAlive` job
+waiting out its throttle prints `state = spawn scheduled` and never `not
+running`, and `_svc_probe` reads only `not running` as stopped
+(`modules/core/haus.sh`, whose own comment names this case). Sampled every
+thirty seconds across a full 300-second window on a probe job: `spawn scheduled`
+throughout, `runs` ticking at the boundary. Doctor reads `ok`, and
+`_perm_agent_wedged` puts up no login-items card. Change `ThrottleInterval`
+here or that state test there and the pair has to be re-checked.
+
 Two runners can never both pass, and that is factory's invariant rather than
 this file's: `run` claims `watchdog.pid`, and a second one prints `already
 running` and exits 0. So launchd's copy and `lease grant`'s coexist safely, and
