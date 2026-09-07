@@ -741,7 +741,21 @@ let
   # which on this family's machines are `bench pull` and `bench ship` out of the
   # user profile. Homebrew is in for the same reason it is in the github room's
   # copy of this line — a hook is whatever the person wrote.
-  factoryPath = "/run/current-system/sw/bin:/etc/profiles/per-user/${username}/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+  #
+  # Named `userPath`, the same as the copies in modules/github, modules/meridian
+  # and modules/windows, and deliberately not something of its own: `grep
+  # userPath modules` is how somebody finds every launchd PATH in this repo, and
+  # a private name would take this one out of that answer.
+  #
+  # Determinate owns the nix daemon (`nix.enable = false`, see AGENTS.md's
+  # gotcha), so `nix` is at /nix/var/nix/profiles/default/bin and NOTHING else
+  # here names it. The two hooks this family actually runs both self-repair —
+  # `bench`'s `ensure_nix_path` appends it, `fix-github.sh` prepends its own —
+  # but `afterMerge.commands` is arbitrary shell a person wrote, and a hook
+  # calling `nix` directly would die at 3 a.m. with the only trace in
+  # /tmp/haus-factory.err.log. It sits after the two profiles so a rebuild's own
+  # `nix` still wins.
+  userPath = "/run/current-system/sw/bin:/etc/profiles/per-user/${username}/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 
   onOff = b: if b then "on" else "off";
 
@@ -1186,10 +1200,10 @@ in
     order = 48;
     title = "The merge runner — factory watchdog";
     why = ''
-      While you have granted a merge lease, this runs a shift every twenty
-      minutes: merges the pull requests your filter can vouch for, and opens a
-      fixer lane for a default branch that went red. With no lease it exits
-      immediately and does nothing.
+      While you have granted a merge lease, this runs a shift on the cadence
+      your policy sets: merges the pull requests your filter can vouch for, and
+      opens a fixer lane for a default branch that went red. With no lease it
+      exits immediately and does nothing.
     '';
     cost = "a granted lease stops being exercised — pull requests wait for the morning instead of merging overnight";
   };
@@ -1211,7 +1225,7 @@ in
       # channel: a runner that could not start writes here and nowhere else.
       StandardOutPath = "/tmp/haus-factory.out.log";
       StandardErrorPath = "/tmp/haus-factory.err.log";
-      EnvironmentVariables.PATH = factoryPath;
+      EnvironmentVariables.PATH = userPath;
     };
   };
 

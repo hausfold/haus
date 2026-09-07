@@ -142,6 +142,14 @@ named. `factory doctor` blocks on a `fixer.command` PATH cannot find, so what
 goes unchecked is not the program but its ARGV — which is the whole reason the
 shim exists as a binary instead of a paragraph.
 
+Both ends of that reorder live outside the shim's file, and neither has any
+reason to tell haus it moved, so `nix flake check`'s **`factory-fixer-argv`**
+reads all three: the appended `"$repo" "$branch" "$url"` in the LOCKED factory's
+`libexec/factory-watchdog`, the `selector="$1" verdict="$2" url="$3"` in
+`modules/ai/fix-github.sh`, and the shim between them. It is
+`pounce-item-grammar`'s pattern, for the same reason — a positional contract
+across a repo boundary that fails silently is one a build has to hold.
+
 **Three of the endings that produce no lane leave nothing behind but the
 banner** — nothing in `haus.ai.clients` on `PATH`, no local checkout, and a lane
 already running under the lock. A fourth leaves nothing at all: where the binary

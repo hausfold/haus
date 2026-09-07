@@ -58,7 +58,7 @@ let
   svcSet = v: v != null && v != [ ] && v != { };
 
   # What "healthy" means for this job, derived from the job's own serviceConfig
-  # rather than declared beside it. Ten of haus's sixteen jobs expect to be
+  # rather than declared beside it. Twelve of haus's eighteen jobs expect to be
   # running; the other six are healthy precisely BECAUSE they are not, and a
   # deck that could not tell the difference would report a red line for the
   # weekly GC every day but Sunday — which is how a checklist teaches people to

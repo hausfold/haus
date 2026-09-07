@@ -3621,6 +3621,67 @@
           # grammar we validate against match the binary we install". A lock
           # bump is mechanical and this mirror is prose, which is exactly the
           # asymmetry that let it drift for a day without anyone noticing.
+          # ---- factory-fixer-argv ---------------------------------------------
+          # `haus-factory-fixer` (modules/ai/default.nix) exists to reorder three
+          # words and does nothing else, and BOTH ends of that reorder are
+          # outside its file: factory's runner appends `<repo> <branch> <run
+          # url>`, and `haus-fix-github` reads `<selector> <verdict> <url>`. The
+          # verdict, `ci`, is carried by neither — the shim writes it in.
+          #
+          # Neither side has a reason to tell us it moved, and the failure is
+          # SILENT: a lane briefed at 3 a.m. on a branch name parsed as a repo,
+          # with a `fixer-spawned` line in the shift log saying the night went
+          # fine. `factory doctor` cannot see it either — it blocks on a
+          # `fixer.command` PATH cannot find and checks nothing about its argv.
+          # So all three are read here, the locked factory included, exactly as
+          # `pounce-item-grammar` reads the locked pounce.
+          factory-fixer-argv = pkgs.runCommand "haus-factory-fixer-argv-ok" { } ''
+            runner=${factory}/libexec/factory-watchdog
+            fixer=${./modules/ai/fix-github.sh}
+            room=${./modules/ai/default.nix}
+
+            test -f "$runner" || {
+              echo "factory's libexec/factory-watchdog has moved." >&2
+              echo "Do not delete this check: haus-factory-fixer is a pure argv" >&2
+              echo "reorder and this is the only thing that reads both ends." >&2
+              exit 1
+            }
+
+            # Every extraction ends in `|| true`, for pounce-item-grammar's
+            # reason: under `set -e -o pipefail` a pattern that stopped matching
+            # would abort before the guard below could say DON'T DELETE THIS.
+            grep -F 'FIXER_ARGV[@]}" "$repo" "$branch" "$url"' "$runner" > their-argv || true
+            grep -F 'selector="$1" verdict="$2" url="$3"' "$fixer" > our-argv || true
+            grep -F 'exec /run/current-system/sw/bin/haus-fix-github "$2" ci "$3"' "$room" > shim || true
+
+            if [ ! -s their-argv ]; then
+              echo "factory's runner no longer appends \`\"\$repo\" \"\$branch\" \"\$url\"\`" >&2
+              echo "to fixer.command (libexec/factory-watchdog)." >&2
+              echo >&2
+              echo "haus-factory-fixer maps those three positions by NUMBER, so a" >&2
+              echo "reorder there silently briefs every fixer lane on the wrong" >&2
+              echo "thing. Re-read both sides, fix the shim in modules/ai/" >&2
+              echo "default.nix, and update the patterns in this check." >&2
+              exit 1
+            fi
+            if [ ! -s our-argv ]; then
+              echo "modules/ai/fix-github.sh no longer reads" >&2
+              echo "  selector=\"\$1\" verdict=\"\$2\" url=\"\$3\"" >&2
+              echo "so the shim beside it is mapping into positions that moved." >&2
+              exit 1
+            fi
+            if [ ! -s shim ]; then
+              echo "haus-factory-fixer's body is no longer" >&2
+              echo "  exec .../haus-fix-github \"\$2\" ci \"\$3\"" >&2
+              echo "in modules/ai/default.nix. If that was deliberate, re-derive it" >&2
+              echo "from the two argv lines this check just found and repoint the" >&2
+              echo "pattern; if it was not, it is the bug." >&2
+              exit 1
+            fi
+
+            touch $out
+          '';
+
           pounce-item-grammar =
             let
               grammar = import ./modules/launcher/item-grammar.nix;
