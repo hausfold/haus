@@ -4492,7 +4492,7 @@ _svc_status() {
 }
 
 # How an idle job's idleness reads to a person, per liveness class — because
-# "not running" on its own reads as broken, and for six of haus's sixteen jobs it
+# "not running" on its own reads as broken, and for six of haus's seventeen jobs it
 # is the healthy answer. A `periodic` one is waiting for its schedule, a
 # `dormant` one for the file its KeepAlive names.
 _svc_idle_note() {

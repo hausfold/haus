@@ -852,12 +852,12 @@ mechanism, say so in one line.
   - **Gate the entry exactly as the job is gated.** The key IS the launchd
     attribute name and core looks the job up by it, so an entry whose job is
     behind a `lib.mkIf` the entry does not repeat names a job the machine has
-    not got. Five of haus's sixteen are gated that way. It is an eval-time
+    not got. Five of haus's seventeen are gated that way. It is an eval-time
     assertion, not a silent row.
   - **Liveness is derived, never declared.** `KeepAlive = true` means the job
     should be up; an interval means periodic; `WatchPaths` means it wakes on a
     file; a `KeepAlive` ATTRSET means dormant until its trigger; anything else
-    is a one-shot. Six of the sixteen are healthy precisely BECAUSE they are not
+    is a one-shot. Six of the seventeen are healthy precisely BECAUSE they are not
     running, and a deck that could not tell would draw a red line for the weekly
     GC every day but Sunday.
   - **A job's last exit code is a finding; a live job's is not.** An idle job
