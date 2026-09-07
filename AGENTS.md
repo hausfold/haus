@@ -401,8 +401,11 @@ PR; hardcoded identity. Advisory, never a gate.
   `haus.sh`. Core joins the deck to `config.launchd` and renders
   `share/haus/services.json`; `haus services` draws it, `haus doctor` reports
   what wants attention. The entry carries only `title`, `why`, `cost`, `domain`
-  — label, log path and liveness are READ off the plist. Gate it exactly as the
-  job is gated (an eval-time assertion otherwise). **An idle job's last exit
+  — label, log path and liveness are READ off the plist (six of the repo's
+  seventeen jobs are healthy precisely BECAUSE they are not running). Gate it
+  exactly as the job is gated — five of the seventeen are, and an entry not
+  repeating the `lib.mkIf` names a job the machine hasn't got: an eval-time
+  assertion, not a silent row. **An idle job's last exit
   code is a finding; a live one's is not** — an idle job that exited non-zero
   has quietly stopped and nothing else says so, while a running job's last exit
   is a crash launchd already recovered from. Keep it greppable:
