@@ -1079,6 +1079,14 @@ let
   # actually on their bar — and asked once per pill rather than once per
   # service, because two pills wanting Automation are two different sentences
   # about why.
+  #
+  # The wording is per GRANT and never per pill: `needs` finishes "the <pill>
+  # pill …", `pane` is where Settings opens, and `steps` is the clicks once it
+  # is open, defaulted below because only Automation's pane has a different
+  # shape. A card that needed its own sentence about one pill would mean this
+  # table has stopped covering the case, not that the case deserves a
+  # hand-written card — the pill's own `description` in ./widgets.nix is where
+  # its specifics already live.
   permissionCopy = {
     accessibility = {
       label = "Accessibility";
@@ -1089,6 +1097,19 @@ let
       label = "Automation";
       pane = panes.automation;
       needs = "asks another app a question through AppleScript";
+      # The one pane that is a list of LISTS: sketchybar is a disclosure row and
+      # each app it talks to is a switch underneath it, asked for separately. So
+      # this card cannot say "turn sketchybar on" the way every other one can,
+      # because that switch does not exist here. It still has to say WHY you are
+      # looking for sketchybar rather than for the pill, which is the half the
+      # shared step below carries and this one would otherwise drop. The agents
+      # pill alone can want two of those rows (System Events for the frame,
+      # Ghostty for the pin where `haus.terminal.floatOnTop` is on), which is
+      # why the step counts them rather than naming one.
+      steps = [
+        "Find sketchybar in the list — the bar is what asks, whichever pill wanted it — and turn on the apps underneath it; each app a pill talks to is its own row, and a pill may want more than one"
+        "A row appears only once something has asked for it, so if sketchybar is not in the list, use the pill once and come back"
+      ];
     };
     calendar = {
       label = "Calendar";
@@ -1149,15 +1170,44 @@ let
           value = {
             order = 50;
             title = "${copy.label} — the ${name} pill";
-            why = "The ${name} pill ${copy.needs}. macOS asks for this the first time the pill runs; every one of them degrades rather than breaking if you say no.";
-            cost = "the pill still draws, and the part of it that needs this stays empty";
+            # Three facts, and the middle one is what people write in thinking
+            # something broke: macOS identifies the bar BY ITS PATH (a
+            # non-bundled binary is `client_type = 1` in the TCC databases, the
+            # path itself), and every source the roster allows puts it at a
+            # versioned one. So an update moves it and TCC meets a new program.
+            # Measured on mbp 2026-09-07: two store paths of sketchybar 2.24.0,
+            # the SAME version, each holding their own Accessibility row and
+            # their own Automation rows — and beside them the two Homebrew
+            # Cellar paths this machine used before, 2.23.0 and 2.24.0, with
+            # rows of their own again. All still switched on, all pointing at a
+            # binary nothing runs from. Nothing here can detect that either
+            # (`check` is null below), so saying it out loud is the whole of
+            # what the deck can do about it.
+            why =
+              "The ${name} pill ${copy.needs}. macOS asks the first time the pill reaches "
+              + "for it, and again after an update that moves SketchyBar's binary: macOS "
+              + "knows the bar by the path it runs from, so a new one is a new program to "
+              + "it and the row you turned on stays behind, pointing at the old one. Saying "
+              + "no degrades the pill rather than breaking it.";
+            # Deliberately not "the part of it that needs this stays empty",
+            # which is only true of the calendar pill: the media pill's ⌘ click
+            # just fronts the app, the focus pill's bell stops toggling and the
+            # agents pill's peek opens in the wrong place. What every one of
+            # them has in common is that the PILL survives and the thing it
+            # wanted the grant for is silently absent, so that is what the one
+            # shared sentence says. The specifics belong to the pill, and are in
+            # its own `description` in ./widgets.nix.
+            cost = "the pill still draws, and whatever it wanted this for silently does not happen";
             # No `check` on any of these, and none is possible: macOS exposes
             # no way to ask whether ANOTHER app holds a grant, and every API
             # that reports one asks for it first — which a health check must
             # never do. So these are taken on your word or not at all, and the
             # wizard says so on each of them.
             pane = copy.pane;
-            steps = [ "Turn sketchybar on in the list — the bar is what asks, whichever pill wanted it" ];
+            steps =
+              copy.steps or [
+                "Turn sketchybar on in the list — the bar is what asks, whichever pill wanted it"
+              ];
           };
         }
       ) (lib.filter (perm: permissionCopy ? ${perm}) (widgets.${name}.permissions or [ ]))

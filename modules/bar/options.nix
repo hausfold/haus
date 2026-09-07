@@ -289,13 +289,19 @@ let
           description = ''
             What macOS will ask this widget for the first time it runs.
 
-            A DECLARATION and nothing more: haus requests none of these, and
-            listing one neither grants it nor makes the pill wait for it. What
-            it buys is a widget that can be READ for what it will reach for
-            before you switch it on — the pill you installed from someone else
-            most of all. That is the same shape nebelung's ports metadata
-            uses, one room over: the declaration lives with the thing, the
-            consumer reads it.
+            A DECLARATION: haus requests none of these, and listing one
+            neither grants it nor makes the pill wait for it. What it buys is
+            a widget that can be READ for what it will reach for before you
+            switch it on — the pill you installed from someone else most of
+            all. That is the same shape nebelung's ports metadata uses, one
+            room over: the declaration lives with the thing, the consumer
+            reads it.
+
+            The consumer here is the manual-click deck. A pill that is drawn
+            gets one card per grant in `haus permissions`, and `haus doctor`
+            reports them, so declaring a grant is what puts the sentence
+            explaining it in front of a person — and declaring one the widget
+            does not use is a card that wastes their time.
 
             `network` is not a macOS grant at all, and is here because "this
             pill talks to the internet" is the property people actually want
@@ -1290,8 +1296,10 @@ in
 
         `permissions` is a DECLARATION, not a grant: it says what macOS will
         ask your widget for, so a widget can be read for what it reaches for
-        before it is switched on. Nothing here requests anything, and a widget
-        that lies about it merely describes itself badly.
+        before it is switched on. Nothing here requests anything — what it
+        does buy is a card per grant in `haus permissions` for as long as the
+        pill is drawn, which is the one place a person is told why the bar is
+        asking.
       '';
     };
 
