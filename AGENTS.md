@@ -431,8 +431,9 @@ PR; hardcoded identity. Advisory, never a gate.
   piles its pill into the corner.
   - **Anything that pokes or reloads a bar pokes both**, spelled `haus-bar-poke
     <event> [key=value…]` (`modules/core/haus-bar-poke.sh`, on PATH, pinned by
-    `test/bar-poke.bats`). Core's, because it reads the roster for the bar's
-    binary and exits 0 with no bar. Two triggers are deliberately not this: one
+    `test/bar-poke.bats`). Core's, because it reads
+    `haus.roster.sketchybar.binPath` rather than the bar room, and exits 0 with
+    no bar. Two triggers are deliberately not this: one
     that only wakes `aerospace_watcher.sh` on the top bar, and a single-pill
     repaint on `$SB`.
   - **Every reload names its rc** (`--reload
