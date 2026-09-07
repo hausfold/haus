@@ -1115,21 +1115,35 @@ lib.mkIf config.haus.launcher.enable {
   # Screen still dead with this granted is that card's. No `check` and no
   # `prompt`, for the deck's first rule — every API that reports an Automation
   # grant asks for it first.
+  #
+  # The same grant is what puts every popup the palette summons over the window
+  # it was summoned from: float-term.sh reads the summoner's frame and plants
+  # the new window at it, both over System Events, so with this denied the ⌘Y
+  # peek, ⌘G and the palette's own windows open wherever Ghostty last left a
+  # window.
+  # Placement needs card 30 as well, the way Lock Screen does. It is the one
+  # thing terminal's float-on-top card (32) deliberately does NOT name: the pin
+  # is a separate Apple event to Ghostty, measured orthogonal to this grant on
+  # 2026-09-06 (that card's comment has the table), and a Pounce without the
+  # apple-events entitlement can still be asked for THIS one, because the ask
+  # comes from /usr/bin/osascript.
   haus._contrib.permissions.launcher-automation = {
     order = 33;
     title = "Automation — pounce, for System Events";
     why = ''
       Lock Screen sends the ⌃⌘Q keystroke through System Events and Force Quit
-      reads its process list from it. macOS asks on the first one; this card
-      is for putting the grant back if that dialog was dismissed. A command of
-      your own that tells an app gets a prompt of its own, one per app.
+      reads its process list from it, and every popup the palette summons is
+      placed over the window you were in through it too. macOS asks on the
+      first one; this card is for putting the grant back if that dialog was
+      dismissed. A command of your own that tells an app gets a prompt of its
+      own, one per app.
     '';
-    cost = "Lock Screen does nothing and Force Quit lists nothing, with no error anywhere";
+    cost = "Lock Screen does nothing, Force Quit lists nothing, and the ⌘Y peek, ⌘G and the palette's windows open wherever Ghostty last left a window instead of over the one you were in, with no error anywhere";
     applies = "command -v pounce >/dev/null 2>&1";
     pane = panes.automation;
     steps = [
       "Turn System Events on underneath Pounce"
-      "The row only exists once something has asked — if Pounce is not there, run Lock Screen once from the palette and come back"
+      "The row only exists once something has asked, so if Pounce is not there, run Lock Screen once from the palette or press ⌘Y in a terminal, and come back"
     ];
   };
 

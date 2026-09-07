@@ -62,12 +62,37 @@
 // rebuild because the daemon runs the CI-built release app, signed with
 // hausfold's Developer ID — its requirement anchors on the team, not a
 // per-build cdhash. Sketchybar is an adhoc-signed store path, so its grant is
-// re-asked whenever that path moves. Both are one card in the
-// manual-click deck rather than a surprise.
+// re-asked whenever that path moves. Both are one card in the manual-click deck
+// (modules/terminal/default.nix, `terminal-float-on-top`) rather than a
+// surprise.
+//
+// The grant is Automation → GHOSTTY and nothing else. This event goes to the
+// popup's own process by pid and never passes through System Events, so the
+// System Events row that float-term.sh's placement calls need is a different
+// grant with a different card. Measured 2026-09-06 on a Tahoe 26.6.2 guest by
+// writing each row and summoning: Ghostty allowed + System Events denied pins
+// (level 3) a popup that lands off its summoner; the reverse places it and
+// lets it sink; a summoner with no Accessibility row at all still pins. The
+// card's comment has the table.
 //
 // A denied or stale grant costs the pin and nothing else: the popup still
 // opens, still floats, still wears its ring, and — because float-term.sh
-// detaches this call — still takes focus without waiting for us.
+// detaches this call — still takes focus without waiting for us. Two ways the
+// grant can be missing that look alike from here and are not:
+//   * a dialog still standing. tccd holds every Apple event from that summoner
+//     until it is answered or 120 s pass, and the send below is bounded at
+//     1.5 s, so the popup that raised the dialog is never pinned, whatever gets
+//     clicked. The next one is.
+//   * a summoner that cannot ask. tccd applies the hardened-runtime policy of
+//     the RESPONSIBLE process to this binary's event, and a Pounce without the
+//     com.apple.security.automation.apple-events entitlement gets `Policy
+//     disallows prompt for com.hausfold.pounce; access to kTCCServiceAppleEvents
+//     denied`: no dialog, no row, and no way to make one from System Settings.
+//     That was every release up to 2026.09.03-2 (hausfold/pounce#134 added it
+//     in 2026.09.06). The same Pounce IS asked for System Events, because
+//     /usr/bin/osascript carries Apple's private allow-prompting entitlement
+//     and this binary does not. Routing the pin through osascript would dodge
+//     that and lose the by-pid addressing above, which is the wrong trade.
 //
 // The level itself is read back through CGWindowListCopyWindowInfo, which needs
 // no grant at all — same TCC-free source floatring.swift and hausrect.swift
