@@ -817,23 +817,16 @@ let
     # meant a feed's poll rate decided which provider the pill showed.
     # update_freq is the while-visible backstop that rolls a window over to 0% at
     # its reset. Starts hidden until the first row lands.
-    # What is left here is IDENTITY and the one thing a widget cannot say about
-    # itself: it starts HIDDEN. `updates=on` is the other half of that pair and
-    # is load-bearing — both bars default to `updates=when_shown`, under which a
-    # hidden item is not dispatched to at all, so its own update_freq would
-    # never tick and nothing would ever reveal it. With the pairing, the pill
-    # ticks while invisible and shows itself the moment a feed lands; that is
-    # what retired the one-shot kick this block used to carry, and it is the
-    # same door `pill --hide` closes from the script side.
+    # Starts HIDDEN, with `updates=on` beside it for the reason the agents pill
+    # above spells out: with the pairing this one ticks while invisible and
+    # shows itself the moment a feed lands.
     aiUsage = frameworkBlock sb side "ai_usage" {
       "drawing" = "off";
       "updates" = "on";
       "label.padding_right" = "10";
     };
-    # System readouts. A hand-written pill's colour comes from the --set here
-    # (the palette vars are live via colors.sh, sourced by sketchybarrc before
-    # this file) and its script only refreshes icon+label on its update_freq
-    # tick. The two below are framework widgets and carry their own wiring.
+    # System readouts. Every palette var below is live: colors.sh is sourced by
+    # sketchybarrc before this file.
     #
     # ── the two graph pills ────────────────────────────────────────────────────
     # `# widget: graph = 48` in cpu.sh and memory.sh is what makes each of these
@@ -959,22 +952,17 @@ let
     };
     # The bell that opens trill's inbox. It is drawn with an icon and no label
     # because it has no count to carry (see widgets.nix), and the plugin turns
-    # its own drawing off on a Mac with no Trill.app — which is most of them,
-    # since trill is deliberately not a haus flake input.
+    # its own drawing off on a Mac with no Trill.app — which is most of them:
+    # trill is a flake input, but `haus.notifications.compositor` is what places
+    # the bundle and it is off by default.
     #
-    # `updates=on` is what makes that reversible, and it is load-bearing rather
-    # than tidy: BOTH bars default to `updates=when_shown`, which SketchyBar
-    # applies to EVENT DELIVERY and not only to the tick, so a pill that hid
-    # itself is never dispatched to again and the script that would unhide it
-    # never runs. Installing Trill.app would otherwise leave the bell invisible
-    # until the next rebuild. See AGENTS.md's box on exactly this trap.
-    # A framework widget. `updates=on` stays a style knob: trill.sh's own
-    # `pill --hide` sets the pairing on the branch that draws nothing, but
-    # the item needs it live from --add time too, or the very first tick on
-    # a Mac with no Trill.app would hide a pill that never ticks again. The
-    # bell glyph and its padding stay here as well — the script only ever
-    # touches this pill's colour and whether it draws at all, exactly as the
-    # hand-written version did.
+    # A framework widget, so the bell glyph and its padding are the whole of the
+    # identity left here — trill.sh only ever touches this pill's colour and
+    # whether it draws at all. `updates=on` stays a style knob rather than
+    # riding trill.sh's own `pill --hide` pairing: the item needs it live from
+    # --add time, or the very first tick on a Mac with no Trill.app hides a pill
+    # that then never ticks again, and installing Trill.app would leave the bell
+    # invisible until the next rebuild. See AGENTS.md's box on that trap.
     trill = frameworkBlock sb side "trill" {
       "updates" = "on";
       "icon" = ''"󰂚"'';
@@ -1289,8 +1277,8 @@ let
       ${sb} --set ${itemId name} update_freq=${toString chosen}
     '';
 
-  # A widget a rice declared as a barlib FRAMEWORK widget — the other tier, and
-  # the one that makes barlib a framework rather than an internal refactor
+  # A widget a desktop declared as a barlib FRAMEWORK widget — the other tier,
+  # and the one that makes barlib a framework rather than an internal refactor
   # (ops/todo/bar-framework.md's migration order). There is deliberately nothing
   # here but the two paths: a stranger's script reaches `frameworkItem` down
   # exactly the route clock.sh does, gets the same header read by the same
@@ -2674,7 +2662,7 @@ lib.mkIf config.haus.bar.enable {
         ".config/sketchybar/aerospace-notify.sh".source = ./sketchybar/aerospace-notify.sh;
         ".config/sketchybar/plugins".source = ./sketchybar/plugins;
       }
-      # ---- a rice's own framework widgets --------------------------------------
+      # ---- a desktop's own framework widgets -----------------------------------
       # One file per declared `script` widget, beside haus's plugins rather than
       # among them. `plugins` is a DIRECTORY home.file entry — one symlink into
       # the store — so there is no way to add a file inside it without copying
