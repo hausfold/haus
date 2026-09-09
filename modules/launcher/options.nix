@@ -72,6 +72,28 @@ in
       };
     };
 
+    # The AI room's OTHER palette surface, and a switch rather than data
+    # because there is nothing to carry: the command spells factory's four
+    # verbs itself, and what may merge is authority that lives in a
+    # machine-local file rather than in any option this could hand over.
+    _contrib.launcher.factory = contrib.mkExtensionPoint {
+      description = ''
+        Whether the palette carries **Merge Lease** — the four `factory lease`
+        verbs the bar's `factory` pill also offers.
+
+        Off, the command is not installed and no row appears on the cheatsheet:
+        it shells out to `factory`, which only the AI room puts on PATH, and a
+        row whose binary is missing is worse than no row.
+      '';
+      options = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+          description = "Whether the palette carries the merge-lease command and its row.";
+        };
+      };
+    };
+
     # The Focus room's palette surface. Two facts, and the second is why this
     # point carries data rather than only a switch: a scene is generated into
     # its own palette command and its own cheatsheet row, so the launcher needs
