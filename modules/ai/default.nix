@@ -1144,53 +1144,23 @@ in
   # merge is authority, and it lives in `~/.config/factory/config.json` and a
   # lease file no pull request can edit.
   #
-  # WHAT THIS AGENT IS FOR IS THE LINE ABOVE THE LOOP. There used to be a
-  # second process here: a watchdog session whose job was to notice that the
-  # foreman had stopped and say so. The foreman turned out to be four string
-  # checks and a retry counter, so it is code now — and the only thing left for
-  # a supervisor to do is restart a runner that died. `KeepAlive` IS that
-  # supervisor. A reboot, a panic or an OOM kill is a restart within seconds
-  # instead of a lease standing all night with nobody exercising it, and no
-  # agent pane has to survive until morning for a docs PR to merge at 3 a.m.
-  #
-  # ⚠️ `ThrottleInterval` is load-bearing, not tuning, and it costs the case
-  # that matters NOTHING — which is only true because launchd measures the
-  # window from the last SPAWN rather than from the exit. Measured here, with a
-  # probe job at `ThrottleInterval = 20`: killed 8s after it started, launchd
-  # waited the remaining 12s; killed after 30s alive, it came back in under a
-  # second. A runner passing under a live lease has been up at least one
-  # `runner.interval` before anything can kill it, so the kill -9 this agent
-  # exists for is an IMMEDIATE restart at any throttle value.
-  #
-  # What the value paces is the idle case, and that one needs pacing: `run`
-  # exits 0 in ~0.2s with no live lease (measured), which is the state of this
-  # machine almost all the time, and the default 10-second throttle would make
-  # that ~8,600 spawns a day for nothing. Five minutes makes it 288, and even if
-  # a restart ever did wait the whole window it is four times inside
-  # `runner.interval` (1200s) and nine times inside `watchdog.stale` (2700s).
-  #
-  # Do not reach for `SuccessfulExit = false` instead. It would cost nothing
-  # when idle, which is its whole appeal, and it would leave the job DOWN after
-  # every lease-less exit — so a `factory lease grant` typed anywhere else,
-  # another pane or an ssh session, would be supervised by nothing at all,
-  # which is the whole failure this agent exists to close.
-  #
-  # ⚠️ THE DECK STAYS HONEST BECAUSE OF A LAUNCHD STATE, not because of this
-  # entry. `KeepAlive = true` makes core's `svcLiveness` class this `running`,
-  # and `haus doctor` calls a `running` job that is not live WEDGED — which on a
-  # machine with no lease would be a red line for the majority state, the exact
-  # false red the deck was built to delete. It is not, and the measurement is
-  # why: a `KeepAlive` job waiting out its throttle prints `state = spawn
-  # scheduled`, never `not running`, and `_svc_probe` reads only `not running`
-  # as stopped (modules/core/haus.sh:4424-4433, whose comment names this case).
-  # Sampled every 30s across a full 300s window on a probe job: `spawn
-  # scheduled` throughout, `runs` ticking at the boundary. So doctor reads `ok`
-  # and `_perm_agent_wedged` puts up no login-items card. Anything that changes
-  # `ThrottleInterval` here, or that state test there, has to re-check the pair.
-  #
-  # One runner per machine is factory's own invariant, not this file's: `run`
-  # claims `watchdog.pid` and a second one prints "already running" and exits 0.
-  # So launchd's copy and the one `lease grant` spawns can never both pass.
+  # ⚠️ The three values below are load-bearing rather than tuning, and the
+  # measurements behind them are in docs/night-shift-internals.md, §"launchd
+  # owns the runner". `KeepAlive = true` is the whole supervisor — a reboot, a
+  # panic or an OOM kill becomes a restart within seconds instead of a lease
+  # standing all night with nobody exercising it. `SuccessfulExit = false` is
+  # the trap that looks like the right answer: it costs nothing when idle and
+  # leaves the job DOWN after every lease-less exit, so a `factory lease grant`
+  # typed in another pane or over ssh is supervised by nothing at all.
+  # `ThrottleInterval = 300` paces the idle case only — `run` exits 0 in ~0.2s
+  # with no lease, which is this machine almost always, and launchd's default
+  # would make that ~8,600 spawns a day — while costing the crash case nothing,
+  # because launchd measures the window from the last SPAWN rather than the
+  # exit. And the two of them together are half a cross-file pair: `KeepAlive`
+  # puts this job in core's `running` liveness class, and it escapes `haus
+  # doctor`'s WEDGED verdict only because a throttled job prints `state = spawn
+  # scheduled` and `_svc_probe` reads only `not running` as stopped
+  # (modules/core/haus.sh). Change either side and re-check the other.
   #
   # An AGENT and not a daemon, for `haus-agent-awake`'s reason turned around:
   # it merges as YOU. `gh`'s credentials, the lease and the shift log are all
