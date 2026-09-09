@@ -203,33 +203,68 @@ sess="scruff.${repo}.${SCRUFF_NAME}"
 
 # ── a name zmx cannot hold ───────────────────────────────────────────────────
 # zmx names a unix socket after the session, so the name has a hard ceiling:
-# 102 - len(socket dir), because a sockaddr_un holds 104 bytes including the
-# NUL and the path is <dir>/<name>. Past it `zmx attach` refuses outright, this
-# script's exec never happens, and the window closes on Ghostty's own launch
-# error — leaving a lane with a branch, a checkout and no way in, whose only
-# diagnosis flashed for a frame in a window nobody was looking at. MEASURED:
-# `scruff.hausfold.co.docs-displays-expansion-slim` is 47 bytes against a
-# ceiling of 46, and cost a whole spawn.
+# 102 - len(socket directory), because a sockaddr_un holds 104 bytes including
+# the NUL and the path is <dir>/<name>. Past it `zmx attach` refuses outright,
+# this script's exec never happens, and the window closes on Ghostty's own
+# launch error — leaving a lane with a branch, a checkout and no way in, whose
+# only diagnosis flashed for a frame in a window nobody was looking at.
+# MEASURED: `scruff.hausfold.co.docs-displays-expansion-slim` is 47 bytes
+# against a ceiling of 46, and cost a whole spawn.
 #
 # The real fix is upstream, where the name can still change: scruff refuses a
 # name whose key `scruff/<repo>/<lane>` — the same string, one punctuation apart
 # — busts `name_max`, which the config.toml in modules/terminal/default.nix
 # sets. This is the backstop for what a build-time constant cannot see: a lane
-# named before that key existed, and a $TMPDIR or ZMX_DIR longer than the
-# arithmetic there assumed.
+# named before that key existed, and an override pointing somewhere long.
 #
-# Diagnose and DEFER rather than attach and fail. Exit 3 is the seam's "no
-# opinion": the lane is untouched, scruff prints how to open it, and the two
-# lines below are the only place the real numbers are ever said out loud.
-sock_dir="$(zmx version 2>/dev/null | awk -F'\t' '$1 == "socket_dir" { print $2; exit }')"
-if [ -n "$sock_dir" ] && [ "${#sess}" -gt $((102 - ${#sock_dir})) ]; then
+# ── what happens after it defers, on each path that gets here ────────────────
+# Exit 3 is the seam's "no opinion", and scruff means three different things by
+# it. None of them is "the lane sits there waiting", so the advice below never
+# promises that:
+#
+#   scruff spawn      Defer is "nothing opened it" — and the palette goes
+#                     further: commands/spawn-agent.sh runs `scruff drop` itself
+#                     and toasts that nothing changed. The lane is GONE by the
+#                     time anyone reads this, which is the right outcome; these
+#                     two lines are the only place the reason is ever said, and
+#                     on that path they land in ~/.cache/haus/spawn-agent.log.
+#   scruff <name>     falls through to its own built-in and execs the client in
+#                     the calling pane. The lane opens, just not in a window of
+#                     its own, so the name still wants fixing before it does.
+#   scruff hook create
+#                     never reaches here; scruff warns at creation instead.
+name_fits() { # name_fits — 0 if $sess can be a zmx session here, else 3 + why
+    # ${#…} counts CHARACTERS and this ceiling is BYTES, so one non-ASCII
+    # character in a repo directory or a lane name would let a name through
+    # that zmx refuses. commands/spawn-agent.sh's lane_target() pins the same
+    # locale for the same expansion and for the same reason.
+    local LC_ALL=C sock_dir budget cap
+    # `zmx version` is tab-ALIGNED, not TSV: short keys get two tabs, so a
+    # fixed `$2` reads the padding and yields an empty answer the moment a key
+    # is renamed or the column widens. Last non-empty field instead, which also
+    # survives a socket directory with a space in it.
+    sock_dir="$(zmx version 2>/dev/null |
+        awk -F'\t' '$1 == "socket_dir" { for (i = NF; i > 1; i--) if ($i != "") { print $i; exit } }')"
+    [ -n "$sock_dir" ] || return 0   # nothing to measure against: never a refusal
     budget=$((102 - ${#sock_dir}))
+
+    # Agree with the half that does the refusing. scruff caps the key at
+    # `name_max`, which is a FLOOR — the uid's width is not knowable at build
+    # time — so the number it would print is the smaller of the two, and a
+    # backstop that quoted the roomier one would send someone back for a second
+    # refusal with different arithmetic.
+    cap="$(sed -n 's/^ *name_max *= *"*\([0-9][0-9]*\)"* *$/\1/p' \
+        "${XDG_CONFIG_HOME:-$HOME/.config}/scruff/config.toml" 2>/dev/null | head -1)"
+    [ -z "$cap" ] || [ "$cap" -ge "$budget" ] 2>/dev/null || budget="$cap"
+
+    [ "${#sess}" -gt "$budget" ] || return 0
     printf '▲ %s is too long a lane name for this machine: the zmx session %s is %s bytes and %s holds %s.\n' \
         "$SCRUFF_NAME" "$sess" "${#sess}" "$sock_dir" "$budget" >&2
-    printf '  scruff drop %s/%s, then spawn it again with a name of %s characters or fewer.\n' \
-        "$repo" "$SCRUFF_NAME" "$((budget - ${#sess} + ${#SCRUFF_NAME}))" >&2
-    exit 3
-fi
+    printf '  spawn it again with a name of %s bytes or fewer; if the lane is still listed, scruff drop %s/%s first.\n' \
+        "$((budget - ${#sess} + ${#SCRUFF_NAME}))" "$repo" "$SCRUFF_NAME" >&2
+    return 3
+}
+name_fits || exit 3
 
 # ── the launcher ─────────────────────────────────────────────────────────────
 # Ghostty's `initial-command` is split shell-style, so passing an already-quoted

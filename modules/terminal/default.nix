@@ -1893,12 +1893,14 @@ in
           # of 501 measures 46. Verified against zmx 0.7.0, which takes a
           # 46-byte name and refuses a 47-byte one.
           #
-          # 44 is that arithmetic with a five-digit uid, the widest macOS hands
-          # out, so this is a FLOOR rather than this Mac's exact number: it
-          # costs two characters of lane name and can never be too generous.
-          # lane-open.sh measures the real directory at open time and says so
-          # when reality is tighter still, which is the case a build-time
-          # constant cannot see — an override pointing somewhere long.
+          # 44 is that arithmetic with a five-digit uid, which is where an
+          # ordinary Mac's numbering stops — a directory-bound one can hand out
+          # far wider, and a $TMPDIR override or ZMX_DIR moves it further. So
+          # this is a FLOOR for the common case rather than a guarantee: it
+          # costs two bytes of lane name here, and lane-open.sh measures the
+          # real directory at open time for the cases it cannot cover. That
+          # measurement is clamped to this number, so both halves quote the
+          # same budget instead of sending you back for a second refusal.
           name_max = "44"
           ${lib.optionalString (agentNamer != "") ''
 
