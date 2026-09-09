@@ -1455,5 +1455,13 @@ in
       enable = spawnable;
       inherit (cfg) default repoRoots namer;
     };
+
+    # Launcher — Merge Lease, the four `factory lease` verbs. Gated on the room
+    # itself and not on `factory.enable`: this room puts `factory` on PATH
+    # whenever it is on, and the runner switch is about launchd keeping a
+    # watchdog alive, not about whether a person may grant a lease by hand. The
+    # bar's pill beside it asks the same question of the disk at runtime,
+    # because a pill that vanished on a rebuild would be the worse answer there.
+    launcher.factory.enable = cfg.enable;
   };
 }

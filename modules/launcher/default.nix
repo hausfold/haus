@@ -255,6 +255,11 @@ let
   # and a safe shell word by construction: focus's own assertion pins it to
   # one word of [A-Za-z0-9_-], never starting with `-`.
   focusContrib = config.haus._contrib.launcher.focus;
+  # The AI room's merge-lease surface (_contrib.launcher.factory): Merge Lease
+  # shells out to `factory`, which only that room puts on PATH. ONE binding,
+  # read by both the install below and the cheatsheet rows above, so a row can
+  # never survive a command that wasn't installed.
+  factoryContrib = config.haus._contrib.launcher.factory;
   scenes = focusContrib.scenes;
 
   # The `# pounce:` header is line-based, so a description must stay one line —
@@ -339,6 +344,7 @@ let
     # nested so the catalog cannot appear in the launcher and be run as Bash.
     install -Dm444 ${popularAppsCatalog} $out/data/popular-apps.tsv
     ${lib.optionalString (!focusContrib.enable) "rm $out/focus.sh"}
+    ${lib.optionalString (!factoryContrib.enable) "rm $out/merge-lease.sh"}
     # ⌘G and ⌘B, gated exactly like the chords that fire them: gh-dash is an
     # opt-in package, and `bench` lives at a hardcoded ~/code/workshop on the
     # family developer's own machines.
@@ -616,6 +622,7 @@ let
           (
             f:
             (f != "focus.sh" || focusContrib.enable)
+            && (f != "merge-lease.sh" || factoryContrib.enable)
             && (f != "gh-dash.sh" || config.haus.terminal.ghDash.enable)
             && (f != "bench-lane.sh" || config.haus.developer.enable)
             && (lanesEnabled || !(lib.elem f laneCommands))

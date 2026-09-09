@@ -124,6 +124,13 @@
     interval = 30;
     description = "A coffee pill that prevents idle system sleep for 1/2/4/8 hours, a custom whole-hour duration, or indefinitely. The display may still turn off; closing a MacBook lid still sleeps it. Uses macOS's built-in `caffeinate`, so there is no extra package.";
   };
+  factory = {
+    default = false;
+    movable = true;
+    permissions = [ ];
+    interval = 30;
+    description = "The merge lease, beside the coffee pill: whether this Mac may land pull requests while nobody is watching, and how much of that grant is left. It draws the time remaining, an infinity sign for a lease that runs until you revoke it, and nothing at all beyond its own glyph when no lease stands, because everything queueing at \"PR open\" is the ordinary human-in-the-loop workflow rather than a fault. Click for the grants: 4 hours, 12 hours, until revoked, and a Revoke button that goes solid red while there is authority to take back. RIGHT-CLICK revokes without opening anything. The pill hides itself entirely on a Mac with no `factory` on PATH, which is any machine with `haus.ai.enable` off, and comes back on its own the moment that binary lands. It reads `factory lease status --json` and writes nothing: the lease lives in a machine-local file no pull request can edit, which is the whole reason unattended merge authority is safe to grant at all. While one stands, `factory watchdog run` passes `factory shift` on a cadence and merges what the filter you typed can vouch for; `haus.ai.factory.enable` is what keeps that runner alive under launchd.";
+  };
   agents = {
     default = false;
     movable = true;

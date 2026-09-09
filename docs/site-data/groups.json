@@ -336,7 +336,7 @@
     "bar": {
       "blurb": "The menu bar, and which pills it draws.",
       "kind": "room",
-      "optionCount": 85,
+      "optionCount": 87,
       "options": {
         "haus.bar.aiUsage.provider": {
           "desktopSafe": true
@@ -372,6 +372,9 @@
           "desktopSafe": true
         },
         "haus.bar.bottom.items.elgato": {
+          "desktopSafe": true
+        },
+        "haus.bar.bottom.items.factory": {
           "desktopSafe": true
         },
         "haus.bar.bottom.items.focus": {
@@ -505,6 +508,9 @@
           "desktopSafe": true
         },
         "haus.bar.items.elgato": {
+          "desktopSafe": true
+        },
+        "haus.bar.items.factory": {
           "desktopSafe": true
         },
         "haus.bar.items.github": {
@@ -1846,7 +1852,7 @@
         "menuBar",
         "bar"
       ],
-      "optionCount": 97,
+      "optionCount": 99,
       "order": 60,
       "title": "Bar"
     },

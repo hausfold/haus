@@ -917,6 +917,29 @@ let
       "label.padding_right" = "10";
       "label.font" = ''"${barFont}:Bold:${sizes.small}"'';
     };
+    # The merge lease — whether this Mac may land pull requests while nobody is
+    # watching, and for how much longer. Beside the coffee pill on purpose: the
+    # two are the same shape of question ("what did I leave switched on, and
+    # when does it stop"), and they are the only two pills in the bar that are.
+    #
+    # A framework widget, and one whose subject may not be installed at all:
+    # `factory` is on PATH only where `haus.ai.enable` put it, so the script
+    # resolves it at RUNTIME and hides the pill when it is missing — the same
+    # door the trill bell uses, and for the same reason the bar may not read
+    # `config.haus.ai.*` to decide what to draw.
+    #
+    # What is left here is the pill's IDENTITY. The glyph is set from `--add`
+    # time so the item is never briefly blank, and factory.sh carries its own
+    # copy for the dropdown heading and for the re-centre `pill` does when the
+    # label goes away. No padding: this is a pill that spends most of its life
+    # with no label, and barlib re-centres a labelless icon for every widget
+    # rather than this one — the same reason the octocat lost its padding here.
+    # The small label face is the coffee pill's, because a duration reads best
+    # in it and these two draw the same kind of countdown.
+    factory = frameworkBlock sb side "factory" {
+      "icon" = ''""'';
+      "label.font" = ''"${barFont}:Bold:${sizes.small}"'';
+    };
     # A framework widget: the click that used to re-run the whole script as
     # its own click_script is elgato.sh's on_click now. No style — the
     # icon-solo padding is `pill`'s own, since the label is always empty and
@@ -1004,6 +1027,7 @@ let
     "volume"
     "calendar"
     "caffeinate"
+    "factory"
     "elgato"
     "harvest"
   ];
