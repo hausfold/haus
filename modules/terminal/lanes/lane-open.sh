@@ -201,6 +201,36 @@ repo="$(basename "${SCRUFF_MAIN:-$chat}")"
 # each side, for exactly that reason; both came out at 1.3.0.
 sess="scruff.${repo}.${SCRUFF_NAME}"
 
+# ── a name zmx cannot hold ───────────────────────────────────────────────────
+# zmx names a unix socket after the session, so the name has a hard ceiling:
+# 102 - len(socket dir), because a sockaddr_un holds 104 bytes including the
+# NUL and the path is <dir>/<name>. Past it `zmx attach` refuses outright, this
+# script's exec never happens, and the window closes on Ghostty's own launch
+# error — leaving a lane with a branch, a checkout and no way in, whose only
+# diagnosis flashed for a frame in a window nobody was looking at. MEASURED:
+# `scruff.hausfold.co.docs-displays-expansion-slim` is 47 bytes against a
+# ceiling of 46, and cost a whole spawn.
+#
+# The real fix is upstream, where the name can still change: scruff refuses a
+# name whose key `scruff/<repo>/<lane>` — the same string, one punctuation apart
+# — busts `name_max`, which the config.toml in modules/terminal/default.nix
+# sets. This is the backstop for what a build-time constant cannot see: a lane
+# named before that key existed, and a $TMPDIR or ZMX_DIR longer than the
+# arithmetic there assumed.
+#
+# Diagnose and DEFER rather than attach and fail. Exit 3 is the seam's "no
+# opinion": the lane is untouched, scruff prints how to open it, and the two
+# lines below are the only place the real numbers are ever said out loud.
+sock_dir="$(zmx version 2>/dev/null | awk -F'\t' '$1 == "socket_dir" { print $2; exit }')"
+if [ -n "$sock_dir" ] && [ "${#sess}" -gt $((102 - ${#sock_dir})) ]; then
+    budget=$((102 - ${#sock_dir}))
+    printf '▲ %s is too long a lane name for this machine: the zmx session %s is %s bytes and %s holds %s.\n' \
+        "$SCRUFF_NAME" "$sess" "${#sess}" "$sock_dir" "$budget" >&2
+    printf '  scruff drop %s/%s, then spawn it again with a name of %s characters or fewer.\n' \
+        "$repo" "$SCRUFF_NAME" "$((budget - ${#sess} + ${#SCRUFF_NAME}))" >&2
+    exit 3
+fi
+
 # ── the launcher ─────────────────────────────────────────────────────────────
 # Ghostty's `initial-command` is split shell-style, so passing an already-quoted
 # `zmx attach … bash -lc '…'` through `open --args` means three levels of

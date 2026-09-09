@@ -1878,6 +1878,28 @@ in
         ".config/scruff/config.toml".text = ''
           # Generated from haus.ai.default + haus.ai.namer — edit those options, not here.
           agent = "${agentDefault}"
+
+          # The longest `scruff/<repo>/<lane>` key this machine can hold, in
+          # bytes (scruff's SPEC.md §5.7). It is not taste: lanes/lane-open.sh
+          # renders that key as the zmx session name `scruff.<repo>.<lane>`,
+          # zmx names a unix socket after it, and a sockaddr_un holds 104 bytes
+          # including the NUL — so the ceiling is 102 - len(socket directory),
+          # and zmx refuses the attach outright above it.
+          #
+          # That directory is ZMX_DIR, else $XDG_RUNTIME_DIR/zmx-<uid>, else
+          # $TMPDIR/zmx-<uid> (`zmx version` prints the one in force). On a Mac
+          # with neither override it is the third: $TMPDIR is always
+          # `/var/folders/<2>/<30>/T/`, 49 characters whoever you are, so a uid
+          # of 501 measures 46. Verified against zmx 0.7.0, which takes a
+          # 46-byte name and refuses a 47-byte one.
+          #
+          # 44 is that arithmetic with a five-digit uid, the widest macOS hands
+          # out, so this is a FLOOR rather than this Mac's exact number: it
+          # costs two characters of lane name and can never be too generous.
+          # lane-open.sh measures the real directory at open time and says so
+          # when reality is tighter still, which is the case a build-time
+          # constant cannot see — an override pointing somewhere long.
+          name_max = "44"
           ${lib.optionalString (agentNamer != "") ''
 
             # What names a lane that arrives with a task but no name
