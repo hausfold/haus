@@ -1144,23 +1144,27 @@ in
   # merge is authority, and it lives in `~/.config/factory/config.json` and a
   # lease file no pull request can edit.
   #
-  # ⚠️ The three values below are load-bearing rather than tuning, and the
-  # measurements behind them are in docs/night-shift-internals.md, §"launchd
-  # owns the runner". `KeepAlive = true` is the whole supervisor — a reboot, a
-  # panic or an OOM kill becomes a restart within seconds instead of a lease
-  # standing all night with nobody exercising it. `SuccessfulExit = false` is
-  # the trap that looks like the right answer: it costs nothing when idle and
-  # leaves the job DOWN after every lease-less exit, so a `factory lease grant`
-  # typed in another pane or over ssh is supervised by nothing at all.
-  # `ThrottleInterval = 300` paces the idle case only — `run` exits 0 in ~0.2s
-  # with no lease, which is this machine almost always, and launchd's default
-  # would make that ~8,600 spawns a day — while costing the crash case nothing,
-  # because launchd measures the window from the last SPAWN rather than the
-  # exit. And the two of them together are half a cross-file pair: `KeepAlive`
-  # puts this job in core's `running` liveness class, and it escapes `haus
-  # doctor`'s WEDGED verdict only because a throttled job prints `state = spawn
-  # scheduled` and `_svc_probe` reads only `not running` as stopped
-  # (modules/core/haus.sh). Change either side and re-check the other.
+  # ⚠️ `KeepAlive` and `ThrottleInterval` below are load-bearing rather than
+  # tuning, and so is a value that is deliberately NOT there. The measurements
+  # behind all three are in docs/night-shift-internals.md, §"launchd owns the
+  # runner, and `ThrottleInterval` is why it can". `KeepAlive = true` is the
+  # whole supervisor — a reboot, a panic or an OOM kill becomes a restart
+  # within seconds instead of a lease standing all night with nobody
+  # exercising it. `SuccessfulExit = false` is the trap that looks like the
+  # right answer: it costs nothing when idle and leaves the job DOWN after
+  # every lease-less exit, so a `factory lease grant` typed in another pane or
+  # over ssh is supervised by nothing at all. `ThrottleInterval = 300` paces
+  # the idle case only — `run` exits 0 in ~0.2s with no lease, which is this
+  # machine almost always, and launchd's default would make that ~8,600 spawns
+  # a day — while costing the crash case nothing, because launchd measures the
+  # window from the last SPAWN rather than the exit. And `KeepAlive` and
+  # `ThrottleInterval` together are half of a cross-file pair: the first puts
+  # this job in core's `running` liveness class (`svcLiveness`,
+  # modules/core/default.nix), and the job escapes `haus doctor`'s WEDGED
+  # verdict only because a throttled one prints
+  # `state = spawn scheduled` while `_svc_probe` reads only `not running` as
+  # stopped (modules/core/haus.sh). `test/services-deck.bats` holds that far
+  # half; change either side and re-check the other.
   #
   # An AGENT and not a daemon, for `haus-agent-awake`'s reason turned around:
   # it merges as YOU. `gh`'s credentials, the lease and the shift log are all
