@@ -716,7 +716,13 @@ jobs:
       # feel-test cannot see either, because both spawn. Also pins the client
       # list, which is built from PATH rather than from haus.ai.clients so that
       # nothing the ⇥ chip offers can fail to start.
-      - name: spawn-agent field reading
+      #
+      # And the lane-name budget beside it, which fails the other way round: the
+      # slug goes to `scruff spawn` positionally, a typed name over `name_max`
+      # is refused rather than trimmed, and the spawn produces no lane at all.
+      # `name_max = "44"` leaves 25 bytes for a lane in `hausfold.co`, so this
+      # is reachable by an ordinary sentence in an ordinarily-named repo.
+      - name: spawn-agent field reading and lane-name budget
         run: bats test/spawn-agent.bats
       # Which lanes the Lanes picker offers. It drops the ones with no pane of
       # their own — a `scruff child` checkout resumes into the pane that made
