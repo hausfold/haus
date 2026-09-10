@@ -162,6 +162,20 @@ FITS() { # FITS <socket dir> <lane name> <repo> [config.toml body]
     [ "$status" -eq 0 ]
 }
 
+# The config.toml this reads may be hand-written, and scruff strips the comment
+# and the surrounding space before it parses — SPEC.md §5.7's example line
+# carries one. A miss is not a refusal but a DISAGREEMENT: this half would quote
+# the roomier measured ceiling (46 here) while scruff refuses against 44, which
+# is the second-refusal loop the clamp exists to close. Same pattern as
+# commands/spawn-agent.sh's `slug_budget`.
+@test "the clamp reads a name_max written the way the spec writes it" {
+    run FITS /var/folders/nc/wwv8hwvn3sn2wvz8nnc4nhk40000gn/T/zmx-501 docs-displays-expansion-sli hausfold.co \
+        '  name_max = "44"   # the longest key this machine can hold'
+    [ "$status" -eq 3 ] || fail "a commented name_max is still 44: $output"
+    [[ "$output" == *"holds 44"* ]]
+    [[ "$output" == *"25 bytes or fewer"* ]]
+}
+
 @test "a name_max roomier than the machine does not raise the ceiling" {
     # The clamp is a floor, not an override: a config that claims more than the
     # socket directory allows must not talk this machine into a name zmx will

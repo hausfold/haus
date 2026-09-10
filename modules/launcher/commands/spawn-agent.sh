@@ -619,12 +619,118 @@ if [ -z "$slug" ]; then
   slug="$(printf '%s' "$prompt" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9' '-' \
     | sed 's/--*/-/g; s/^-//; s/-$//')"
 fi
-# Trim to whole words, and only when it actually overflowed — cutting
-# unconditionally would turn a two-word name into one word.
-if [ "${#slug}" -gt 40 ]; then
-  slug="$(printf '%s' "$slug" | cut -c1-40 | sed 's/-[^-]*$//; s/-$//')"
-fi
+# And a task with no letter or digit anywhere in it (an emoji, a line of
+# punctuation) leaves even that empty. Named HERE rather than after the cut
+# below, because `agent` is five bytes and a budget can be three: a machine tight
+# enough to cut a name has to be allowed to cut this one too.
 [ -n "$slug" ] || slug="agent"
+
+# ── the name has a ceiling as well as a taste ─────────────────────────────
+# 40 was taste — long enough to say what the lane is, short enough to read in a
+# listing — and taste is all it was. The CEILING is somewhere else: lane-open.sh
+# renders the lane as the zmx session `scruff.<repo>.<lane>`, zmx names a unix
+# socket after that, and a sockaddr_un holds 104 bytes. So scruff caps the whole
+# key `scruff/<repo>/<lane>` at `name_max` (its SPEC.md §5.7; the number is
+# written by modules/terminal/default.nix), and the repo is half of what has to
+# fit: 44 leaves 25 bytes for a lane in `hausfold.co` and 33 for one in `nix`.
+#
+# A slug over that budget is therefore a spawn that produces NOTHING, and 40 is
+# nowhere near a guard against it. The slug goes in positionally, which scruff
+# reads as a name the caller TYPED, and a typed name over the budget is REFUSED
+# rather than trimmed — deliberately, because shortening someone's name behind
+# their back lands their work on a branch they never asked for. The palette has
+# no way to show that refusal either: it lands in $LOG behind a "Could not
+# create the worktree" toast, with no lane, no branch and no window.
+# MEASURED, scruff 1.3.4 in a repo named `hausfold.co`: this very task
+# ("…why the palette fallback slug is capped at forty…") slugs to
+# `look-palette-fallback-slug`, which is 26 bytes against 25 and spawns nothing.
+#
+# Which is exactly why the fitting belongs here, and why it is not that silent
+# rename. Nobody typed this name — this command derived it from the task four
+# words ago — so the words it drops are the ones scruff's own `fitName` would
+# have dropped had the name arrived unnamed. It is also the last moment: by the
+# time lane-open.sh's `name_fits` measures the real socket directory, the name
+# is a branch and a checkout, and all that backstop can do is refuse to open it.
+#
+# On the namer path it costs nothing either. There the slug travels down as
+# SCRUFF_NAMER_FALLBACK, and whatever an adapter prints is a name scruff CHOSE,
+# which scruff fits to this same budget itself — so the cut only ever lands on
+# the branch that needed it.
+slug_budget() { # slug_budget <repo basename> — bytes this command may spend on a lane name
+  # 40 is the taste half, and it still decides on a machine whose scruff has no
+  # `name_max` — every install behaved that way before the key existed, and a
+  # standalone scruff owns that file by hand.
+  # LC_ALL=C because scruff counts the repo in BYTES (`len(filepath.Base(main))`)
+  # and `${#…}` counts characters in whatever locale it is read in — and the one
+  # this runs in is the pounce daemon's `LANG=en_US.UTF-8` with no `LC_ALL` on
+  # /bin/bash 3.2, where `café-münster` measures 12 against scruff's 14. Two
+  # bytes of budget this command would hand out and scruff would then refuse.
+  # The same pin, for the same reason, as `lane_target` below and `name_fits` in
+  # lane-open.sh.
+  local LC_ALL=C budget=40 cap ceiling
+  # scruff's own `laneNameBudget`, read off the same config.toml lane-open.sh
+  # reads: one file, so the two halves cannot quote two different numbers. The
+  # cap is on the KEY, so the repo and its two punctuation bytes come out first.
+  #
+  # The pattern takes every spelling scruff takes, because the file it reads may
+  # have been written by hand: scruff strips the comment and the surrounding
+  # space before it parses, and SPEC.md §5.7's own example line carries one.
+  # Anchoring on `"*…"* *$` missed all of them — an indented key, a
+  # single-quoted value, a CRLF line ending, and `name_max = "44"  # the longest
+  # key…` verbatim out of the spec — and every miss fell back to 40, the number
+  # this block exists to stop using. LAST match wins, as scruff's loop does. Not
+  # scoped to the top-level table, which scruff does check: a `name_max` under a
+  # `[section]` is honoured here and ignored there, and that direction only ever
+  # spends fewer bytes than it may.
+  cap="$(sed -n 's/^[[:space:]]*name_max[[:space:]]*=[[:space:]]*["'"'"']\{0,1\}\([0-9][0-9]*\).*/\1/p' \
+    "${XDG_CONFIG_HOME:-$HOME/.config}/scruff/config.toml" 2>/dev/null | tail -1)"
+  [ -n "$cap" ] || { printf '%s\n' "$budget"; return 0; }
+  # `10#` because a hand-written `name_max = "08"` is a LEADING ZERO and bash
+  # reads that as octal: an arithmetic error, an empty answer out of the
+  # substitution, and a slug that reaches scruff uncut.
+  ceiling=$((10#$cap - ${#1} - 8))   # len("scruff/") + len("/")
+  # A repo that eats its own cap gets no ceiling rather than an impossible one,
+  # which is scruff's answer too: nothing anyone would call a name fits anyway,
+  # and the backend's own error beats naming every lane `age`.
+  [ "$ceiling" -ge 3 ] || { printf '%s\n' "$budget"; return 0; }
+  # Two back for the `-2` a collision adds. It counts against the same budget
+  # and is refused on the same rule, and this command gets ONE shot at the name
+  # — a second spawn on the same four words is an ordinary afternoon, and it
+  # must not be the one that produces nothing. MEASURED: scruff's own refusal
+  # for a taken 25-byte name in `hausfold.co` says "pass a name of 23 bytes or
+  # fewer". Given away only where there are bytes to give, and two bytes buys
+  # `-2` through `-9`: the tenth lane on the same four words wants `-10` and is
+  # scruff's to refuse, by which point the name is the least of it.
+  [ "$ceiling" -le 5 ] || ceiling=$((ceiling - 2))
+  # The smaller wins, spelled as a clamp rather than a `min` so a roomier
+  # `name_max` leaves the names on this machine exactly the length they were.
+  [ "$ceiling" -ge "$budget" ] || budget="$ceiling"
+  printf '%s\n' "$budget"
+}
+
+fit_slug() { # fit_slug <slug> <budget> — <slug>, cut to whole words within <budget> bytes
+  # The slug is ASCII by construction (the `tr -c 'a-z0-9'` above), so the
+  # character counts below are byte counts, which is what the ceiling is in.
+  local want="$1" cap="$2" trimmed stem
+  { [ "$cap" -gt 0 ] && [ "${#want}" -gt "$cap" ]; } || { printf '%s\n' "$want"; return 0; }
+  trimmed="${want:0:cap}"
+  # Give the last word back only when the cut landed INSIDE one: landing on the
+  # hyphen is already a clean break, and paying a whole word for it would cost
+  # `bar-pill-flickers` its verb for nothing. A boundary in the first two bytes
+  # is not a word either, so a long first word keeps its fragment instead of
+  # being cut down to two letters. Both halves are scruff's `fitName`, so a slug
+  # this trims and one scruff would have trimmed come out the same.
+  if [ "${want:cap:1}" != "-" ]; then
+    stem="${trimmed%-*}"
+    if [ "$stem" != "$trimmed" ] && [ "${#stem}" -ge 3 ]; then trimmed="$stem"; fi
+  fi
+  # `want` opens with a word character on both paths above, so what is left once
+  # a trailing separator goes is never empty.
+  while [ "${trimmed%-}" != "$trimmed" ]; do trimmed="${trimmed%-}"; done
+  printf '%s\n' "$trimmed"
+}
+
+slug="$(fit_slug "$slug" "$(slug_budget "$repo_name")")"
 
 # ── create the lane, and open it ──────────────────────────────────────────
 # ONE call. `scruff spawn --prompt` creates the checkout, the branch and the

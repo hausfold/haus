@@ -1,7 +1,8 @@
 #!/usr/bin/env bats
-# Hermetic tests for the field reading in
-# modules/launcher/commands/spawn-agent.sh — the half of the ⇥ client dial that
-# can silently eat somebody's task.
+# Hermetic tests for two halves of modules/launcher/commands/spawn-agent.sh that
+# fail where nobody is looking: the field reading behind the ⇥ client dial,
+# which can silently eat somebody's task, and the lane-name budget at the
+# bottom of the file, which can silently cost the whole spawn.
 #
 # `--dial` changes the SHAPE of a pounce commit: a step that passed the flag
 # gets "<action>\t<name=value;…>\t<line-or-text>" where every other step here
@@ -43,7 +44,7 @@ setup() {
   local lifted="$BATS_TEST_TMPDIR/readers.sh"
   : >"$lifted"
   local fn
-  for fn in dial_agent dial_payload resolve_agents lane_target; do
+  for fn in dial_agent dial_payload resolve_agents lane_target slug_budget fit_slug; do
     awk -v fn="$fn" '
       $0 ~ "^" fn "\\(\\) \\{" { inside = 1 }
       inside { print }
@@ -352,4 +353,176 @@ stub_default() {
   run env -u LC_ALL LANG=en_US.UTF-8 /bin/bash -c \
     "$probe"$'\n''lane_target haus "réparer"'
   [ "$status" -ne 0 ]
+}
+
+# ── the name a lane can actually carry ───────────────────────────────────────
+# The slug goes into `scruff spawn` POSITIONALLY, which scruff reads as a name
+# the caller typed — and a typed name over `name_max` is REFUSED, never trimmed
+# (its SPEC.md §5.7). So a slug that overruns costs the whole spawn: no lane, no
+# branch, no window, and the reason in $LOG behind a "Could not create the
+# worktree" toast. The old cap was 40 characters of taste, which is not the
+# ceiling and on this machine is nowhere near it: `name_max = "44"` leaves 25
+# bytes for a lane in `hausfold.co`, so "…why the palette fallback slug is
+# capped…" named itself `look-palette-fallback-slug` at 26 and spawned nothing.
+#
+# MEASURED against scruff 1.3.4, `name_max = "44"`, a repo named `hausfold.co`:
+#   26 bytes  → "lane name … is 26 bytes and hausfold.co can carry 25"
+#   25 bytes  → made the lane; spawning the same name again → "'…-2' is over
+#               what this machine can carry — pass a name of 23 bytes or fewer"
+#   23 bytes  → made the lane, and made `-2` and `-3` on the next two.
+# Those three numbers are what the cases below pin.
+
+# BUDGET runs the SHIPPED slug_budget against a config.toml of the test's
+# choosing. A subshell rather than an assignment prefix, because bash makes one
+# in front of a FUNCTION temporary in its own mode and permanent in POSIX mode,
+# and this suite must not depend on which.
+BUDGET() { # BUDGET <config.toml body> <repo basename>
+  mkdir -p "$BATS_TEST_TMPDIR/cfg/scruff"
+  printf '%s\n' "$1" >"$BATS_TEST_TMPDIR/cfg/scruff/config.toml"
+  ( export XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/cfg"; slug_budget "$2" )
+}
+
+@test "slug_budget: the repo is half of it, so the same task names differently" {
+  [ "$(BUDGET 'name_max = "44"' hausfold.co)" = 23 ]
+  [ "$(BUDGET 'name_max = "44"' nix)" = 31 ]
+}
+
+# The whole key, with the collision suffix that counts against it, is exactly
+# what the machine said it can hold. Spelled as the arithmetic rather than as
+# the number, so a change to either side has to move it on purpose.
+@test "slug_budget: name + repo + punctuation + a -2 is exactly name_max" {
+  local repo=hausfold.co budget
+  budget="$(BUDGET 'name_max = "44"' "$repo")"
+  [ "$(( ${#repo} + budget + 8 + 2 ))" -eq 44 ]
+}
+
+@test "slug_budget: no name_max is the taste cap, exactly as before the key existed" {
+  [ "$(BUDGET '' hausfold.co)" = 40 ]
+  [ "$(BUDGET 'agent = "claude"' hausfold.co)" = 40 ]
+  # And no config file at all: a scruff that never wrote one, or a hand-run.
+  [ "$( ( export XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/empty"; slug_budget hausfold.co ) )" = 40 ]
+}
+
+# SPEC.md §5.7 says the key is read quoted or bare, so the reader here has to
+# take both — a config.toml written by hand is exactly the case this exists for.
+@test "slug_budget: name_max is read bare as well as quoted" {
+  [ "$(BUDGET 'name_max = 44' hausfold.co)" = 23 ]
+  [ "$(BUDGET "name_max = '44'" hausfold.co)" = 23 ]
+}
+
+# The shapes a HAND-WRITTEN config.toml arrives in. scruff strips the comment
+# and the surrounding space before it parses, so every line here is 44 to
+# scruff — and a reader that misses one falls back to 40, which is the exact
+# number this change exists to stop handing to `scruff spawn`. The first case
+# is SPEC.md §5.7's own example line, comment and all.
+@test "slug_budget: the spellings scruff takes, this takes" {
+  [ "$(BUDGET 'name_max = "44"   # the longest key this machine can hold' hausfold.co)" = 23 ]
+  [ "$(BUDGET '	name_max = "44"' hausfold.co)" = 23 ]
+  [ "$(printf 'name_max = "44"\r\n' >"$BATS_TEST_TMPDIR/crlf"; \
+       mkdir -p "$BATS_TEST_TMPDIR/cfg/scruff"; \
+       cp "$BATS_TEST_TMPDIR/crlf" "$BATS_TEST_TMPDIR/cfg/scruff/config.toml"; \
+       ( export XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/cfg"; slug_budget hausfold.co ) )" = 23 ]
+}
+
+# scruff's loop keeps the LAST assignment; so does this.
+@test "slug_budget: the last name_max wins, as it does in scruff" {
+  [ "$(BUDGET 'name_max = "44"
+name_max = "60"' hausfold.co)" = 39 ]
+}
+
+# A leading zero is octal to `$(( ))`, and an octal error empties the command
+# substitution — which would hand `fit_slug` an empty budget and let the slug
+# through uncut, the failure this whole block is here to prevent. `08` is not a
+# valid ceiling either way, so the answer is taste; `044` is 44 to scruff
+# (`strconv.Atoi`) and must be 44 here.
+@test "slug_budget: a leading zero is decimal, not octal, and never an error" {
+  [ "$(BUDGET 'name_max = "08"' hausfold.co)" = 40 ]
+  [ "$(BUDGET 'name_max = "044"' hausfold.co)" = 23 ]
+}
+
+# scruff measures the repo with `len(filepath.Base(main))` — BYTES. `${#…}`
+# measures characters in whatever locale it is read in, and the one the pounce
+# daemon runs this in is `LANG=en_US.UTF-8` with no `LC_ALL` on /bin/bash 3.2,
+# where `café-münster` is 12 rather than 14. Two bytes of budget handed out that
+# scruff then refuses — no lane at all. Pinned in the locale that exposes it,
+# beside lane_target's case for the same daemon and the same reason.
+@test "slug_budget: the repo is measured in bytes, in the locale the daemon runs in" {
+  mkdir -p "$BATS_TEST_TMPDIR/cfg/scruff"
+  printf 'name_max = "44"\n' >"$BATS_TEST_TMPDIR/cfg/scruff/config.toml"
+  local probe
+  probe="$(declare -f slug_budget)"
+  run env -u LC_ALL LANG=en_US.UTF-8 XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/cfg" \
+    /bin/bash -c "$probe"$'\n''slug_budget "café-münster"'
+  # 44 - 14 bytes of repo - 8 of punctuation - 2 for a collision suffix.
+  [ "$output" = 20 ]
+}
+
+# The suite runs under bats' bash 5; the palette runs this under /bin/bash 3.2,
+# which has neither the same substring expansion history nor the same `${#…}`.
+# Both functions, on the shell that actually ships them.
+@test "slug_budget and fit_slug answer the same on /bin/bash 3.2" {
+  mkdir -p "$BATS_TEST_TMPDIR/cfg/scruff"
+  printf 'name_max = "44"\n' >"$BATS_TEST_TMPDIR/cfg/scruff/config.toml"
+  local probe
+  probe="$(declare -f slug_budget fit_slug)"
+  run env -u LC_ALL LANG=en_US.UTF-8 XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/cfg" \
+    /bin/bash -c "$probe"$'\n''printf "%s %s %s" "$(slug_budget hausfold.co)" \
+      "$(fit_slug docs-displays-expansion-slim "$(slug_budget hausfold.co)")" \
+      "$(fit_slug aaa-bbb-ccc 7)"'
+  [ "$output" = "23 docs-displays-expansion aaa-bbb" ]
+}
+
+@test "slug_budget: a name_max roomier than taste leaves the names alone" {
+  [ "$(BUDGET 'name_max = "200"' haus)" = 40 ]
+}
+
+# scruff hands out no budget rather than an impossible one when a repo eats the
+# cap on its own, and this agrees: an unnameable lane is worse than one that
+# might not open, and the backend's own error is the better messenger.
+@test "slug_budget: a repo that eats the cap falls back to taste, not to three" {
+  [ "$(BUDGET 'name_max = "12"' homebrew-tap)" = 40 ]
+}
+
+@test "fit_slug: a slug inside the budget is untouched" {
+  run fit_slug bar-pill-flickers 23
+  [ "$output" = "bar-pill-flickers" ]
+}
+
+# The name from #692's measurement, cut the way scruff's own fitName cuts it.
+@test "fit_slug: a slug over the budget stops on a whole word" {
+  run fit_slug docs-displays-expansion-slim 23
+  [ "$output" = "docs-displays-expansion" ]
+}
+
+@test "fit_slug: a cut that lands on the hyphen keeps the word in front of it" {
+  run fit_slug aaa-bbb-ccc 7
+  [ "$output" = "aaa-bbb" ]
+}
+
+# A boundary in the first two bytes is a fragment, not a word — the same floor
+# scruff keeps. Giving it back would name the lane `ab`.
+@test "fit_slug: a long first word keeps its fragment rather than nothing" {
+  run fit_slug verylongsingleword 6
+  [ "$output" = "verylo" ]
+  run fit_slug ab-cdefghij 6
+  [ "$output" = "ab-cde" ]
+}
+
+@test "fit_slug: nothing comes back ending on a separator" {
+  run fit_slug aaa-bbbb 4
+  [ "$output" = "aaa" ]
+  run fit_slug ab-cdef 3
+  [ "$output" = "ab" ]
+}
+
+@test "fit_slug: a budget of 0 is no budget" {
+  run fit_slug a-name-longer-than-nothing 0
+  [ "$output" = "a-name-longer-than-nothing" ]
+}
+
+# The join the bug lived in: the budget was computed nowhere and the cut was a
+# literal 40. Pinned as text, because the two functions above are both correct
+# in a script that never calls them.
+@test "the slug is cut to the budget, and the repo is what sizes it" {
+  grep -qF 'slug="$(fit_slug "$slug" "$(slug_budget "$repo_name")")"' "$SUBJECT"
 }
