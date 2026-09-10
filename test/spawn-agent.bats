@@ -355,7 +355,6 @@ stub_default() {
   [ "$status" -ne 0 ]
 }
 
-
 # ── the name a lane can actually carry ───────────────────────────────────────
 # This command derives a lane name from the task and hands it to `scruff spawn`,
 # and the two halves of that are now on opposite sides of a seam.
@@ -410,8 +409,31 @@ SLUG() { # SLUG <prompt>
     = supercalifragilisticexpialidociousandthensome ]
 }
 
+# Both passes drop a one-character token, which the old raw-`tr` fallback kept
+# (`by as a about` was `by-as-a-about`). A single letter carries no identity in
+# either pass, and a task of nothing but them still gets `agent` below — said
+# here so it reads as the decision it is rather than a side effect.
 @test "slug: a task that is nothing but filler keeps the filler" {
   [ "$(SLUG 'can you do this for me')" = can-you-do-this ]
+  [ "$(SLUG 'by as a about')" = by-as-about ]
+  [ "$(SLUG 'a i')" = agent ]
+}
+
+# Forty is a BYTE count and `${#…}` counts characters in whatever locale it is
+# read in — the daemon's is `LANG=en_US.UTF-8` with no `LC_ALL`, on /bin/bash
+# 3.2. It needs no `LC_ALL=C` pin only because `tr -c 'a-z0-9'` has already
+# turned every non-ASCII byte into a separator by the time anything is measured,
+# so the slug is ASCII and the two counts agree. Pinned rather than asserted in
+# a comment, beside `lane_target`'s case for the same daemon.
+@test "slug: the daemon's locale names a task the same as C does" {
+  local blk; blk="$(sed -n '/^STOPWORDS=/,/^\[ -n "\$slug" \]/p' "$SUBJECT")"
+  local task='réparer le café münster displays expansion slimming'
+  run env -u LC_ALL LANG=en_US.UTF-8 prompt="$task" /bin/bash -c \
+    "$blk"$'\n''printf %s "$slug"'
+  local utf8="$output"
+  run env LC_ALL=C prompt="$task" /bin/bash -c "$blk"$'\n''printf %s "$slug"'
+  [ "$output" = "$utf8" ] || fail "the daemon's locale named it '$utf8', C named it '$output'"
+  [ "${#utf8}" -le 40 ]
 }
 
 @test "slug: a task with no letter or digit in it is still named" {
@@ -424,7 +446,7 @@ SLUG() { # SLUG <prompt>
 # and refuses over `name_max` where this command can show nobody the refusal.
 @test "the slug is handed over as DERIVED, never positionally" {
   grep -qF 'set -- "$@" --derived-name "$slug"' "$SUBJECT"
-  ! grep -qE '^\s*set -- "\$@" "\$slug"' "$SUBJECT"
+  ! grep -qE '^[[:space:]]*set -- "\$@" "\$slug"' "$SUBJECT"
 }
 
 # The arithmetic left with the functions. A reader for the KEY here again is

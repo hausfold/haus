@@ -717,12 +717,15 @@ jobs:
       # list, which is built from PATH rather than from haus.ai.clients so that
       # nothing the ⇥ chip offers can fail to start.
       #
-      # And the lane-name budget beside it, which fails the other way round: the
-      # slug goes to `scruff spawn` positionally, a typed name over `name_max`
-      # is refused rather than trimmed, and the spawn produces no lane at all.
-      # `name_max = "44"` leaves 25 bytes for a lane in `hausfold.co`, so this
-      # is reachable by an ordinary sentence in an ordinarily-named repo.
-      - name: spawn-agent field reading and lane-name budget
+      # And the lane NAME beside it, which fails the other way round. The slug
+      # goes over as `--derived-name`, which is scruff's word for "the caller
+      # worked this out from the task" — so scruff cuts it to what the lane key
+      # can carry (its `name_max`, SPEC.md §5.7) instead of refusing it the way
+      # it refuses a name someone TYPED, which is what a positional slug is and
+      # what used to cost the whole spawn. So the cases pin the composition that
+      # is still haus's taste, and that the name never goes in positionally
+      # again — with no budget arithmetic on this side to get wrong.
+      - name: spawn-agent field reading and lane naming
         run: bats test/spawn-agent.bats
       # Which lanes the Lanes picker offers. It drops the ones with no pane of
       # their own — a `scruff child` checkout resumes into the pane that made
