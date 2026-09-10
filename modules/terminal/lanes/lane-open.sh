@@ -259,7 +259,11 @@ name_fits() { # name_fits — 0 if $sess can be a zmx session here, else 3 + why
     # DISAGREEMENT — this half would quote the roomier measured ceiling while
     # scruff refuses against `name_max`, which is the second-refusal loop the
     # clamp below exists to close. Last match wins, as scruff's loop does.
-    # commands/spawn-agent.sh's `slug_budget` carries the same pattern.
+    # This is now the ONLY reader of the key outside scruff, and it stays one on
+    # purpose: it clamps a number this backstop PRINTS, against a ceiling only
+    # this half can measure. The palette used to carry a second copy to size the
+    # name it derived, and `scruff spawn --derived-name` retired it — a budget
+    # belongs to whoever can still change the name.
     cap="$(sed -n 's/^[[:space:]]*name_max[[:space:]]*=[[:space:]]*["'"'"']\{0,1\}\([0-9][0-9]*\).*/\1/p' \
         "${XDG_CONFIG_HOME:-$HOME/.config}/scruff/config.toml" 2>/dev/null | tail -1)"
     [ -z "$cap" ] || [ "$cap" -ge "$budget" ] 2>/dev/null || budget="$cap"
