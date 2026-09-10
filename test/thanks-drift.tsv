@@ -1,0 +1,39 @@
+# name in THANKS.md<TAB>file or dir it must still appear in<TAB>token to grep
+# "-" in both columns means the project is credited for something that lives in
+# another repo. Only whiskers is like that: nebelung renders through Catppuccin's
+# templating tool, and nothing in haus ever invokes it.
+Nix and nixpkgs	flake.nix	nixpkgs
+nix-darwin	flake.nix	nix-darwin
+home-manager	flake.nix	home-manager
+Determinate Nix	bootstrap.sh	determinate
+Homebrew	modules	homebrew
+nix-index-database	flake.nix	nix-index-database
+AeroSpace	modules	aerospace
+SketchyBar	modules	sketchybar
+sketchybar-app-font	modules	sketchybar-app-font
+media-control	modules	media-control
+mediaremote-adapter	modules	mediaremote-adapter
+Ghostty	modules	ghostty
+Nerd Fonts	modules	nerd-fonts
+espanso	modules	espanso
+Catppuccin	flake.nix	catppuccin
+whiskers	-	-
+nebelung	flake.nix	nebelung
+bat	modules	bat
+fzf	modules	fzf
+fd	modules	fd
+ripgrep	modules	ripgrep
+yazi	modules	yazi
+zoxide	modules	zoxide
+lsd	modules	lsd
+glow	modules	glow
+jq	modules	jq
+tree	modules	tree
+chafa	modules	chafa
+ttyd	modules	ttyd
+fastfetch	modules	fastfetch
+starship	modules	starship
+zmx	modules	zmx
+sleepwatcher	modules	sleepwatcher
+switchaudio-osx	modules	switchaudio-osx
+duti	modules	duti
