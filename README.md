@@ -45,6 +45,7 @@ Changing your Mac by asking an agent is
 ## in this repo
 
 - [`AGENTS.md`](./AGENTS.md) — hacking on the house
+- [`THANKS.md`](./THANKS.md) — the projects haus is built on, and the people who ran it before it was public
 - [`docs/model.md`](docs/model.md) — the contract the modules are written against: layer, room, desktop, host, and what each one may own
 - [`docs/macos-settings.md`](docs/macos-settings.md) — what a desktop can actually set, measured domain by domain
 - [`docs/focus.md`](docs/focus.md) — how the focus room flips a real macOS Focus with no public API, and what it deliberately won't do
