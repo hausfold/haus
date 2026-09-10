@@ -166,8 +166,9 @@ FITS() { # FITS <socket dir> <lane name> <repo> [config.toml body]
 # and the surrounding space before it parses — SPEC.md §5.7's example line
 # carries one. A miss is not a refusal but a DISAGREEMENT: this half would quote
 # the roomier measured ceiling (46 here) while scruff refuses against 44, which
-# is the second-refusal loop the clamp exists to close. Same pattern as
-# commands/spawn-agent.sh's `slug_budget`.
+# is the second-refusal loop the clamp exists to close. The only reader of the
+# key left outside scruff, since `scruff spawn --derived-name` retired the
+# palette's copy.
 @test "the clamp reads a name_max written the way the spec writes it" {
     run FITS /var/folders/nc/wwv8hwvn3sn2wvz8nnc4nhk40000gn/T/zmx-501 docs-displays-expansion-sli hausfold.co \
         '  name_max = "44"   # the longest key this machine can hold'
