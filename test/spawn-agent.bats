@@ -407,6 +407,69 @@ BUDGET() { # BUDGET <config.toml body> <repo basename>
 # take both — a config.toml written by hand is exactly the case this exists for.
 @test "slug_budget: name_max is read bare as well as quoted" {
   [ "$(BUDGET 'name_max = 44' hausfold.co)" = 23 ]
+  [ "$(BUDGET "name_max = '44'" hausfold.co)" = 23 ]
+}
+
+# The shapes a HAND-WRITTEN config.toml arrives in. scruff strips the comment
+# and the surrounding space before it parses, so every line here is 44 to
+# scruff — and a reader that misses one falls back to 40, which is the exact
+# number this change exists to stop handing to `scruff spawn`. The first case
+# is SPEC.md §5.7's own example line, comment and all.
+@test "slug_budget: the spellings scruff takes, this takes" {
+  [ "$(BUDGET 'name_max = "44"   # the longest key this machine can hold' hausfold.co)" = 23 ]
+  [ "$(BUDGET '	name_max = "44"' hausfold.co)" = 23 ]
+  [ "$(printf 'name_max = "44"\r\n' >"$BATS_TEST_TMPDIR/crlf"; \
+       mkdir -p "$BATS_TEST_TMPDIR/cfg/scruff"; \
+       cp "$BATS_TEST_TMPDIR/crlf" "$BATS_TEST_TMPDIR/cfg/scruff/config.toml"; \
+       ( export XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/cfg"; slug_budget hausfold.co ) )" = 23 ]
+}
+
+# scruff's loop keeps the LAST assignment; so does this.
+@test "slug_budget: the last name_max wins, as it does in scruff" {
+  [ "$(BUDGET 'name_max = "44"
+name_max = "60"' hausfold.co)" = 39 ]
+}
+
+# A leading zero is octal to `$(( ))`, and an octal error empties the command
+# substitution — which would hand `fit_slug` an empty budget and let the slug
+# through uncut, the failure this whole block is here to prevent. `08` is not a
+# valid ceiling either way, so the answer is taste; `044` is 44 to scruff
+# (`strconv.Atoi`) and must be 44 here.
+@test "slug_budget: a leading zero is decimal, not octal, and never an error" {
+  [ "$(BUDGET 'name_max = "08"' hausfold.co)" = 40 ]
+  [ "$(BUDGET 'name_max = "044"' hausfold.co)" = 23 ]
+}
+
+# scruff measures the repo with `len(filepath.Base(main))` — BYTES. `${#…}`
+# measures characters in whatever locale it is read in, and the one the pounce
+# daemon runs this in is `LANG=en_US.UTF-8` with no `LC_ALL` on /bin/bash 3.2,
+# where `café-münster` is 12 rather than 14. Two bytes of budget handed out that
+# scruff then refuses — no lane at all. Pinned in the locale that exposes it,
+# beside lane_target's case for the same daemon and the same reason.
+@test "slug_budget: the repo is measured in bytes, in the locale the daemon runs in" {
+  mkdir -p "$BATS_TEST_TMPDIR/cfg/scruff"
+  printf 'name_max = "44"\n' >"$BATS_TEST_TMPDIR/cfg/scruff/config.toml"
+  local probe
+  probe="$(declare -f slug_budget)"
+  run env -u LC_ALL LANG=en_US.UTF-8 XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/cfg" \
+    /bin/bash -c "$probe"$'\n''slug_budget "café-münster"'
+  # 44 - 14 bytes of repo - 8 of punctuation - 2 for a collision suffix.
+  [ "$output" = 20 ]
+}
+
+# The suite runs under bats' bash 5; the palette runs this under /bin/bash 3.2,
+# which has neither the same substring expansion history nor the same `${#…}`.
+# Both functions, on the shell that actually ships them.
+@test "slug_budget and fit_slug answer the same on /bin/bash 3.2" {
+  mkdir -p "$BATS_TEST_TMPDIR/cfg/scruff"
+  printf 'name_max = "44"\n' >"$BATS_TEST_TMPDIR/cfg/scruff/config.toml"
+  local probe
+  probe="$(declare -f slug_budget fit_slug)"
+  run env -u LC_ALL LANG=en_US.UTF-8 XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/cfg" \
+    /bin/bash -c "$probe"$'\n''printf "%s %s %s" "$(slug_budget hausfold.co)" \
+      "$(fit_slug docs-displays-expansion-slim "$(slug_budget hausfold.co)")" \
+      "$(fit_slug aaa-bbb-ccc 7)"'
+  [ "$output" = "23 docs-displays-expansion aaa-bbb" ]
 }
 
 @test "slug_budget: a name_max roomier than taste leaves the names alone" {

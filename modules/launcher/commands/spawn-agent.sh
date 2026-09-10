@@ -660,14 +660,35 @@ slug_budget() { # slug_budget <repo basename> — bytes this command may spend o
   # 40 is the taste half, and it still decides on a machine whose scruff has no
   # `name_max` — every install behaved that way before the key existed, and a
   # standalone scruff owns that file by hand.
-  local budget=40 cap ceiling
+  # LC_ALL=C because scruff counts the repo in BYTES (`len(filepath.Base(main))`)
+  # and `${#…}` counts characters in whatever locale it is read in — and the one
+  # this runs in is the pounce daemon's `LANG=en_US.UTF-8` with no `LC_ALL` on
+  # /bin/bash 3.2, where `café-münster` measures 12 against scruff's 14. Two
+  # bytes of budget this command would hand out and scruff would then refuse.
+  # The same pin, for the same reason, as `lane_target` below and `name_fits` in
+  # lane-open.sh.
+  local LC_ALL=C budget=40 cap ceiling
   # scruff's own `laneNameBudget`, read off the same config.toml lane-open.sh
   # reads: one file, so the two halves cannot quote two different numbers. The
   # cap is on the KEY, so the repo and its two punctuation bytes come out first.
-  cap="$(sed -n 's/^ *name_max *= *"*\([0-9][0-9]*\)"* *$/\1/p' \
-    "${XDG_CONFIG_HOME:-$HOME/.config}/scruff/config.toml" 2>/dev/null | head -1)"
+  #
+  # The pattern takes every spelling scruff takes, because the file it reads may
+  # have been written by hand: scruff strips the comment and the surrounding
+  # space before it parses, and SPEC.md §5.7's own example line carries one.
+  # Anchoring on `"*…"* *$` missed all of them — an indented key, a
+  # single-quoted value, a CRLF line ending, and `name_max = "44"  # the longest
+  # key…` verbatim out of the spec — and every miss fell back to 40, the number
+  # this block exists to stop using. LAST match wins, as scruff's loop does. Not
+  # scoped to the top-level table, which scruff does check: a `name_max` under a
+  # `[section]` is honoured here and ignored there, and that direction only ever
+  # spends fewer bytes than it may.
+  cap="$(sed -n 's/^[[:space:]]*name_max[[:space:]]*=[[:space:]]*["'"'"']\{0,1\}\([0-9][0-9]*\).*/\1/p' \
+    "${XDG_CONFIG_HOME:-$HOME/.config}/scruff/config.toml" 2>/dev/null | tail -1)"
   [ -n "$cap" ] || { printf '%s\n' "$budget"; return 0; }
-  ceiling=$((cap - ${#1} - 8))   # len("scruff/") + len("/")
+  # `10#` because a hand-written `name_max = "08"` is a LEADING ZERO and bash
+  # reads that as octal: an arithmetic error, an empty answer out of the
+  # substitution, and a slug that reaches scruff uncut.
+  ceiling=$((10#$cap - ${#1} - 8))   # len("scruff/") + len("/")
   # A repo that eats its own cap gets no ceiling rather than an impossible one,
   # which is scruff's answer too: nothing anyone would call a name fits anyway,
   # and the backend's own error beats naming every lane `age`.
@@ -677,7 +698,9 @@ slug_budget() { # slug_budget <repo basename> — bytes this command may spend o
   # — a second spawn on the same four words is an ordinary afternoon, and it
   # must not be the one that produces nothing. MEASURED: scruff's own refusal
   # for a taken 25-byte name in `hausfold.co` says "pass a name of 23 bytes or
-  # fewer". Given away only where there are bytes to give.
+  # fewer". Given away only where there are bytes to give, and two bytes buys
+  # `-2` through `-9`: the tenth lane on the same four words wants `-10` and is
+  # scruff's to refuse, by which point the name is the least of it.
   [ "$ceiling" -le 5 ] || ceiling=$((ceiling - 2))
   # The smaller wins, spelled as a clamp rather than a `min` so a roomier
   # `name_max` leaves the names on this machine exactly the length they were.

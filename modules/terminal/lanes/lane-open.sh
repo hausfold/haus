@@ -253,8 +253,15 @@ name_fits() { # name_fits — 0 if $sess can be a zmx session here, else 3 + why
     # time — so the number it would print is the smaller of the two, and a
     # backstop that quoted the roomier one would send someone back for a second
     # refusal with different arithmetic.
-    cap="$(sed -n 's/^ *name_max *= *"*\([0-9][0-9]*\)"* *$/\1/p' \
-        "${XDG_CONFIG_HOME:-$HOME/.config}/scruff/config.toml" 2>/dev/null | head -1)"
+    # Every spelling scruff takes, because this file may be hand-written: it
+    # strips the comment and the surrounding space before parsing, and SPEC.md
+    # §5.7's own example line carries one. A miss here is not a refusal but a
+    # DISAGREEMENT — this half would quote the roomier measured ceiling while
+    # scruff refuses against `name_max`, which is the second-refusal loop the
+    # clamp below exists to close. Last match wins, as scruff's loop does.
+    # commands/spawn-agent.sh's `slug_budget` carries the same pattern.
+    cap="$(sed -n 's/^[[:space:]]*name_max[[:space:]]*=[[:space:]]*["'"'"']\{0,1\}\([0-9][0-9]*\).*/\1/p' \
+        "${XDG_CONFIG_HOME:-$HOME/.config}/scruff/config.toml" 2>/dev/null | tail -1)"
     [ -z "$cap" ] || [ "$cap" -ge "$budget" ] 2>/dev/null || budget="$cap"
 
     [ "${#sess}" -gt "$budget" ] || return 0
