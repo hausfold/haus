@@ -1,13 +1,14 @@
 # assets
 
-`hero.png` is the family's one desktop capture — reshot 2026-08-26, replacing a
-2026-07-09 frame that carried the retired **nebelhaus** wordmark and org, a
-username and an uptime. What it shows, left to right: **Zen** on
-`github.com/hausfold`, themed grey and pink by `haus.zen.userStyles`; **Ghostty**
-running lazygit over a working tree of `haus.focus.scenes`, so the frame's
-largest panel is the option surface itself; **Pounce** open mid-search on Spawn
-Agent; **Bar** along the top and bottom; **Nebelung**'s fog-grey across all
-of it. Windows are tiled by the `windows` room.
+`hero.png` is the family's one desktop capture, and the workshop's
+[`script/shoot-hero.sh`](https://github.com/hausfold/workshop/blob/main/script/shoot-hero.sh)
+is what takes it. What it shows, left to right: **Zen** on
+`github.com/hausfold`, themed grey and pink by `haus.zen.userStyles`;
+**Ghostty** running lazygit over an untracked `scenes.nix`, so the frame's
+largest panel is the option surface itself; **Pounce** open on its empty
+palette, where the action tiles are the row a stranger reads first; **Bar**
+along the top and bottom; **Nebelung**'s fog-grey across all of it. Windows are
+tiled by the `windows` room.
 
 ⚠️ **Two things in that frame are the shooter's host file, not the desktop.**
 `haus.zen.userStyles` defaults to `[ ]` and `haus.bar.bottom.enable` to
@@ -16,9 +17,13 @@ unthemed browser and one bar, not a themed GitHub and two. Any launch-post copy
 that leads with this image has to say so, or the first reply is "I installed it
 and it doesn't look like that."
 
-The scene it answers to lives in the workshop's `assets/SHOTLIST.md`; the
-reshoot is tracked in `hausfold/ops`'s `todo/launch-phase-1.md`, which records
-the measurement in full. All three move together when it is reshot again.
+⚠️ **The clipboard ships with the shot.** Pounce draws the top clipboard entry
+in its palette, so whatever was last copied is in frame. This one carries
+`hausfold.co`, chosen rather than caught.
+
+The scene it answers to lives in the workshop's `assets/SHOTLIST.md`, and
+`hausfold/ops`'s `todo/launch-phase-1.md` carries the measurement in full. All
+three move together when it is reshot.
 
 **Nothing renders any of these — not this repo, and not hausfold.co either.**
 The README leads with words alone, and hausfold.co ships no `<img>` at any of
