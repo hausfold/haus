@@ -99,10 +99,15 @@ mkdir -p "$STATE_DIR" 2>/dev/null
 # Cached for six hours: an account is added about as often as a machine is, and
 # this is a second icalBuddy spawn on a path that already pays for one.
 me_addresses() {
-  local age=0 stamp
+  local age=0 stamp now
   stamp=$(stat -f %m "$ME_CACHE" 2>/dev/null || echo 0)
   case "$stamp" in '' | *[!0-9]*) stamp=0 ;; esac
-  age=$(($(date +%s) - stamp))
+  now=$(date +%s)
+  # A FUTURE stamp is a backward clock step, and a negative age never reaches
+  # the six-hour mark below — the cache would be pinned until the clock caught
+  # up. 0 is the unreadable-stamp answer and it re-spawns icalBuddy once.
+  [ "$stamp" -gt "$now" ] && stamp=0
+  age=$((now - stamp))
   # `-f`, NOT `-s`: an EMPTY answer is a real answer. A stock iCloud machine's
   # calendars are called Home and Work, so the sed below matches nothing and the
   # file lands at zero bytes — and a `-s` test reads that as "never cached" and

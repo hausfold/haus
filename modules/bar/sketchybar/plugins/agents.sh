@@ -605,7 +605,12 @@ popup_rows() {
     # The caption: what this agent is doing, then where. The repo joins the
     # state word rather than owning a row — at one repo per lane it was
     # never worth a descriptor and a line of its own.
-    left="$TAG · $(ago $((now - ${epoch:-now})))"
+    # `since` comes off the same clock that skewed, so an epoch ahead of `now`
+    # would render as `-60m`. `ago` has no negative guard of its own (github.sh's
+    # rel_age does), so clamp here: an age we cannot have measured is 0, which
+    # prints the same "just now" a real 0 does.
+    age=$(( now - ${epoch:-now} )); [ "$age" -lt 0 ] && age=0
+    left="$TAG · $(ago "$age")"
     if lane_lookup "$cwd" "$namekey"; then
       [ -n "$L_REPO" ] && left="$left · ${L_REPO##*/}"
       # A dot, not a footnote row. It sits with the state because that is
@@ -648,7 +653,14 @@ fetch() {
   # SessionEnd, which never fires on a force-quit, a crash, a logout or an app
   # update — desktop_records' lsappinfo check catches the common case, and this
   # catches the rest. Live agents re-stamp their epoch on every hook.
-  [ -d "$DIR" ] && find "$DIR" -name '*.desk' -mmin +720 -delete 2>/dev/null
+  # `-mmin -0` is the future half, and it is not a typo: a `.desk` stamped AHEAD
+  # of now has a NEGATIVE age, so it can never satisfy `+720` and the backstop
+  # stops being one — a dead desktop agent stays in the pill's count forever.
+  # A clock stepped backward under agents-hook.sh (which stamps these with
+  # `date +%s`) does exactly that. `-mmin -0` means "modified less than 0
+  # minutes ago", which is only ever true of a file from the future, and both
+  # BSD and GNU find read it the same way. No extra process, no reference file.
+  [ -d "$DIR" ] && find "$DIR" -name '*.desk' \( -mmin +720 -o -mmin -0 \) -delete 2>/dev/null
 
   while IFS=$'\t' read -r _pr _epoch _kind st _rest; do
     case "$st" in

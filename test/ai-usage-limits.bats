@@ -121,9 +121,14 @@ EOF
   usage 35 89
 }
 
-usage() { # usage <5h %> <7d %> — the nine-column row, written just now
+usage() { # usage <5h %> <7d %> [written] [used] — the nine-column row
+  # Both stamps default to now. Arguments rather than a second copy of this
+  # printf, because a TENTH column would leave that copy behind and the way it
+  # fails is silent: the extra field folds into ROW_USED, fails the digit check
+  # and falls back, so the case goes on passing while testing something else.
   printf '%s\t%s\t%s\t%s\t%s\tclaude\tclaude\tanthropic\t%s\n' \
-    "$1" "$2" "$R5" "$RW" "$NOW" "$NOW" >"$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv"
+    "$1" "$2" "$R5" "$RW" "${3:-$NOW}" "${4:-${3:-$NOW}}" \
+    >"$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv"
 }
 
 scoped() { # scoped <family> <%> [resets] [written] — one sub-limit row, appended
@@ -226,6 +231,27 @@ traffic() { cat "$SB_LOG"; }
   [ -n "$(tok label.color=0xff444444)" ] \
     || fail "the weekly lost its warn rung to a dead pull"
   [ -n "$(tok label.color=0xff222222)" ] || fail "the session lost its ok rung too"
+}
+
+@test "a family stamped in the FUTURE greys, exactly like one that died an hour ago" {
+  # Not hypothetical: on 2026-09-11 two markers in ~/.cache/claude-statusline
+  # were stamped 3h40m ahead of `date +%s` on a machine whose clock matched
+  # network time. Every horizon in this pill is a SUBTRACTION from `now`, so a
+  # stamp it cannot have written goes NEGATIVE and sits under all of them — the
+  # gauge keeps its colour and the dropdown asserts a ceiling nobody has pulled
+  # since the skew began.
+  scoped Fable 100 "$RW" $((NOW + 13200))
+  click
+  [ -n "$(tok label.color=0xff111111)" ] || fail "a future-stamped family read as live"
+}
+
+@test "a usage row stamped in the FUTURE takes the pill's confident colour away" {
+  # The same skew on the row that backs the pill's own number. `dim` is what
+  # five minutes of silence earns; a stamp from the future has earned at least
+  # that, and the alternative is a lit pill describing a session that ended.
+  usage 35 89 $((NOW + 13200))
+  tick
+  [ -n "$(tok label.color=0xff1a1a1a)" ] || fail "kept a live colour on a skewed row"
 }
 
 @test "no sub-limit file at all leaves the pill exactly as it was" {

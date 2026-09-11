@@ -341,7 +341,7 @@ do_spawn() { # do_spawn <checkout> <prompt> <name>
 # `local` in it is out of scope, so the obvious `trap 'rmdir "$lock"' EXIT`
 # is an `rmdir ""` under a redirect that hides it.
 run() { # run <verdict> <selector> <url> <owner/repo> <name>
-  local verdict="$1" selector="$2" url="$3" orp="$4" name="$5" lock age rc
+  local verdict="$1" selector="$2" url="$3" orp="$4" name="$5" lock age at now rc
 
   # Per-lane, not global: a fix click on repo B must not be swallowed because
   # repo A's lane spawned a minute ago. Age-swept like the pill's own fetch
@@ -349,7 +349,15 @@ run() { # run <verdict> <selector> <url> <owner/repo> <name>
   lock="$LOCK/$name"
   mkdir -p "$LOCK" 2>/dev/null
   if ! mkdir "$lock" 2>/dev/null; then
-    age=$(($(date +%s) - $(stat -f %m "$lock" 2>/dev/null || echo 0)))
+    # `|| echo 0` for an unreadable stamp and `-gt "$now"` for a FUTURE one, and
+    # both mean the same thing: sweep it. A clock that moved backward leaves the
+    # lock dir stamped ahead of us, a negative age is below LOCK_TTL, and the
+    # button then answers "already running" about a lane that died — forever,
+    # since nothing else ever removes this directory.
+    now=$(date +%s)
+    at=$(stat -f %m "$lock" 2>/dev/null || echo 0)
+    [ "$at" -gt "$now" ] && at=0
+    age=$((now - at))
     if [ "$age" -lt "$LOCK_TTL" ]; then
       banner pulse "Fix lane already running" "$name is already on it"
       return 0

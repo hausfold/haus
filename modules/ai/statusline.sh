@@ -330,6 +330,11 @@ mtime() { # mtime <file> — modification time in epoch seconds, 0 when unknown
   m=$(stat -f %m "$1" 2>/dev/null || true)
   case "$m" in '' | *[!0-9]*) m=$(stat -c %Y "$1" 2>/dev/null || echo 0) ;; esac
   case "$m" in '' | *[!0-9]*) m=0 ;; esac
+  # A FUTURE stamp is a clock that moved backward, not a fresh file, and a
+  # negative age is below every TTL — here, the panel would read fresh and the
+  # prompt would stop spawning the refresher. 0 makes the age maximal instead.
+  # The long version is in statusline-refresh.sh's copy of this helper.
+  if [ "$m" -gt "$(date +%s)" ]; then m=0; fi
   printf '%s' "$m"
 }
 

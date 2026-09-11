@@ -76,11 +76,27 @@ HAUS_GH_BACKSTOP="${HAUS_GH_BACKSTOP:-0}"
 
 now() { date +%s; }
 
-# mtime, or 0 for anything we can't read a number out of.
+# mtime, or 0 for anything we can't read a number out of — a stamp in the
+# FUTURE included. A clock that moved backward leaves files ahead of `now`, and
+# a negative age is below every threshold here: the cache would read fresh, the
+# kick throttle would never expire and a lock would never go stale, freezing
+# every lane row on the machine until the clock caught up. 0 is this helper's
+# "unknown" and it makes each of those ages maximal, which is the safe
+# direction — refetch, kick, reclaim. Long version in statusline-refresh.sh.
 mtime() {
   local m
-  m=$(stat -f %m "$1" 2>/dev/null || echo 0)
+  # Two steps, and the exit status of the first is deliberately thrown away.
+  # This script is macOS-only and `stat -f %m` is the BSD spelling — but CI runs
+  # test/scruff-cache.bats on a GNU box, where -f is --file-system and takes NO
+  # argument, so `%m` becomes a second FILE operand: a filesystem block on
+  # stdout and exit 1. Honouring that status answers 0 for every file, which is
+  # fail-closed and therefore GREEN for the wrong reason in exactly the suite
+  # that is supposed to catch this. Judge the TEXT instead — the same shape
+  # statusline.sh, statusline-refresh.sh and signal.sh already carry.
+  m=$(stat -f %m "$1" 2>/dev/null || true)
+  case "$m" in '' | *[!0-9]*) m=$(stat -c %Y "$1" 2>/dev/null || echo 0) ;; esac
   case "$m" in '' | *[!0-9]*) m=0 ;; esac
+  if [ "$m" -gt "$(now)" ]; then m=0; fi
   printf '%s\n' "$m"
 }
 
