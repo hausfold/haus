@@ -705,6 +705,18 @@ jobs:
       - name: barlib runtime tests
         run: bats test/barlib.bats
 
+      # The aiUsage pill's weekly SUB-limits. A Max plan caps some model
+      # families inside the weekly window rather than beside it, so a family can
+      # be spent for the week while the weekly gauge it lives in reads 50% — a
+      # number the bar shows WRONG rather than not at all, which no glance
+      # catches. The other half is freshness: the nine-column row beside these
+      # is pushed by every render while these are only pulled, so a sub-limit
+      # riding its neighbour's stamp onto the pill is the first bug back.
+      # Hermetic, same harness as barlib's, and it shims `date -r` because that
+      # spelling is BSD and the runner is not.
+      - name: aiUsage sub-limit tests
+        run: bats test/ai-usage-limits.bats
+
       # lane-seen's other half of that join, read backwards: the focused
       # window's session name back to the trill key scruff gave that lane's fin.
       # The boundary between `<repo>` and `<lane>` cannot be found in the string

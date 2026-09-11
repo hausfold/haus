@@ -20,6 +20,11 @@
 # No column here is ever EMPTY, including the two a subscription feed has no
 # real use for: tab is IFS whitespace, so `read` collapses a run of empty middle
 # fields into one delimiter and shifts every later column left.
+# Weekly sub-limit TSV lines (scoped-<provider>.tsv, optional, one row per
+# capped model family):
+#     <family>\t<%>\t<resets epoch>\t<written epoch>
+# Its own written stamp, because this file is only refreshed by the PULL while
+# the usage row beside it is pushed by every render — see statusline-refresh.sh.
 # Token TSV lines (tokens-<provider>.tsv, optional, dropdown only):
 #     <day>\t<week>\t<month>\t<all time>\t<written epoch>
 # Five columns, and `read_tokens` takes all five or none: the four buckets are
@@ -90,6 +95,16 @@ source "$HOME/.config/sketchybar/plugins/ai-provider.sh"
 
 CACHE_DIR="${CLAUDE_STATUSLINE_CACHE:-$HOME/.cache/claude-statusline}"
 STALE=300                        # 5 min with no WRITE → mark the feed stale
+# The sub-limit gauges get an hour instead, and it is not a fudge: they are a
+# fraction of a SEVEN-DAY window, they are only ever PULLED, and the pull runs
+# every fifteen minutes while anything is using the client. Five minutes of
+# silence says nothing about a number like that, and greying it that fast has
+# the dropdown fading a gauge in and out on a feed that merely stutters. An hour
+# is where the pull itself gives up (CLAUDE_BLOCK_TTL in statusline-refresh.sh),
+# which is the first moment "we no longer know" is the honest reading. The reset
+# epoch in the row is what makes a long horizon safe: a window that rolled over
+# reads 0 below, so the horizon can never keep a spent ceiling past its own week.
+SCOPED_STALE=3600
 FEED_TTL=180                     # how often we re-pull the Codex/Opencode feeds
 
 # BAR_AI_USAGE_PROVIDER — which client the pill speaks for, or `latest`.
@@ -193,6 +208,21 @@ tokens_label() { # tokens_label <d> <w> <m> <all> — the token score, TWO perio
     return s unit
   }'
 }
+
+# ── the weekly sub-limits ─────────────────────────────────────────────────────
+# A Max plan caps some model families INSIDE the weekly allowance rather than
+# beside it (Fable may take up to half the week), so a family can be spent for
+# the week while the weekly gauge it lives in still reads 50%.
+#
+# It stays in the DROPDOWN, and the pill's own number is still the worse of
+# session and weekly. It was on the label for a day, wearing the family's
+# initial (`100% F`), and that was wrong for a reason worth writing down: the
+# pill's number answers "how close am I to being stopped", and a spent ceiling
+# does not stop you. Every other model is still there. So the highest number on
+# the machine was also the one that changed nothing about what you could do
+# next, which is a pill that cries wolf once a week. Read against the weekly it
+# is carved out of, one row below it, the same number is exactly as alarming as
+# it should be.
 
 T_D=0; T_W=0; T_M=0; T_ALL=0
 read_tokens() { # read_tokens <file> — T_D/T_W/T_M/T_ALL, false if there's no row
@@ -406,7 +436,7 @@ token_block() { # token_block <d> <w> <m> <all> <tone>
 }
 
 popup_rows() {
-  local now f when c5 cw t_tone
+  local now f when c5 cw cs t_tone s_file s_name s_pct s_rst s_at
   local g_d=0 g_w=0 g_m=0 g_all=0 g_n=0 tf
   now=$(date +%s)
   usage_files
@@ -455,6 +485,36 @@ popup_rows() {
       cw=$(pct_tone "$ROW_VW"); [ "$ROW_STALE" = 1 ] && cw=mute
       popup_bar --label "weekly${when:+ · $when}" --percentage "$ROW_VW" \
         --value "${ROW_VW}%" --tone "$cw"
+
+      # One more bar per capped family, under the weekly it is carved out of.
+      # Same ladder and same shape as the two above, so `fable 100%` is read
+      # against `weekly 89%` with no legend to explain the pair.
+      #
+      # The reset note is dropped when it matches the weekly's, which for a
+      # ceiling inside that window it always does: the row would otherwise
+      # repeat the line above it word for word. Staleness is judged on this
+      # file's OWN stamp — the row above it can be seconds old while these
+      # numbers are an hour old, since only one of the two feeds is pushed.
+      # A file TEST, never `done <"$f" 2>/dev/null`: redirections are applied
+      # left to right, so a missing file has already printed to the real stderr
+      # — the bar's log, once per open — by the time the suppression takes
+      # effect. Most accounts have no ceiling at all, so that is the common path.
+      s_file="$CACHE_DIR/scoped-$ROW_PROV.tsv"
+      [ -s "$s_file" ] && while IFS=$'\t' read -r s_name s_pct s_rst s_at; do
+        case "${s_pct:-}" in '' | *[!0-9]*) continue ;; esac
+        case "${s_at:-}" in '' | *[!0-9]*) s_at=0 ;; esac
+        case "${s_rst:-}" in '' | *[!0-9]*) s_rst=0 ;; esac
+        # The window rolled: nobody has spent any of the new one yet. Same rule
+        # read_row applies to the session and weekly gauges above.
+        [ "$s_rst" -gt 0 ] && [ "$now" -ge "$s_rst" ] && s_pct=0
+        cs=$(pct_tone "$s_pct")
+        { [ "$ROW_STALE" = 1 ] || { [ "$s_at" -gt 0 ] && [ $((now - s_at)) -gt "$SCOPED_STALE" ]; }; } \
+          && cs=mute
+        when=""
+        [ "$s_rst" != "${ROW_RW:-0}" ] && when=$(resets_at "$s_rst" "$now")
+        popup_bar --label "$(printf '%s' "$s_name" | tr '[:upper:]' '[:lower:]')${when:+ · $when}" \
+          --percentage "$s_pct" --value "${s_pct}%" --tone "$cs"
+      done <"$s_file"
     fi
 
     # Tokens: the score row. Every number above is a fraction of something you
