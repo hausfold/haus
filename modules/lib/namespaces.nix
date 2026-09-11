@@ -33,10 +33,13 @@
 #    of this check derived its namespace list as "`attrNames options.haus`, minus
 #    the `_`-prefixed internals", which reads exactly like the rule
 #    `room-registry` uses and is not it: that one filters on `internal`/`visible`,
-#    and `mkRenamedOptionModule` (modules/moved.nix) leaves a hidden `haus.claude`
-#    behind. The shorthand accuses a stock machine, and can't even name a file,
-#    because the leaves it would name are invisible. A check that fires on a
-#    stock machine is worse than no check.
+#    and a `mkRenamedOptionModule` — modules/moved.nix's, or one a host wrote for
+#    itself — leaves a hidden namespace behind under the OLD name. The shorthand
+#    accuses a machine of installing that, and can't even name a file, because
+#    the leaves it would name are invisible. A check that fires on a stock
+#    machine is worse than no check. haus's own alias table supplied that shape
+#    until the `haus.claude.*` pair retired on 2026-09-11; flake.nix's
+#    `nsRenameShim` is the fixture that keeps it proven with the table empty.
 # 2. **Name the file by walking every leaf**, not `<ns>.enable.declarations`:
 #    only 9 of haus's 35 namespaces have an `enable` leaf at all, so keying on it
 #    would name a file for a quarter of them and print `?` for the rest.
@@ -45,8 +48,10 @@
 # shorthand is not the ANSWER, and it is still a perfectly good pre-FILTER,
 # because whatever it lets through is re-decided by the real derivation. That
 # matters because the real one costs a `optionAttrSetToDocList` walk: scoped to
-# the handful of attribute names that could possibly be at issue, a stock machine
-# pays for one subtree (`claude`, the rename shim) instead of all 311 options.
+# the handful of attribute names that could possibly be at issue, a machine
+# carrying one rename shim pays for that one subtree instead of all 311 options,
+# and a stock machine (modules/moved.nix holds no alias today) pays for none at
+# all.
 #
 # ⚠️ That argument covers false POSITIVES only — nothing re-decides what the
 # pre-filter drops — so two silences are deliberate and worth knowing before

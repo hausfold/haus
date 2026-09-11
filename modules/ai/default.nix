@@ -469,10 +469,18 @@ let
   # ./tool-skills.nix — split out so `nix flake check` can build the thing this
   # room puts on every machine's rebuild path (`.#tool-skills`).
   #
-  # The three room switches are the one thing this file adds to the list:
-  # scruff, factory and nebelung are on every machine, while trill's, pounce's
-  # and perch's rooms are off by default, and an agent skill for an app this Mac
-  # doesn't have is worse than none (the workshop's `docs/agent-surface.md` §4).
+  # The room switches are the one thing this file adds to the list: an agent
+  # skill for something this Mac doesn't have is worse than none (the
+  # workshop's `docs/agent-surface.md` §4), and every tool with a binary behind
+  # it therefore follows the room that installs it. `scruff`, `handoff` and
+  # `factory` ride on THIS room's own switch, because `environment.systemPackages`
+  # below is what puts `scruff` and `factory` on PATH and it is `mkIf
+  # cfg.enable` — while the files here are written whatever the switch says, so
+  # without `aiEnabled` a room-off machine gets worktree instructions for a
+  # `scruff` it hasn't got. trill's, pounce's and perch's rooms are off by
+  # default and gate their own. nebelung is the only ungated name: a palette has
+  # no binary to miss.
+  #
   # Gated HERE rather than in that file so the `.#tool-skills` check still
   # proves every skill name whatever any one machine turns on.
   #
@@ -492,6 +500,7 @@ let
       perch-skill
       ;
     nebelung-skill = inputs.nebelung.packages.${pkgs.stdenv.hostPlatform.system}.nebelung-skill or null;
+    aiEnabled = cfg.enable;
     trillEnabled = config.haus.notifications.compositor;
     pounceEnabled = config.haus.launcher.enable;
     perchEnabled = config.haus.shelf.enable;

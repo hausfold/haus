@@ -24,6 +24,7 @@
   lib,
   scruff-skill,
   factory-skill,
+  aiEnabled ? true,
   nebelung-skill ? null,
   trill-skill ? null,
   trillEnabled ? true,
@@ -35,19 +36,22 @@
 let
   checkedRef = import ../lib/checked-ref.nix { inherit lib pkgs; };
 
-  # The one list. Adding a tool is a name here and an argument above — plus,
-  # when the tool is OPTIONAL on a machine, the switch its room is gated on.
+  # The one list. Adding a tool is a name here and an argument above — plus the
+  # switch that decides whether this Mac has the tool at all.
   #
-  # `enable` is what makes an optional tool's skill honest. scruff is on every
-  # haus machine, so its skill is never wrong to have. trill's room is off by
-  # default (`haus.notifications.compositor`), and a skill teaching an agent to
-  # drive an app
-  # this Mac does not have is worse than no skill at all — the workshop's
-  # `docs/agent-surface.md`. So the ROOM passes the switch and installs
-  # nothing when it is off, while flake.nix passes nothing and takes the default
-  # — the `.#tool-skills` check therefore covers every name whatever any one
-  # machine turns on, which is the point: a name that rots in trill's output has
-  # to fail before a merge, not on the first person who switches the room on.
+  # `enable` is what keeps a skill honest, and EVERY tool with a binary behind
+  # it has one, including the two that look unconditional: `scruff` and
+  # `factory` are on PATH because modules/ai puts them there under
+  # `haus.ai.enable`, so on a machine with that room off a `scruff` skill is
+  # instructions for a command that does not exist. Same for trill, pounce and
+  # perch, whose rooms are off by default. A skill teaching an agent to drive
+  # something this Mac does not have is worse than no skill at all — the
+  # workshop's `docs/agent-surface.md`. So the ROOM passes the switches and
+  # installs nothing where one is off, while flake.nix passes none and takes
+  # the defaults — the `.#tool-skills` check therefore covers every name
+  # whatever any one machine turns on, which is the point: a name that rots in
+  # trill's output has to fail before a merge, not on the first person who
+  # switches the room on.
   # ⚠️ "Before a merge" means a Mac: CI checks this on Linux, where the null
   # below drops trill out entirely. flake.nix's comment above `.#tool-skills`
   # is where that is written down.
@@ -61,6 +65,7 @@ let
   toolSkills = [
     {
       drv = scruff-skill;
+      enable = aiEnabled;
       names = [
         "scruff"
         "handoff"
@@ -73,17 +78,17 @@ let
     # so what a skill is for is the verbs around it — grant the lease, read the
     # log in the morning, explain a refusal.
     #
-    # Ungated, like scruff's: the AI room puts `factory` on PATH on every
-    # machine that has the room at all, so the skill is never teaching an agent
-    # to drive a binary this Mac does not have. Whether a machine has a POLICY
-    # to run it against is a `~/.config/factory/config.json` question, outside
-    # this layer entirely — and `factory doctor` is what answers it.
+    # On the AI room's switch, like scruff's and for the same reason: that room
+    # is what puts `factory` on PATH. Whether a machine that HAS it also has a
+    # POLICY to run it against is a `~/.config/factory/config.json` question,
+    # outside this layer entirely — and `factory doctor` is what answers it.
     {
       drv = factory-skill;
+      enable = aiEnabled;
       names = [ "factory" ];
     }
-    # nebelung is the one entry with no binary behind it, and it is ungated for
-    # that reason: the palette is the machine's theme whatever rooms are on, so
+    # nebelung is the one entry with no binary behind it, and the only one that
+    # is ungated: the palette is the machine's theme whatever rooms are on, so
     # there is no switch that could make this skill dishonest. Half of it is
     # rendered from `palette/*.hex.json` at build time, so the hexes an agent
     # quotes are THIS lock's, not a number copied once.

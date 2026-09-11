@@ -477,8 +477,9 @@ in
     # which made `ai.default = "codex"` a half-truth: the client spawned,
     # with none of the operating context or the option knowledge the same
     # machine hands Claude. They are named for the ROOM, not the client, and
-    # terminal writes one copy per entry in `ai.clients` (moved.nix keeps
-    # the old names working, with a warning).
+    # terminal writes one copy per entry in `ai.clients`. The old spellings
+    # were aliased in moved.nix until 2026-09-11 and are now an unknown-option
+    # error.
     ai.instructions = lib.mkOption {
       type = lib.types.lines;
       default = "";
@@ -658,23 +659,26 @@ in
         have open?" or "hand this off to a fresh session" reaches for `scruff`
         rather than `git worktree`.
 
-        Six skills on any machine. Two are haus's own: `haus` (this
-        machine's setup) and `hausfold` (carrying a complaint about anything we
-        make upstream — which repo owns the symptom, the `report` verb that
-        fills its bug form's diagnostics field in, and the fork to a pull
-        request; it files nothing without asking you first). Then scruff's
-        own two — `scruff` (the lane lifecycle) and `handoff` (turning work into a
-        brief a cold session can act on, ending on the clipboard or in a new
-        lane) — factory's `factory` (the merge verbs; a live lease runs the
-        shift itself, so the skill is what an agent does around it) — and `nebelung`
-        (this machine's exact palette, rendered from the lock rather than
-        remembered). A tool whose room is OPTIONAL adds its own only when that
-        room is on: `trill` (sending a notification) with
-        `haus.notifications.compositor`, `pounce` (driving the command palette)
-        with `haus.launcher.enable`, `perch` (putting files on the notch shelf)
-        with `haus.shelf.enable` — because a skill for an app this Mac doesn't
-        have is worse than none.
-        Those switches are about the ROOM, not about the app: `haus-notify` and
+        Three arrive whatever else this Mac runs. Two are haus's own: `haus`
+        (this machine's setup) and `hausfold` (carrying a complaint about
+        anything we make upstream — which repo owns the symptom, the `report`
+        verb that fills its bug form's diagnostics field in, and the fork to a
+        pull request; it files nothing without asking you first). The third is
+        `nebelung` (this machine's exact palette, rendered from the lock rather
+        than remembered), which has no binary behind it to be missing.
+
+        Every other skill follows the ROOM that installs its tool, because a
+        skill for something this Mac doesn't have is worse than none. `scruff`
+        (the lane lifecycle), `handoff` (turning work into a brief a cold
+        session can act on, ending on the clipboard or in a new lane) and
+        `factory` (the merge verbs; a live lease runs the shift itself, so the
+        skill is what an agent does around it) need `haus.ai.enable`, the room
+        that puts `scruff` and `factory` on PATH. `trill` (sending a
+        notification) needs `haus.notifications.compositor`, `pounce` (driving
+        the command palette) `haus.launcher.enable`, `perch` (putting files on
+        the notch shelf) `haus.shelf.enable`.
+
+        Those are switches about the ROOM, not about the app: `haus-notify` and
         the `trill` command find a hand-installed Trill.app at runtime whatever
         this option says, and a machine running a hand-installed pounce, perch
         or Trill.app with the room off gets no skill for it until the room is

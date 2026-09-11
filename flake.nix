@@ -1041,6 +1041,27 @@
               description = "A second input's leaf under the same claimed namespace.";
             };
           };
+          # The shape that makes this check two steps rather than one:
+          # `mkRenamedOptionModule` declares the OLD path as an invisible
+          # option, so `haus.hearth` shows up in `attrNames options.haus` with
+          # no public leaf under it. The cheap pre-filter cannot tell that from
+          # a room; the `optionAttrSetToDocList` walk clears it in silence. Both
+          # halves have to keep working, and until 2026-09-11 the proof was
+          # borrowed from modules/moved.nix's own `haus.claude.*` pair — so the
+          # day that aged out, the property stopped being tested by anything.
+          # Written down here instead, where retiring an alias can't take it
+          # away. `hearth` -> `terminal` is the real 2026-08-16 room rename,
+          # which shipped WITHOUT an alias; this is what it would have looked
+          # like with one.
+          nsRenameShim = {
+            _file = "/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-source/moved.nix";
+            imports = [
+              (nixpkgs.lib.mkRenamedOptionModule
+                [ "haus" "hearth" "editorName" ]
+                [ "haus" "terminal" "editorName" ]
+              )
+            ];
+          };
           nsShow = xs: if xs == [ ] then "-" else builtins.concatStringsSep "," xs;
           nsRow =
             name: mods:
@@ -1062,6 +1083,7 @@
             "promise reserved=${namespaceGuard.reserved} in-registry=${yn taken} declared-by-haus=${yn declared}";
           namespaceGuardTable = builtins.concatStringsSep "\n" [
             (nsRow "stock" [ ])
+            (nsRow "shim" [ nsRenameShim ])
             (nsRow "private" [ nsPrivateRoom ])
             (nsRow "reserved" [ nsReservedRoom ])
             (nsRow "both" [
@@ -1070,18 +1092,25 @@
             ])
             nsPromiseRow
           ];
-          # `stock candidates=claude` is the row worth reading twice. The cheap
-          # pre-filter DOES let the rename shim through (modules/moved.nix leaves
-          # a hidden `haus.claude` behind) and the real derivation then clears
-          # it — which is the whole reason the check is two steps rather than the
-          # three-words-shorter one. If `unregistered` ever reads `claude` on the
-          # stock row, the shorthand has come back and every haus machine is
-          # being accused of installing something it didn't.
+          # `shim candidates=hearth unregistered=-` is the row worth reading
+          # twice. The cheap pre-filter DOES let a rename shim through and the
+          # real derivation then clears it — which is the whole reason the check
+          # is two steps rather than the three-words-shorter one. If
+          # `unregistered` ever reads `hearth` on that row, the shorthand has
+          # come back and every machine carrying an alias is being accused of
+          # installing something it didn't.
+          #
+          # `stock candidates=-` is the other half, and it is a fact about
+          # modules/moved.nix rather than about this check: haus ships no alias
+          # today. An alias added there puts its old name on THIS row too, and
+          # updating the expectation is the correct fix — the row to keep silent
+          # is `unregistered`.
           expectedNamespaceGuardTable = ''
-            stock candidates=claude unregistered=- declared-by=-
-            private candidates=claude,photography unregistered=photography declared-by=/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-source/photography.nix
-            reserved candidates=claude unregistered=- declared-by=-
-            both candidates=claude,photography unregistered=photography declared-by=/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-source/photography.nix
+            stock candidates=- unregistered=- declared-by=-
+            shim candidates=hearth unregistered=- declared-by=-
+            private candidates=photography unregistered=photography declared-by=/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-source/photography.nix
+            reserved candidates=- unregistered=- declared-by=-
+            both candidates=photography unregistered=photography declared-by=/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-source/photography.nix
             promise reserved=my in-registry=no declared-by-haus=no
           '';
           # The words a person actually meets, pinned like the ai room's pill
@@ -2620,6 +2649,26 @@
               alias = hm.programs.zsh.shellAliases.c or "(none)";
               pill = yn (nixpkgs.lib.hasInfix "agents" (fileText ".config/sketchybar/top_items.sh"));
               cards = yn (nixpkgs.lib.hasInfix "Agent Worktrees" (fileText ".config/pounce/cheatsheet.json"));
+              # Which agent skills this machine ends up with, read off the files
+              # rather than off the list that decides them. The column exists
+              # for the GATE: `scruff`, `handoff` and `factory` are instructions
+              # for binaries the `scruff=` column above is about, so a room-off
+              # machine must get neither, while `haus`, `hausfold` and
+              # `nebelung` stand on their own and arrive whatever the switch
+              # says. One client's directory is enough — the fan-out over
+              # `ai.clients` is the same list for all of them.
+              skills =
+                let
+                  prefix = ".claude/skills/";
+                  head1 = path: builtins.head (nixpkgs.lib.splitString "/" (nixpkgs.lib.removePrefix prefix path));
+                  names = nixpkgs.lib.unique (
+                    map head1 (builtins.filter (nixpkgs.lib.hasPrefix prefix) (builtins.attrNames hm.home.file))
+                  );
+                in
+                if names == [ ] then
+                  "(none)"
+                else
+                  builtins.concatStringsSep "," (builtins.sort builtins.lessThan names);
             };
           aiRoomFixtures = {
             # haus as shipped: every receiver present, so every contribution
@@ -2687,21 +2736,33 @@
               let
                 r = aiRoomAt aiRoomFixtures.${name};
               in
-              "${name} scruff=${r.scruff} client=${r.client} alias=${r.alias} pill=${r.pill} cards=${r.cards}"
+              "${name} scruff=${r.scruff} client=${r.client} alias=${r.alias} pill=${r.pill} "
+              + "cards=${r.cards} skills=${r.skills}"
             ) (builtins.attrNames aiRoomFixtures)
           );
           # `hacker pill=no` is not a miss: haus ships the agents pill OFF
           # (it is an extra, like every personal readout), and a host turns it on.
           # The fixtures that exercise the seam ask for it explicitly.
+          #
+          # Read `scruff=` and `skills=` together — that pairing is the whole
+          # point of the second column. Every row with `scruff=no` must also be
+          # missing `scruff`, `handoff` and `factory` from `skills=`, because
+          # those three are instructions for binaries only this room installs
+          # and a skill for a command that isn't there is worse than no skill
+          # (the workshop's `docs/agent-surface.md` §4). `haus`, `hausfold` and
+          # `nebelung` are on every row instead: the first two describe a CLI
+          # every haus machine has, and a palette has no binary to miss. `perch`
+          # and `pounce` follow their own rooms, which is why the four room-off
+          # rows still carry them.
           expectedAiRoomTable = ''
-            ai-alone scruff=yes client=yes alias=claude pill=no cards=no
-            ai-off scruff=no client=no alias=(none) pill=no cards=no
-            ai-with-bar scruff=yes client=yes alias=claude pill=yes cards=no
-            ai-with-launcher scruff=yes client=yes alias=claude pill=no cards=yes
-            bottom-pill-without-ai scruff=no client=no alias=(none) pill=no cards=no
-            hacker scruff=yes client=yes alias=claude pill=no cards=yes
-            no-rice-clients scruff=yes client=no alias=(none) pill=yes cards=no
-            pill-without-ai scruff=no client=no alias=(none) pill=no cards=no
+            ai-alone scruff=yes client=yes alias=claude pill=no cards=no skills=factory,handoff,haus,hausfold,nebelung,perch,scruff
+            ai-off scruff=no client=no alias=(none) pill=no cards=no skills=haus,hausfold,nebelung,perch,pounce
+            ai-with-bar scruff=yes client=yes alias=claude pill=yes cards=no skills=factory,handoff,haus,hausfold,nebelung,perch,scruff
+            ai-with-launcher scruff=yes client=yes alias=claude pill=no cards=yes skills=factory,handoff,haus,hausfold,nebelung,perch,pounce,scruff
+            bottom-pill-without-ai scruff=no client=no alias=(none) pill=no cards=no skills=haus,hausfold,nebelung,perch,pounce
+            hacker scruff=yes client=yes alias=claude pill=no cards=yes skills=factory,handoff,haus,hausfold,nebelung,perch,pounce,scruff
+            no-rice-clients scruff=yes client=no alias=(none) pill=yes cards=no skills=factory,handoff,haus,hausfold,nebelung,perch,pounce,scruff
+            pill-without-ai scruff=no client=no alias=(none) pill=no cards=no skills=haus,hausfold,nebelung,perch,pounce
           '';
 
           # There is no old-address fixture, on purpose: `haus.agents.*` and
