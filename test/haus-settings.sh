@@ -405,6 +405,29 @@ test "$("${haus[@]}" get git.name)" = "Doe, Jane"
 test "$("${haus[@]}" get git.name)" = ""
 "${haus[@]}" reset git.name >/dev/null
 
+# `haus set <path>` with no value prompts, and a MISSPELLED path must be refused
+# before the prompt rather than after it — the whole point being that you don't
+# discover the typo having just typed a forty-item list into the box. That guard
+# reads the catalogue, so point it at one this suite controls.
+cat >"$tmp/catalogue.json" <<'JSON'
+{
+  "haus.zen.userStyles": { "type": "list of string", "default": "[ ]", "literal": true, "summary": "x" },
+  "haus.displays": { "type": "attribute set of (submodule)", "default": "{ }", "literal": true, "summary": "x" }
+}
+JSON
+out="$(HAUS_CATALOGUE="$tmp/catalogue.json" "${haus[@]}" set zen.userStyle 2>&1 || true)"
+case "$out" in
+  *"is not an option this machine's pinned haus has"*) ;;
+  *) echo "haus set prompted for a misspelled path: $out" >&2; exit 1 ;;
+esac
+# An invented key under a known ancestor is the user's to name, so it goes
+# through to the prompt — which off a terminal is the usage line, not a refusal.
+out="$(HAUS_CATALOGUE="$tmp/catalogue.json" "${haus[@]}" set displays.internal.uiScale 2>&1 || true)"
+case "$out" in
+  *"usage: haus set"*) ;;
+  *) echo "haus set refused an attrsOf key the catalogue cannot list: $out" >&2; exit 1 ;;
+esac
+
 # A refused value says what the option wanted and what it got, in one line.
 # Nix's own twelve-line module stack around that one fact is noise standing
 # where the answer should be, and is kept only for failures that are NOT this.

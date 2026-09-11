@@ -3449,6 +3449,30 @@ settings_value_preview() {
     else tojson | cut end'
 }
 
+# A cheap typo guard for `haus set <path>` with no value, standing in FRONT of
+# the prompt. The authority on whether a path is settable is
+# settings_option_exists, which evaluates the whole darwin config and runs after
+# the value is in hand — fine when the value was one word on a command line, and
+# not fine when it was a forty-item list someone just typed into a box only to be
+# told the path was misspelled.
+#
+# So ask the catalogue, which answers instantly: the path itself, or any ancestor
+# of it (an `attrsOf` key is the user's to invent, so `displays.<uuid>.uiScale`
+# is vouched for by `displays`). It can only ever say "not a chance"; everything
+# it lets through is still checked properly a moment later. With no catalogue it
+# has no opinion and says yes.
+settings_path_plausible() { # settings_path_plausible <full haus.path>
+  local path="$1" p
+  [ -r "$HAUS_CATALOGUE" ] || return 0
+  jq -e --arg p "$path" 'has($p)' "$HAUS_CATALOGUE" >/dev/null 2>&1 && return 0
+  p="$path"
+  while [ "${p%.*}" != "$p" ]; do
+    p="${p%.*}"
+    jq -e --arg p "$p" 'has($p)' "$HAUS_CATALOGUE" >/dev/null 2>&1 && return 0
+  done
+  return 1
+}
+
 # Prompt two: WHAT value. Takes the full `haus.`-prefixed path and fills PICK.
 #
 # The prompt's shape comes from the type: a closed set is a list you arrow
@@ -3664,7 +3688,11 @@ cmd_set() {
   # for exactly as long as there was nothing better to do with it. Off a
   # terminal it still is one — settings_pick_ready dies with the usage line.
   if [ "$#" -eq 1 ] && [ -z "${TX_USAGE:-}" ]; then
-    settings_pick_value "$(settings_path "$1")" "$usage" || exit 0
+    path="$(settings_path "$1")"
+    settings_path_plausible "$path" \
+      || die "'${path#haus.}' is not an option this machine's pinned haus has — \
+'haus set' with no arguments searches every one it does"
+    settings_pick_value "$path" "$usage" || exit 0
     set -- "${PICK[@]}"
   fi
   [ "$#" -ge 2 ] && [ $(( $# % 2 )) -eq 0 ] || die "$usage"
