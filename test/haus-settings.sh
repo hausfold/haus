@@ -103,7 +103,15 @@ if "${haus[@]}" set theme.flavor mocha theme.flavor latte >/dev/null 2>&1; then
   exit 1
 fi
 
+# A lone path is the picker joined halfway — the value prompt for that option,
+# with what the machine holds today already in the box. Off a terminal there is
+# no prompt to run, so it is still the usage error it used to be, which is what
+# this suite (no tty) can assert.
 if "${haus[@]}" set theme.flavor >/dev/null 2>&1; then
+  echo "haus set prompted for a value with no terminal to prompt on" >&2
+  exit 1
+fi
+if "${haus[@]}" set theme.flavor mocha theme.contrast high extra >/dev/null 2>&1; then
   echo "haus set accepted an odd number of arguments" >&2
   exit 1
 fi
@@ -307,5 +315,106 @@ if "${haus[@]}" set displays.internal.uiScale larger-text displays '{}' >/dev/nu
   exit 1
 fi
 test ! -e "$tmp/hosts/test/settings/displays.internal.uiScale.nix"
+
+# ── the list shorthand ───────────────────────────────────────────────────────
+# A list-typed option cannot take a string, so for those — and only those — a
+# value that is obviously a list of tokens is read as one. Every shape here is
+# something a person actually typed at this command, including the two the shell
+# hands over when a pasted JSON list loses its quoting.
+"${haus[@]}" set zen.userStyles github,gmail,youtube >/dev/null
+test "$("${haus[@]}" get zen.userStyles)" = '["github","gmail","youtube"]'
+
+"${haus[@]}" set zen.userStyles '[arch-wiki,bsky,claude]' >/dev/null
+test "$("${haus[@]}" get zen.userStyles)" = '["arch-wiki","bsky","claude"]'
+
+# Nix's own list syntax — which is what the prompts and `haus get` SHOW you, so
+# it is what gets pasted back.
+"${haus[@]}" set zen.userStyles '[ "github" "reddit" ]' >/dev/null
+test "$("${haus[@]}" get zen.userStyles)" = '["github","reddit"]'
+
+# One token is a one-element list: nothing else it could mean on a list option.
+"${haus[@]}" set zen.userStyles github >/dev/null
+test "$("${haus[@]}" get zen.userStyles)" = '["github"]'
+
+# Real JSON still goes through untouched, and empty brackets empty the list.
+"${haus[@]}" set zen.userStyles '["mdn"]' >/dev/null
+test "$("${haus[@]}" get zen.userStyles)" = '["mdn"]'
+"${haus[@]}" set zen.userStyles '[]' >/dev/null
+test "$("${haus[@]}" get zen.userStyles)" = '[]'
+"${haus[@]}" reset zen.userStyles >/dev/null
+
+# The line the shorthand must NOT cross. `haus.focus.hooks` is a list of SHELL
+# COMMANDS, so splitting on whitespace outside brackets would read one hook as
+# two, type-check, and be wrong silently — the one outcome worse than the error.
+if "${haus[@]}" set focus.hooks 'say hello' >/dev/null 2>&1; then
+  echo "haus set split a whitespace value into list elements" >&2
+  exit 1
+fi
+test ! -e "$tmp/hosts/test/settings/focus.hooks.nix"
+# …but brackets make the intent unambiguous, so there it is a list of two.
+"${haus[@]}" set focus.hooks '[/usr/bin/true /usr/bin/false]' >/dev/null
+test "$("${haus[@]}" get focus.hooks)" = '["/usr/bin/true","/usr/bin/false"]'
+"${haus[@]}" reset focus.hooks >/dev/null
+
+# A list of a closed set takes the same shorthand — the picker offers these as a
+# multi-select, and the command line has to agree with it.
+"${haus[@]}" set ai.clients claude,codex >/dev/null
+test "$("${haus[@]}" get ai.clients)" = '["claude","codex"]'
+"${haus[@]}" reset ai.clients >/dev/null
+
+# A bracket left inside is a BROKEN JSON list, not a comma list. `["a","b"],c`
+# is what typing at the end of a prefilled JSON box produces, and splitting it
+# on commas yields four plausible elements that type-check and are wrong —
+# silently. It has to be refused instead.
+for broken in '["github","mdn"],reddit' '["github","mdn"' 'github,mdn],reddit'; do
+  if "${haus[@]}" set zen.userStyles "$broken" >/dev/null 2>&1; then
+    echo "haus set token-split a broken JSON list: $broken" >&2
+    exit 1
+  fi
+done
+test ! -e "$tmp/hosts/test/settings/zen.userStyles.nix"
+
+# A list of SUBMODULES is left alone: its elements are attrsets, and a token
+# split could only ever produce a worse error than the one nix gives.
+if "${haus[@]}" set bar.github.sources 'a,b' >/dev/null 2>&1; then
+  echo "haus set token-split a list of submodules" >&2
+  exit 1
+fi
+
+# A type that is a list OR something else keeps the shorthand only in its
+# unambiguous form. `windows.workspaceMonitors.<name>` is `string or list of
+# string`, so a bare token is already a legal value and reading it as a
+# one-element list would quietly change what was written. It is also the case
+# the options catalogue cannot answer — an `attrsOf` key is the user's to
+# invent — so the type comes from the same eval that vets the path.
+"${haus[@]}" set windows.workspaceMonitors.T main >/dev/null
+test "$("${haus[@]}" get windows.workspaceMonitors.T)" = "main"
+"${haus[@]}" set windows.workspaceMonitors.T '[main secondary]' >/dev/null
+test "$("${haus[@]}" get windows.workspaceMonitors.T)" = '["main","secondary"]'
+"${haus[@]}" reset windows.workspaceMonitors.T >/dev/null
+
+# A non-list option is untouched by all of it — a comma is just a character.
+"${haus[@]}" set git.name 'Doe, Jane' >/dev/null
+test "$("${haus[@]}" get git.name)" = "Doe, Jane"
+"${haus[@]}" reset git.name >/dev/null
+
+# An empty argument is the empty STRING. It used to be written as
+# `builtins.fromJSON ""`, which is not a value at all — nix refuses it with
+# "unexpected end of input" for the argument that most obviously means "".
+"${haus[@]}" set git.name "" >/dev/null
+test "$("${haus[@]}" get git.name)" = ""
+"${haus[@]}" reset git.name >/dev/null
+
+# A refused value says what the option wanted and what it got, in one line.
+# Nix's own twelve-line module stack around that one fact is noise standing
+# where the answer should be, and is kept only for failures that are NOT this.
+out="$("${haus[@]}" set zen.userStyles 'say hello' 2>&1 || true)"
+case "$out" in
+  *"zen.userStyles takes list of string"*) ;;
+  *) echo "haus set did not summarise a type rejection: $out" >&2; exit 1 ;;
+esac
+case "$out" in
+  *mergedValue*) echo "haus set printed nix's stack trace for a type error" >&2; exit 1 ;;
+esac
 
 printf 'haus settings: ok\n'

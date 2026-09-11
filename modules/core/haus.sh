@@ -12,7 +12,7 @@
 #   haus status          current generation + how old your pinned haus is
 #   haus edit            open your host config (identity, apps) in $EDITOR
 #   haus options         refresh hosts/<host>/options.nix — every haus.* option, annotated
-#   haus set             write + apply haus.* options in the machine overlay (pairs; bare = pick one)
+#   haus set             write + apply haus.* options in the machine overlay (pairs; path alone or bare = prompt)
 #   haus get             read one option, or list the machine overlay (--json)
 #   haus unset           force nullable options to null (variadic)
 #   haus reset           remove machine overrides and inherit config again (variadic)
@@ -669,7 +669,11 @@ haus — the everyday CLI for a haus machine.
                       rebuild (theme.accent and haus.theme.accent both work).
                       Several pairs land in ONE rebuild, all-or-nothing — which is
                       what an intent spanning two options needs (light mode is
-                      theme.flavor + theme.systemAppearance)
+                      theme.flavor + theme.systemAppearance).
+                      A list option takes commas as well as JSON:
+                      zen.userStyles github,gmail,youtube
+  haus set <path>     with no value: the value prompt for that one option, showing
+                      its type and what it holds today, already in the box
   haus set            with no arguments: search every option this machine has, then
                       pick or type the value — the list of values comes from the
                       option's own type
@@ -2879,8 +2883,23 @@ settings_file() {
 # and it was right to. A whole-room mkForce evaluates fine and then quietly
 # scatters over every option in the room — and, now, collides with the overlap
 # guard, so one of those would lock every leaf under it out of `haus set`.
+#
+# It answers with the option's TYPE DESCRIPTION rather than a bare yes — the same
+# prose the catalogue carries ("list of string"), left in the global OPTION_TYPE
+# for the caller. The walk already had to reach the option to answer at all, so
+# the type is free here, and it is the AUTHORITATIVE one: the catalogue describes
+# the revision this machine is pinned to and knows nothing about the sub-paths of
+# an `attrsOf`, which is exactly where `haus set` still has to know a list from a
+# string (`windows.workspaceMonitors.<name>` is `string or list of string`).
+# Nothing may READ it without calling this first; `settings_literal` treats an
+# empty one as "no idea", which is the old behaviour.
+#
+# A global rather than stdout, because `haus get` calls this too and its stdout
+# is the value — see the note on its own `>&2`.
+OPTION_TYPE=""
 settings_option_exists() {
   local host="$1" path="$2" parts result err
+  OPTION_TYPE=""
   # Every component is [A-Za-z0-9_-]+ by now (settings_path), so this is safe to
   # interpolate into Nix string literals.
   parts="$(printf '%s' "${path#haus.}" | tr '.' '\n' | sed 's/.*/"&"/' | tr '\n' ' ')"
@@ -2889,21 +2908,30 @@ settings_option_exists() {
     cd "$CONSUMER" && nix eval --json ".#darwinConfigurations.$host" --apply "cfg:
       let
         isOption = x: (x._type or null) == \"option\";
+        # The settable type at this leaf, as prose — null is the answer for
+        # \"not settable\", so every refusal below is a null and the bash side
+        # tells the two apart by that and nothing else.
+        described = node: node.type.description or \"\";
         descend = node: ps:
-          if ps == [ ] then isOption node
+          if ps == [ ] then (if isOption node then described node else null)
           else if isOption node then
             (let
-              rest = if node.type.name == \"attrsOf\" || node.type.name == \"lazyAttrsOf\"
-                     then builtins.tail ps else ps;
+              isAttrs = node.type.name == \"attrsOf\" || node.type.name == \"lazyAttrsOf\";
+              rest = if isAttrs then builtins.tail ps else ps;
               subs = node.type.getSubOptions [ ];
-            in if rest == [ ] then true
-               else if subs == { } then false
+            in if rest == [ ] then
+                 # One component was consumed as an attrsOf KEY, so what is
+                 # settable here is the ELEMENT type, not the attrset's.
+                 (if isAttrs then
+                    (node.type.nestedTypes.elemType.description or (described node))
+                  else described node)
+               else if subs == { } then null
                else into subs rest)
           else into node ps;
         into = attrs: ps:
           let h = builtins.head ps; in
-          if !builtins.isAttrs attrs then false
-          else if !(attrs ? \${h}) then false
+          if !builtins.isAttrs attrs then null
+          else if !(attrs ? \${h}) then null
           else descend attrs.\${h} (builtins.tail ps);
       in descend cfg.options.haus [ $parts ]" 2>"$err"
   )" || {
@@ -2915,8 +2943,9 @@ settings_option_exists() {
     die "'$path' could not be checked (try: haus doctor)"
   }
   rm -f "$err"
-  [ "$result" = "true" ] \
+  [ "$result" != "null" ] \
     || die "'$path' is not a settable option on this machine's pinned haus"
+  OPTION_TYPE="$(printf '%s' "$result" | jq -r '.')"
 }
 
 # A courtesy check for `haus add --room --namespace`, sibling to
@@ -3099,21 +3128,101 @@ settings_path_vanished() {
   return 1
 }
 
-settings_literal() {
-  local raw="$1" parsed lines
+# The list shorthand, and the one place `haus set` guesses at anything.
+#
+# A list-typed option cannot take a string — every non-JSON value written into
+# one is a type error by construction — so for those, and ONLY those, a value
+# that is obviously a list of tokens is read as one. That covers what people
+# actually type, including the three shapes the shell hands over when a JSON
+# list is pasted without armour-plated quoting:
+#
+#   github,gmail,youtube          commas
+#   [arch-wiki,bsky,claude]       a JSON list zsh ate the quotes out of
+#   [ "a" "b" ]                   Nix's own list syntax, which the prompts SHOW
+#   github                        one token, and a list is the only reading
+#
+# What it deliberately does NOT do is split on whitespace outside brackets. Not
+# every list of strings is a list of words: `haus.focus.hooks` is `list of
+# (absolute path or string)` and a string there is a SHELL COMMAND, so reading
+# `say hello` as two elements would type-check and then be wrong, silently —
+# the one outcome worse than the error this whole helper exists to avoid. A
+# space-separated list must bring brackets, where the intent is unambiguous.
+#
+# Submodule lists are left alone: their elements are attrsets, and a token
+# split could only ever produce a worse error message than the one nix gives.
+#
+# Prints the JSON array and returns 0 when the shorthand applies; prints nothing
+# and returns 1 when it does not, which leaves the caller on its old path.
+settings_list_coerce() { # settings_list_coerce <raw> <type description>
+  local raw="$1" type="$2" body sep bracketed="" pure=""
+  case "$type" in *"list of"*) ;; *) return 1 ;; esac
+  case "$type" in *submodule*) return 1 ;; esac
+  # A type that is a list and NOTHING ELSE. `windows.workspaceMonitors.<name>`
+  # is `string or list of string`, where a bare token is already a legal value
+  # and reading it as a one-element list would quietly change what the user
+  # wrote. Unions keep the shorthand only in its unambiguous form — brackets.
+  case "$type" in
+    "list of "* | "null or (list of "*) pure=1 ;;
+  esac
+  body="$(printf '%s' "$raw" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+  case "$body" in
+    '['*']')
+      bracketed=1
+      body="${body#\[}"
+      body="${body%\]}"
+      ;;
+  esac
+  # A bracket left INSIDE is a broken JSON list, not a comma list — `["a","b"],c`
+  # is what you get by typing at the end of a prefilled JSON box, and splitting
+  # it on commas would produce four plausible-looking elements that type-check
+  # and are wrong. Anything still carrying brackets here failed `jq` above, so
+  # the honest answer is the rejection and its message.
+  case "$body" in *'['* | *']'*) return 1 ;; esac
+  [ -n "$pure" ] || [ -n "$bracketed" ] || return 1
+  case "$body" in
+    *,*) sep=comma ;;
+    '') [ -n "$bracketed" ] || return 1; sep=comma ;;
+    *[[:space:]]*) [ -n "$bracketed" ] || return 1; sep=space ;;
+    *) sep=comma ;;
+  esac
+  # One jq rather than a bash split: the element scrub (trim, then peel ONE
+  # layer of quotes, either kind) is the same work in both directions and jq is
+  # already the thing that will have to encode the result.
+  printf '%s' "$body" | jq -Rc --arg sep "$sep" '
+    (if $sep == "comma" then split(",") else split("[[:space:]]+"; null) end)
+    | map(sub("^[[:space:]]+"; "") | sub("[[:space:]]+$"; ""))
+    | map(if length > 1 and startswith("\"") and endswith("\"") then .[1:-1] else . end)
+    | map(if length > 1 and startswith("\u0027") and endswith("\u0027") then .[1:-1] else . end)
+    | map(select(length > 0))'
+}
+
+settings_literal() { # settings_literal <raw> [<type description>]
+  local raw="$1" type="${2:-}" parsed lines coerced
   # JSON covers booleans, numbers, null, lists and attrsets. A bare token is the
   # ergonomic string form (`haus set theme.accent teal`). Quoted strings also
   # work when a caller wants to distinguish "true" from the boolean true.
-  if parsed="$(printf '%s' "$raw" | jq -c '.' 2>/dev/null)"; then
+  if parsed="$(printf '%s' "$raw" | jq -c '.' 2>/dev/null)" && [ -n "$parsed" ]; then
     lines="$(printf '%s\n' "$parsed" | wc -l | tr -d ' ')"
   else
+    # No output and exit 0 is jq's answer to EMPTY INPUT, and it is the one way
+    # a success here isn't JSON — `jq . <<< null` prints `null`, not nothing.
+    # Without the guard, `haus set <path> ""` wrote `builtins.fromJSON ""`,
+    # which is not a value at all: nix refuses it with "unexpected end of
+    # input", for the argument that most obviously means the empty string.
     lines=0
   fi
   if [ "$lines" = 1 ]; then
     printf 'builtins.fromJSON %s' "$(jq -Rn --arg value "$parsed" '$value')"
-  else
-    jq -Rn --arg value "$raw" '$value'
+    return 0
   fi
+  # Only once JSON has had its go: `[]` and `["a"]` are valid JSON and never
+  # reach the shorthand, so the type is consulted for exactly the values that
+  # would otherwise have become a string and been refused.
+  if [ -n "$type" ] && coerced="$(settings_list_coerce "$raw" "$type")"; then
+    printf 'builtins.fromJSON %s' "$(jq -Rn --arg value "$coerced" '$value')"
+    return 0
+  fi
+  jq -Rn --arg value "$raw" '$value'
 }
 
 settings_restore() {
@@ -3140,9 +3249,13 @@ settings_drop_backups() {
 
 # Write ONE override file. No validation, no rebuild — cmd_set owns both,
 # because with several pairs neither can be per-file (see its header).
+#
+# The optional 5th argument is the option's type description, and all it buys is
+# `settings_literal`'s list shorthand; a caller with no type in hand (namespace
+# claims, which are `attrsOf str`) omits it and gets the JSON-or-string reading.
 settings_write() {
-  local path="$1" value="$2" dir="$3" target="$4" tmp literal attrpath
-  literal="$(settings_literal "$value")"
+  local path="$1" value="$2" dir="$3" target="$4" type="${5:-}" tmp literal attrpath
+  literal="$(settings_literal "$value" "$type")"
   attrpath="$(settings_attrpath "$path")"
   tmp="$(mktemp "$dir/.haus-set.XXXXXX")"
   {
@@ -3219,25 +3332,65 @@ settings_type_choices() {
   esac
 }
 
+# The same question one level down: does this type name a closed set of LIST
+# MEMBERS? `haus.ai.clients` is `list of (one of "claude", "codex", …)` and
+# `haus.developer.languages` is `list of value "node" (singular enum)`, and for
+# both of those the honest prompt is a multi-select, not a text box someone has
+# to spell a JSON array into.
+#
+# Deliberately narrower than the scalar version: only a bare `one of`/`value`
+# element qualifies. `list of (absolute path or string)` has quoted tokens in
+# its prose and is wide open, and offering its two words as the menu would take
+# away every value the option is actually for — the same trap settings_type_
+# choices' peeling exists to avoid.
+#
+# Prints one member per line, nothing at all when the element type is open.
+settings_list_choices() {
+  local type="$1" elem
+  # No peeling of `null or` here, unlike the scalar version: a multi-select has
+  # no way to express null, so a nullable list keeps the text box, where `null`
+  # is one word. Nothing in today's catalogue is one — this is for the next one.
+  elem="$type"
+  case "$elem" in list\ of\ *) ;; *) return 0 ;; esac
+  elem="${elem#list of }"
+  elem="${elem#(}"
+  elem="${elem%)}"
+  # `value "node" (singular enum)` is nixpkgs' rendering of a one-member enum.
+  elem="${elem% (singular enum)}"
+  case "$elem" in
+    'one of "'* | 'value "'*) ;;
+    *) return 0 ;;
+  esac
+  printf '%s' "$elem" | grep -o '"[^"]*"' | tr -d '"'
+}
+
 # `haus set` with nothing to set: pick the option, then the value. Fills PICK
 # with the pair; returns non-zero when the user backs out of either prompt.
 #
-# Two prompts, and the second one's shape comes from the type — a closed set is a
-# list you arrow through, everything else a text box holding the current default.
 # Nothing here validates. It hands a pair to cmd_set, which owns the write, the
 # type-check, the backups and the rollback; a picker that pre-judged any of that
 # would be a second, weaker authority that disagrees with the first one on
 # exactly the machines where it matters.
 settings_pick() {
-  local usage="$1" sel path type default literal prefill value line
-  local -a choices=()
-  PICK=()
-
-  [ -t 0 ] && [ -t 1 ] || die "$usage"
-  command -v gum >/dev/null 2>&1 || die "picking an option needs gum — $usage"
+  local usage="$1" path
+  settings_pick_ready "$usage" || return 1
   [ -r "$HAUS_CATALOGUE" ] \
     || die "no options catalogue at $HAUS_CATALOGUE (haus rebuild installs it) — $usage"
+  path="$(settings_pick_path)" || return 1
+  settings_pick_value "haus.$path" "$usage"
+}
 
+# Both halves need a terminal and gum, and `haus set <path>` reaches the second
+# one without going through the first.
+settings_pick_ready() {
+  local usage="$1"
+  [ -t 0 ] && [ -t 1 ] || die "$usage"
+  command -v gum >/dev/null 2>&1 || die "picking an option needs gum — $usage"
+}
+
+# Prompt one: WHICH option. Prints the path without its `haus.` prefix.
+settings_pick_path() {
+  local sel
   # Path AND prose in the row, because the filter matches the whole line: you
   # can search for `flavor` or for `light mode` and land on the same option.
   #
@@ -3254,62 +3407,222 @@ settings_pick() {
   )" || return 1
   # Padded columns, and no `haus.*` path contains a space — so the first field
   # is the path however long it ran.
-  path="${sel%% *}"
-  [ -n "$path" ] || return 1
+  sel="${sel%% *}"
+  [ -n "$sel" ] || return 1
+  printf '%s\n' "$sel"
+}
 
-  type="$(jq -r --arg p "haus.$path" '.[$p].type' "$HAUS_CATALOGUE")"
-  default="$(jq -r --arg p "haus.$path" '.[$p].default // ""' "$HAUS_CATALOGUE")"
-  literal="$(jq -r --arg p "haus.$path" '.[$p].literal' "$HAUS_CATALOGUE")"
-  say "$path"
-  info "type: $type"
-  [ -n "$default" ] && info "default: $default"
+# What this machine believes the path is TODAY, as compact JSON, or nothing at
+# all when it cannot be read (an `attrsOf` key nothing has defined yet, a config
+# that doesn't evaluate — neither is a reason to refuse to prompt).
+#
+# Worth a nix eval: the eval cache makes it a tenth of a second on a machine
+# that has built once, and the alternative is a prompt that asks someone to
+# retype a forty-item list from memory because the box came up empty.
+settings_pick_current() {
+  local path="$1"
+  settings_eval_json "$(host_name)" "$path" 2>/dev/null || true
+}
+
+# The value as the box should hand it back: the form `settings_literal` reads,
+# preferring the one a person can EDIT. A list of plain tokens comes back
+# comma-separated, because appending `,wikipedia` to that is the whole job and
+# appending it to `["a","b"]` is a broken JSON list. Anything with a comma, a
+# quote, a bracket or a space inside an element stays JSON, where those mean
+# something.
+settings_prefill() {
+  jq -r 'if type == "array" and length > 0
+           and (map(type == "string" and (test("[\\s,\"\u0027\\[\\]]") | not)) | all)
+         then join(",")
+         elif type == "string" then .
+         else tojson end'
+}
+
+# One short line for a value that may be enormous: a list says how many and then
+# as many members as fit, everything else is itself, cut at the same width.
+settings_value_preview() {
+  jq -r 'def cut: if (. | length) > 88 then .[:87] + "…" else . end;
+    if type == "array" then
+      "\(length) item\(if length == 1 then "" else "s" end)"
+      + (if length == 0 then "" else ": " + (map(tostring) | join(", ") | cut) end)
+    elif type == "string" then cut
+    else tojson | cut end'
+}
+
+# Prompt two: WHAT value. Takes the full `haus.`-prefixed path and fills PICK.
+#
+# The prompt's shape comes from the type: a closed set is a list you arrow
+# through, a list of a closed set is one you tick through (gum's toggle is `x`,
+# and it says so), and everything else a text box holding what the machine has.
+settings_pick_value() {
+  local path="$1" usage="$2" short type="" default="" literal="" now prefill value line
+  local -a choices=() members=()
+  PICK=()
+  settings_pick_ready "$usage" || return 1
+  short="${path#haus.}"
+
+  if [ -r "$HAUS_CATALOGUE" ]; then
+    type="$(jq -r --arg p "$path" '.[$p].type // ""' "$HAUS_CATALOGUE")"
+    default="$(jq -r --arg p "$path" '.[$p].default // ""' "$HAUS_CATALOGUE")"
+    literal="$(jq -r --arg p "$path" '.[$p].literal // false' "$HAUS_CATALOGUE")"
+  fi
+  say "$short"
+  # An option outside the catalogue has no type to print, and that is ordinary:
+  # an `attrsOf` key is the user's to invent, so it is in nobody's table.
+  if [ -n "$type" ]; then info "type: $type"; fi
+
+  now="$(settings_pick_current "$path")"
+  if [ -n "$now" ]; then
+    info "now: $(printf '%s' "$now" | settings_value_preview)"
+  elif [ -n "$default" ]; then
+    info "default: $default"
+  fi
 
   while IFS= read -r line; do choices+=("$line"); done < <(settings_type_choices "$type")
+  while IFS= read -r line; do members+=("$line"); done < <(settings_list_choices "$type")
 
   if [ "${#choices[@]}" -gt 0 ]; then
-    # --selected puts the cursor on the current default rather than the top of
-    # the list, so the first thing you see is what the machine does today. Only
-    # when the default is actually one of the choices, though: gum takes it as a
-    # comma-separated list of items to pre-select, and rather than find out per
-    # gum release what an unknown one does, don't hand it one. Every option's
-    # default type-checks, so this holds for all of today's; it's the option with
-    # no default at all that this is here for.
-    local bare
-    local -a selected=()
-    bare="$(printf '%s' "$default" | tr -d '"')"
-    for line in "${choices[@]}"; do
-      if [ "$line" = "$bare" ]; then selected=(--selected "$line"); fi
-    done
-    value="$(printf '%s\n' "${choices[@]}" | gum choose ${selected[@]+"${selected[@]}"})" \
-      || return 1
+    value="$(settings_choose_one "$now" "$default" "${choices[@]}")" || return 1
+  elif [ "${#members[@]}" -gt 0 ]; then
+    value="$(settings_choose_many "$now" "${members[@]}")" || return 1
   else
-    # Prefill only a default that would round-trip. `haus set` reads its value as
-    # JSON (settings_literal), and a Nix-only default like `[ "self" "nebelung" ]`
-    # is not JSON — handing it back as the starting text would quietly turn the
-    # whole list into one string the moment someone pressed Enter. Those get an
-    # empty box, with the default still on screen above it.
+    # Prefill what the machine HAS, in the form `haus set` reads back (see
+    # settings_prefill), so the box round-trips untouched and an edit is an
+    # edit rather than a retype.
+    #
+    # The default is the fallback and only when it would round-trip: a Nix-only
+    # default like `[ "self" "nebelung" ]` reaches the shorthand in
+    # settings_literal now, but a `literalMD` one is a SENTENCE about the value
+    # ("19, scaled by haus.ui.scale"), and handing that back as the starting
+    # text would quietly set the option to that sentence.
     prefill=""
-    if [ "$literal" = true ] && printf '%s' "$default" | jq . >/dev/null 2>&1; then
+    if [ -n "$now" ]; then
+      prefill="$(printf '%s' "$now" | settings_prefill)"
+    elif [ "$literal" = true ] && printf '%s' "$default" | jq . >/dev/null 2>&1; then
       prefill="$default"
     fi
+    case "$type" in
+      *"list of"*) hint "commas make a list: a,b,c — or paste JSON" ;;
+    esac
     value="$(gum input --value "$prefill" --placeholder "${default:-value}" \
-                       --prompt "$path = ")" || return 1
+                       --prompt "$short = ")" || return 1
   fi
   # Every way out of here says so. Backing out of a prompt is a perfectly normal
   # thing to do, and the alternative — cmd_set exiting 0 with nothing printed —
   # is indistinguishable from the command having quietly failed. An empty text
   # box counts as backing out: pressing Enter on nothing is how people leave a
   # prompt they opened by accident, and the empty STRING is still reachable as
-  # `""`, which is also how you write it on the command line.
+  # `""`, which is also how you write it on the command line. (A multi-select
+  # with nothing ticked does NOT come through here — that is a real `[]`, and
+  # settings_choose_many says so itself.)
   if [ -z "$value" ]; then
-    info "nothing entered — $path is unchanged"
+    info "nothing entered — $short is unchanged"
     return 1
   fi
-  if ! gum confirm "set $path = $value, then rebuild?"; then
-    info "left $path alone"
+  if ! gum confirm "set $short = $value, then rebuild?"; then
+    info "left $short alone"
     return 1
   fi
-  PICK=("$path" "$value")
+  PICK=("$short" "$value")
+}
+
+# One of a closed set. The cursor starts on what the machine has today, falling
+# back to the default — the first thing you see is the value you are replacing.
+#
+# Only when it is actually one of the choices, though: gum takes --selected as a
+# comma-separated list of items to pre-select, and rather than find out per gum
+# release what an unknown one does, don't hand it one. Every option's default
+# type-checks, so this holds for all of today's; it's the option with no default
+# at all that this is here for.
+settings_choose_one() { # settings_choose_one <now|""> <default|""> <choice>…
+  local now="$1" default="$2" bare line
+  local -a selected=()
+  shift 2
+  if [ -n "$now" ]; then bare="$(printf '%s' "$now" | settings_print_json)"
+  else bare="$(printf '%s' "$default" | tr -d '"')"; fi
+  for line in "$@"; do
+    if [ "$line" = "$bare" ]; then selected=(--selected "$line"); fi
+  done
+  printf '%s\n' "$@" | gum choose ${selected[@]+"${selected[@]}"}
+}
+
+# Any number of a closed set, ticked with `x` — the shape `haus.ai.clients`
+# and `haus.developer.languages` always wanted. What the machine has today comes
+# up already ticked, so adding one member is one keystroke instead of respelling
+# the whole list.
+#
+# Ticking NOTHING is a real answer here (`[]` empties the list), unlike an empty
+# text box, so this prints `[]` rather than nothing and lets the confirm ask
+# about it like any other value.
+settings_choose_many() { # settings_choose_many <now|""> <member>…
+  local now="$1" picked pre=""
+  shift
+  # gum wants the pre-ticked members comma-separated, and only ones it is being
+  # offered — a value carrying a member this pinned haus no longer has would
+  # otherwise be handed to gum as a choice that isn't on the menu.
+  if [ -n "$now" ]; then
+    pre="$(
+      printf '%s\n' "$@" | jq -Rrs --argjson now "$now" '
+        split("\n") | map(select(length > 0))
+        | map(select(. as $m | $now | if type == "array" then index($m) else null end))
+        | join(",")' 2>/dev/null || true
+    )"
+  fi
+  picked="$(printf '%s\n' "$@" | gum choose --no-limit ${pre:+--selected "$pre"})" \
+    || return 1
+  printf '%s\n' "$picked" | jq -Rrs 'split("\n") | map(select(length > 0)) | tojson'
+}
+
+# What a refused value gets said about it.
+#
+# The type error is the overwhelmingly common one — everything typed on a
+# command line is a string until it parses as something else — and nix reports
+# it as a dozen lines of module-system stack wrapped around a single fact: this
+# option wanted X, the file said Y. Printing the stack at someone who mistyped a
+# list is noise standing exactly where the answer should be, so say the fact.
+#
+# Anything that is NOT a type error keeps nix's own words, because there they
+# are all there is: an option whose module throws, a host file that stopped
+# evaluating, a conflict two files down. The `is not of type` match is the whole
+# test, and a message that doesn't carry it falls through to the tail.
+settings_report_rejection() { # settings_report_rejection <path> <type> <value> <errfile>
+  local path="$1" type="$2" value="$3" err="$4" want literal got kind="" short
+  short="${path#haus.}"
+  want="$(sed -n "s/.*is not of type \`\([^']*\)'.*/\1/p" "$err" | head -1)"
+  if [ -z "$want" ]; then
+    warn "the generated override did not type-check; restored the previous file(s)."
+    tail -n 12 "$err" >&2
+    return 0
+  fi
+  # What the file actually said, named the way the person can act on: the
+  # literal is re-derived rather than remembered, so this can never describe a
+  # value settings_write didn't write.
+  literal="$(settings_literal "$value" "$type")"
+  case "$literal" in
+    "builtins.fromJSON "*)
+      got="$(printf '%s' "${literal#builtins.fromJSON }" | jq -r 'fromjson | type')" ;;
+    *) got=string ;;
+  esac
+  # Name the KIND only when the kind is the mismatch. Everything typed at a
+  # command line is a string, so telling someone who misspelled an enum member
+  # that they gave a string answers a question nobody asked — the list of legal
+  # members already on the line is the whole answer there.
+  case "$want" in
+    *"list of"* | *"attribute set"* | *boolean* | *integer* | *number*) kind=1 ;;
+  esac
+  [ "$got" = string ] || kind=1
+  [ "${#want}" -gt 120 ] && want="${want:0:119}…"
+  [ "${#value}" -gt 88 ] && value="${value:0:87}…"
+  if [ -n "$kind" ]; then warn "$short takes $want — that value went in as a $got."
+  else warn "$short takes $want"; fi
+  hint "you gave: $value"
+  case "$want" in
+    *"list of"*)
+      hint "lists take commas: a,b,c — or paste JSON: '[\"a\",\"b\"]'" ;;
+  esac
+  # The prompt form shows the type, what the option holds today, and a menu for
+  # anything with a closed set — which is every question this rejection raises.
+  hint "or be shown the choices: haus set $short"
 }
 
 # `haus set` takes PAIRS: `haus set theme.flavor latte theme.systemAppearance flavor`.
@@ -3345,9 +3658,18 @@ cmd_set() {
     settings_pick "$usage" || exit 0
     set -- "${PICK[@]}"
   fi
+  # …and `haus set <path>` with no value is the same picker joined halfway: you
+  # already said which option, so the only question left is the value, and the
+  # prompt for it can show you what the option holds today. It was a usage error
+  # for exactly as long as there was nothing better to do with it. Off a
+  # terminal it still is one — settings_pick_ready dies with the usage line.
+  if [ "$#" -eq 1 ] && [ -z "${TX_USAGE:-}" ]; then
+    settings_pick_value "$(settings_path "$1")" "$usage" || exit 0
+    set -- "${PICK[@]}"
+  fi
   [ "$#" -ge 2 ] && [ $(( $# % 2 )) -eq 0 ] || die "$usage"
   local host dir path target backup clash seen="" i err
-  local -a paths=() values=() results=()
+  local -a paths=() values=() types=() results=()
   TX_TARGETS=() TX_BACKUPS=()
   host="$(host_name)"
   dir="$(settings_host_dir)"
@@ -3369,7 +3691,10 @@ cmd_set() {
       die "${path#haus.} overlaps ${clash#haus.}, which is already set — \
 reset one of them first (haus reset ${clash#haus.})"
     fi
-    paths+=("$path"); values+=("$2"); TX_TARGETS+=("$target")
+    # OPTION_TYPE is settings_option_exists' other answer, and the walk that
+    # produced it is the authority on what this leaf will accept — see its
+    # header. Kept per pair, because phase 2 writes them all.
+    paths+=("$path"); values+=("$2"); types+=("$OPTION_TYPE"); TX_TARGETS+=("$target")
     shift 2
   done
 
@@ -3386,7 +3711,7 @@ reset one of them first (haus reset ${clash#haus.})"
     else
       TX_BACKUPS+=("")
     fi
-    settings_write "${paths[$i]}" "${values[$i]}" "$dir" "${TX_TARGETS[$i]}"
+    settings_write "${paths[$i]}" "${values[$i]}" "$dir" "${TX_TARGETS[$i]}" "${types[$i]}"
   done
 
   # Phase 3 — one evaluation per path, keeping the value so phase 4 needn't
@@ -3394,10 +3719,9 @@ reset one of them first (haus reset ${clash#haus.})"
   err="$(mktemp)"
   for i in "${!paths[@]}"; do
     if results+=("$(settings_eval_json "$host" "${paths[$i]}" 2>"$err")"); then continue; fi
-    warn "the generated override did not type-check; restored the previous file(s)."
-    tail -n 12 "$err" >&2
+    settings_report_rejection "${paths[$i]}" "${types[$i]}" "${values[$i]}" "$err"
     rm -f "$err"
-    die "'${paths[$i]}' rejected that value — no config change remains"
+    die "'${paths[$i]#haus.}' rejected that value — no config change remains"
   done
   rm -f "$err"
   trap - EXIT
