@@ -1,11 +1,10 @@
 # assets
 
 `hero.png` is the family's one desktop capture, and the workshop's
-[`script/shoot-hero.sh`](https://github.com/hausfold/workshop/blob/main/script/shoot-hero.sh)
-is what takes it. What it shows, left to right: **Zen** on
+`script/shoot-hero.sh` is what takes it. What it shows, left to right: **Zen** on
 `github.com/hausfold`, themed grey and pink by `haus.zen.userStyles`;
-**Ghostty** running lazygit over an untracked `scenes.nix`, so the frame's
-largest panel is the option surface itself; **Pounce** open on its empty
+**Ghostty** running lazygit over an untracked `haus.focus.scenes` file
+(`scenes.nix`), so the terminal's largest pane is the option surface itself; **Pounce** open on its empty
 palette, where the action tiles are the row a stranger reads first; **Bar**
 along the top and bottom; **Nebelung**'s fog-grey across all of it. Windows are
 tiled by the `windows` room.
@@ -19,7 +18,7 @@ and it doesn't look like that."
 
 ⚠️ **The clipboard ships with the shot.** Pounce draws the top clipboard entry
 in its palette, so whatever was last copied is in frame. This one carries
-`hausfold.co`, chosen rather than caught.
+`https://hausfold.co`, chosen rather than caught.
 
 The scene it answers to lives in the workshop's `assets/SHOTLIST.md`, and
 `hausfold/ops`'s `todo/launch-phase-1.md` carries the measurement in full. All
