@@ -2704,7 +2704,8 @@ lib.mkIf config.haus.bar.enable {
       # the whole thing, and copying it would put a stranger's `<name>.sh` in the
       # same namespace as the LIBRARIES that live in that directory beside the
       # plugins (`aerospace_lib.sh`, `media_lib.sh`, `vitals_lib.sh`,
-      # `ai-provider.sh` — the four `bar-plugins-executable` names): a widget
+      # `ai-provider.sh`, `front_app_lib.sh` — the `bar-plugins-executable`
+      # libs list, which is where a new one is declared to be one): a widget
       # innocently called `media_lib` would silently replace one three pills
       # source. A second directory costs one more path in the item file and
       # answers "who wrote this" by where it sits.
