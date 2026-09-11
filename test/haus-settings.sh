@@ -103,7 +103,15 @@ if "${haus[@]}" set theme.flavor mocha theme.flavor latte >/dev/null 2>&1; then
   exit 1
 fi
 
+# A lone path is the picker joined halfway — the value prompt for that option,
+# with what the machine holds today already in the box. Off a terminal there is
+# no prompt to run, so it is still the usage error it used to be, which is what
+# this suite (no tty) can assert.
 if "${haus[@]}" set theme.flavor >/dev/null 2>&1; then
+  echo "haus set prompted for a value with no terminal to prompt on" >&2
+  exit 1
+fi
+if "${haus[@]}" set theme.flavor mocha theme.contrast high extra >/dev/null 2>&1; then
   echo "haus set accepted an odd number of arguments" >&2
   exit 1
 fi
@@ -307,5 +315,165 @@ if "${haus[@]}" set displays.internal.uiScale larger-text displays '{}' >/dev/nu
   exit 1
 fi
 test ! -e "$tmp/hosts/test/settings/displays.internal.uiScale.nix"
+
+# ── the list shorthand ───────────────────────────────────────────────────────
+# A list-typed option cannot take a string, so for those — and only those — a
+# value that is obviously a list of tokens is read as one. Every shape here is
+# something a person actually typed at this command, including the two the shell
+# hands over when a pasted JSON list loses its quoting.
+"${haus[@]}" set zen.userStyles github,gmail,youtube >/dev/null
+test "$("${haus[@]}" get zen.userStyles)" = '["github","gmail","youtube"]'
+
+"${haus[@]}" set zen.userStyles '[arch-wiki,bsky,claude]' >/dev/null
+test "$("${haus[@]}" get zen.userStyles)" = '["arch-wiki","bsky","claude"]'
+
+# Nix's own list syntax — which is what the prompts and `haus get` SHOW you, so
+# it is what gets pasted back.
+"${haus[@]}" set zen.userStyles '[ "github" "reddit" ]' >/dev/null
+test "$("${haus[@]}" get zen.userStyles)" = '["github","reddit"]'
+
+# One token is a one-element list: nothing else it could mean on a list option.
+"${haus[@]}" set zen.userStyles github >/dev/null
+test "$("${haus[@]}" get zen.userStyles)" = '["github"]'
+
+# Real JSON still goes through untouched, and empty brackets empty the list.
+"${haus[@]}" set zen.userStyles '["mdn"]' >/dev/null
+test "$("${haus[@]}" get zen.userStyles)" = '["mdn"]'
+"${haus[@]}" set zen.userStyles '[]' >/dev/null
+test "$("${haus[@]}" get zen.userStyles)" = '[]'
+"${haus[@]}" reset zen.userStyles >/dev/null
+
+# The line the shorthand must NOT cross. `haus.focus.hooks` is a list of SHELL
+# COMMANDS, so splitting on whitespace outside brackets would read one hook as
+# two, type-check, and be wrong silently — the one outcome worse than the error.
+if "${haus[@]}" set focus.hooks 'say hello' >/dev/null 2>&1; then
+  echo "haus set split a whitespace value into list elements" >&2
+  exit 1
+fi
+test ! -e "$tmp/hosts/test/settings/focus.hooks.nix"
+# …but brackets make the intent unambiguous, so there it is a list of two.
+"${haus[@]}" set focus.hooks '[/usr/bin/true /usr/bin/false]' >/dev/null
+test "$("${haus[@]}" get focus.hooks)" = '["/usr/bin/true","/usr/bin/false"]'
+"${haus[@]}" reset focus.hooks >/dev/null
+
+# A list of a closed set takes the same shorthand — the picker offers these as a
+# multi-select, and the command line has to agree with it.
+"${haus[@]}" set ai.clients claude,codex >/dev/null
+test "$("${haus[@]}" get ai.clients)" = '["claude","codex"]'
+"${haus[@]}" reset ai.clients >/dev/null
+
+# A bracket left inside is a BROKEN JSON list, not a comma list. `["a","b"],c`
+# is what typing at the end of a prefilled JSON box produces, and splitting it
+# on commas yields four plausible elements that type-check and are wrong —
+# silently. It has to be refused instead.
+for broken in '["github","mdn"],reddit' '["github","mdn"' 'github,mdn],reddit'; do
+  if "${haus[@]}" set zen.userStyles "$broken" >/dev/null 2>&1; then
+    echo "haus set token-split a broken JSON list: $broken" >&2
+    exit 1
+  fi
+done
+test ! -e "$tmp/hosts/test/settings/zen.userStyles.nix"
+
+# Inside brackets a QUOTED run is ONE element however many spaces it holds.
+# Without that, `[ "Home WiFi" "Office" ]` — the very shape the header advertises
+# as Nix's own list syntax — came back as three elements, two of them carrying a
+# literal quote, and type-checked.
+"${haus[@]}" set bar.calendar.me '[ "Ada Lovelace" "ada@example.com" ]' >/dev/null
+test "$("${haus[@]}" get bar.calendar.me)" = '["Ada Lovelace","ada@example.com"]'
+"${haus[@]}" set bar.calendar.me '"Ada Lovelace",ada@example.com' >/dev/null
+test "$("${haus[@]}" get bar.calendar.me)" = '["Ada Lovelace","ada@example.com"]'
+"${haus[@]}" reset bar.calendar.me >/dev/null
+
+# …and a tokeniser needs the quoting intact. An odd number of `"` means the
+# value's own quoting is already broken, and the only safe reading of broken
+# quoting is none at all.
+if "${haus[@]}" set zen.userStyles '[ "Home WiFi ]' >/dev/null 2>&1; then
+  echo "haus set tokenised a value with an unbalanced quote" >&2
+  exit 1
+fi
+
+# A body of nothing but separators is not an empty list. Only brackets say that.
+if "${haus[@]}" set zen.userStyles ',' >/dev/null 2>&1; then
+  echo "haus set read a lone comma as the empty list" >&2
+  exit 1
+fi
+
+# A list of SUBMODULES is left alone: its elements are attrsets, and a token
+# split could only ever produce a worse error than the one nix gives.
+if "${haus[@]}" set bar.github.sources 'a,b' >/dev/null 2>&1; then
+  echo "haus set token-split a list of submodules" >&2
+  exit 1
+fi
+
+# The shorthand fires for a PURE list and nothing else.
+# `windows.workspaceMonitors.<name>` is `string or list of string`, where a bare
+# token is already a legal value, so it stays the string it was; the list form
+# is JSON. That type is also the case the options catalogue cannot answer — an
+# `attrsOf` key is the user's to invent — so it comes from the same eval that
+# vets the path, which is the whole reason the walk now returns one.
+"${haus[@]}" set windows.workspaceMonitors.T main >/dev/null
+test "$("${haus[@]}" get windows.workspaceMonitors.T)" = "main"
+"${haus[@]}" set windows.workspaceMonitors.T '["main","secondary"]' >/dev/null
+test "$("${haus[@]}" get windows.workspaceMonitors.T)" = '["main","secondary"]'
+# A bracketed value there is a STRING, because that is what the type says an
+# unparseable value is. Guessing a list instead would change what was written.
+"${haus[@]}" set windows.workspaceMonitors.T '[main secondary]' >/dev/null
+test "$("${haus[@]}" get windows.workspaceMonitors.T)" = "[main secondary]"
+"${haus[@]}" reset windows.workspaceMonitors.T >/dev/null
+
+# …and the enclosing option is an ATTRIBUTE SET with lists inside it, where a
+# bracketed value is simply the wrong shape. A substring test on "list of"
+# matched it and wrote one.
+if "${haus[@]}" set windows.workspaceMonitors '[a,b]' >/dev/null 2>&1; then
+  echo "haus set coerced a list into an attribute set option" >&2
+  exit 1
+fi
+
+# A non-list option is untouched by all of it — a comma is just a character.
+"${haus[@]}" set git.name 'Doe, Jane' >/dev/null
+test "$("${haus[@]}" get git.name)" = "Doe, Jane"
+"${haus[@]}" reset git.name >/dev/null
+
+# An empty argument is the empty STRING. It used to be written as
+# `builtins.fromJSON ""`, which is not a value at all — nix refuses it with
+# "unexpected end of input" for the argument that most obviously means "".
+"${haus[@]}" set git.name "" >/dev/null
+test "$("${haus[@]}" get git.name)" = ""
+"${haus[@]}" reset git.name >/dev/null
+
+# `haus set <path>` with no value prompts, and a MISSPELLED path must be refused
+# before the prompt rather than after it — the whole point being that you don't
+# discover the typo having just typed a forty-item list into the box. That guard
+# reads the catalogue, so point it at one this suite controls.
+cat >"$tmp/catalogue.json" <<'JSON'
+{
+  "haus.zen.userStyles": { "type": "list of string", "default": "[ ]", "literal": true, "summary": "x" },
+  "haus.displays": { "type": "attribute set of (submodule)", "default": "{ }", "literal": true, "summary": "x" }
+}
+JSON
+out="$(HAUS_CATALOGUE="$tmp/catalogue.json" "${haus[@]}" set zen.userStyle 2>&1 || true)"
+case "$out" in
+  *"is not an option this machine's pinned haus has"*) ;;
+  *) echo "haus set prompted for a misspelled path: $out" >&2; exit 1 ;;
+esac
+# An invented key under a known ancestor is the user's to name, so it goes
+# through to the prompt — which off a terminal is the usage line, not a refusal.
+out="$(HAUS_CATALOGUE="$tmp/catalogue.json" "${haus[@]}" set displays.internal.uiScale 2>&1 || true)"
+case "$out" in
+  *"usage: haus set"*) ;;
+  *) echo "haus set refused an attrsOf key the catalogue cannot list: $out" >&2; exit 1 ;;
+esac
+
+# A refused value says what the option wanted and what it got, in one line.
+# Nix's own twelve-line module stack around that one fact is noise standing
+# where the answer should be, and is kept only for failures that are NOT this.
+out="$("${haus[@]}" set zen.userStyles 'say hello' 2>&1 || true)"
+case "$out" in
+  *"zen.userStyles takes list of string"*) ;;
+  *) echo "haus set did not summarise a type rejection: $out" >&2; exit 1 ;;
+esac
+case "$out" in
+  *mergedValue*) echo "haus set printed nix's stack trace for a type error" >&2; exit 1 ;;
+esac
 
 printf 'haus settings: ok\n'

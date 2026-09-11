@@ -68,15 +68,15 @@ checked ones. Reach for `system.defaults.*` or `homebrew.*` only when nothing in
 **Ask before touching identity or secrets.** `haus.git.*`, signing keys, anything
 under `haus.secrets.*` are the user's.
 
-**For a value, prefer `haus set <path> <value>` to a hand edit.** It writes an
-ordinary module under `hosts/<host>/settings/`, type-checks it and rebuilds, and
-takes as many PAIRS as you need — all-or-nothing in ONE rebuild, so an intent
-spanning two options (light mode is `theme.flavor` plus `theme.systemAppearance`)
-never leaves the machine half-switched. `haus get [path] --json` reads back
-`{path, defined, value}`, where `defined: false` is what no bare value can say:
-settable, but nothing has named it yet — not an option set to null. `haus unset`
-and `haus reset` take a LIST under that same rule. Edit the host file directly
-when the change is structural rather than merely multi-valued.
+**For a value, prefer `haus set <path> <value>`.** It writes an ordinary module
+under `hosts/<host>/settings/`, type-checks it and rebuilds, and takes as many
+PAIRS as you like — all-or-nothing in ONE rebuild, so an intent spanning two
+options (light mode is `theme.flavor` plus `theme.systemAppearance`) never
+leaves the machine half-switched; a list takes JSON or commas (`zen.userStyles
+github,gmail`). `haus get [path] --json` reads back `{path, defined, value}`,
+where `defined: false` is what no bare value can say: settable, but nothing has
+named it yet — not an option set to null. `haus unset` and `haus reset` take a
+LIST under that rule. Hand-edit for a structural change.
 
 **A path may go INSIDE an option, and usually should.** `haus set
 bar.items.aiUsage true` switches one pill; `haus set displays.internal.uiScale
