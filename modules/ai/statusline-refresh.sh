@@ -94,6 +94,17 @@ mtime() { # mtime <file> — modification time in epoch seconds, 0 when unknown
   m=$(stat -f %m "$1" 2>/dev/null || true)
   case "$m" in '' | *[!0-9]*) m=$(stat -c %Y "$1" 2>/dev/null || echo 0) ;; esac
   case "$m" in '' | *[!0-9]*) m=0 ;; esac
+  # And a stamp AHEAD of now is not a time anything here was written at — it is
+  # a clock that moved BACKWARD, which is what an NTP correction, a VM resumed
+  # from a snapshot and a restored backup all look like from in here. Left
+  # alone it makes every `now - mtime` in this file NEGATIVE, and a negative
+  # age is below every TTL: the cache reads fresh, the backoff reads live, the
+  # lock reads held, and the refresher quietly stops refreshing until the clock
+  # catches up to the file. Seen on 2026-09-11 with two markers in
+  # ~/.cache/claude-statusline stamped 3h40m ahead of `date +%s`. So answer 0 —
+  # which is already this helper's "unknown", and which is the one value that
+  # makes the caller's age MAXIMAL rather than minimal: refresh, retry, reclaim.
+  if [ "$m" -gt "$(date +%s)" ]; then m=0; fi
   printf '%s' "$m"
 }
 

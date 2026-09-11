@@ -88,10 +88,12 @@ HAUS_GH_REPORT="$HAUS_GH_STATE/coverage.tsv"
 # TEXT instead: accept the BSD answer only when it is numeric, then try GNU,
 # then insist on digits so the caller's arithmetic cannot blow up.
 #
-# Two other readers of this seam still carry the BSD-only shape —
-# `modules/ai/scruff-cache.sh`'s `mtime` and the two inline ones in
-# `modules/bar/sketchybar/plugins/github.sh`. Both are macOS-only and neither
-# runs in CI, so neither is wrong today; point a suite at one and it will be.
+# The other readers of this seam: `modules/ai/scruff-cache.sh`'s `mtime` carries
+# this same two-step, because test/scruff-cache.bats now points at it and a
+# BSD-only one would have answered 0 for every file on the runner — green, and
+# testing nothing. The inline pair in `modules/bar/sketchybar/plugins/github.sh`
+# is still BSD-only; it is macOS-only and runs in no suite, so it is not wrong
+# today. Point a suite at it and it will be.
 # One fork more than the old version on the missing-file path (three, not two),
 # paid only when the bridge is on and no delivery has arrived yet.
 haus_gh_mtime() {
@@ -99,6 +101,13 @@ haus_gh_mtime() {
   m=$(stat -f %m "$1" 2>/dev/null || true)
   case "$m" in '' | *[!0-9]*) m=$(stat -c %Y "$1" 2>/dev/null || echo 0) ;; esac
   case "$m" in '' | *[!0-9]*) m=0 ;; esac
+  # A FUTURE stamp is a clock that moved backward, not a fresh file. Both
+  # callers below already read 0 as "no answer" and fail closed on it, which is
+  # exactly what a stamp we cannot have written deserves: a future `scopes`
+  # would otherwise hold coverage open past its max-age, and a future `last`
+  # would make every cache look freshly delivered. The long version is in
+  # statusline-refresh.sh's copy of this helper.
+  if [ "$m" -gt "$(date +%s)" ]; then m=0; fi
   printf '%s' "$m"
 }
 

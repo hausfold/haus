@@ -128,6 +128,29 @@ fresh_since() {
   ! covers hausfold/haus
 }
 
+@test "a scopes file stamped in the FUTURE is not coverage either" {
+  printf 'hausfold\n' >"$STATE/scopes"
+  covers hausfold/haus
+  # A clock that moved BACKWARD leaves files ahead of `now`, and `now - at` then
+  # goes NEGATIVE — under the max-age rather than over it, so a yes nobody can
+  # confirm any more would be honoured indefinitely and every reader would keep
+  # stretching its poll on it. `haus_gh_mtime` answers 0 for a stamp it cannot
+  # have written, which is the same "no" a missing file gets.
+  touch -t 209901010000 "$STATE/scopes"
+  ! covers hausfold/haus
+}
+
+@test "a delivery stamped in the FUTURE is not a delivery" {
+  # The same skew read from the other side: a `last` in the future is newer than
+  # every cache on the machine, so this would answer "a push just landed" about
+  # every file, forever, and each caller would stretch its interval to the
+  # bridge's backstop on the strength of it.
+  : >"$STATE/cache"
+  : >"$STATE/last"
+  touch -t 209901010000 "$STATE/last"
+  ! fresh_since "$STATE/cache"
+}
+
 @test "a prefix of a covered owner is not a covered owner" {
   printf 'haus\n' >"$STATE/scopes"
   # `grep -qxF` and not `grep -qF`: `haus` must not match `hausfold/haus`.

@@ -480,6 +480,17 @@ jobs:
       # shape again; needs only git + jq + bats.
       - name: statusline render tests
         run: bats test/statusline.bats
+
+      # The warm `scruff --json` both the agents pill and the Lanes palette read
+      # instead of running scruff on a hot path. Every verb in it is an age, so
+      # a cache file stamped AHEAD of `now` — a clock stepped backward, a VM
+      # resumed from a snapshot — reads FRESH rather than stale and both
+      # consumers serve lane rows nothing is refreshing, silently and forever.
+      # `path`, `age` and `read` only: `kick` prepends the system bin dirs
+      # before it looks for `scruff`, so it can be neither shimmed here nor run
+      # on a runner that has no scruff at all. Needs only bash + bats.
+      - name: scruff cache tests
+        run: bats test/scruff-cache.bats
       # pi's prompt-cache alarm. Both of ITS failure modes are silent too, and
       # one of them is expensive: too quiet and a degenerate lane re-writes its
       # whole context every turn at 1-hour-TTL prices with nothing on screen

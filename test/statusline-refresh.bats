@@ -455,6 +455,50 @@ fmtime() { statnum %m %Y "$1"; }   # mtime in epoch seconds
   [ ! -d "$lock" ] || fail "the lock outlived the run that reclaimed it"
 }
 
+# ── a clock that moved BACKWARD ──────────────────────────────────────────────
+# Every TTL, backoff and lock breaker in the refresher is `now - mtime`, so a
+# file stamped AHEAD of now — an NTP correction, a VM resumed from a snapshot,
+# a cache restored from a machine in another epoch — makes that age NEGATIVE,
+# and a negative age is below every threshold there is. Nothing errors: the
+# cache reads fresh, the lock reads held, and the bar quietly stops moving
+# until the clock catches up. Seen on 2026-09-11 with two markers in
+# ~/.cache/claude-statusline stamped 3h40m ahead of `date +%s`. `mtime`
+# answers 0 for those, which is its own "unknown" and makes every age maximal.
+#
+# `touch -t 209901010000` and not `date -v+…`: -t's CCYYMMDDhhmm is the one
+# spelling BSD and GNU touch agree on, and this suite runs on both.
+
+@test "a lock stamped in the FUTURE is reclaimed, not honoured until the clock catches up" {
+  local main lock; main="$(mkrepo alpha)"
+  mkwt "$main" sparkle >/dev/null
+  lock="$CLAUDE_STATUSLINE_CACHE/refresh.lock"
+  mkdir -p "$lock"
+  touch -t 209901010000 "$lock"
+  refresh
+  [ "$status" -eq 0 ]
+  [ -n "$(row_for x sparkle)" ] || fail "a future-stamped lock wedged the refresher"
+  [ ! -d "$lock" ] || fail "the lock outlived the run that reclaimed it"
+}
+
+@test "a PR cache stamped in the FUTURE is re-asked for, not read as fresh" {
+  local main; main="$(mkrepo alpha)"
+  mkwt "$main" sparkle >/dev/null
+  FAKE_PRS='[{"number":7,"state":"OPEN","headRefName":"worktree-sparkle"}]' refresh
+  [ "$(col sparkle 7)" = "#7 open" ]
+
+  # The 120s window works — that half is what makes the next half a bug and
+  # not a slow test.
+  : >"$FAKE_GH_LOG"
+  FAKE_PRS='[]' refresh
+  [ -s "$FAKE_GH_LOG" ] && fail "spent a gh call inside the 120s window"
+
+  touch -t 209901010000 "$CLAUDE_STATUSLINE_CACHE"/pr-*.json
+  : >"$FAKE_GH_LOG"
+  FAKE_PRS='[{"number":9,"state":"MERGED","headRefName":"worktree-sparkle"}]' refresh
+  [ -s "$FAKE_GH_LOG" ] || fail "a future stamp held the PR cache shut"
+  [ "$(col sparkle 7)" = "#9 merged" ] || fail "kept serving the stale PR: $(col sparkle 7)"
+}
+
 @test "no registry at all is an empty panel, not a crash" {
   refresh
   [ "$status" -eq 0 ]
@@ -1079,6 +1123,19 @@ EOF
   FAKE_CLAUDE_USAGE="$CLAUDE_USAGE" refresh                    # inside CLAUDE_TTL
   grep -q claude-usage "$CURL_LOG" && fail "spent an API call inside the TTL"
   return 0
+}
+
+@test "claude: a row stamped in the FUTURE is re-pulled, not read as fresh" {
+  # The freezing one. This row backs the aiUsage pill, its TTL is the longest
+  # here, and nothing on the machine says the pull stopped — the pill just goes
+  # on showing the last percentage anyone reported.
+  mkcurl; mkcreds
+  FAKE_CLAUDE_USAGE="$CLAUDE_USAGE" refresh
+  [ -s "$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv" ] || fail "no row to skew"
+  touch -t 209901010000 "$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv"
+  : >"$CURL_LOG"
+  FAKE_CLAUDE_USAGE="$CLAUDE_USAGE" refresh
+  grep -q claude-usage "$CURL_LOG" || fail "a future stamp held the poll off"
 }
 
 # ── the lifetime token counter ───────────────────────────────────────────────

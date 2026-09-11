@@ -106,6 +106,17 @@ STALE=300                        # 5 min with no WRITE → mark the feed stale
 # reads 0 below, so the horizon can never keep a spent ceiling past its own week.
 SCOPED_STALE=3600
 FEED_TTL=180                     # how often we re-pull the Codex/Opencode feeds
+# How old a stamp we could not have written is. Every threshold above is a
+# SUBTRACTION from `now`, so a stamp AHEAD of now — a clock that moved backward
+# under the writer, which is what an NTP correction or a resumed VM looks like
+# from here — goes NEGATIVE and sits below all of them: a feed nobody is
+# updating reads fresh, a spent sub-limit keeps its colour, and the pill holds
+# numbers from a session that ended, silently, until the clock catches up.
+# Re-dating those to `now - SKEW_AGE` keeps them non-zero (the `-gt 0` tests
+# below mean "the column was there", which it was) while making them stale by
+# every test that follows. ~11.5 days, so `ago` prints a number that reads as
+# "this died a while ago" rather than a date in 1970.
+SKEW_AGE=999999
 
 # BAR_AI_USAGE_PROVIDER — which client the pill speaks for, or `latest`.
 # shellcheck source=/dev/null
@@ -277,6 +288,12 @@ read_row() { # read_row <now> <file>
   # and print "integer expression expected" into the bar's log every tick.
   case "${ROW_USED:-}" in '' | *[!0-9]*) ROW_USED=$ROW_STAMP ;; esac
   case "${ROW_USED:-}" in '' | *[!0-9]*) ROW_USED=0 ;; esac
+  # Neither stamp can legitimately be in the future — see SKEW_AGE. The written
+  # one greys the row; the used one is what `latest` ORDERS on, so a skewed one
+  # left alone would also pin the pill to a dead feed by out-ranking every
+  # honest row on the machine.
+  [ "$ROW_STAMP" -gt "$now" ] && ROW_STAMP=$((now - SKEW_AGE))
+  [ "$ROW_USED" -gt "$now" ] && ROW_USED=$((now - SKEW_AGE))
 
   ROW_IS_COST=0
   if [ "$ROW_PROV" = "opencode" ] || [[ "$ROW_V5" =~ \. ]]; then
@@ -309,6 +326,11 @@ kick_feeds() { # kick_feeds <now>
   command -v claude-statusline-refresh >/dev/null 2>&1 || return 0
   kick_at=$(stat -f %m "$kick" 2>/dev/null || echo 0)
   case "$kick_at" in '' | *[!0-9]*) kick_at=0 ;; esac
+  # A stamp ahead of `now` is a clock that moved BACKWARD. The subtraction below
+  # goes negative, which is never >= FEED_TTL, so the pulled feeds stop being
+  # kicked and a Codex- or Opencode-default machine's pill greys out and stays
+  # grey — the exact failure this function was added to end. 0 re-kicks.
+  [ "$kick_at" -gt "$1" ] && kick_at=0
   [ $(($1 - kick_at)) -ge "$FEED_TTL" ] || return 0
   mkdir -p "$CACHE_DIR" && touch "$kick"
   (env -u SENDER -u BUTTON -u MODIFIER claude-statusline-refresh --usage-only >/dev/null 2>&1 &)
@@ -504,6 +526,10 @@ popup_rows() {
         case "${s_pct:-}" in '' | *[!0-9]*) continue ;; esac
         case "${s_at:-}" in '' | *[!0-9]*) s_at=0 ;; esac
         case "${s_rst:-}" in '' | *[!0-9]*) s_rst=0 ;; esac
+        # Its own written stamp, so it gets its own skew guard — SKEW_AGE. A
+        # future one never clears SCOPED_STALE, and a ceiling nobody has pulled
+        # for a day would keep drawing at full colour as if it were current.
+        [ "$s_at" -gt "$now" ] && s_at=$((now - SKEW_AGE))
         # The window rolled: nobody has spent any of the new one yet. Same rule
         # read_row applies to the session and weekly gauges above.
         [ "$s_rst" -gt 0 ] && [ "$now" -ge "$s_rst" ] && s_pct=0

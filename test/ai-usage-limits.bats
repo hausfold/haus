@@ -228,6 +228,30 @@ traffic() { cat "$SB_LOG"; }
   [ -n "$(tok label.color=0xff222222)" ] || fail "the session lost its ok rung too"
 }
 
+@test "a family stamped in the FUTURE greys, exactly like one that died an hour ago" {
+  # Not hypothetical: on 2026-09-11 two markers in ~/.cache/claude-statusline
+  # were stamped 3h40m ahead of `date +%s` on a machine whose clock matched
+  # network time. Every horizon in this pill is a SUBTRACTION from `now`, so a
+  # stamp it cannot have written goes NEGATIVE and sits under all of them — the
+  # gauge keeps its colour and the dropdown asserts a ceiling nobody has pulled
+  # since the skew began.
+  scoped Fable 100 "$RW" $((NOW + 13200))
+  click
+  [ -n "$(tok label.color=0xff111111)" ] || fail "a future-stamped family read as live"
+}
+
+@test "a usage row stamped in the FUTURE takes the pill's confident colour away" {
+  # The same skew on the row that backs the pill's own number. `dim` is what
+  # five minutes of silence earns; a stamp from the future has earned at least
+  # that, and the alternative is a lit pill describing a session that ended.
+  printf '35	89	%s	%s	%s	claude	claude	anthropic	%s
+' \
+    "$R5" "$RW" "$((NOW + 13200))" "$((NOW + 13200))" \
+    >"$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv"
+  tick
+  [ -n "$(tok label.color=0xff1a1a1a)" ] || fail "kept a live colour on a skewed row"
+}
+
 @test "no sub-limit file at all leaves the pill exactly as it was" {
   # Most accounts have no scoped ceiling, and every machine had none before this
   # feed existed. Neither may pay a line of traffic for it.

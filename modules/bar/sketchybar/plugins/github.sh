@@ -647,8 +647,15 @@ do_fetch() {
   # than any of these calls can take and shorter than the shortest refresh.
   if ! mkdir "$LOCK" 2>/dev/null; then
     if [ -d "$LOCK" ]; then
-      local age
-      age=$(( now - $(stat -f %m "$LOCK" 2>/dev/null || echo "$now") ))
+      local age at
+      # The missing-stamp fallback is `$now` (age 0 — treat an unreadable lock
+      # as live), but a FUTURE stamp is the opposite case and needs the opposite
+      # answer: a clock that moved backward makes `now - at` negative, which is
+      # below STALE_INFLIGHT, so the sweep never fires and the pill stops
+      # fetching until the clock catches up. 0 makes that age maximal.
+      at=$(stat -f %m "$LOCK" 2>/dev/null || echo "$now")
+      [ "$at" -gt "$now" ] && at=0
+      age=$(( now - at ))
       [ "$age" -lt "$STALE_INFLIGHT" ] && return 0
       rmdir "$LOCK" 2>/dev/null
       mkdir "$LOCK" 2>/dev/null || return 0
@@ -756,8 +763,13 @@ note_coverage() {
 # have no reason to know about. Same deadline and same reasoning as the lock.
 spawn_fetch() {
   if [ -f "$FETCHING" ]; then
-    local age
-    age=$(( now - $(stat -f %m "$FETCHING" 2>/dev/null || echo "$now") ))
+    local age at
+    # Future stamp → maximal age, same as the lock above: otherwise a backward
+    # clock step wedges the in-flight flag exactly the way a killed do_fetch
+    # would, and this whole guard exists so that cannot happen.
+    at=$(stat -f %m "$FETCHING" 2>/dev/null || echo "$now")
+    [ "$at" -gt "$now" ] && at=0
+    age=$(( now - at ))
     [ "$age" -lt "$STALE_INFLIGHT" ] && return 0
     rm -f "$FETCHING"
   fi
@@ -955,12 +967,18 @@ render() {
 # write, a full disk — turns every `$((now - last))` below into an arithmetic
 # syntax error, which under a bar plugin means the popup or the tick simply dies
 # mid-run. Anything that isn't all digits reads as "never fetched".
+# A stamp in the FUTURE reads as "never fetched" for the same reason: a clock
+# that moved backward (an NTP step, a restored cache, a resumed VM) makes
+# `now - last` NEGATIVE, which clears neither `refresh` nor PUSH_FLOOR, so
+# should_fetch stops spawning and the pill sits on the fetch it happens to have
+# until the clock catches up. `rel_age` below already refuses to print a
+# negative age; this is the half that keeps the pill alive.
 stamp_epoch() {
   local v
   v=$(cat "$STAMP" 2>/dev/null)
   case "$v" in
     "" | *[!0-9]*) echo 0 ;;
-    *) echo "$v" ;;
+    *) if [ "$v" -gt "$now" ]; then echo 0; else echo "$v"; fi ;;
   esac
 }
 

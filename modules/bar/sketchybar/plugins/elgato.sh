@@ -69,7 +69,12 @@ sweep_due() {
     local last now
     last="$(cat "$STAMP" 2>/dev/null)"
     now="$(date +%s)"
-    [ $((now - ${last:-0})) -ge "$DISCOVER_TTL" ]
+    case "${last:-}" in '' | *[!0-9]*) last=0 ;; esac
+    # A stamp AHEAD of now is a clock that moved backward, not a sweep from the
+    # future: the subtraction goes negative, which is never >= DISCOVER_TTL, so
+    # a light that moved would never be re-discovered again. 0 is "never swept".
+    [ "$last" -gt "$now" ] && last=0
+    [ $((now - last)) -ge "$DISCOVER_TTL" ]
 }
 
 fetch_light() { curl -s -m 2 "http://$1/elgato/lights"; }
