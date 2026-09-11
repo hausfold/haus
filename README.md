@@ -48,7 +48,7 @@ Changing your Mac by asking an agent is
 - [`THANKS.md`](./THANKS.md) — the founding testers, and the projects haus is built on
 - [`docs/model.md`](docs/model.md) — the contract the modules are written against: layer, room, desktop, host, and what each one may own
 - [`docs/macos-settings.md`](docs/macos-settings.md) — what a desktop can actually set, measured domain by domain
-- [`docs/focus.md`](docs/focus.md) — how the focus room flips a real macOS Focus with no public API, and what it deliberately won't do
+- [`docs/focus.md`](docs/focus.md) — the design record for a room built against an API Apple does not ship: the declarative hotkey, the alternatives rejected, and the rules the scene daemon loses every argument by. The user-facing half is [hausfold.co/docs/haus/rooms/focus](https://hausfold.co/docs/haus/rooms/focus)
 - [`docs/night-shift-internals.md`](docs/night-shift-internals.md) — the seams an unattended merge shift leans on here, none of them visible from the shift's own side: why the `always` lid hold draws nothing, the fixer-lane endings that leave no record, the nine-column usage feed it meters against, and what a night puts on screen. The operator half is [hausfold.co/docs/haus/night-shift](https://hausfold.co/docs/haus/night-shift)
 
 ---

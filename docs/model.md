@@ -2,6 +2,14 @@
 
 **haus supplies rooms. A desktop curates them. A host makes one desktop yours.**
 
+The reader's half of that sentence is
+[choosing a desktop](https://hausfold.co/docs/haus/desktops/choosing) — the
+stack diagram, "exactly one", and `blank` as the from-scratch choice — and
+[creating one](https://hausfold.co/docs/haus/desktops/creating) is where the
+closed shape, the host-only list and `haus show` are written for the person
+writing a desktop. What is here is the half underneath: who owns what, and the
+priorities that decide a disagreement.
+
 | Layer | Owns | Does not own |
 |---|---|---|
 | **haus** | the module system, room catalogue, shared option types, CLI and safe defaults | a particular person's workflow or taste |
@@ -9,47 +17,35 @@
 | **desktop** | one complete, data-only selection of rooms and values for their public options | identity, secrets or machine-specific hardware |
 | **host** | identity, secrets, hardware facts and personal overrides | reusable upstream opinions |
 
-A person chooses **exactly one base desktop**, then enables or disables rooms
-and overrides any room setting in their host. **Whole desktops do not stack.**
-
-The built-in **blank** desktop is the from-scratch choice: no optional rooms and
-no opinions beyond haus's safe foundation. It keeps "build my own" inside the
-one-desktop model instead of making the absence of a desktop a second mode.
-
-```text
-haus foundation
-      ↓
-one desktop (blank, hacker, everyday, minimal, …)
-      ↓
-host overrides
-      ↓
-machine-written `haus set` overrides
-```
-
-Later layers win deliberately. **A host must be able to change its desktop with
-a plain assignment** — never `lib.mkForce` for ordinary customization.
-
 Those layers are option priorities, and the numbers matter because one ordering
 in the middle of them surprises people. Lower wins:
 
 | priority | who | example |
 |---|---|---|
-| 100 | the host, plain assignment | `haus.ui.scale = 1.0;` ← wins |
+| 50 | `haus set`'s override file, written `lib.mkForce` | `haus.ui.scale = 0.9;` ← wins |
+| 100 | the host, plain assignment | `haus.ui.scale = 1.0;` |
 | 900 | the desktop's leaves | `haus.ui.scale = 1.2;` |
 | 1000 | a room's `mkDefault`, a profile's members included | `haus.ui.scale = 1.4;` |
 | 1500 | the option's own declared default | |
 
-So a host beats both a desktop and a room with a plain value, and never needs
-`lib.mkForce` to do it.
+A host beats both a desktop and a room with a plain value, and never needs
+`lib.mkForce` to do it. A list-valued option follows the same rule rather than
+appending: when the host names the list, its list replaces the desktop's.
+
+`haus set`'s file is the one place haus itself writes `lib.mkForce`, because
+what the palette and an agent write is the machine owner's explicit answer and
+has to beat the desktop they chose. `haus reset` deletes that answer and reveals
+the host/desktop/room value underneath; `haus unset` is a different operation,
+writing `null` explicitly, so it only succeeds for a nullable option. A person
+still writes `lib.mkForce` by hand where a `mkDefault` cannot be said otherwise
+— `package = lib.mkForce null` is the documented way to say a roster entry has
+no source at all.
 
 The surprise: a **room-owned profile** sets its members at `mkDefault` too, so a
 desktop that names one of those members beats the profile *even when the host is
 what switched the profile on*. `haus.appearance.largePrint` is the one to watch
 — a desktop pinning `haus.ui.scale` wins over it, and setting the value itself
 in your host is what settles it.
-
-A list-valued option follows the same rule rather than appending: when the host
-names the list, its list replaces the desktop's.
 
 ## What a room is
 
@@ -72,50 +68,15 @@ workflows, personal bar pills and other strong opinions belong to desktops.
 Enabling the launcher gives you a working launcher; a *desktop* decides whether
 it takes over ⌘Space.
 
-### Not every namespace is a room
+**The catalogue is `modules/options-groups.nix`, never a second list.** It
+carries every room's title and sentence; `modules/lib/show.nix` reads `rooms`
+for `haus show`, `docs/site-data/groups.json` carries the namespace half to the
+site's options reference, and `room-registry` fails on a namespace it does not
+map. A hand-kept copy in a doc drifts into naming one room per namespace, with
+module names where a product name belongs.
 
-The registry classifies every top-level `haus.*` namespace as one of three:
-
-- **room** — owned by one product room in the catalogue;
-- **shared** — a surface several rooms consume: keys, the app roster, workspaces;
-- **host** — machine- or person-specific, such as identity.
-
-**Classification and desktop-safety are separate questions.** Every public
-option also states whether desktop data may set it, and the answer is explicit
-rather than inferred from the namespace: semantic display
-scaling can belong in a desktop, a physical display UUID cannot. Host config may
-set any public option; desktop config is rejected when it reaches a host-only
-leaf.
-
-**Safety is transitive.** An `attrsOf` or list-of-submodule option is
-desktop-safe only when every reachable sub-option is classified and safe.
-Freeform attrsets, `anything`, module values, paths that can import code, and
-strings later executed as commands default to host-only unless an explicit
-recursive validator narrows their payload. **A parent marked safe never blesses
-unknown dynamic children.**
-
-## The room catalogue
-
-| Room | Scope |
-|---|---|
-| **Apps** | the roster, install sources, App Store policy |
-| **Appearance** | theme, wallpaper, fonts, interface scale |
-| **Displays** | resolution and per-display behaviour |
-| **Development** | terminal, shell, multiplexer, editor, Git, CLI toolbelt, language runtimes |
-| **Windows** | tiling, workspaces, window navigation |
-| **Bar** | placement, pills, readouts |
-| **Launcher** | Pounce installation, daemon, commands, every Pounce setting haus exposes |
-| **Shelf** | Perch installation and every declarative Perch setting haus exposes |
-| **Focus** | Do Not Disturb, status, hooks |
-| **AI** | agent clients, scruff, factory, lifecycle/state wiring, instructions, the haus skill and every other tool's |
-| **Text expansion** | snippets and their expansion engine |
-| **Security** | Touch ID, lock behaviour, firewall, secret-provider policy |
-
-These are product groupings *and* the spellings. Code may stay split into
-smaller modules where that keeps ownership clear; the generated catalogue maps
-those modules and namespaces onto the room a person understands.
-
-**Rooms are named for what they do.** The house-and-cat code names are gone:
+**Rooms are named for what they do.** The house-and-cat code names are gone, and
+an old name in a config is an **eval error**, not a style nit:
 
 | was | is |
 |---|---|
@@ -127,54 +88,60 @@ those modules and namespaces onto the room a person understands.
 | `hush` | `focus` |
 | `collar` | `security.touchId` |
 
-An old name in a config is an **eval error**, not a style nit.
+### Not every namespace is a room
+
+The registry classifies every top-level `haus.*` namespace as one of three:
+
+- **room** — owned by one product room in the catalogue;
+- **shared** — a surface several rooms consume: keys, the app roster, workspaces;
+- **host** — machine- or person-specific, such as identity.
+
+**Classification and desktop-safety are separate questions.** Every public
+option also states whether desktop data may set it, and the answer is explicit
+rather than inferred from the namespace: semantic display scaling can belong in
+a desktop, a physical display UUID cannot. Host config may set any public
+option; desktop config is rejected when it reaches a host-only leaf.
+
+**Safety is transitive.** An `attrsOf` or list-of-submodule option is
+desktop-safe only when every reachable sub-option is classified and safe.
+Freeform attrsets, `anything`, module values, paths that can import code, and
+strings later executed as commands default to host-only unless an explicit
+recursive validator narrows their payload. **A parent marked safe never blesses
+unknown dynamic children.**
 
 ## Rooms cooperate
 
-Through explicit extension points. **They do not silently enable each other.**
-
-- AI contributes agent lifecycle bindings when Development is enabled.
-- AI contributes agent pills when Bar is enabled.
-- AI contributes agent commands when Launcher is enabled.
-- Windows contributes workspace pills when Bar is enabled.
-- Bar requests reserved screen space from Windows when it draws at an
-  unreserved edge.
-- Focus contributes controls to Bar and Launcher when either is present.
-- Appearance supplies tokens; rooms decide how their own surfaces consume them.
+Through explicit extension points, `haus._contrib.<receiver>.<feature>`.
+**Rooms do not silently enable each other**, and no room reads
+`config.haus.ai.*` to decide what to draw.
 
 **The source room owns the feature; the receiving room owns the extension
 point.** A missing optional receiver removes that presentation without disabling
-the source room. A *hard* dependency must be declared and fail with a message
-naming both rooms.
+the source room. A *hard* dependency must be declared instead, and fail with a
+message naming both rooms. `modules/lib/contrib.nix` is the mechanism, AGENTS.md
+lists what is wired today, and
+[rooms offer, never reach](https://hausfold.co/docs/haus/rooms/creating) is the
+same rule for someone writing a third-party room.
+
+**Three joins predate the extension points and read the other room's `config`
+directly**, which is why the rule above names `haus.ai.*` rather than every
+room: Bar draws its workspace pills off `config.haus.windows.*`
+(`BAR_GRAVITY`/`BAR_PAGES`/`BAR_TILING`, generated in `modules/bar`), Windows
+carves reserved screen space for a bar at an unreserved edge (`outerBottom`),
+and the Launcher builds or deletes its gh-dash row off
+`config.haus.terminal.ghDash.enable`. Appearance is the fourth shape: it supplies
+tokens, and each room decides how its own surfaces consume them. Convert one on
+touch; do not add a fifth.
 
 ## What a desktop is
 
 A complete answer to "what should this Mac feel like?" It chooses rooms and
-configures their exposed options.
-
-A shareable desktop is **data-only** and may set only options marked safe for
-desktop data:
-
-```nix
-{
-  haus = {
-    development.enable = true;
-    windows.enable = true;
-    bar.enable = true;
-    launcher.enable = true;
-
-    theme.accent = "mauve";
-    keys.palette = "cmd-space";
-  };
-}
-```
-
-The evaluated value has one closed shape: **a plain attrset whose only top-level
-key is `haus`**. A desktop is not a module function, has no `imports` or
-`_module`, cannot name `system.*`, `home-manager.*` or activation hooks, and
-sets only desktop-safe public `haus.*` leaves. Identity, secrets, account
-coordinates and hardware identifiers are host-only even when a room uses them. Structural validation enforces the closed shape *before* a
-full host evaluation proves the remaining option names and values are valid.
+configures their exposed options. The evaluated value has one closed shape: **a
+plain attrset whose only top-level key is `haus`**, setting only desktop-safe
+public leaves. It is not a module function and has no `imports`, `_module`,
+`system.*` or `home-manager.*`. Structural validation enforces that shape
+*before* a full host evaluation proves the remaining option names and values are
+valid.
 
 **One desktop per host** removes desktop-versus-desktop precedence from the user
 model. What would have been presets or layers become room-owned profiles when
@@ -189,12 +156,8 @@ is what decides the trust warning each one gets on acquisition.
 
 ## The user journey
 
-1. Choose a desktop: hacker, another published desktop, or blank.
-2. Review the rooms it enables and the visible choices it makes.
-3. Add or remove rooms.
-4. Tune the options those rooms surface.
-5. Add private identity, secrets and hardware details in the host.
-6. Preview and rebuild.
+Choose a desktop, review the rooms it enables, add or remove rooms, tune their
+options, add identity and secrets in the host, then preview and rebuild.
 
 Docs describe intent first and Nix second. *"Add the AI room"* is the user
 action; which modules install scruff, write Codex hooks and contribute a bar pill
