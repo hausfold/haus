@@ -29,8 +29,8 @@ The `CLAUDE.md` beside it is that pointer and holds no rules of its own.
   options, and `haus reset <path> [<path>…]` removes overrides — both take a LIST
   with the same all-or-nothing single rebuild, so undoing that two-option intent
   is also one command. Only `haus.*` paths are allowed. A list option takes
-  commas as well as JSON (`haus set zen.userStyles github,gmail`), and a path
-  with no value prompts for one, showing what it holds today.
+  commas as well as JSON (`haus set zen.userStyles github,gmail`), and on a
+  terminal a path with no value prompts for one instead of taking it.
 - **Address the leaf, not the set it sits in.** A path may go inside an option:
   `haus set bar.items.aiUsage true`, `haus set displays.internal.uiScale
   larger-text`. Naming the whole attribute set (`haus set bar.items

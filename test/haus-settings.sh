@@ -374,6 +374,30 @@ for broken in '["github","mdn"],reddit' '["github","mdn"' 'github,mdn],reddit'; 
 done
 test ! -e "$tmp/hosts/test/settings/zen.userStyles.nix"
 
+# Inside brackets a QUOTED run is ONE element however many spaces it holds.
+# Without that, `[ "Home WiFi" "Office" ]` — the very shape the header advertises
+# as Nix's own list syntax — came back as three elements, two of them carrying a
+# literal quote, and type-checked.
+"${haus[@]}" set bar.calendar.me '[ "Ada Lovelace" "ada@example.com" ]' >/dev/null
+test "$("${haus[@]}" get bar.calendar.me)" = '["Ada Lovelace","ada@example.com"]'
+"${haus[@]}" set bar.calendar.me '"Ada Lovelace",ada@example.com' >/dev/null
+test "$("${haus[@]}" get bar.calendar.me)" = '["Ada Lovelace","ada@example.com"]'
+"${haus[@]}" reset bar.calendar.me >/dev/null
+
+# …and a tokeniser needs the quoting intact. An odd number of `"` means the
+# value's own quoting is already broken, and the only safe reading of broken
+# quoting is none at all.
+if "${haus[@]}" set zen.userStyles '[ "Home WiFi ]' >/dev/null 2>&1; then
+  echo "haus set tokenised a value with an unbalanced quote" >&2
+  exit 1
+fi
+
+# A body of nothing but separators is not an empty list. Only brackets say that.
+if "${haus[@]}" set zen.userStyles ',' >/dev/null 2>&1; then
+  echo "haus set read a lone comma as the empty list" >&2
+  exit 1
+fi
+
 # A list of SUBMODULES is left alone: its elements are attrsets, and a token
 # split could only ever produce a worse error than the one nix gives.
 if "${haus[@]}" set bar.github.sources 'a,b' >/dev/null 2>&1; then
@@ -381,17 +405,29 @@ if "${haus[@]}" set bar.github.sources 'a,b' >/dev/null 2>&1; then
   exit 1
 fi
 
-# A type that is a list OR something else keeps the shorthand only in its
-# unambiguous form. `windows.workspaceMonitors.<name>` is `string or list of
-# string`, so a bare token is already a legal value and reading it as a
-# one-element list would quietly change what was written. It is also the case
-# the options catalogue cannot answer — an `attrsOf` key is the user's to
-# invent — so the type comes from the same eval that vets the path.
+# The shorthand fires for a PURE list and nothing else.
+# `windows.workspaceMonitors.<name>` is `string or list of string`, where a bare
+# token is already a legal value, so it stays the string it was; the list form
+# is JSON. That type is also the case the options catalogue cannot answer — an
+# `attrsOf` key is the user's to invent — so it comes from the same eval that
+# vets the path, which is the whole reason the walk now returns one.
 "${haus[@]}" set windows.workspaceMonitors.T main >/dev/null
 test "$("${haus[@]}" get windows.workspaceMonitors.T)" = "main"
-"${haus[@]}" set windows.workspaceMonitors.T '[main secondary]' >/dev/null
+"${haus[@]}" set windows.workspaceMonitors.T '["main","secondary"]' >/dev/null
 test "$("${haus[@]}" get windows.workspaceMonitors.T)" = '["main","secondary"]'
+# A bracketed value there is a STRING, because that is what the type says an
+# unparseable value is. Guessing a list instead would change what was written.
+"${haus[@]}" set windows.workspaceMonitors.T '[main secondary]' >/dev/null
+test "$("${haus[@]}" get windows.workspaceMonitors.T)" = "[main secondary]"
 "${haus[@]}" reset windows.workspaceMonitors.T >/dev/null
+
+# …and the enclosing option is an ATTRIBUTE SET with lists inside it, where a
+# bracketed value is simply the wrong shape. A substring test on "list of"
+# matched it and wrote one.
+if "${haus[@]}" set windows.workspaceMonitors '[a,b]' >/dev/null 2>&1; then
+  echo "haus set coerced a list into an attribute set option" >&2
+  exit 1
+fi
 
 # A non-list option is untouched by all of it — a comma is just a character.
 "${haus[@]}" set git.name 'Doe, Jane' >/dev/null

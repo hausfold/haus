@@ -3128,13 +3128,23 @@ settings_path_vanished() {
   return 1
 }
 
+# Is this type a list and NOTHING else? `list of string` yes; `string or list of
+# string` (`windows.workspaceMonitors.<name>`) no, because a bare token is
+# already a legal value there. Three callers: the shorthand, the prompt's hint,
+# and the rejection's — all three have to agree, and a substring test on
+# "list of" does not, since it also matches that union.
+settings_type_pure_list() { # settings_type_pure_list <type description>
+  case "$1" in "list of "* | "null or (list of "*) return 0 ;; esac
+  return 1
+}
+
 # The list shorthand, and the one place `haus set` guesses at anything.
 #
 # A list-typed option cannot take a string — every non-JSON value written into
 # one is a type error by construction — so for those, and ONLY those, a value
 # that is obviously a list of tokens is read as one. That covers what people
-# actually type, including the three shapes the shell hands over when a JSON
-# list is pasted without armour-plated quoting:
+# actually type, including the shapes the shell hands over when a JSON list is
+# pasted without armour-plated quoting:
 #
 #   github,gmail,youtube          commas
 #   [arch-wiki,bsky,claude]       a JSON list zsh ate the quotes out of
@@ -3146,7 +3156,20 @@ settings_path_vanished() {
 # (absolute path or string)` and a string there is a SHELL COMMAND, so reading
 # `say hello` as two elements would type-check and then be wrong, silently —
 # the one outcome worse than the error this whole helper exists to avoid. A
-# space-separated list must bring brackets, where the intent is unambiguous.
+# space-separated list must bring brackets, where the intent is unambiguous and
+# is Nix's own: `[say hello]` really is two elements.
+#
+# Nor does it fire for a type that is a list among OTHER things.
+# `windows.workspaceMonitors.<name>` is `string or list of string`, where a bare
+# token is already a legal value, and `windows.workspaceMonitors` itself is an
+# attribute set with lists inside it, where a bracketed value is simply the
+# wrong shape. Both of those write JSON, and say so when they refuse.
+#
+# Inside brackets a QUOTED run is one element however many spaces it holds, so
+# `[ "Home WiFi" "Office" ]` is two and not three. That needs a tokeniser rather
+# than a split, and a tokeniser needs the quoting to be intact: an odd number of
+# `"` means the value's own quoting is already broken, and the only safe reading
+# of broken quoting is none at all.
 #
 # Submodule lists are left alone: their elements are attrsets, and a token
 # split could only ever produce a worse error message than the one nix gives.
@@ -3154,16 +3177,14 @@ settings_path_vanished() {
 # Prints the JSON array and returns 0 when the shorthand applies; prints nothing
 # and returns 1 when it does not, which leaves the caller on its old path.
 settings_list_coerce() { # settings_list_coerce <raw> <type description>
-  local raw="$1" type="$2" body sep bracketed="" pure=""
-  case "$type" in *"list of"*) ;; *) return 1 ;; esac
+  local raw="$1" type="$2" body sep quoted="" bracketed="" out
+  # A PURE list and nothing else. A substring test on "list of" also matches
+  # `attribute set of (string or list of string)`, where the top level is an
+  # attrset and a bracketed value is simply wrong; and `string or list of
+  # string`, where a bare token is already a legal string and guessing at it is
+  # the silent-wrong outcome this helper exists to avoid. Both write JSON.
+  settings_type_pure_list "$type" || return 1
   case "$type" in *submodule*) return 1 ;; esac
-  # A type that is a list and NOTHING ELSE. `windows.workspaceMonitors.<name>`
-  # is `string or list of string`, where a bare token is already a legal value
-  # and reading it as a one-element list would quietly change what the user
-  # wrote. Unions keep the shorthand only in its unambiguous form — brackets.
-  case "$type" in
-    "list of "* | "null or (list of "*) pure=1 ;;
-  esac
   body="$(printf '%s' "$raw" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
   case "$body" in
     '['*']')
@@ -3178,7 +3199,12 @@ settings_list_coerce() { # settings_list_coerce <raw> <type description>
   # and are wrong. Anything still carrying brackets here failed `jq` above, so
   # the honest answer is the rejection and its message.
   case "$body" in *'['* | *']'*) return 1 ;; esac
-  [ -n "$pure" ] || [ -n "$bracketed" ] || return 1
+  case "$body" in
+    *'"'*)
+      quoted=1
+      [ $(( $(printf '%s' "$body" | tr -cd '"' | wc -c) % 2 )) -eq 0 ] || return 1
+      ;;
+  esac
   case "$body" in
     *,*) sep=comma ;;
     '') [ -n "$bracketed" ] || return 1; sep=comma ;;
@@ -3186,14 +3212,28 @@ settings_list_coerce() { # settings_list_coerce <raw> <type description>
     *) sep=comma ;;
   esac
   # One jq rather than a bash split: the element scrub (trim, then peel ONE
-  # layer of quotes, either kind) is the same work in both directions and jq is
-  # already the thing that will have to encode the result.
-  printf '%s' "$body" | jq -Rc --arg sep "$sep" '
-    (if $sep == "comma" then split(",") else split("[[:space:]]+"; null) end)
+  # layer of quotes, either kind) is the same work in every direction, and jq is
+  # already the thing that will have to encode the result. `-s` so a value
+  # carrying a newline is one string and not one answer per line.
+  out="$(printf '%s' "$body" | jq -Rsc --arg sep "$sep" --arg quoted "$quoted" '
+    def toks:
+      if $quoted == "" then
+        (if $sep == "comma" then split(",") else [splits("[[:space:]]+")] end)
+      elif $sep == "comma" then
+        [scan("[[:space:]]*\"[^\"]*\"[[:space:]]*|[^,]+")]
+      else
+        [scan("\"[^\"]*\"|[^[:space:]]+")]
+      end;
+    toks
     | map(sub("^[[:space:]]+"; "") | sub("[[:space:]]+$"; ""))
     | map(if length > 1 and startswith("\"") and endswith("\"") then .[1:-1] else . end)
-    | map(if length > 1 and startswith("\u0027") and endswith("\u0027") then .[1:-1] else . end)
-    | map(select(length > 0))'
+    | map(if length > 1 and startswith("'") and endswith("'") then .[1:-1] else . end)
+    | map(select(length > 0))')" || return 1
+  [ -n "$out" ] || return 1
+  # A body of nothing but separators (`haus set <path> ,`) is not an empty list.
+  # Only brackets say that.
+  [ "$out" != "[]" ] || [ -n "$bracketed" ] || return 1
+  printf '%s' "$out"
 }
 
 settings_literal() { # settings_literal <raw> [<type description>]
@@ -3427,18 +3467,25 @@ settings_pick_current() {
 # The value as the box should hand it back: the form `settings_literal` reads,
 # preferring the one a person can EDIT. A list of plain tokens comes back
 # comma-separated, because appending `,wikipedia` to that is the whole job and
-# appending it to `["a","b"]` is a broken JSON list. Anything with a comma, a
-# quote, a bracket or a space inside an element stays JSON, where those mean
-# something — and so does a list holding an EMPTY string, which the comma form
-# cannot express (an empty token is what a trailing comma leaves behind, and is
-# dropped on the way back in).
-settings_prefill() {
-  jq -r 'if type == "array" and length > 0
-           and (map(type == "string" and length > 0
-                    and (test("[\\s,\"\u0027\\[\\]]") | not)) | all)
-         then join(",")
-         elif type == "string" then .
-         else tojson end'
+# appending it to `["a","b"]` is a broken JSON list.
+#
+# Two things keep their JSON. An element carrying a comma, a quote, a bracket,
+# a space or nothing at all is one the comma form cannot express (an empty token
+# is what a trailing comma leaves behind, and is dropped on the way back in).
+# And a type that is a list OR something else keeps it too: `main` typed back
+# into `string or list of string` is the STRING main, so a box prefilled that
+# way would rewrite `["main"]` as `"main"` on an Enter that changed nothing.
+settings_prefill() { # settings_prefill <type description>  (value on stdin)
+  if settings_type_pure_list "${1:-}"; then
+    jq -r 'if type == "array" and length > 0
+             and (map(type == "string" and length > 0
+                      and (test("[\\s,\"\u0027\\[\\]]") | not)) | all)
+           then join(",")
+           elif type == "string" then .
+           else tojson end'
+  else
+    settings_print_json
+  fi
 }
 
 # One short line for a value that may be enormous: a list says how many and then
@@ -3482,14 +3529,16 @@ settings_path_plausible() { # settings_path_plausible <full haus.path>
 # through, a list of a closed set is one you tick through (gum's toggle is `x`,
 # and it says so), and everything else a text box holding what the machine has.
 settings_pick_value() {
-  local path="$1" usage="$2" short type="" default="" literal="" now prefill value line
+  local path="$1" usage="$2" type="${3:-}" short default="" literal="" now prefill value line
   local -a choices=() members=()
   PICK=()
   settings_pick_ready "$usage" || return 1
   short="${path#haus.}"
 
+  # A type handed in came from the option walk and outranks the catalogue, which
+  # cannot describe an `attrsOf` key at all.
   if [ -r "$HAUS_CATALOGUE" ]; then
-    type="$(jq -r --arg p "$path" '.[$p].type // ""' "$HAUS_CATALOGUE")"
+    [ -n "$type" ] || type="$(jq -r --arg p "$path" '.[$p].type // ""' "$HAUS_CATALOGUE")"
     default="$(jq -r --arg p "$path" '.[$p].default // ""' "$HAUS_CATALOGUE")"
     literal="$(jq -r --arg p "$path" '.[$p].literal // false' "$HAUS_CATALOGUE")"
   fi
@@ -3518,19 +3567,20 @@ settings_pick_value() {
     # edit rather than a retype.
     #
     # The default is the fallback and only when it would round-trip: a Nix-only
-    # default like `[ "self" "nebelung" ]` reaches the shorthand in
-    # settings_literal now, but a `literalMD` one is a SENTENCE about the value
-    # ("19, scaled by haus.ui.scale"), and handing that back as the starting
-    # text would quietly set the option to that sentence.
+    # default like `[ "~/code" "~/src" ]` (haus.ai.repoRoots) is not JSON but the
+    # shorthand reads it, so ask the shorthand rather than jq alone. A
+    # `literalMD` default is a SENTENCE about the value ("19, scaled by
+    # haus.ui.scale") and is never `literal`, so it never reaches either.
     prefill=""
     if [ -n "$now" ]; then
-      prefill="$(printf '%s' "$now" | settings_prefill)"
-    elif [ "$literal" = true ] && printf '%s' "$default" | jq . >/dev/null 2>&1; then
+      prefill="$(printf '%s' "$now" | settings_prefill "$type")"
+    elif [ "$literal" = true ] && { printf '%s' "$default" | jq . >/dev/null 2>&1 \
+           || settings_list_coerce "$default" "$type" >/dev/null; }; then
       prefill="$default"
     fi
-    case "$type" in
-      *"list of"*) hint "commas make a list: a,b,c — or paste JSON" ;;
-    esac
+    if settings_type_pure_list "$type"; then
+      hint "commas make a list: a,b,c — or paste JSON"
+    fi
     value="$(gum input --value "$prefill" --placeholder "${default:-value}" \
                        --prompt "$short = ")" || return 1
   fi
@@ -3615,7 +3665,7 @@ settings_choose_many() { # settings_choose_many <now|""> <member>…
 settings_report_rejection() { # settings_report_rejection <path> <type> <value> <errfile>
   local path="$1" type="$2" value="$3" err="$4" want literal got kind="" short
   short="${path#haus.}"
-  want="$(sed -n "s/.*is not of type \`\([^']*\)'.*/\1/p" "$err" | head -1)"
+  want="$(sed -n "s/.*is not of type \`\([^']*\)'.*/\1/p" "$err" | head -1 || true)"
   if [ -z "$want" ]; then
     warn "the generated override did not type-check; restored the previous file(s)."
     tail -n 12 "$err" >&2
@@ -3630,6 +3680,7 @@ settings_report_rejection() { # settings_report_rejection <path> <type> <value> 
       got="$(printf '%s' "${literal#builtins.fromJSON }" | jq -r 'fromjson | type')" ;;
     *) got=string ;;
   esac
+
   # Name the KIND only when the kind is the mismatch. Everything typed at a
   # command line is a string, so telling someone who misspelled an enum member
   # that they gave a string answers a question nobody asked — the list of legal
@@ -3638,15 +3689,21 @@ settings_report_rejection() { # settings_report_rejection <path> <type> <value> 
     *"list of"* | *"attribute set"* | *boolean* | *integer* | *number*) kind=1 ;;
   esac
   [ "$got" = string ] || kind=1
+  # jq's words, in the module system's: "a array" is not a sentence, and nobody
+  # calls a Nix attrset an object.
+  case "$got" in
+    array) got="a list" ;;
+    object) got="an attribute set" ;;
+    *) got="a $got" ;;
+  esac
   [ "${#want}" -gt 120 ] && want="${want:0:119}…"
   [ "${#value}" -gt 88 ] && value="${value:0:87}…"
-  if [ -n "$kind" ]; then warn "$short takes $want — that value went in as a $got."
+  if [ -n "$kind" ]; then warn "$short takes $want — that value went in as $got."
   else warn "$short takes $want"; fi
   hint "you gave: $value"
-  case "$want" in
-    *"list of"*)
-      hint "lists take commas: a,b,c — or paste JSON: '[\"a\",\"b\"]'" ;;
-  esac
+  if settings_type_pure_list "$want"; then
+    hint "lists take commas: a,b,c — or paste JSON: '[\"a\",\"b\"]'"
+  fi
   # The prompt form shows the type, what the option holds today, and a menu for
   # anything with a closed set — which is every question this rejection raises.
   hint "or be shown the choices: haus set $short"
@@ -3691,11 +3748,19 @@ cmd_set() {
   # for exactly as long as there was nothing better to do with it. Off a
   # terminal it still is one — settings_pick_ready dies with the usage line.
   if [ "$#" -eq 1 ] && [ -z "${TX_USAGE:-}" ]; then
-    path="$(settings_path "$1")"
-    settings_path_plausible "$path" \
-      || die "'${path#haus.}' is not an option this machine's pinned haus has — \
+    local only
+    only="$(settings_path "$1")"
+    settings_path_plausible "$only" \
+      || die "'${only#haus.}' is not an option this machine's pinned haus has — \
 'haus set' with no arguments searches every one it does"
-    settings_pick_value "$path" "$usage" || exit 0
+    # The catalogue got you here instantly; now spend the eval that is the real
+    # authority, BEFORE the prompt rather than after it. Two things come back:
+    # a refusal for a path the catalogue could only vouch for by its ancestor,
+    # and OPTION_TYPE — which for an `attrsOf` key is the only type there is, so
+    # the prompt gets its type line and its multi-select. Phase 1 asks again a
+    # second later and the eval cache answers.
+    settings_option_exists "$(host_name)" "$only"
+    settings_pick_value "$only" "$usage" "$OPTION_TYPE" || exit 0
     set -- "${PICK[@]}"
   fi
   [ "$#" -ge 2 ] && [ $(( $# % 2 )) -eq 0 ] || die "$usage"
