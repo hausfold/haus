@@ -91,9 +91,13 @@ script_body() {
     [ "$loops" -eq "$checks" ]
 }
 
-@test "the script parses under /bin/bash 3.2, which is what launchd runs it with" {
+@test "the script parses under the bash launchd runs it with" {
+    # /bin/bash is 3.2 and is what the plist names; on a runner that hasn't got
+    # it, whatever bash is here still catches a syntax error.
+    sh=/bin/bash
+    [ -x "$sh" ] || sh=bash
     script_body > "$BATS_TEST_TMPDIR/wait.sh"
-    run bash -n "$BATS_TEST_TMPDIR/wait.sh"
+    run "$sh" -n "$BATS_TEST_TMPDIR/wait.sh"
     [ "$status" -eq 0 ]
 }
 
