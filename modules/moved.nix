@@ -8,24 +8,36 @@
 # What an alias buys: the old name keeps evaluating (with an obsolete-option
 # warning naming the new one), so `~/.config/nix` moves on its own schedule
 # instead of in a lockstep PR pair with the layer.
-{ lib, ... }:
+# `lib` is not in the signature because nothing here needs it today: the one
+# alias this file held retired on 2026-09-11 and the entries below it are
+# removals, which take no code. The next `mkRenamedOptionModule` adds it back in
+# the same edit.
+{ ... }:
 {
   imports = [
     # 2026-08-11 — the `claude` room became part of `agents`.
+    # `haus.claude.globalMd` -> `haus.ai.instructions`, `haus.claude.skill` ->
+    # `haus.ai.skill`. Both describe a file haus ships into a coding agent's
+    # home, and neither is about Claude Code: haus installs three clients
+    # (`haus.ai.clients`) and every one of them reads both kinds of file, at
+    # its own path. Named for the client, they wrote only Claude's copy, which
+    # made `ai.default = "codex"` a half-truth.
     #
-    # Both options describe a file haus ships into a coding agent's home:
-    # the always-on instructions, and the `haus` skill. Neither is about Claude
-    # Code — haus installs three clients (`haus.ai.clients`) and every
-    # one of them reads both kinds of file, at its own path. Named for the
-    # client, they wrote only Claude's copy, which made `ai.default =
-    # "codex"` a half-truth: the pane spawned with none of the operating context
-    # or option knowledge the same machine hands Claude.
+    # Aliased here until 2026-09-11, and then dropped — this is what ageing out
+    # looks like. The condition the header states was met: a month had passed,
+    # the one consumer had long since moved, and no revision anyone could still
+    # be pinned to predates the rename. A host that kept the old spelling now
+    # gets the module system's own unknown-option error, which names the file
+    # and the line.
     #
-    # `globalMd` -> `instructions` is a rename as well as a move: "global
-    # memory" is Claude Code's word for the slot, and the file the other two
-    # clients read is called AGENTS.md.
-    (lib.mkRenamedOptionModule [ "haus" "claude" "globalMd" ] [ "haus" "ai" "instructions" ])
-    (lib.mkRenamedOptionModule [ "haus" "claude" "skill" ] [ "haus" "ai" "skill" ])
+    # Removing the pair took three edits nobody would predict from the diff,
+    # and they are the cost of an alias rather than of this removal:
+    # `mkRenamedOptionModule` leaves a hidden `haus.claude` namespace behind,
+    # and modules/lib/namespaces.nix was using it as the live proof that its
+    # cheap pre-filter needs a second pass. flake.nix's namespace-guard table
+    # read `candidates=claude` on a stock machine for the same reason. Both now
+    # stand on a fixture written for the purpose, so the next alias to retire
+    # is one edit here.
 
     # 2026-08-16 — the room code names are GONE rather than deprecated:
     # `hearth` -> `terminal`, `prowl` -> `windows`, `sill` -> `bar`,
