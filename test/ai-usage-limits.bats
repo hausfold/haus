@@ -121,9 +121,14 @@ EOF
   usage 35 89
 }
 
-usage() { # usage <5h %> <7d %> — the nine-column row, written just now
+usage() { # usage <5h %> <7d %> [written] [used] — the nine-column row
+  # Both stamps default to now. Arguments rather than a second copy of this
+  # printf, because a TENTH column would leave that copy behind and the way it
+  # fails is silent: the extra field folds into ROW_USED, fails the digit check
+  # and falls back, so the case goes on passing while testing something else.
   printf '%s\t%s\t%s\t%s\t%s\tclaude\tclaude\tanthropic\t%s\n' \
-    "$1" "$2" "$R5" "$RW" "$NOW" "$NOW" >"$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv"
+    "$1" "$2" "$R5" "$RW" "${3:-$NOW}" "${4:-${3:-$NOW}}" \
+    >"$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv"
 }
 
 scoped() { # scoped <family> <%> [resets] [written] — one sub-limit row, appended
@@ -244,10 +249,7 @@ traffic() { cat "$SB_LOG"; }
   # The same skew on the row that backs the pill's own number. `dim` is what
   # five minutes of silence earns; a stamp from the future has earned at least
   # that, and the alternative is a lit pill describing a session that ended.
-  printf '35	89	%s	%s	%s	claude	claude	anthropic	%s
-' \
-    "$R5" "$RW" "$((NOW + 13200))" "$((NOW + 13200))" \
-    >"$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv"
+  usage 35 89 $((NOW + 13200))
   tick
   [ -n "$(tok label.color=0xff1a1a1a)" ] || fail "kept a live colour on a skewed row"
 }

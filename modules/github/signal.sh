@@ -88,12 +88,15 @@ HAUS_GH_REPORT="$HAUS_GH_STATE/coverage.tsv"
 # TEXT instead: accept the BSD answer only when it is numeric, then try GNU,
 # then insist on digits so the caller's arithmetic cannot blow up.
 #
-# The other readers of this seam: `modules/ai/scruff-cache.sh`'s `mtime` carries
+# The other readers of this seam. `modules/ai/scruff-cache.sh`'s `mtime` carries
 # this same two-step, because test/scruff-cache.bats now points at it and a
 # BSD-only one would have answered 0 for every file on the runner — green, and
-# testing nothing. The inline pair in `modules/bar/sketchybar/plugins/github.sh`
-# is still BSD-only; it is macOS-only and runs in no suite, so it is not wrong
-# today. Point a suite at it and it will be.
+# testing nothing. Everything else that stats a stamp is still BSD-only and
+# macOS-only: the pair in `modules/bar/sketchybar/plugins/github.sh`, the
+# per-lane lock in `modules/ai/fix-github.sh`, and the caches in the calendar,
+# weather, elgato and ai_usage plugins. None is wrong today, and fix-github's is
+# the one to watch: test/fix-github.bats DOES run on the Linux runner and simply
+# never reaches that branch. A case that takes the lock twice would find it.
 # One fork more than the old version on the missing-file path (three, not two),
 # paid only when the bridge is on and no delivery has arrived yet.
 haus_gh_mtime() {

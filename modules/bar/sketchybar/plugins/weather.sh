@@ -304,7 +304,12 @@ popup_rows() {
   popup_row --label "UV" --value "${uv} · ${UV_WORD}" --tone "$UV_TONE"
   popup_row --label "sun" --value "↑ ${sunrise}   ↓ ${sunset}"
 
+  # `fetched` is written by this plugin with `date +%s`, so it skews with the
+  # clock exactly as the location cache above does — and a negative age is never
+  # > STALE_AFTER, so the one line telling you these numbers are old is the line
+  # that disappears. 0 is the same answer a missing field gets.
   local age=$(($(date +%s) - ${fetched:-0}))
+  [ "$age" -lt 0 ] && age=0
   [ "$age" -gt "$STALE_AFTER" ] && popup_note --label "as of $(ago "$age") ago"
 
   popup_button --icon "$G_CLOUD" --label "Open Weather" --run "open -a Weather"

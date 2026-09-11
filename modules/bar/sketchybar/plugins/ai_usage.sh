@@ -117,6 +117,12 @@ FEED_TTL=180                     # how often we re-pull the Codex/Opencode feeds
 # every test that follows. ~11.5 days, so `ago` prints a number that reads as
 # "this died a while ago" rather than a date in 1970.
 SKEW_AGE=999999
+# ...and how far ahead a stamp may sit before it counts as one. `now` is sampled
+# ONCE at the top of fetch(), while the refresher writes these files whenever it
+# finishes, so a row landing a beat later is ordinary raciness and not a skewed
+# clock. Without the grace that row greys for one tick and un-greys on the next,
+# which is the flicker SCOPED_STALE's own comment was written to stop.
+CLOCK_GRACE=60
 
 # BAR_AI_USAGE_PROVIDER — which client the pill speaks for, or `latest`.
 # shellcheck source=/dev/null
@@ -292,8 +298,13 @@ read_row() { # read_row <now> <file>
   # one greys the row; the used one is what `latest` ORDERS on, so a skewed one
   # left alone would also pin the pill to a dead feed by out-ranking every
   # honest row on the machine.
-  [ "$ROW_STAMP" -gt "$now" ] && ROW_STAMP=$((now - SKEW_AGE))
-  [ "$ROW_USED" -gt "$now" ] && ROW_USED=$((now - SKEW_AGE))
+  # ROW_STAMP is only DEFAULTED above, never checked — the comment on ROW_USED
+  # says so — and it is about to meet `-gt` twice. Validate it here rather than
+  # letting a garbled row print `integer expression expected` into the bar's log
+  # once per tick, per open, forever. Same guard elgato.sh's sweep carries.
+  case "${ROW_STAMP:-}" in '' | *[!0-9]*) ROW_STAMP=0 ;; esac
+  [ "$ROW_STAMP" -gt $((now + CLOCK_GRACE)) ] && ROW_STAMP=$((now - SKEW_AGE))
+  [ "$ROW_USED" -gt $((now + CLOCK_GRACE)) ] && ROW_USED=$((now - SKEW_AGE))
 
   ROW_IS_COST=0
   if [ "$ROW_PROV" = "opencode" ] || [[ "$ROW_V5" =~ \. ]]; then
@@ -330,7 +341,7 @@ kick_feeds() { # kick_feeds <now>
   # goes negative, which is never >= FEED_TTL, so the pulled feeds stop being
   # kicked and a Codex- or Opencode-default machine's pill greys out and stays
   # grey — the exact failure this function was added to end. 0 re-kicks.
-  [ "$kick_at" -gt "$1" ] && kick_at=0
+  [ "$kick_at" -gt $(($1 + CLOCK_GRACE)) ] && kick_at=0
   [ $(($1 - kick_at)) -ge "$FEED_TTL" ] || return 0
   mkdir -p "$CACHE_DIR" && touch "$kick"
   (env -u SENDER -u BUTTON -u MODIFIER claude-statusline-refresh --usage-only >/dev/null 2>&1 &)
@@ -529,7 +540,7 @@ popup_rows() {
         # Its own written stamp, so it gets its own skew guard — SKEW_AGE. A
         # future one never clears SCOPED_STALE, and a ceiling nobody has pulled
         # for a day would keep drawing at full colour as if it were current.
-        [ "$s_at" -gt "$now" ] && s_at=$((now - SKEW_AGE))
+        [ "$s_at" -gt $((now + CLOCK_GRACE)) ] && s_at=$((now - SKEW_AGE))
         # The window rolled: nobody has spent any of the new one yet. Same rule
         # read_row applies to the session and weekly gauges above.
         [ "$s_rst" -gt 0 ] && [ "$now" -ge "$s_rst" ] && s_pct=0

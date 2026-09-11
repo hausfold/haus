@@ -227,6 +227,17 @@ DEFAULT_LIMIT=8
 # than the shortest legal refresh, so a sweep can never race a live fetch or
 # delay a healthy one.
 STALE_INFLIGHT=300
+# How far ahead of `now` a stamp may sit before it is read as a backward clock
+# step rather than as ordinary raciness. It has to be a grace and not a bare
+# `> now`, because the two sides come off different moments: `now` is sampled
+# ONCE at the top of this script, while the lock and the flag below are stat'd
+# later and may have been created by a CONCURRENT run in between. A bare test
+# would read that live lock as maximally stale and sweep it, which is worse
+# than the bug being fixed — it is two `gh` passes at once. A minute is far
+# longer than any overlap here and far shorter than a clock step anyone
+# notices. Same reasoning, and the same shape, as statusline-refresh.sh's
+# 300 s SKEW on branch_birth vs GitHub's closedAt.
+CLOCK_GRACE=60
 
 # The floor a webhook delivery may NOT push through — see fetch() for why the
 # delivery cancels the wait rather than the floor.
@@ -654,7 +665,7 @@ do_fetch() {
       # below STALE_INFLIGHT, so the sweep never fires and the pill stops
       # fetching until the clock catches up. 0 makes that age maximal.
       at=$(stat -f %m "$LOCK" 2>/dev/null || echo "$now")
-      [ "$at" -gt "$now" ] && at=0
+      [ "$at" -gt $((now + CLOCK_GRACE)) ] && at=0
       age=$(( now - at ))
       [ "$age" -lt "$STALE_INFLIGHT" ] && return 0
       rmdir "$LOCK" 2>/dev/null
@@ -768,7 +779,7 @@ spawn_fetch() {
     # clock step wedges the in-flight flag exactly the way a killed do_fetch
     # would, and this whole guard exists so that cannot happen.
     at=$(stat -f %m "$FETCHING" 2>/dev/null || echo "$now")
-    [ "$at" -gt "$now" ] && at=0
+    [ "$at" -gt $((now + CLOCK_GRACE)) ] && at=0
     age=$(( now - at ))
     [ "$age" -lt "$STALE_INFLIGHT" ] && return 0
     rm -f "$FETCHING"
@@ -973,12 +984,18 @@ render() {
 # should_fetch stops spawning and the pill sits on the fetch it happens to have
 # until the clock catches up. `rel_age` below already refuses to print a
 # negative age; this is the half that keeps the pill alive.
+#
+# One caller reads 0 as "never fetched" rather than as "very old": the in-flight
+# branch that paints `state=fetching count=0`. A skewed machine therefore shows
+# the first-run skeleton for the length of one recovery fetch instead of the
+# numbers it last had. That is the honest answer — the stamp it would count from
+# is not a time — and it self-heals the moment that fetch writes a fresh one.
 stamp_epoch() {
   local v
   v=$(cat "$STAMP" 2>/dev/null)
   case "$v" in
     "" | *[!0-9]*) echo 0 ;;
-    *) if [ "$v" -gt "$now" ]; then echo 0; else echo "$v"; fi ;;
+    *) if [ "$v" -gt $((now + CLOCK_GRACE)) ]; then echo 0; else echo "$v"; fi ;;
   esac
 }
 
