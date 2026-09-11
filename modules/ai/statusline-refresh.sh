@@ -714,7 +714,23 @@ fi
 # Undocumented, therefore best-effort throughout: any unexpected shape leaves the
 # last row exactly as it was rather than overwriting real numbers with zeroes.
 CLAUDE_TSV="$CACHE_DIR/usage-claude.tsv"
+# The weekly SUB-limits, one row each, in their own file rather than as extra
+# columns on the row above: that row is rewritten by statusline.sh on every
+# render (it is the cheap pushed feed), and the payload a render is handed
+# carries no sub-limit at all, so any column added here would be blanked within
+# seconds by a writer that cannot fill it.
+CLAUDE_SCOPED="$CACHE_DIR/scoped-claude.tsv"
 CLAUDE_TTL=${CLAUDE_TTL:-120}
+# The sub-limits need a TTL of their OWN, and this is the whole reason the block
+# below runs at all on a machine that is using Claude. `cl_fresh` gates on
+# usage-claude.tsv, which statusline.sh rewrites on EVERY render — refreshInterval
+# is 12s — so with one TUI pane open that file is permanently inside its 120s and
+# the whole block is skipped. Which is right for the row (something else is
+# filling it, for free) and fatal for the sub-limits, which nothing pushes: the
+# feed would only ever run on the machines that have no Claude sessions to have
+# sub-limits about. Fifteen minutes rather than two, because these are a fraction
+# of a seven-day window, and well inside the pill's own SCOPED_STALE hour.
+CLAUDE_SCOPED_TTL=${CLAUDE_SCOPED_TTL:-900}
 CLAUDE_API=${CLAUDE_API:-https://api.anthropic.com/api/oauth/usage}
 CLAUDE_KEYCHAIN=${CLAUDE_KEYCHAIN:-Claude Code-credentials}
 # ── where the token comes from, and what this feed cannot do ──────────────────
@@ -763,6 +779,15 @@ if [ -f "$CLAUDE_TSV" ]; then
   age=$(( $(date +%s) - $(mtime "$CLAUDE_TSV") ))
   [ "$age" -lt "$CLAUDE_TTL" ] && cl_fresh=1
 fi
+# Both halves have to be fresh, or the pull is worth making. `mtime` answers 0
+# for a file that is not there, so a machine that has never pulled reads as an
+# age of `now` and fails this outright — which is what makes the empty file at
+# the bottom of the block load-bearing: it is how "asked, and the account has no
+# ceiling" stays distinguishable from "never asked".
+if [ "$cl_fresh" = 1 ]; then
+  age=$(( $(date +%s) - $(mtime "$CLAUDE_SCOPED") ))
+  [ "$age" -lt "$CLAUDE_SCOPED_TTL" ] || cl_fresh=0
+fi
 cl_blocked=0
 if [ -f "$CLAUDE_BLOCK" ]; then
   age=$(( $(date +%s) - $(mtime "$CLAUDE_BLOCK") ))
@@ -808,17 +833,15 @@ if [ "$cl_fresh" = 0 ] && [ "$cl_blocked" = 0 ] && command -v jq >/dev/null 2>&1
     cl_cred=""
   fi
 
-  cl_row=""
+  cl_row=""; cl_scoped=""
   if [ -n "$cl_at" ]; then
     cl_json=$(curl -fsS --max-time 10 \
       -H "authorization: Bearer $cl_at" \
       -H "anthropic-beta: oauth-2025-04-20" \
       "$CLAUDE_API" 2>/dev/null || true)
     # Windows are read by NAME here rather than by duration as Codex's are: this
-    # endpoint labels them, and the extra `seven_day_opus` bucket is deliberately
-    # ignored — the pill has two columns and the Opus sub-limit is a fraction of
-    # a limit already shown. Percentages are floored to match the statusline's
-    # own truncation, so a pushed row and a pulled one never differ by a point.
+    # endpoint labels them. Percentages are floored to match the statusline's own
+    # truncation, so a pushed row and a pulled one never differ by a point.
     cl_row=$(printf '%s' "$cl_json" | jq -r '
       def pct: ((.utilization // .used_percentage // .used_percent // 0) | floor);
       def at:
@@ -838,6 +861,54 @@ if [ "$cl_fresh" = 0 ] && [ "$cl_blocked" = 0 ] && command -v jq >/dev/null 2>&1
             (if $s then ($s | at)  else 0 end), (if $w then ($w | at)  else 0 end) ]
           | @tsv
         end' 2>/dev/null || true)
+
+    # ── the weekly SUB-limits ──────────────────────────────────────────────────
+    # A Max plan caps some model families inside the weekly allowance rather than
+    # beside it: Fable may take up to 50% of the week, and nothing else is given
+    # back when it does. So `weekly_scoped` can read 100% — that family is spent
+    # for the week — while the plain weekly it lives inside reads a calm 50%, and
+    # the pill was showing only the calm number.
+    #
+    # Read out of the `limits` ARRAY, not the `seven_day_<family>` keys beside it.
+    # Those keys are the older shape and are now null on a live account (the
+    # `seven_day_opus` this block used to skip is one of them); the array is where
+    # the number actually is, it names its own family in
+    # `scope.model.display_name`, and it grows a row rather than a key when the
+    # next family gets a ceiling — so nothing here has to learn the word "fable".
+    #
+    # `severity` (normal/warning/critical) and `is_active` are deliberately not
+    # read: the bar has one ladder for every gauge on it (ai_usage.sh's pct_tone),
+    # and a second opinion arriving per-row would make two pills at 90% different
+    # colours. `percent` is the whole of what we take.
+    cl_scoped=$(printf '%s' "$cl_json" | jq -r '
+      def at:
+        (. // 0)
+        | if type == "number" then floor
+          elif type == "string" then
+            (try ((sub("\\.[0-9]+";"") | sub("\\+00:00$";"Z")) | fromdateiso8601) catch 0)
+          else 0 end;
+      (.limits // [])[]
+      | select(.kind == "weekly_scoped")
+      # A number, not merely non-null: `(.percent | floor)` on a string ABORTS
+      # jq, and the `2>/dev/null || true` below turns that into an empty answer,
+      # which the writer reads as "this account has no ceiling" and files the
+      # good rows away with the bad one. The row parse beside this one keeps its
+      # last good numbers in the same situation; this one would delete them.
+      | select((.percent | type) == "number")
+      # `//` only steps over null, so an empty display_name would write an empty
+      # FIRST field — and tab is IFS whitespace, so `read` in the dropdown
+      # collapses an empty one while the awk split in scoped_peak keeps it: the
+      # pill loses its letter and the dropdown draws a gauge named `100` reading
+      # 0%. (No apostrophe belongs in here either: a jq comment still sits
+      # inside the single-quoted shell string, and an odd one ends the program
+      # early. This very line cost one round of that.)
+      # Same invariant the nine-column row is written under.
+      | [ ((.scope.model.display_name // .scope.surface.display_name // "")
+           | gsub("[\\t\\n\\r]"; " ")
+           | if . == "" then "scoped" else . end),
+          (.percent | floor),
+          (.resets_at | at) ]
+      | @tsv' 2>/dev/null || true)
   fi
 
   if [ -n "$cl_row" ]; then
@@ -862,6 +933,28 @@ if [ "$cl_fresh" = 0 ] && [ "$cl_blocked" = 0 ] && command -v jq >/dev/null 2>&1
     # and still read by the pill when no usage-*.tsv exists. Keep the two in step
     # from here too, or a machine mid-upgrade reads the older of the two.
     cp "$CLAUDE_TSV" "$CACHE_DIR/usage.tsv" 2>/dev/null || true
+    # Its own written stamp per row, and not the row's above: the usage row is
+    # PUSHED every few seconds by any open pane while this file only moves when
+    # the pull succeeds, so a fresh row would vouch for an hour-old sub-limit.
+    # Rewritten only when the main parse succeeded, so a shape change or an
+    # offline pull leaves the last good numbers alone; an empty answer from a
+    # payload we DID read means the account has no scoped ceiling, and the file
+    # goes rather than leaving a bar behind that nothing is reporting.
+    if [ -n "$cl_scoped" ]; then
+      : >"$CLAUDE_SCOPED.tmp"
+      while IFS= read -r cl_line; do
+        [ -n "$cl_line" ] && printf '%s\t%s\n' "$cl_line" "$now" >>"$CLAUDE_SCOPED.tmp"
+      done <<<"$cl_scoped"
+      mv "$CLAUDE_SCOPED.tmp" "$CLAUDE_SCOPED"
+    else
+      # EMPTIED, not removed: the freshness gate above dates the next pull off
+      # this file, and a removed one is indistinguishable from one we have never
+      # written — which would put an account with no ceiling into a poll every
+      # three minutes, forever. Both readers test `[ -s ]`, so empty already
+      # means "no ceiling" to them, and truncating in place leaves no window
+      # where the pill can see the path exist with nothing behind it.
+      : >"$CLAUDE_SCOPED"
+    fi
     rm -f "$CLAUDE_BLOCK"
     fed=1
   elif [ -z "$cl_at" ]; then

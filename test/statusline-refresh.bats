@@ -557,6 +557,12 @@ clrow() { # clrow <n> — one field of the claude usage row
   awk -F'\t' -v c="$1" '{print $c}' "$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv" 2>/dev/null
 }
 
+clscoped() { # clscoped [n] — the sub-limit rows, or one column of them
+  local f="$CLAUDE_STATUSLINE_CACHE/scoped-claude.tsv"
+  if [ -n "${1:-}" ]; then awk -F'\t' -v c="$1" '{print $c}' "$f" 2>/dev/null
+  else cat "$f" 2>/dev/null; fi
+}
+
 cxrow() { # cxrow <n> — one field of the codex usage row
   awk -F'\t' -v c="$1" '{print $c}' "$CLAUDE_STATUSLINE_CACHE/usage-codex.tsv" 2>/dev/null
 }
@@ -908,6 +914,131 @@ CLAUDE_USAGE='{"five_hour":{"utilization":41,"resets_at":"2026-08-20T03:00:00Z"}
   [ ! -s "$SECURITY_LOG" ] || fail "asked the keychain again three minutes later"
   grep -q claude-usage "$CURL_LOG" && fail "re-polled a dead endpoint inside the backoff"
   return 0
+}
+
+# ── the weekly SUB-limits ────────────────────────────────────────────────────
+# A Max plan caps some model families INSIDE the weekly window (Fable may take
+# up to half of it) rather than beside it, so a family can be spent for the week
+# while the weekly gauge it lives in reads a calm 50%. The numbers are in the
+# `limits` ARRAY; the `seven_day_<family>` keys beside it are the older shape and
+# are null on a live account, which is why nothing here reads them.
+CLAUDE_SCOPED='{"five_hour":{"utilization":41,"resets_at":"2026-08-20T03:00:00Z"},
+                "seven_day":{"utilization":63,"resets_at":"2026-08-24T00:00:00Z"},
+                "seven_day_opus":null,
+                "limits":[{"kind":"session","percent":41,"resets_at":"2026-08-20T03:00:00Z","scope":null},
+                          {"kind":"weekly_all","percent":63,"resets_at":"2026-08-24T00:00:00Z","scope":null},
+                          {"kind":"weekly_scoped","percent":100,"resets_at":"2026-08-24T00:00:00Z",
+                           "scope":{"model":{"id":null,"display_name":"Fable"}}}]}'
+
+@test "claude: a weekly sub-limit is written as its own row, family and all" {
+  mkcurl; mkcreds
+  FAKE_CLAUDE_USAGE="$CLAUDE_SCOPED" refresh
+  [ "$status" -eq 0 ]
+  [ "$(clscoped 1)" = Fable ] || fail "family wrong: $(clscoped 1)"
+  [ "$(clscoped 2)" = 100 ] || fail "percent wrong: $(clscoped 2)"
+  [ "$(clscoped 3)" = "$(jq -rn '"2026-08-24T00:00:00Z" | fromdateiso8601')" ]
+  # Four columns, and the fourth is this file's OWN written stamp. Not the usage
+  # row's: that one is rewritten by every render of every open pane, so dating
+  # these numbers from it would have a pushed row vouching for an hour-old pull.
+  [ "$(clscoped | awk -F'\t' '{print NF}')" = 4 ] || fail "not four columns: $(clscoped)"
+  [ "$(clscoped 4)" -gt 0 ] || fail "no written stamp"
+}
+
+@test "claude: the row beside it is untouched by the sub-limit, and vice versa" {
+  # The two files answer different questions and only one of them is pushed. A
+  # sub-limit must never reach the nine-column row, where statusline.sh would
+  # blank it on the next render with a payload that cannot carry one.
+  mkcurl; mkcreds
+  FAKE_CLAUDE_USAGE="$CLAUDE_SCOPED" refresh
+  [ "$(clrow 1)" = 41 ]
+  [ "$(clrow 2)" = 63 ] || fail "the sub-limit leaked into the weekly column"
+  [ "$(awk -F'\t' '{print NF}' "$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv")" = 9 ] \
+    || fail "row is no longer nine columns"
+}
+
+@test "claude: a pane pushing the row does not gate the sub-limit pull shut" {
+  # The regression this feed would have shipped with. `cl_fresh` dates the pull
+  # off usage-claude.tsv, which statusline.sh rewrites on EVERY render at a
+  # 12-second refreshInterval — so one open TUI pane keeps that file permanently
+  # inside its 120s and the whole Claude block is skipped. Right for the row,
+  # which something else is filling for free; fatal for the sub-limits, which
+  # nothing pushes. The feed would have run only on machines with no Claude
+  # sessions to have sub-limits about.
+  mkcurl; mkcreds
+  FAKE_CLAUDE_USAGE="$CLAUDE_SCOPED" refresh
+  rm -f "$CLAUDE_STATUSLINE_CACHE/scoped-claude.tsv"
+  touch "$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv"      # a render, just now
+  : >"$CURL_LOG"
+  FAKE_CLAUDE_USAGE="$CLAUDE_SCOPED" refresh
+  [ "$(clscoped 1)" = Fable ] || fail "a fresh pushed row gated the sub-limit pull shut"
+}
+
+@test "claude: a sub-limit inside its own TTL is not re-asked for" {
+  # The other side of it. Fifteen minutes, not the row's two: these are a
+  # fraction of a seven-day window, and a poll every two minutes would be a
+  # keychain read and an outbound call for a number that cannot have moved.
+  mkcurl; mkcreds
+  FAKE_CLAUDE_USAGE="$CLAUDE_SCOPED" refresh
+  touch "$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv"
+  : >"$CURL_LOG"
+  FAKE_CLAUDE_USAGE="$CLAUDE_SCOPED" refresh
+  grep -q oauth "$CURL_LOG" && fail "re-polled inside the sub-limit TTL"
+  return 0
+}
+
+@test "claude: no ceiling leaves the file EMPTY, which is not the same as gone" {
+  # A removed file is indistinguishable from one never written, and the gate
+  # above dates the next pull off this one — so removing it would put an account
+  # with no ceiling into a poll every three minutes forever. Both readers test
+  # `[ -s ]`, so empty already means "no ceiling" to them.
+  mkcurl; mkcreds
+  FAKE_CLAUDE_USAGE="$CLAUDE_SCOPED" refresh
+  [ -s "$CLAUDE_STATUSLINE_CACHE/scoped-claude.tsv" ]
+  rm -f "$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv"
+  FAKE_CLAUDE_USAGE="$CLAUDE_USAGE" refresh
+  [ -f "$CLAUDE_STATUSLINE_CACHE/scoped-claude.tsv" ] || fail "removed it instead of emptying it"
+  [ ! -s "$CLAUDE_STATUSLINE_CACHE/scoped-claude.tsv" ] || fail "kept a ceiling nobody reports: $(clscoped)"
+}
+
+@test "claude: one malformed limit does not take the good ones with it" {
+  # `(.percent | floor)` on a string ABORTS jq, and the `|| true` beside it turns
+  # that into an empty answer — which the writer would read as "no ceiling" and
+  # file every good row away with the bad one.
+  mkcurl; mkcreds
+  FAKE_CLAUDE_USAGE='{"five_hour":{"utilization":1,"resets_at":"2026-08-20T03:00:00Z"},
+                      "seven_day":{"utilization":2,"resets_at":"2026-08-24T00:00:00Z"},
+                      "limits":[{"kind":"weekly_scoped","percent":"oops","resets_at":"2026-08-24T00:00:00Z",
+                                 "scope":{"model":{"display_name":"Broken"}}},
+                                {"kind":"weekly_scoped","percent":12,"resets_at":"2026-08-24T00:00:00Z",
+                                 "scope":{"model":{"display_name":"Cowork"}}}]}' refresh
+  [ "$(clscoped 1)" = Cowork ] || fail "lost the good row: $(clscoped)"
+  [ "$(clscoped | wc -l | tr -d ' ')" = 1 ] || fail "drew the malformed one anyway: $(clscoped)"
+}
+
+@test "claude: a nameless family is still a named row, never an empty field" {
+  # `//` steps over null and not over "". An empty FIRST field shifts the row,
+  # and the two readers disagree about it: `awk -F'\t'` keeps the empty field
+  # while `read` collapses it, so the pill loses its letter and the dropdown
+  # draws a gauge called `100` reading 0%.
+  mkcurl; mkcreds
+  FAKE_CLAUDE_USAGE='{"five_hour":{"utilization":1,"resets_at":"2026-08-20T03:00:00Z"},
+                      "seven_day":{"utilization":2,"resets_at":"2026-08-24T00:00:00Z"},
+                      "limits":[{"kind":"weekly_scoped","percent":77,"resets_at":"2026-08-24T00:00:00Z",
+                                 "scope":{"model":{"display_name":""}}}]}' refresh
+  [ "$(clscoped 1)" = scoped ] || fail "first field is not a name: '$(clscoped 1)'"
+  [ "$(clscoped 2)" = 77 ] || fail "columns shifted: $(clscoped)"
+}
+
+@test "claude: an unanswered poll keeps the sub-limits it already had" {
+  # Offline, revoked, or the endpoint moved. The removal above is for an answer
+  # we DID read; no answer at all must leave the last good numbers alone and let
+  # the pill grey them on their own stamp.
+  mkcurl; mkcreds
+  FAKE_CLAUDE_USAGE="$CLAUDE_SCOPED" refresh
+  local before; before=$(clscoped)
+  rm -f "$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv"
+  FAKE_CLAUDE_USAGE='' refresh
+  [ "$(clscoped)" = "$before" ] || fail "a dead poll rewrote the sub-limits"
 }
 
 @test "opencode: a session with no model still writes nine full columns" {

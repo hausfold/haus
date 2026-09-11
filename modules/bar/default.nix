@@ -801,9 +801,9 @@ let
       "icon.padding_left" = "10";
       "icon.padding_right" = "8";
     };
-    # AI rate-limit gauges (5-hour session + 7-day weekly) and API spend, one row
-    # per reporting client. Two feed shapes, both ending in
-    # ~/.cache/claude-statusline/usage-*.tsv:
+    # AI rate-limit gauges (5-hour session + 7-day weekly + any weekly SUB-limit
+    # the account reports) and API spend, one row per reporting client. Two feed
+    # shapes, both ending in ~/.cache/claude-statusline/usage-*.tsv:
     #   • pushed — modules/ai/statusline.sh stashes the percentages Claude Code
     #     hands every statusline render, then invokes ai_usage.sh when one moves.
     #   • pulled — Codex and Claude (account API calls) and Opencode (a sqlite
@@ -811,6 +811,17 @@ let
     #     kicks that itself on a TTL, which is what keeps this pill honest on a
     #     machine driving a client that pushes nothing — including Claude Code's
     #     own macOS app, which renders no statusline and so pushes nothing either.
+    # The sub-limits ride beside those rows in scoped-<provider>.tsv rather than
+    # on them, with a stamp and a TTL of their own: the row above is rewritten by
+    # every render while these are only ever PULLED, so a fresh row must not
+    # vouch for them — and gating their pull on that row's freshness would have
+    # meant they never refreshed on a machine with a pane open. The file is
+    # EMPTIED, never removed, when an account reports no ceiling: that is how
+    # "asked, nothing to report" stays distinguishable from "never asked".
+    # They are DROPDOWN-only, and deliberately: the pill's own number stays the
+    # worse of session and weekly, because a spent ceiling is routinely the
+    # highest number on the machine and still stops nothing — every other model
+    # is right there — so putting it on the label made the pill cry wolf.
     # Each row carries TWO stamps, and the difference is the pill's whole model of
     # itself: column 5 is when the row was WRITTEN (what greys it) and column 9 is
     # when quota was last USED (what `latest` picks on). One column doing both

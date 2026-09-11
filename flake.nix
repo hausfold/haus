@@ -1462,6 +1462,16 @@
             builtins.readFile ./test/barlib.bats
           );
 
+          # test/ai-usage-limits.bats — the SAME stub, written again because a
+          # bats setup() cannot source one, and pinned for a sharper reason than
+          # barlib's: that suite names rungs by their stub hex (`mute` is the
+          # grey a dead sub-limit feed wears, `warn` the weekly beside it), so a
+          # ladder that moved under it would not fail, it would pass while
+          # asserting nothing.
+          barToneFromAiUsageBats = barTonePairs "\nexport TONE_([A-Z]+)=(0x[0-9a-f]+)" (
+            builtins.readFile ./test/ai-usage-limits.bats
+          );
+
           # Every tone's `key` must be a real nebelung palette key. Checked
           # rather than trusted, and checked HERE rather than in the bar module
           # because `nebelung` reaches that module through the home-manager
@@ -1527,6 +1537,11 @@
 
           barMarkFromBats = barTonePairs "\nexport MARK_([A-Z]+)=(0x[0-9a-f]+)" (
             builtins.readFile ./test/barlib.bats
+          );
+
+          # The mark half of the same second stub.
+          barMarkFromAiUsageBats = barTonePairs "\nexport MARK_([A-Z]+)=(0x[0-9a-f]+)" (
+            builtins.readFile ./test/ai-usage-limits.bats
           );
 
           barMarkBadKeys = builtins.filter (m: !(nebelung.palette ? ${m.key})) barMarks;
@@ -4159,6 +4174,9 @@
             echo "== test/barlib.bats (the colors.sh stub in setup())"
             diff -u ${pkgs.writeText "expected" barToneExpectedBats} \
                     ${pkgs.writeText "bats" barToneFromBats}
+            echo "== test/ai-usage-limits.bats (the same stub, the same shape)"
+            diff -u ${pkgs.writeText "expected" barToneExpectedBats} \
+                    ${pkgs.writeText "ai-usage-bats" barToneFromAiUsageBats}
             echo "== test/colors-fns.sh (the committed copy of the emitted tone()/mark())"
             diff -u ${barColorsFnsExpected} \
                     ${pkgs.writeText "committed" (builtins.readFile ./test/colors-fns.sh)} \
@@ -4201,6 +4219,9 @@
             echo "== test/barlib.bats (the colors.sh stub in setup())"
             diff -u ${pkgs.writeText "expected" barMarkExpectedBats} \
                     ${pkgs.writeText "bats" barMarkFromBats}
+            echo "== test/ai-usage-limits.bats (the same stub, the same shape)"
+            diff -u ${pkgs.writeText "expected" barMarkExpectedBats} \
+                    ${pkgs.writeText "ai-usage-bats" barMarkFromAiUsageBats}
             touch $out
           '';
 
