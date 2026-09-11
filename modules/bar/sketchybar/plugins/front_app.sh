@@ -5,8 +5,14 @@
 # here by hand is what §5.4 is about.
 source "$HOME/.config/sketchybar/bar.sh"
 
-# Get the front app name
-FRONT_APP=$(osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true')
+# The app name, from $INFO on a switch and from lsappinfo on the cold paint —
+# never from System Events, whose Automation prompt this plugin used to put on
+# screen on every app switch of a fresh install, and whose read is what jammed
+# every other Apple event on the machine while that prompt sat unanswered. The
+# whole story is front_app_lib.sh's header.
+# shellcheck source=./front_app_lib.sh
+source "$HOME/.config/sketchybar/plugins/front_app_lib.sh"
+FRONT_APP=$(front_app_name)
 
 # While AeroSpace's resize or navigate mode is armed (see resize_mode.sh /
 # navigate_mode.sh), keep that mode's glyph appended — moving focus repaints this

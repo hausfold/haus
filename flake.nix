@@ -4434,7 +4434,7 @@
           # moment to be sure it really is one. (Counted "two" while there were
           # three; say "some" rather than re-count it wrong at the next one.)
           bar-plugins-executable = pkgs.runCommand "haus-bar-plugins-executable-ok" { } ''
-            libs="aerospace_lib.sh ai-provider.sh media_lib.sh vitals_lib.sh"
+            libs="aerospace_lib.sh ai-provider.sh front_app_lib.sh media_lib.sh vitals_lib.sh"
             bad=
             for f in ${./modules/bar/sketchybar/plugins}/*.sh; do
               base=$(basename "$f")

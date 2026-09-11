@@ -14,11 +14,11 @@
 # It is also the sole writer of the FULLSCREEN state (plugins/aerospace_lib.sh)
 # — the glyph on the front-app pill and the focused workspace pill's peach fill,
 # both appended to the same batch this already sends. Sole writer on purpose:
-# front_app.sh is subscribed to the same front_app_switched this is, but it
-# shells out to osascript for the app name, so routing the fullscreen repaint
-# through it would put an ~80 ms round trip on a state that changes by keypress.
-# Here it costs one more `aerospace` call per tick and no extra sketchybar call
-# at all.
+# front_app.sh is subscribed to the same front_app_switched this is, but
+# routing the fullscreen repaint through it would hang the state on an event
+# that does not always fire for it (the poll note below), and split one
+# sketchybar batch into two. Here it costs one more `aerospace` call per tick
+# and no extra sketchybar call at all.
 #
 # The <mod>f binding fires aerospace_fullscreen_change (see
 # ../aerospace-notify.sh) so the paint lands on the keypress rather than up to

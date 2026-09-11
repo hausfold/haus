@@ -27,9 +27,15 @@ source "$HOME/.config/sketchybar/colors.sh"
 # whose printf has no \u/\U; \xHH works. Keep in sync with front_app.sh.
 GLYPH=$(printf '\xEF\x81\x87')
 
-front_app() {
-    osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true'
-}
+# The app name, via lsappinfo. AeroSpace runs this script with none of
+# SketchyBar's environment, so there is no $INFO here to take the free path
+# with — but there is no Apple event either, which is the point: this was a
+# System Events read until the pill's own copy of it put a "'bash' wants access
+# to control 'System Events.app'" modal on a fresh install's screen and jammed
+# every other Apple event on the machine behind it. front_app_lib.sh's header
+# has the whole story and now the only read.
+# shellcheck source=./front_app_lib.sh
+source "$HOME/.config/sketchybar/plugins/front_app_lib.sh"
 
 case "$1" in
     on)
@@ -38,12 +44,12 @@ case "$1" in
         # Haus-tour hook — one stat when no tour is mid-flight (plugins/tour.sh).
         { [ -f "$HOME/.local/state/haus/tour" ] && "$HOME/.config/sketchybar/plugins/tour.sh" event navigate; } >/dev/null 2>&1 &
         sketchybar --set front_app background.color=$SKY label.color=$BASE \
-                                    label="$(front_app) $GLYPH"
+                                    label="$(front_app_name) $GLYPH"
         ;;
     off)
         rm -f "$STATE"
         sketchybar --set front_app background.color=$LAVENDER label.color=$BASE \
-                                    label="$(front_app)"
+                                    label="$(front_app_name)"
         ;;
     *)
         echo "usage: $0 on|off" >&2; exit 1 ;;
