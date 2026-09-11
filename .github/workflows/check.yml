@@ -592,12 +592,13 @@ jobs:
       # first impression was a modal naming a shell, with nothing drawn behind
       # it because all four agents were blocked in that loop. Refusing it cost
       # more than the prompt: a denied Apple event sits out a two-minute
-      # manager timeout INSIDE the loop body, where the file's 60 s deadline is
-      # never read, so AeroSpace exec'd 125 s into every login instead of 65.
-      # Pins the invariant that fixed it — no wait in that file may block on
-      # something TCC can refuse — plus the deadline, the settle the new probe
-      # leans on, and the argv[0] the second bar is named after. Needs only
-      # bash + bats + awk.
+      # manager timeout in the `until` CONDITION, which the deadline check in
+      # the body only runs between, so AeroSpace exec'd 125 s into every login
+      # instead of 65. Pins what fixed it — the Apple event gone, the deadline
+      # read once per loop, a probe that waits for a NAME rather than for the
+      # non-empty `[ NULL ]` line the null ASN answers with, the settle moved
+      # into the shared script so pounce gets it too, and the argv[0] the second
+      # bar is named after. Needs only bash + bats + awk.
       - name: gui-wait
         run: bats test/gui-wait.bats
 

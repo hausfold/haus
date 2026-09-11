@@ -316,9 +316,12 @@ PR; hardcoded identity. Advisory, never a gate.
   which is why `core` leaves Finder's `QuitMenuItem` off. **No wait in there may
   be an Apple event**: macOS files one from a launchd job under `/bin/bash`, so
   the person gets a modal naming a shell, and a refusal doesn't fail — it sits
-  out a two-minute manager timeout inside the loop body, where the deadline is
-  never read, and every agent starts 125 s late at every login
-  (`test/gui-wait.bats`). Recover: `launchctl bootout`, then `bootstrap`.
+  out a two-minute manager timeout in the `until` CONDITION, which the deadline
+  check in the loop body only runs between, so every agent started 125 s late at
+  every login (`test/gui-wait.bats`). The `/bin/sleep 5` after the wait is the
+  margin the millisecond probe needs and lives in the shared script, not in the
+  wrappers, so `.script` has it too. Recover: `launchctl bootout`, then
+  `bootstrap`.
 - **pounce release delivery** (`modules/launcher`): TCC keys an Accessibility
   grant to the signing requirement, so the daemon runs the notarized release app
   (`pkgs.pounce-app`, pinned by pounce's `nix/release.nix`); a source build is
