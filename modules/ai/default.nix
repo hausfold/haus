@@ -263,49 +263,57 @@ let
     `~/${agentHomes.${client}.skills}/haus/` is generated too, from the haus
     revision this machine pins (`haus update` regenerates it), as is every other
     skill haus installed. `hausfold/` is haus's second skill and is edited in
-    hausfold/haus beside the first; `scruff/` and `handoff/` are scruff's, edited in
-    hausfold/scruff; `factory/` is factory's, edited in hausfold/factory;
+    hausfold/haus beside the first;${lib.optionalString cfg.enable " `scruff/` and `handoff/` are scruff's, edited in hausfold/scruff; `factory/` is factory's, edited in hausfold/factory;"}
     `nebelung/` is nebelung's, and half of it is rendered from
     that repo's palette files rather than written;${lib.optionalString config.haus.notifications.compositor " `trill/` is trill's, here because `haus.notifications.compositor` is on;"}${lib.optionalString config.haus.launcher.enable " `pounce/` is pounce's, here because `haus.launcher.enable` is on;"}${lib.optionalString config.haus.shelf.enable " `perch/` is perch's, here because `haus.shelf.enable` is on;"} they arrive on a lock bump. Not everything beside them
     is generated: ${clientScopeNote.${client}} that you can edit live with no
-    rebuild. `ls -l` the path before assuming which kind it is.
+    rebuild. `ls -l` the path before assuming which kind it is.${
+      # The whole worktree section rides on this room's switch, for the same
+      # reason ./tool-skills.nix gates the `scruff` SKILL on it: `scruff` is
+      # on PATH because `environment.systemPackages` below is `mkIf
+      # cfg.enable`, and this file is written whatever the switch says. Told
+      # to park with `scruff park` on a machine that hasn't got it, an agent
+      # reaches for `git stash` having been talked out of it by name.
+      lib.optionalString cfg.enable ''
 
-    # Agent worktrees & the `scruff` tool
 
-    `scruff` (shipped by haus, on PATH) manages **agent worktrees** for any git
-    repo. ${laneChordProse} Checkouts live under
-    `~/.cache/scruff/<repo>/<name>` whichever client you are.
+        # Agent worktrees & the `scruff` tool
 
-    Closing a pane never loses work: uncommitted edits are parked as a `wip:`
-    commit, and only already-merged branches are reaped. Resume with `scruff`
-    (lists every worktree across all repos) or `scruff <name>`; sweep landed ones
-    on demand with `scruff reap`.
+        `scruff` (shipped by haus, on PATH) manages **agent worktrees** for any git
+        repo. ${laneChordProse} Checkouts live under
+        `~/.cache/scruff/<repo>/<name>` whichever client you are.
 
-    **Cross-repo work uses `scruff child`, never a raw `git worktree add`.** To
-    work on a DIFFERENT repo than the pane you're in (e.g. a parent pane editing
-    a sub-repo):
+        Closing a pane never loses work: uncommitted edits are parked as a `wip:`
+        commit, and only already-merged branches are reaped. Resume with `scruff`
+        (lists every worktree across all repos) or `scruff <name>`; sweep landed ones
+        on demand with `scruff reap`.
 
-        cd "$(scruff child /path/to/other/repo)"
+        **Cross-repo work uses `scruff child`, never a raw `git worktree add`.** To
+        work on a DIFFERENT repo than the pane you're in (e.g. a parent pane editing
+        a sub-repo):
 
-    A raw `git worktree add` never touches the registry, so the statusline HUD
-    never learns to query that repo's GitHub and the worktree and its PR go
-    **invisible in the bar**. `scruff child` registers it under the spawning pane,
-    so its PR shows as a child row where you're working.
+            cd "$(scruff child /path/to/other/repo)"
 
-    **Setting work aside uses `scruff park`, never `git stash`.** The stash stack
-    is NOT per-worktree — it lives in the shared `.git` dir, so every agent
-    worktree of a repo and the main checkout push and pop the SAME stack, and
-    parallel agents routinely pop each other's entries into a tree that never
-    asked for them. `scruff park [label]` instead commits the whole dirty tree as
-    one `wip:` commit on the branch only this pane has checked out; `scruff
-    unpark` rewinds it, putting those changes back uncommitted. Unpark refuses a
-    wip commit you've already pushed, so it can never become a force-push.
+        A raw `git worktree add` never touches the registry, so the statusline HUD
+        never learns to query that repo's GitHub and the worktree and its PR go
+        **invisible in the bar**. `scruff child` registers it under the spawning pane,
+        so its PR shows as a child row where you're working.
 
-    **A session that keeps committing after its PR merged needs `scruff reship`.**
-    GitHub deletes the head branch on merge, so those later commits have no
-    remote and no PR, and `scruff` deliberately won't reap that branch. It marks
-    the lane `+N` in the state column (`live+3`) and the bar shows an orange
-    `N^`; `scruff reship [name]` pushes the branch and opens the follow-up PR.
+        **Setting work aside uses `scruff park`, never `git stash`.** The stash stack
+        is NOT per-worktree — it lives in the shared `.git` dir, so every agent
+        worktree of a repo and the main checkout push and pop the SAME stack, and
+        parallel agents routinely pop each other's entries into a tree that never
+        asked for them. `scruff park [label]` instead commits the whole dirty tree as
+        one `wip:` commit on the branch only this pane has checked out; `scruff
+        unpark` rewinds it, putting those changes back uncommitted. Unpark refuses a
+        wip commit you've already pushed, so it can never become a force-push.
+
+        **A session that keeps committing after its PR merged needs `scruff reship`.**
+        GitHub deletes the head branch on merge, so those later commits have no
+        remote and no PR, and `scruff` deliberately won't reap that branch. It marks
+        the lane `+N` in the state column (`live+3`) and the bar shows an orange
+        `N^`; `scruff reship [name]` pushes the branch and opens the follow-up PR.''
+    }
 
     # The screen belongs to the person at it
 
@@ -313,24 +321,30 @@ let
     takes focus or redraws the desktop interrupts someone mid-sentence, and
     unlike a bad edit they can't undo it.
 
-    - **To SEE it work, take a VM, not the screen.** A lane boots its own
-      headless macOS and can be driven as hard as you like — click, type,
-      `killall Dock`, `haus rebuild`, screenshot — because none of it renders
-      here. That is the answer to "can I try the palette / the bar / this
-      keybind / the installer", and it is the FIRST thing to reach for:
-      `scruff runtime up <lane> --backend tart`, then drive the guest over `ssh`.
-      `haus skill vm` (the skill's `references/vm.md`) has the whole loop.
-    - **Spawning a lane never takes the screen.** Put `HAUS_LANE_BACKGROUND=1`
-      in front of `scruff spawn` — the same binary the handoff skill's
-      `/handoff spawn` drives — and the lane opens without the user feeling it: on a
-      tiled machine the window is born off-screen and walked to `T/<repo>`, the
-      client still starts on its prompt, and focus stays where it was. The
-      palette's **Spawn Agent** sets it on a plain ↵ and clears it on ⌃↵, the
-      "spawn and follow it" chord; do the same, and clear it only when the user
-      asked to be TAKEN to the new lane. This is *how* to spawn when asked, not
-      licence to spawn unasked. With nothing on screen, the line you report —
-      repo, lane, branch — is their only receipt that it took.
-    - **Prefer looking to touching.** `screencapture -x` is silent and steals
+    ${
+      # Both bullets are about LANES, which is to say about `scruff` and `tart`,
+      # which is to say about this room. The three that follow are about the
+      # pointer and hold on any machine.
+      lib.optionalString cfg.enable ''
+        - **To SEE it work, take a VM, not the screen.** A lane boots its own
+          headless macOS and can be driven as hard as you like — click, type,
+          `killall Dock`, `haus rebuild`, screenshot — because none of it renders
+          here. That is the answer to "can I try the palette / the bar / this
+          keybind / the installer", and it is the FIRST thing to reach for:
+          `scruff runtime up <lane> --backend tart`, then drive the guest over `ssh`.
+          `haus skill vm` (the skill's `references/vm.md`) has the whole loop.
+        - **Spawning a lane never takes the screen.** Put `HAUS_LANE_BACKGROUND=1`
+          in front of `scruff spawn` — the same binary the handoff skill's
+          `/handoff spawn` drives — and the lane opens without the user feeling it: on a
+          tiled machine the window is born off-screen and walked to `T/<repo>`, the
+          client still starts on its prompt, and focus stays where it was. The
+          palette's **Spawn Agent** sets it on a plain ↵ and clears it on ⌃↵, the
+          "spawn and follow it" chord; do the same, and clear it only when the user
+          asked to be TAKEN to the new lane. This is *how* to spawn when asked, not
+          licence to spawn unasked. With nothing on screen, the line you report —
+          repo, lane, branch — is their only receipt that it took.
+      ''
+    }- **Prefer looking to touching.** `screencapture -x` is silent and steals
       nothing; a screenshot-only `computer_batch` is the same. Reach for those
       before a click.
     - **`open -g` does not promise a window.** It launches without activating
@@ -342,16 +356,29 @@ let
       what you see" costs two seconds; driving the palette yourself costs them
       their train of thought.
 
-    **Asking for THIS screen is the last resort.** It is earned only by
-    something a VM cannot show: the user's own windows, their real data or
-    accounts, hardware and display differences, a guest that won't boot, or a
-    grant that exists only on this Mac. "Faster on the host", "only one click"
-    and "just to check" are not reasons. If the VM is out of reach (no `tart`,
-    no image on disk), say so in one line and hand the feel-test back rather
-    than falling through to the pointer.
+    ${
+      if cfg.enable then
+        ''
+          **Asking for THIS screen is the last resort.** It is earned only by
+          something a VM cannot show: the user's own windows, their real data or
+          accounts, hardware and display differences, a guest that won't boot, or a
+          grant that exists only on this Mac. "Faster on the host", "only one click"
+          and "just to check" are not reasons. If the VM is out of reach (no `tart`,
+          no image on disk), say so in one line and hand the feel-test back rather
+          than falling through to the pointer.''
+      else
+        # No AI room means no lanes and no `tart`, so the escape hatch the
+        # paragraph above offers isn't on this machine. Same rule, one door.
+        ''
+          **Asking for THIS screen is the last resort**, and this machine has no
+          lane VM to send you instead: there is nothing here to run a guest with.
+          "Faster on the host", "only one click" and "just to check" are not
+          reasons. Say so in one line and hand the feel-test back rather than
+          falling through to the pointer.''
+    }
 
     ${
-      lib.optionalString (client == "claude") ''
+      lib.optionalString (cfg.enable && client == "claude") ''
         `agent-desktop-guard` backs this up on Claude Code panes: a PreToolUse
         hook that re-opens the permission prompt before a call that would move the
         pointer, take focus or redraw the desktop — those panes otherwise run in
@@ -361,7 +388,7 @@ let
         still an interruption.
       ''
     }${
-      lib.optionalString (client == "pi") ''
+      lib.optionalString (cfg.enable && client == "pi") ''
         `agent-desktop-guard` backs this up on pi panes, reached from `tool_call`
         by the `haus-desktop-guard` extension: the same ruleset Claude Code's
         panes run behind, in front of a bash command that would move the pointer,
@@ -376,7 +403,7 @@ let
         interruption.
       ''
     }${
-      lib.optionalString (client == "claude" || client == "pi") ''
+      lib.optionalString (cfg.enable && (client == "claude" || client == "pi")) ''
 
         The line is THIS screen, not the command. Work you run over `ssh` on
         another machine — a lane's own headless VM most of all — is never gated,
