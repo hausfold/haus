@@ -3429,10 +3429,13 @@ settings_pick_current() {
 # comma-separated, because appending `,wikipedia` to that is the whole job and
 # appending it to `["a","b"]` is a broken JSON list. Anything with a comma, a
 # quote, a bracket or a space inside an element stays JSON, where those mean
-# something.
+# something — and so does a list holding an EMPTY string, which the comma form
+# cannot express (an empty token is what a trailing comma leaves behind, and is
+# dropped on the way back in).
 settings_prefill() {
   jq -r 'if type == "array" and length > 0
-           and (map(type == "string" and (test("[\\s,\"\u0027\\[\\]]") | not)) | all)
+           and (map(type == "string" and length > 0
+                    and (test("[\\s,\"\u0027\\[\\]]") | not)) | all)
          then join(",")
          elif type == "string" then .
          else tojson end'
