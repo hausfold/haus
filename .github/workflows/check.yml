@@ -597,6 +597,22 @@ jobs:
       - name: a lane with no display
         run: bats test/lane-no-display.bats
 
+      # The launchd wait every GUI agent starts behind — the bar (twice),
+      # AeroSpace and pounce. Its second loop used to be an Apple event to
+      # System Events, which macOS filed under /bin/bash, so a fresh machine's
+      # first impression was a modal naming a shell, with nothing drawn behind
+      # it because all four agents were blocked in that loop. Refusing it cost
+      # more than the prompt: a denied Apple event sits out a two-minute
+      # manager timeout in the `until` CONDITION, which the deadline check in
+      # the body only runs between, so AeroSpace exec'd 125 s into every login
+      # instead of 65. Pins what fixed it — the Apple event gone, the deadline
+      # read once per loop, a probe that waits for a NAME rather than for the
+      # non-empty `[ NULL ]` line the null ASN answers with, the settle moved
+      # into the shared script so pounce gets it too, and the argv[0] the second
+      # bar is named after. Needs only bash + bats + awk.
+      - name: gui-wait
+        run: bats test/gui-wait.bats
+
       # The `haus rebuild` phase painter and the colour gate both end-user CLIs
       # grew with it. Three silent failure modes: a record `snug run` cannot
       # parse is a line that simply never appears; a repaint that assumes a

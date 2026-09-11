@@ -309,11 +309,19 @@ PR; hardcoded identity. Advisory, never a gate.
   CFPreferences, keyed by uid, so `modules/core`'s six sites carry no `-H`.
 - **launchd GUI race**: GUI agents (AeroSpace, SketchyBar, pounce) launched
   before the Aqua session is up park with exit 78 (EX_CONFIG).
-  `modules/lib/gui-wait.nix` polls for Dock/Finder/SystemUIServer from
-  `/bin/bash` (the /nix volume isn't mounted yet): `.wrap` for windows and bar,
-  `.script` for pounce. **Keep the 60 s deadline** — unbounded, a KeepAlive
-  restart parks forever with a live pid, which is why `core` leaves Finder's
-  `QuitMenuItem` off. Recover: `launchctl bootout`, then `bootstrap`.
+  `modules/lib/gui-wait.nix` polls for Dock/Finder/SystemUIServer and then for
+  a name out of `lsappinfo`, from `/bin/bash` (the /nix volume isn't mounted
+  yet): `.wrap` for windows and bar, `.script` for pounce. **Keep the 60 s
+  deadline** — unbounded, a KeepAlive restart parks forever with a live pid,
+  which is why `core` leaves Finder's `QuitMenuItem` off. **No wait in there may
+  be an Apple event**: macOS files one from a launchd job under `/bin/bash`, so
+  the person gets a modal naming a shell, and a refusal doesn't fail — it sits
+  out a two-minute manager timeout in the `until` CONDITION, which the deadline
+  check in the loop body only runs between, so every agent started 125 s late at
+  every login (`test/gui-wait.bats`). The `/bin/sleep 5` after the wait is the
+  margin the millisecond probe needs and lives in the shared script, not in the
+  wrappers, so `.script` has it too. Recover: `launchctl bootout`, then
+  `bootstrap`.
 - **pounce release delivery** (`modules/launcher`): TCC keys an Accessibility
   grant to the signing requirement, so the daemon runs the notarized release app
   (`pkgs.pounce-app`, pinned by pounce's `nix/release.nix`); a source build is

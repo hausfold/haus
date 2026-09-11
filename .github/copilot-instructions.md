@@ -24,8 +24,10 @@ The short version:
 - **Verify by evaluating:** `nix eval
   .#darwinConfigurations.example.system.drvPath`. `nixfmt` formats `.nix`.
 - Two traps worth knowing at review time: the **launchd GUI race**
-  (`modules/lib/gui-wait.nix` is load-bearing — don't simplify it away, and don't
-  drop its 60 s deadline: unbounded, it wedges the agent forever), and
+  (`modules/lib/gui-wait.nix` is load-bearing — don't simplify it away, don't
+  drop its 60 s deadline, and never probe with an Apple event: a denied one
+  blocks in the `until` condition, which the deadline check never gets to run
+  against), and
   **pounce release delivery** in `modules/launcher`: the daemon runs the
   notarized release app, whose team-anchored Developer ID requirement keeps a
   TCC grant alive across rebuilds. `AGENTS.md` has the rest.
