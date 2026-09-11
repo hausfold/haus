@@ -30,12 +30,12 @@ The domain **refuses writes from a process without FDA**. Not flaky, not
 needing a restart: `Could not write domain com.apple.universalaccess; exiting`,
 exit 1. With FDA held by the invoking app it writes *and* macOS honours it.
 
-> ⚠️ **The asymmetry that matters here.** The grant is on the *responsible app*,
-> so **an agent-driven `haus rebuild` and a rebuild from your own terminal are
-> not equivalent.** Ghostty has FDA; an agent client typically does not. If a
-> host sets one of these options, your rebuilds succeed and every agent rebuild
-> **aborts activation partway** — skipping all launchd setup — for a config that
-> "works on my machine".
+> ⚠️ **The grant is on the *responsible app*, so an agent-driven `haus rebuild`
+> and a rebuild from your own terminal are not equivalent.** Ghostty has FDA; an
+> agent client typically does not. The symptom that produces — activation
+> aborting partway, every launchd agent dead — is the site's
+> [every agent is dead, and macOS didn't
+> change](https://hausfold.co/docs/haus/reference/troubleshooting#every-agent-is-dead-and-macos-didnt-change).
 
 **Oracle-backed, no restart needed:**
 
@@ -216,15 +216,16 @@ applies.
 
 Two limits:
 
-1. **No power-source selector exists, and the missing selector is not neutral.**
-   Every `systemsetup` sleep verb is source-blind while macOS stores the two
-   sources separately. Measured: `-setcomputersleep 17` wrote the **AC** profile
-   and left battery alone, *while the machine was on battery*. So the typed
-   options cannot express "sleep at 5 min on battery, never on AC" — the only
-   opinion a laptop desktop has — and what they do write goes somewhere the
-   config never named.
-2. **Every call ends in `&> /dev/null`.** A refusal, an unsupported verb and a
-   success are indistinguishable. Not hypothetical: `systemsetup` emits an
+1. **No power-source selector exists.** Every `systemsetup` sleep verb is
+   source-blind while macOS stores the two sources separately. Measured:
+   `-setcomputersleep 17` wrote the **AC** profile and left battery alone,
+   *while the machine was on battery* — so what the typed options write goes
+   somewhere the config never named, and they cannot express "sleep at 5 min on
+   battery, never on AC", the only opinion a laptop desktop has. That is why
+   `haus.power.*` says `battery` and `charger` separately.
+2. **Every call ends in `&> /dev/null`** — `system.activationScripts.power`
+   discards stderr, so a refusal, an unsupported verb and a success are
+   indistinguishable. Not hypothetical: `systemsetup` emits an
    Admin-framework `-99` on stderr even when the write succeeds.
 
 Unreachable through `system.defaults` entirely: Low Power Mode
@@ -250,16 +251,11 @@ instead of taking the dependency.
 `hausdisp list` prints what's attached, each display's persistent UUID, and its
 distinct HiDPI "looks-like" sizes.
 
-## Open
+## What this record does not settle
 
-- [ ] Confirm the by-eye `universalaccess` rows on a fresh macOS release —
-      cursor size at `3.0`, ⌃+scroll zoom. It is the difference between
-      "persists" and "works".
-- [ ] Whether `systemsetup -setdisplaysleep` is AC-only like
-      `-setcomputersleep`. The probe now prints both sources for that row, so
-      the next run settles it.
-- [ ] Report to `LnL7/nix-darwin`: `power.sleep.*` writes only one power profile
-      on macOS 26, and `system.activationScripts.power` discards stderr, so
-      nothing surfaces. `power-sweep.sh` is the reproducer.
-- [ ] Have `haus doctor --matrix` run the probes, so "does this still hold on
-      27?" is one command.
+The by-eye `universalaccess` rows are the difference between "persists" and
+"works", and only a human on a fresh macOS release can re-check them — cursor
+size at `3.0`, ⌃+scroll zoom. Whether `systemsetup -setdisplaysleep` is AC-only
+like `-setcomputersleep` is unmeasured; the probe prints both sources for that
+row, so the next run settles it. The `power.sleep.*` finding is worth an
+upstream report to `LnL7/nix-darwin`; `power-sweep.sh` is the reproducer.

@@ -2856,9 +2856,10 @@
           ) registeredExports;
 
           # ---- desktop-seam ----------------------------------------------------
-          # `docs/model.md`, "The user journey": a host selects
-          # EXACTLY ONE desktop, a desktop is data with a closed shape, and the
-          # person who chose it still wins with a plain assignment.
+          # `docs/model.md`, "What a desktop is" and the priority ladder above
+          # it: a host selects EXACTLY ONE desktop, a desktop is data with a
+          # closed shape, and the person who chose it still wins with a plain
+          # assignment.
           #
           # Two halves, because the seam has two failure modes that look nothing
           # alike. The first table is behavioural — real evaluated machines,

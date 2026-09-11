@@ -1,18 +1,14 @@
 # The focus room — how it flips a real macOS Focus
 
-`haus.focus.*`. One quiet switch that silences notifications through **real
-macOS Focus** — so it syncs to your iPhone — sets your Slack status, and can be
-generalised into named scenes that a condition enters for you.
+`haus.focus.*`. The user-facing half — the switch, the Slack setup, scenes and
+their `when` conditions — is
+[hausfold.co/docs/haus/rooms/focus](https://hausfold.co/docs/haus/rooms/focus).
+This is the design record for a room built against an API Apple does not ship.
 
-Everything routes through one CLI engine, so the bar, the palette and the
-terminal can never disagree about what a toggle does:
-
-```
-focus  (on / off / toggle / status / scene / auto / doctor)
-├── bar pill          moon icon, accent-filled when quiet, click = toggle
-├── pounce command    "Toggle Focus" in the palette, plus one row per scene
-└── hooks             slack (built in) + host-provided scripts, run with "on"/"off"
-```
+Everything routes through one CLI engine (`focus on / off / toggle / status /
+scene / auto / doctor`), so the bar pill, the palette rows and the terminal can
+never disagree about what a toggle does. Hooks — `slack` built in, plus
+host-provided scripts — are run by the engine with `on` or `off`.
 
 ## Flipping Focus without a public API
 
@@ -43,6 +39,10 @@ every release); legacy `defaults` hacks (dead since Monterey's Focus rewrite).
 hotkey. `mechanism = "shortcut"` (a pre-signed `.shortcut`, one "Add Shortcut"
 click) is the opt-in that covers them.
 
+**No declarative allowlists.** Which apps and people break through lives in
+`~/Library/DoNotDisturb/DB/ModeConfigurations.json`, which is CloudKit-synced
+and unsupported to write.
+
 ## Keeping the pill truthful
 
 Hotkey 175 is a blind toggle, and the user can also flip Focus from Control
@@ -51,17 +51,16 @@ Center or their phone — so **reading** state matters more here, not less.
 pounce reads `~/Library/DoNotDisturb/DB/Assertions.json`. That needs **Full Disk
 Access**, and because the daemon runs the Developer-ID-signed release app, the
 grant survives rebuilds the same way Accessibility does. So pounce is the one
-TCC-privileged agent: it can both flip DND and report it (`pounce focus status`), which makes
-`focus on`/`off` deterministic (read, then toggle only if needed) rather than
-blind.
+TCC-privileged agent: it can both flip DND and report it
+(`pounce focus status`), which makes `focus on`/`off` deterministic — read, then
+toggle only if needed — rather than blind. Without FDA the engine falls back to
+its own state file; `focus doctor` says so, and it is a degraded mode, not the
+design.
 
 A `WatchPaths` launchd agent on the DB dir fires `sketchybar --trigger
 focus_change`, so the pill syncs instantly even when the toggle came from the
 phone. The engine fires the same trigger after acting, so the pill never waits
 for a poll when *we* changed the state.
-
-Without FDA the engine falls back to its own state file, which drifts on any
-external toggle. `focus doctor` says so; it is a degraded mode, not the design.
 
 ## The Slack leg
 
@@ -75,11 +74,8 @@ Focus can't do: tell your **teammates** and silence your **phone**.
 ## Scenes
 
 `haus.focus.scenes.<name>` is the same machinery with the member list opened
-up — `dnd`, `preventSleep`, `audio.input`, `apps.open`, `hooks`,
-`restorePreviousState`. Entered with `focus scene <name>`, left with `focus
-scene off`. **One at a time.**
-
-Five rules that are load-bearing:
+up — `dnd`, `preventSleep`, `audio.input`, `apps.open`, `apps.closeOnExit`,
+`hooks`, `restorePreviousState`. Four rules are load-bearing:
 
 1. **`quiet` is reserved, not declarable.** It is what `focus on`, the pill and
    the palette already enter, and its state is read from the OS rather than from
@@ -93,24 +89,21 @@ Five rules that are load-bearing:
    took is written to `scene-prev.json` on entry, so leaving a scene the host
    has since deleted from the table still puts DND and the input device back —
    a rebuild between entering and leaving is an ordinary afternoon.
-   `restorePreviousState = false` makes leaving end quiet-off even when you were
-   quiet before.
-4. **`focus off` and `focus toggle` release an active scene.** Both are what the
-   pill and the palette call, and a pill that un-quiets while a caffeinate hold
-   and a switched microphone stay behind is lying about what it just did.
-5. **Honest scope, stated in the option descriptions too.** Exiting a scene
-   never closes the apps it opened; `audio.input` needs `SwitchAudioSource`
-   (pulled in only when some scene names a device, since macOS ships no CLI for
-   it); a `preventSleep` assertion is a `caffeinate` process, so its pid file is
-   checked against the running process before anything is signalled.
+4. **`focus off` and `focus toggle` release an active scene**, hold and
+   microphone included: a pill that un-quiets while a caffeinate hold and a
+   switched microphone stay behind is lying about what it just did. A
+   `preventSleep` assertion is a `caffeinate` process, so its pid file is checked
+   against the running process before anything is signalled, and
+   `switchaudio-osx` (for `SwitchAudioSource`) enters the closure only when some
+   scene names an `audio.input` — macOS ships no CLI for it, and a room
+   shouldn't grow a closure for a field nobody set.
 
 ## Triggers
 
-`haus.focus.scenes.<name>.when` is a set of CONDITIONS — a daily window,
-weekdays, a Wi-Fi SSID, the power source, how many displays are attached —
-**ANDed** together. `focus auto` is one launchd tick asking each scene whether
-its condition holds. The agent exists only on a machine where some scene
-declared one; `haus.focus.triggers.interval` (default 30 s) is how often.
+`haus.focus.scenes.<name>.when` is a set of conditions ANDed together, and
+`focus auto` is one launchd tick asking each scene whether its conditions hold.
+The agent exists only on a machine where some scene declared one;
+`haus.focus.triggers.interval` (default 30 s) is how often.
 
 **The whole feature rests on one promise: the daemon never overrides a state you
 chose.** A background process that moves your Mac around is only tolerable if it
@@ -163,26 +156,3 @@ monitors re-negotiate — all things launchd's `StartInterval` lands directly on
 top of. With two answers, one blank read leaves the scene and the next re-enters
 it: hooks off then on, the caffeinate hold dropped and retaken, DND and the
 Slack status flipped twice.
-
-## What focus honestly won't do
-
-- **No declarative Focus allowlists.** Which apps and people break through lives
-  in `~/Library/DoNotDisturb/DB/ModeConfigurations.json`, which is
-  CloudKit-synced and unsupported to write. Curate it once in System Settings;
-  focus only flips the switch.
-- **Named Focus modes need the shortcut fallback.** The declarative hotkey
-  reaches classic DND only.
-- **One one-time TCC checkbox.** Full Disk Access for pounce can't be granted
-  programmatically. `focus doctor` and the bootstrap interview walk it; the
-  team-anchored signature makes it stick forever after.
-- **No Slack app provisioning.** Token creation is a one-time documented
-  walkthrough.
-
-## Not built
-
-- **Timed focus** — `focus 25` writes an until-timestamp; the poll auto-offs
-  past expiry and the pill label shows minutes remaining. The palette grows
-  "Focus 25m / 60m" rows.
-- **A leader chord for focus.** A scene already gets a generated palette row and
-  a cheatsheet line; what is missing is a *key*, and a
-  `haus.keys.leaderExtras` chord is still hand-written by the host.
