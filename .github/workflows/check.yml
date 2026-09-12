@@ -62,16 +62,6 @@ jobs:
           purge-prefixes: nix-${{ runner.os }}-
           purge-created: 0
           purge-primary-key: never
-      # No `gc-max-store-size-*` is set, so the action collects no garbage and
-      # saves the store whole. That is not a default worth overriding here:
-      # this job runs `nix eval` and `nix flake check` and never `nix build`,
-      # so it creates NO gcroot at all, and a collector run before the save
-      # would empty almost everything it had just fetched and built. The cost
-      # is that the store carries forward and creeps; the line below is how
-      # that stays readable rather than arriving as a surprise eviction at
-      # GitHub's 10 GB per-repo ceiling.
-      - name: How big a store we are carrying
-        run: du -sh /nix/store
       - run: nix eval .#darwinConfigurations.example.system.drvPath
       # The platform-independent checks are declared for Linux too precisely so
       # they can run HERE — TWENTY-FOUR of them, everything in flake.nix's `checks`
@@ -305,6 +295,18 @@ jobs:
       # a flake check — same reasoning, same job.
       - name: haus add/desktop/remove tests
         run: bash test/haus-add.sh
+
+      # Last, because the size that matters is the one about to be SAVED. No
+      # `gc-max-store-size-*` is set, so the action collects no garbage and
+      # saves the store whole — which is not a default worth overriding here:
+      # this job runs `nix eval` and `nix flake check` and never `nix build`,
+      # so it creates NO gcroot at all, and a collector run before the save
+      # would empty almost everything it had just fetched and built. The cost
+      # is that the store carries forward and creeps; this line is how that
+      # stays readable rather than arriving as a surprise eviction at GitHub's
+      # 10 GB per-repo ceiling.
+      - name: How big a store we are about to save
+        run: du -sh /nix/store
 
   shellcheck:
     name: shell scripts
