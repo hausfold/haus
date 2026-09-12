@@ -422,6 +422,28 @@ if [ -n "$sw" ]; then
 else
   echo "sleepwatcher not running — its prompt will appear on a later boot" >&2
 fi
+# Two GUI apps ask for Accessibility by BUNDLE ID, not by path, and both were
+# wrong in the first image this script built (2026-09-12, checked on a clone's
+# second boot rather than at build time — which is the only place it shows).
+# AeroSpace had no row at all, so every boot raised "AeroSpace.app would like
+# to control this computer using accessibility features", whose only dismissing
+# button is Deny, in front of whatever the lane was sent to photograph. pounce
+# had a row at auth_value 0 — DENIED, which is worse than missing: ⌘Space is
+# simply dead in the clone and nothing on screen says why.
+#
+# client_type 0 is the bundle-id form (the path form above is 1). Unlike the
+# sleepwatcher row these survive a haus bump, since neither app is addressed
+# by a store path.
+grant_bundle() {
+  sudo -n sqlite3 "$db" "INSERT OR REPLACE INTO access
+    (service, client, client_type, auth_value, auth_reason, auth_version,
+     indirect_object_identifier_type, indirect_object_identifier, boot_uuid)
+    VALUES ('$1', '$2', 0, 2, 0, 1, NULL, 'UNUSED', 'UNUSED');" \
+    || echo "⚠ could not grant $1 to $2" >&2
+}
+grant_bundle kTCCServiceAccessibility bobko.aerospace
+grant_bundle kTCCServiceAccessibility com.hausfold.pounce
+
 sudo -n killall tccd 2>/dev/null || true
 
 # The order of this pass is not cosmetic. A prompt that is ALREADY on screen
