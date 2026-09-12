@@ -98,6 +98,51 @@ up — `dnd`, `preventSleep`, `audio.input`, `apps.open`, `apps.closeOnExit`,
    scene names an `audio.input` — macOS ships no CLI for it, and a room
    shouldn't grow a closure for a field nobody set.
 
+### A scene's key is generated, not written
+
+Every other surface a scene gets is made out of the scene: a `Scene: <name>`
+palette command, a cheatsheet row beside it, a `focus scene list` entry. A KEY
+was the exception — the host wrote a `haus.keys.leaderExtras` entry whose
+`command` repeated the scene's name inside a shell string, which stops being
+true the moment the scene is renamed. `haus.focus.scenes.<name>.key` closes
+that: one leaf, and the binding, the script AeroSpace execs and the cheatsheet
+row are all made from it.
+
+It crosses two rooms, because two different things are made out of one fact and
+neither room may read the other. Launch mode is AeroSpace's, so the binding is
+the windows room's (`_contrib.windows.leaderActions`, a registry — a key is
+exactly the sort of thing a second room will want). The cheatsheet is pounce's,
+so the row is the launcher's (`_contrib.launcher.focus.scenes.<name>.key`).
+Focus writes both, one `mapAttrs` apart, so the key and the line that teaches it
+cannot drift.
+
+Three things the shape rests on:
+
+1. **It is a LEADER key, not a global hotkey.** `haus.launcher.items.<key>.hotkey`
+   is registered process-wide and beats Ghostty's own bindings; a collision
+   across AeroSpace, pounce and macOS's symbolic hotkeys is silent, and the
+   loser simply stops firing. A launch-mode key can only collide inside launch
+   mode, where the roster letters, the numbered workspaces' three chords each,
+   the fixed actions and `haus.keys.leaderExtras` already refuse each other at
+   eval. So the contributed keys join that list BEFORE anything renders, and the
+   assertion prints the option address rather than the key alone — the two
+   halves are written in different files by different people.
+2. **It is desktop-safe, unlike the `leaderExtras` entry it replaces.** That
+   leaf is host-only for running an arbitrary command; this one names a key, and
+   what it runs is this room's own verb. So a shared desktop can ship a scene
+   complete with its key and still carry no code. The price is that a downloaded
+   desktop can write the string that is spelled into a single-quoted TOML
+   literal and into a filename under `~/.config/aerospace` — hence the shape
+   assertion beside the collision one, which nothing needed while the only
+   writer was a host file.
+3. **The key TOGGLES.** `focus scene toggle <name>`, not the bare enter the
+   palette row runs. ⌘Space can afford **Leave Scene** beside every **Scene**
+   row; one keystroke has nowhere to put a second half, and a key that could
+   only ever enter would lie about what the second press does. It reads through
+   `focus scene status` rather than the scene file, so `quiet` — the built-in,
+   which is not in the table — toggles too instead of quietening an
+   already-quiet Mac forever.
+
 ## Triggers
 
 `haus.focus.scenes.<name>.when` is a set of conditions ANDed together, and

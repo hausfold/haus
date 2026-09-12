@@ -652,7 +652,7 @@
     "focus": {
       "blurb": "One quiet switch: Do Not Disturb, optional Slack status, and your hooks — plus the named scenes around it.",
       "kind": "room",
-      "optionCount": 22,
+      "optionCount": 23,
       "options": {
         "haus.focus.enable": {
           "desktopSafe": true
@@ -683,6 +683,9 @@
         "haus.focus.scenes.<name>.hooks": {
           "desktopSafe": false,
           "reason": "runs-a-command"
+        },
+        "haus.focus.scenes.<name>.key": {
+          "desktopSafe": true
         },
         "haus.focus.scenes.<name>.preventSleep": {
           "desktopSafe": true
@@ -1913,7 +1916,7 @@
           "go quiet automatically in the evening",
           "how do I make a scene start on its own"
         ],
-        "cli": "focus on|off|toggle|status · focus scene <name>|off|list · focus auto --probe"
+        "cli": "focus on|off|toggle|status · focus scene <name>|toggle <name>|off|list · focus auto --probe"
       },
       "blurb": "One quiet switch: Do Not Disturb, an optional status somewhere else, and your own hooks on both edges — plus the named states (`scenes`) around it, of which quiet is the built-in one. A scene can carry a `when` (a daily window, a network, the power source, the screens) and be entered for you, on a rule that never overrides a state you chose.",
       "exports": [
@@ -1923,7 +1926,7 @@
       "namespaces": [
         "focus"
       ],
-      "optionCount": 22,
+      "optionCount": 23,
       "order": 90,
       "title": "Focus"
     },

@@ -164,6 +164,71 @@ in
       };
     };
 
+    # Launch mode's other half. The leader binds a key to an app from
+    # `haus.roster` and to a command from `haus.keys.leaderExtras`, and neither
+    # reaches a room that generates its own actions: the Focus room knows it has
+    # a scene called `recording` and knows the verb that enters it, but it has no
+    # business writing a TOML table, and this room has no business reading
+    # `config.haus.focus.*` to find out.
+    #
+    # A REGISTRY rather than one point, because a key is exactly the kind of
+    # thing a second room will want — and two rooms writing the same leaves over
+    # each other is the failure `mkExtensionRegistry` exists for. The key names
+    # the room and the thing (`focus-scene-recording`), the same rule the
+    # permissions deck follows.
+    #
+    # Whatever lands here joins `haus.keys.leaderExtras` in ONE list before
+    # anything is rendered, and that is the point of the seam rather than an
+    # implementation detail: the binding, the little script AeroSpace execs and
+    # the uniqueness check all have to see both halves. A key claimed twice in
+    # `[mode.launch.binding]` is not an error in AeroSpace — it keeps whichever
+    # it parsed last and the other one silently stops firing.
+    _contrib.windows.leaderActions = contrib.mkExtensionRegistry {
+      description = ''
+        Leader (launch-mode) keys a room generates for itself: tap the leader,
+        then the key, and the command runs.
+
+        Today's one writer is the Focus room — a scene with
+        `haus.focus.scenes.<name>.key` set. Off, or with this room off, the
+        scene keeps every other surface it has and loses only the key.
+      '';
+      options = {
+        key = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          description = ''
+            The AeroSpace key name pressed after the leader, a US-keyboard
+            position like every other key here. Empty means the writer declared
+            no key, and nothing is bound — it is not an error, it is the normal
+            state of a scene nobody gave a key to.
+          '';
+        };
+        command = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          description = ''
+            The shell command the key runs. Written into a small `/bin/sh`
+            script this room execs rather than inlined into the config, for the
+            same reason `haus.keys.leaderExtras` is: AeroSpace's TOML arrays are
+            single-quoted literals with no escape, so a command carrying a `'`
+            would end the string early.
+          '';
+        };
+        source = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          description = ''
+            The option address the key came from, e.g.
+            `haus.focus.scenes.recording.key`. It is what the collision
+            assertion prints and what the generated script carries as its
+            comment: a key claimed twice has to say which line to edit, and
+            "haus.keys.leaderExtras" is the wrong answer on a machine where the
+            key came from a scene.
+          '';
+        };
+      };
+    };
+
     # core + terminal are the floor and have no switch (system, shell). Of the
     # rooms you can SEE, all six have one — windows, bar, launcher, shelf, focus,
     # security — and turning one off drops its packages, agents and config

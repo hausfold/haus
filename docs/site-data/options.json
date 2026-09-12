@@ -2598,7 +2598,7 @@
       "_type": "literalExpression",
       "text": "{ }"
     },
-    "description": "Named machine states, entered with `focus scene <name>` and left with\n`focus scene off`. One at a time: entering a scene leaves whichever was\nrunning, so the Mac is only ever in one.\n\n`quiet` is the built-in — it is what `focus on`, the bar pill and the\npalette command already enter — so the name is reserved and defining it\nhere is an error. Shape quiet through `haus.focus.slack` and\n`haus.focus.hooks` instead.\n\nWith the launcher room on, every scene is a palette row too — a\ngenerated `Scene: <name>` command, plus `Leave Scene`, each with a line\non the cheatsheet's Palette Commands page — so entering one doesn't\nmean remembering its name in a terminal. A `haus.keys.leaderExtras`\nchord remains the way to give one a key.\n\nA scene with a `when` is entered for you — a daily window, a set of\nweekdays, a Wi-Fi network, the power source, how many screens are\nattached. One rule governs all of it, and it is the reason this is\nsafe to leave running: **the daemon never overrides a state you\nchose.** It enters a scene on the EDGE where the condition becomes\ntrue and only from a neutral Mac, it leaves only the scene it entered\nitself, and it never re-enters one you walked out of until that\ncondition has gone false and true again. So a scene you leave at ten\npast nine stays left, and a scene you enter by hand is never taken\naway from you.\n",
+    "description": "Named machine states, entered with `focus scene <name>` and left with\n`focus scene off`. One at a time: entering a scene leaves whichever was\nrunning, so the Mac is only ever in one.\n\n`quiet` is the built-in — it is what `focus on`, the bar pill and the\npalette command already enter — so the name is reserved and defining it\nhere is an error. Shape quiet through `haus.focus.slack` and\n`haus.focus.hooks` instead.\n\nWith the launcher room on, every scene is a palette row too — a\ngenerated `Scene: <name>` command, plus `Leave Scene`, each with a line\non the cheatsheet's Palette Commands page — so entering one doesn't\nmean remembering its name in a terminal. Give a scene a `key` and it\ngets a leader binding and its cheatsheet row generated as well.\n\nA scene with a `when` is entered for you — a daily window, a set of\nweekdays, a Wi-Fi network, the power source, how many screens are\nattached. One rule governs all of it, and it is the reason this is\nsafe to leave running: **the daemon never overrides a state you\nchose.** It enters a scene on the EDGE where the condition becomes\ntrue and only from a neutral Mac, it leaves only the scene it entered\nitself, and it never re-enters one you walked out of until that\ncondition has gone false and true again. So a scene you leave at ten\npast nine stays left, and a scene you enter by hand is never taken\naway from you.\n",
     "example": {
       "_type": "literalExpression",
       "text": "{\n  recording = {\n    description = \"camera on, nothing interrupts\";\n    preventSleep = true;\n    audio.input = \"Studio Mic\";\n    apps.open = [ \"OBS\" ];\n  };\n}\n"
@@ -2743,6 +2743,29 @@
     ],
     "readOnly": false,
     "type": "list of (absolute path or string)"
+  },
+  "haus.focus.scenes.<name>.key": {
+    "declarations": [
+      "modules/focus/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "A launch-mode key for this scene: tap the leader, then this key,\nto enter the scene — and the same key again to leave it. The\ncheatsheet row is generated beside the binding, so the key and\nits caption cannot drift.\n\nAn AeroSpace key name, and a POSITION on a US keyboard like\nevery other key in this config (`haus.keys.layout` moves the\nletters onto the keys that print them). It shares launch mode\nwith the app roster, the numbered workspaces and their throws,\nthe fixed actions (`v`, `f`, `z`, `,`, `.`, `` ` ``, `-`, `=`,\n`/`, esc and the arrows) and `haus.keys.leaderExtras`, so a key\none of those already claims is refused at eval rather than\nsilently shadowing it.\n\nNeeds `haus.windows.enable` and `haus.keys.leader != \"none\"` —\nlaunch mode is the tiler's, and a machine that claims no leader\nhas no launch mode to bind into. Without either, the scene keeps\nits palette row and loses only the key.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"r\""
+    },
+    "loc": [
+      "haus",
+      "focus",
+      "scenes",
+      "<name>",
+      "key"
+    ],
+    "readOnly": false,
+    "type": "null or string"
   },
   "haus.focus.scenes.<name>.preventSleep": {
     "declarations": [

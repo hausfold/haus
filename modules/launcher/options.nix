@@ -96,10 +96,11 @@ in
 
     # The Focus room's palette surface. Two facts, and the second is why this
     # point carries data rather than only a switch: a scene is generated into
-    # its own palette command and its own cheatsheet row, so the launcher needs
-    # the scenes themselves — but only the one field it renders. `hooks`,
-    # `apps`, `audio` and the rest never cross, which is the difference between
-    # a declared point and reading `config.haus.focus.scenes` whole.
+    # its own palette command, its own cheatsheet row and (with a `key`) the row
+    # that teaches its leader chord, so the launcher needs the scenes
+    # themselves — but only the fields it renders. `hooks`, `apps`, `audio` and
+    # the rest never cross, which is the difference between a declared point and
+    # reading `config.haus.focus.scenes` whole.
     _contrib.launcher.focus = contrib.mkExtensionPoint {
       description = ''
         The Focus room's palette rows: **Toggle Focus**, one **Scene** command
@@ -122,14 +123,27 @@ in
                 default = "";
                 description = "The scene's one-line description — `haus.focus.scenes.<name>.description`.";
               };
+              # The cheatsheet half of a scene's key. The BINDING is the windows
+              # room's (`_contrib.windows.leaderActions`) — AeroSpace owns launch
+              # mode and pounce owns the page, so the one fact lands in two rooms
+              # rather than one room rendering the other's surface.
+              options.key = lib.mkOption {
+                type = lib.types.str;
+                default = "";
+                description = ''
+                  The launch-mode key that enters the scene —
+                  `haus.focus.scenes.<name>.key`. Empty means the scene asked
+                  for no key, and the Launch Mode page gets no row for it.
+                '';
+              };
             }
           );
           default = { };
           description = ''
             The declared scenes, keyed by name. The key is what `focus scene`
             takes and what the row fuzzy-matches, so the palette row and the
-            CLI teach each other; the description is the only field the palette
-            renders.
+            CLI teach each other; the description and the leader key are the
+            only fields the palette renders.
           '';
         };
       };

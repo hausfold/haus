@@ -512,4 +512,63 @@ assert_eq "$(owner_now)" "" "a hand re-entry inside one interval takes ownership
 FAKE_HHMM=1730 tick
 assert_eq "$(on_now)" work "so the closing window does not evict the scene you entered:"
 
+# ---------------------------------------------------------------------------
+# 19. `focus scene toggle <name>` — the verb a KEY spends, and the one surface
+# with no room for a second half. `haus.focus.scenes.<name>.key` binds one
+# leader key per scene, so the same press has to mean both directions; the
+# palette can afford Leave Scene beside every row and a keystroke cannot.
+#
+# Toggling here rather than in the auto suite's own idiom on purpose: entering
+# and leaving by hand is what a key does, and the daemon must not own what a
+# person pressed — case 18's promise, reached through the other door.
+#
+# Two scenes with no `when` at all, because a key'd scene usually has none: this
+# is the hand-entered half of the room, which is every scene that existed before
+# triggers did.
+cat >"$TMP/scenes-keys.json" <<'EOF'
+{
+  "recording": {
+    "description": "camera on",
+    "dnd": false, "preventSleep": false, "restorePreviousState": true,
+    "apps": [], "closeApps": false, "audioInput": "", "hooks": [],
+    "when": { "time": "", "days": [], "wifi": [], "power": "any", "displays": null }
+  },
+  "reading": {
+    "description": "nothing moves",
+    "dnd": false, "preventSleep": false, "restorePreviousState": true,
+    "apps": [], "closeApps": false, "audioInput": "", "hooks": [],
+    "when": { "time": "", "days": [], "wifi": [], "power": "any", "displays": null }
+  }
+}
+EOF
+build_engine "$TMP/scenes-keys.json"
+reset
+"$TMP/focus" scene toggle recording 2>/dev/null
+assert_eq "$(on_now)" recording "toggle enters a scene that is off:"
+"$TMP/focus" scene toggle recording 2>/dev/null
+assert_eq "$(on_now)" off "and the same key again leaves it:"
+
+# A key pressed for a DIFFERENT scene while one is on is an enter, not a leave —
+# the same one-at-a-time rule `scene_enter` already keeps.
+"$TMP/focus" scene toggle recording 2>/dev/null
+"$TMP/focus" scene toggle reading 2>/dev/null
+assert_eq "$(on_now)" reading "toggling another scene switches rather than leaving:"
+"$TMP/focus" scene toggle reading 2>/dev/null
+assert_eq "$(on_now)" off "and that one leaves on its own key:"
+
+# A scene the daemon entered leaves on the key like any other: the promise is
+# that the daemon never overrides YOU, not the other way round.
+build_engine "$TMP/scenes-time.json"
+reset
+FAKE_HHMM=0830 tick
+FAKE_HHMM=0905 tick
+assert_eq "$(on_now)" work "the daemon entered it:"
+"$TMP/focus" scene toggle work 2>/dev/null
+assert_eq "$(on_now)" off "and the key still takes it away:"
+
+# No name is a usage error, not a silent no-op — the binding always passes one,
+# so this is the hand-typed case.
+"$TMP/focus" scene toggle 2>/dev/null \
+    && fail "toggle with no scene name must refuse rather than do nothing"
+
 printf 'ok - focus auto: %s assertions\n' "$(grep -cE '^assert_eq |\|\| fail ' "$0")"

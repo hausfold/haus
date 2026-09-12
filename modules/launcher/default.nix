@@ -426,6 +426,19 @@ let
       key = launchKeyGlyphs.${e.key} or e.key;
       action = if e.caption != null then e.caption else e.command;
     }) config.haus.keys.leaderExtras)
+    # A scene's own leader key (haus.focus.scenes.<name>.key), through the Focus
+    # room's contribution. The row and the binding the windows room writes are
+    # made from one leaf a `mapAttrs` apart, so this page cannot teach a key
+    # nothing runs — the same guarantee the roster letters and the leaderExtras
+    # above already carry.
+    #
+    # The caption names the second press. A leaderExtra only ever fires forward,
+    # but a scene key toggles, because ⌘Space carries Leave Scene beside every
+    # Scene row and one keystroke has nowhere to put a second half.
+    ++ (map (name: {
+      key = launchKeyGlyphs.${scenes.${name}.key} or scenes.${name}.key;
+      action = "Scene: ${name} (again to leave)";
+    }) (lib.attrNames (lib.filterAttrs (_: s: s.key != "") scenes)))
     # The numbered workspaces: focus, throw-and-follow, throw-and-stay. Nothing
     # to teach when haus.windows.numberedWorkspaces is 0, and a page that names an
     # unbound key is worse than a page that doesn't mention it.

@@ -577,6 +577,31 @@ scene_off() {
     note "scene off ($name)"
 }
 
+# The verb a KEY spends. `haus.focus.scenes.<name>.key` binds one leader key to
+# one scene, and a key has no room for a second half, so it has to mean both
+# directions: press to enter, press again to leave. Every other surface already
+# carries its own way back — the palette puts Leave Scene beside every row, the
+# pill has its click — and a key that could only ever enter would be the one
+# that lies about what it does on the second press.
+#
+# Read through `scene_status`, not `scene_active`: quiet is the built-in scene
+# and is not in the table, so `scene_active` answers `off` while the Mac is
+# quiet, and `focus scene toggle quiet` would quieten an already-quiet Mac
+# forever. Leaving is `scene_off`'s whole job, a scene `focus auto` entered
+# included — the daemon loses every argument the moment a person takes one.
+scene_toggle() {
+    local name=$1
+    if [ -z "$name" ]; then
+        echo "usage: focus scene toggle <name>" >&2
+        exit 64
+    fi
+    if [ "$(scene_status)" = "$name" ]; then
+        scene_off
+    else
+        scene_enter "$name"
+    fi
+}
+
 scene_status() {
     local name
     name=$(scene_active)
@@ -1109,12 +1134,13 @@ case "${1:-toggle}" in
             "" | status) scene_status ;;
             list) scene_list ;;
             off) scene_off ;;
+            toggle) scene_toggle "${3:-}" ;;
             *) scene_enter "$2" ;;
         esac
         ;;
     *)
         echo "usage: focus [on|off|toggle|status|doctor]" >&2
-        echo "       focus scene [<name>|off|list|status]" >&2
+        echo "       focus scene [<name>|toggle <name>|off|list|status]" >&2
         echo "       focus auto [--probe]" >&2
         exit 64
         ;;

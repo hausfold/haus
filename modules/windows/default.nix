@@ -222,8 +222,8 @@ let
     a: "${a.key} = ['exec-and-forget ${launchInvocation a}', 'mode main']\n"
   ) launchers;
 
-  # Non-app leader actions (haus.keys.leaderExtras): a leader key that runs a
-  # command instead of launching a roster app. Each command goes into its OWN
+  # Non-app leader actions: a leader key that runs a command instead of
+  # launching a roster app. Each command goes into its OWN
   # script file (leaderExtraFiles below) and the binding just execs that path —
   # NOT the command inlined. AeroSpace's toml array elements are single-quoted
   # literal strings with no escape, so a command carrying a `'` (an
@@ -232,7 +232,28 @@ let
   # already uses for reopen-last-app.sh / resort-windows.sh. Same
   # [mode.launch.binding] slot as the letters: drop the indicator, run, return to
   # main. homeDir is baked literally (like launchInvocation), so no subTokens pass.
-  leaderExtras = config.haus.keys.leaderExtras;
+  #
+  # TWO sources, joined here and nowhere else: what a host wrote by hand
+  # (`haus.keys.leaderExtras`) and what a room generated for itself
+  # (`_contrib.windows.leaderActions` — see ./options.nix for the seam, and
+  # modules/focus for today's one writer). The join has to happen before
+  # anything renders, because all three renderings below — the binding, the
+  # script file, the uniqueness check — would otherwise see half the keys, and
+  # the half they missed is the half that silently stops firing.
+  #
+  # Each entry carries the option address it came from. A collision message's
+  # only useful content is which line to edit, and the two halves are written in
+  # different files by different people.
+  hostLeaderExtras = map (e: {
+    inherit (e) key command;
+    source = "haus.keys.leaderExtras";
+  }) config.haus.keys.leaderExtras;
+  # An empty key is a room that declared none — a scene nobody gave a key to is
+  # the ordinary case, so it is filtered out rather than asserted on.
+  contributedLeaderExtras = lib.mapAttrsToList (_: e: { inherit (e) key command source; }) (
+    lib.filterAttrs (_: e: e.key != "") config.haus._contrib.windows.leaderActions
+  );
+  leaderExtras = hostLeaderExtras ++ contributedLeaderExtras;
   leaderExtraPath = e: "${homeDir}/.config/aerospace/leader-extra-${e.key}.sh";
   launchExtras = lib.concatMapStrings (
     e:
@@ -242,7 +263,7 @@ let
     map (e: {
       name = ".config/aerospace/leader-extra-${e.key}.sh";
       value = {
-        text = "#!/bin/sh\n# haus.keys.leaderExtras — leader → ${e.key}\nexec ${e.command}\n";
+        text = "#!/bin/sh\n# ${e.source} — leader → ${e.key}\nexec ${e.command}\n";
         executable = true;
       };
     }) leaderExtras
@@ -301,6 +322,63 @@ let
   extraCollisions = lib.unique (lib.filter (key: lib.elem key reservedLaunchKeys) extraKeys);
   extraDuplicates = lib.unique (
     lib.filter (key: lib.count (candidate: candidate == key) extraKeys > 1) extraKeys
+  );
+  # What ELSE in launch mode already holds a key. The addresses below say which
+  # line to EDIT; this says what you landed ON, which is the half a reader
+  # cannot work out — that `t` is Ghostty's roster letter is a fact about the
+  # roster, not about the key.
+  claimedBy =
+    key:
+    let
+      app = lib.findFirst (a: a.key == key) null launchers;
+      throws = lib.concatMap (k: [
+        "shift-${k}"
+        "alt-shift-${k}"
+      ]) workspaceKeys;
+    in
+    if app != null then
+      "${if app.label != null then app.label else app.name}'s roster key"
+    else if lib.elem key builtinLaunchKeys then
+      "a built-in launch-mode action"
+    else if lib.elem key throws then
+      "a workspace throw"
+    else
+      null;
+
+  # A conflicting key, spelled with everything that claims it:
+  # `r (haus.keys.leaderExtras, haus.focus.scenes.recording.key)`. Without the
+  # addresses the message names a key and leaves you grepping two rooms for it.
+  extraSaid =
+    key:
+    let
+      claim = claimedBy key;
+      said =
+        lib.unique (map (e: e.source) (lib.filter (e: e.key == key) leaderExtras))
+        ++ lib.optional (claim != null) claim;
+    in
+    "${key} (${lib.concatStringsSep ", " said})";
+
+  # What a launch-mode key may LOOK like, which nothing checked while the only
+  # writer was a host file. AeroSpace names its keys as letters, digits and
+  # words (`enter`, `space`, `leftSquareBracket`), optionally behind
+  # `shift-`/`alt-`/`ctrl-`/`cmd-`; anything else never binds.
+  #
+  # The narrowness earns itself twice over now that a room can write one. The
+  # key is spelled into a single-quoted TOML literal AND into a filename under
+  # ~/.config/aerospace, and `haus.focus.scenes.<name>.key` is DESKTOP-safe — a
+  # desktop you downloaded can set it. A quote or a `;` there is not a broken
+  # binding, it is a shell fragment in a script this room generates.
+  #
+  # Here rather than at the desktop seam, and that is the call
+  # `haus.launcher.items` already made (../lib/desktop.nix's `itemKeyProblem`):
+  # the seam validates the SHAPE of desktop DATA, and what a launch-mode key may
+  # be is a fact about AeroSpace that only the room driving it knows. So `haus
+  # show` calls such a desktop well-formed and the refusal arrives when the
+  # machine is built — loudly, naming the option — rather than never.
+  malformedExtraKeys = lib.unique (
+    map (e: e.key) (
+      lib.filter (e: builtins.match "(shift-|alt-|ctrl-|cmd-)*[A-Za-z0-9]+" e.key == null) leaderExtras
+    )
   );
 
   windowRules = lib.concatMapStrings (
@@ -817,14 +895,28 @@ lib.mkMerge [
         message = "haus.keys assigns the same chord twice: " + lib.concatStringsSep "; " k.conflicts;
       }
       {
-        # leaderExtras shares the launch mode with the roster letters and the fixed
+        # Leader actions share the launch mode with the roster letters and the fixed
         # actions; a clash there shadows one binding silently (whichever AeroSpace
-        # reads last), so refuse it at eval instead.
+        # reads last), so refuse it at eval instead. Over the JOINED list, because
+        # a hand-written key and a scene's key collide exactly as readily as two
+        # hand-written ones, and neither half can see the other.
         assertion = extraCollisions == [ ] && extraDuplicates == [ ];
         message =
-          "haus.keys.leaderExtras keys must be unique and must not reuse a roster app's "
+          "Leader keys must be unique and must not reuse a roster app's "
           + "key or a built-in launch-mode key; conflicting: "
-          + lib.concatStringsSep ", " (lib.unique (extraCollisions ++ extraDuplicates));
+          + lib.concatStringsSep ", " (map extraSaid (lib.unique (extraCollisions ++ extraDuplicates)));
+      }
+      {
+        # A key AeroSpace cannot name binds nothing, and this is the only place
+        # that can say so: the config parses, the mode loads, the key is simply
+        # dead. See malformedExtraKeys for why the shape is pinned rather than
+        # left to AeroSpace to shrug at.
+        assertion = malformedExtraKeys == [ ];
+        message =
+          "Leader keys must be AeroSpace key names — letters, digits or a word "
+          + "like \"enter\"/\"space\", optionally behind shift-/alt-/ctrl-/cmd-; "
+          + "refused: "
+          + lib.concatStringsSep ", " (map extraSaid malformedExtraKeys);
       }
       {
         # The mirror of the assertion above, and the one that was missing. Same

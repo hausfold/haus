@@ -129,6 +129,44 @@
               description = "One line, shown by `focus scene list`. The scene's own name is the address.";
             };
 
+            # The leader key, and the reason this leaf exists at all: every
+            # other surface a scene gets is GENERATED from the scene (a palette
+            # row, a cheatsheet line, a `focus scene list` entry), while a KEY
+            # was the one thing a host had to hand-write — a
+            # `haus.keys.leaderExtras` entry repeating the scene's name inside a
+            # shell command, which drifts the moment the scene is renamed.
+            #
+            # Desktop-safe, unlike the `leaderExtras` entry it replaces: that
+            # leaf is host-only because it runs an arbitrary command, and this
+            # one names a key and nothing else. What it runs is `focus scene
+            # toggle <name>`, which is this room's own verb, so a shared desktop
+            # can ship a scene complete with its key and still carry no code.
+            key = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              example = "r";
+              description = ''
+                A launch-mode key for this scene: tap the leader, then this key,
+                to enter the scene — and the same key again to leave it. The
+                cheatsheet row is generated beside the binding, so the key and
+                its caption cannot drift.
+
+                An AeroSpace key name, and a POSITION on a US keyboard like
+                every other key in this config (`haus.keys.layout` moves the
+                letters onto the keys that print them). It shares launch mode
+                with the app roster, the numbered workspaces and their throws,
+                the fixed actions (`v`, `f`, `z`, `,`, `.`, `` ` ``, `-`, `=`,
+                `/`, esc and the arrows) and `haus.keys.leaderExtras`, so a key
+                one of those already claims is refused at eval rather than
+                silently shadowing it.
+
+                Needs `haus.windows.enable` and `haus.keys.leader != "none"` —
+                launch mode is the tiler's, and a machine that claims no leader
+                has no launch mode to bind into. Without either, the scene keeps
+                its palette row and loses only the key.
+              '';
+            };
+
             dnd = lib.mkOption {
               type = lib.types.bool;
               default = true;
@@ -375,8 +413,8 @@
         With the launcher room on, every scene is a palette row too — a
         generated `Scene: <name>` command, plus `Leave Scene`, each with a line
         on the cheatsheet's Palette Commands page — so entering one doesn't
-        mean remembering its name in a terminal. A `haus.keys.leaderExtras`
-        chord remains the way to give one a key.
+        mean remembering its name in a terminal. Give a scene a `key` and it
+        gets a leader binding and its cheatsheet row generated as well.
 
         A scene with a `when` is entered for you — a daily window, a set of
         weekdays, a Wi-Fi network, the power source, how many screens are
