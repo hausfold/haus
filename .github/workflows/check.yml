@@ -274,8 +274,8 @@ jobs:
       # budgeted tables — and a runner has no `snug` on PATH and no
       # /run/current-system, so without this the suite exercises only the
       # no-painter fallback and the tables ship untested. Same fetch as the
-      # shell-scripts job's "snug's painter, at the pinned rev", duplicated
-      # rather than shared because the two jobs do not share an environment.
+      # `draw` job's "snug's painter, at the pinned rev", duplicated rather than
+      # shared because two jobs share no environment.
       - name: snug's painter, at the pinned rev
         run: |
           rev="$(jq -r '.nodes.snug.locked.rev' flake.lock)"
@@ -308,43 +308,77 @@ jobs:
       - name: How big a store we are about to save
         run: du -sh /nix/store
 
-  shellcheck:
-    name: shell scripts
+  # ── The shell half, and which of its four jobs a new suite joins ─────────
+  #
+  # It was one job of fifty steps run one after another: 2m28s, which made it
+  # the family's slowest gate. `eval` beside it takes ~2m15s and a PR waits for
+  # the slower of the two, so the shell half is split four ways and comes in
+  # around 50s — no longer the pole, and with room to grow before it is one
+  # again.
+  #
+  # The grouping is by what a suite NEEDS, never by count. Fifty jobs would be
+  # SLOWER, not faster: the gate is the longest job rather than the total, and
+  # every job pays checkout and `npm install -g bats` again (~4s), which is
+  # more than most of these suites take to run.
+  #
+  #   lint     the runner image alone. It is the one job that needs no bats,
+  #            which is the whole reason it is a job of its own.
+  #   draw     bats + snug's `share/ui.sh` at the rev flake.lock pins. The
+  #            fetch is this job's FIRST step and every suite in it reads what
+  #            that step writes.
+  #   agents   bats + the image: the AI room's own scripts, and the GitHub
+  #            bridge the statusline reads through.
+  #   rooms    bats + the image: every other room's scripts, hermetic over
+  #            stubs and fixtures.
+  #
+  # ⚠️ A suite that SKIPS without the painter belongs in `draw` and nowhere
+  # else. That rule used to be three "MUST stay below" comments asking a
+  # reader to keep one step above others inside one long job; it is a job
+  # boundary now, which is the only form of it that appending a step in the
+  # wrong place cannot break. It still has to be got right when a suite is
+  # ADDED, and it still fails the same way if it isn't: a skipped case reads
+  # as a pass. Everything else goes with its room — and where that is a
+  # toss-up, the shorter of the two bats jobs.
+  #
+  # `bats` is the ONE tool these jobs need that the runner image lacks, and
+  # npm is preinstalled, so it comes from npm rather than apt. That is the
+  # whole reason none of them stalls.
+  #
+  # It used to `apt-get update && apt-get install shellcheck bats`, and that
+  # hung for hours at a time — twice within a day, most recently on #406.
+  # Three separate things were wrong with it:
+  #
+  #   1. `shellcheck` is ALREADY on the ubuntu-latest image (0.9.0), so the
+  #      lint never needed apt in the first place. Half the reason to talk
+  #      to a package mirror was imaginary.
+  #   2. The Azure mirrors the runner is pointed at (`Ign:` on every
+  #      `azure.archive.ubuntu.com` line in the log) fail in a way apt does
+  #      not treat as failure: it falls back to `archive.ubuntu.com` and
+  #      keeps going, so the step can look alive while getting nowhere.
+  #   3. `Acquire::http::Timeout` — the fix attempted in #390 — does NOT
+  #      cover this. It bounds a single HTTP connect/read, not the step, and
+  #      it says nothing at all about `https://` sources, which is what the
+  #      mirrorlist actually resolves to. So the retries multiplied against
+  #      an unbounded whole rather than capping it.
+  #
+  # The durable lesson is #1: prefer what the image already ships, and where
+  # something is genuinely missing, get it from a package manager whose
+  # registry isn't the runner's own distro mirror. If apt ever becomes
+  # necessary again, wrap the WHOLE call in `timeout 120 …` — a per-request
+  # option cannot bound a step that retries. This is the account behind rule 1
+  # of the family's CI rules, the workshop's docs/ci.md.
+  #
+  # `timeout-minutes` on all four is the same backstop the eval job carries,
+  # for the same reason: GitHub's default is SIX HOURS, and the afternoon above
+  # is what a step that hangs rather than fails costs. Nothing here speaks to
+  # apt any more, so it is a ceiling none of them is expected to approach.
+
+  lint:
+    name: shell lint
     runs-on: ubuntu-latest
-    # See the eval job above — this is the one that hung, repeatedly. The
-    # ceiling is the backstop; the fix is that this job no longer speaks to apt
-    # at all (see the shellcheck step).
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      # `bats` is the ONE tool this job needs that the runner image lacks, and
-      # npm is preinstalled, so it comes from npm rather than apt. That is the
-      # whole reason this job no longer stalls.
-      #
-      # It used to `apt-get update && apt-get install shellcheck bats`, and that
-      # hung for hours at a time — twice within a day, most recently on #406.
-      # Three separate things were wrong with it:
-      #
-      #   1. `shellcheck` is ALREADY on the ubuntu-latest image (0.9.0), so the
-      #      lint never needed apt in the first place. Half the reason to talk
-      #      to a package mirror was imaginary.
-      #   2. The Azure mirrors the runner is pointed at (`Ign:` on every
-      #      `azure.archive.ubuntu.com` line in the log) fail in a way apt does
-      #      not treat as failure: it falls back to `archive.ubuntu.com` and
-      #      keeps going, so the step can look alive while getting nowhere.
-      #   3. `Acquire::http::Timeout` — the fix attempted in #390 — does NOT
-      #      cover this. It bounds a single HTTP connect/read, not the step, and
-      #      it says nothing at all about `https://` sources, which is what the
-      #      mirrorlist actually resolves to. So the retries multiplied against
-      #      an unbounded whole rather than capping it.
-      #
-      # The durable lesson is #1: prefer what the image already ships, and where
-      # something is genuinely missing, get it from a package manager whose
-      # registry isn't the runner's own distro mirror. If apt ever becomes
-      # necessary again, wrap the WHOLE call in `timeout 120 …` — a per-request
-      # option cannot bound a step that retries.
-      - name: bats
-        run: sudo npm install -g bats
       # bootstrap.sh is the standalone curl|bash installer — the one shell
       # script here that isn't a nix template (@PLACEHOLDER@ substitution) or a
       # zsh sketchybar plugin, so it's the one we can lint as-is. Warning level
@@ -370,7 +404,7 @@ jobs:
           # darwinConfiguration — so this runner can never execute it. Linting is
           # the only thing CI can do for THAT one, and the alternative is a suite
           # that nothing at all touches until someone remembers it by hand.
-          # test/haus-plan.sh is linted here and also RUN below: its subject is
+          # test/haus-plan.sh is linted here and RUN in the `rooms` job: its subject
           # pure parsing over fixture files, so it needs neither Nix nor a Mac.
           #
           # These paths are hand-written, so MOVING a script silently drops it
@@ -435,62 +469,16 @@ jobs:
           # exec at boot to read a value, where a non-zero is a room starting
           # without its secret and nothing on screen to say so.
           shellcheck --severity=warning modules/secrets/haus-secret.sh bootstrap.sh modules/ai/fix.sh modules/ai/fix-github.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/haus-bar-poke.sh modules/core/lidawake.sh test/lidawake.sh modules/core/nix-gc.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/terminal/lanes/lane-focus.sh modules/terminal/scripts/raise-session.sh modules/windows/scripts/fullscreen-toggle.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/launcher/commands/lib/menu-commit.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh modules/ai/statusline.sh modules/github/signal.sh modules/terminal/scripts/image-preview.sh modules/terminal/lanes/lane-open.sh modules/bar/sketchybar/barlib.sh
-      - name: awake lifecycle tests
-        run: bash test/awake.sh
-      # lidawake's three failsafes, over a fake pmset and a fake clock. Every
-      # one of them is time-dependent and every one fails invisibly: a Mac that
-      # quietly stopped sleeping on a lid close looks exactly like a Mac you
-      # forgot to close, and the bill arrives as a flat battery in a bag.
-      - name: lidawake failsafe tests
-        run: bash test/lidawake.sh
-      # The weekly store cleanup's survival of a store path macOS will not let
-      # go of. One refused chmod on a launched app bundle aborts the WHOLE
-      # collection, so the wrapper pins that path and carries on — and every
-      # way of getting that wrong is invisible from outside: a loop whose exit
-      # condition is "nix stopped complaining" either spins forever, or pins
-      # something that isn't a store path and breaks the store it was saving.
-      # Faked at two seams (the collector, `xattr`), so it needs no nix, no
-      # root and no week.
-      - name: nix-gc pins what macOS won't release
-        run: bats test/nix-gc.bats
-      # THANKS.md's credit list against the tree that is supposed to use each
-      # project. A credit list has no consumer — nothing imports it, no build
-      # fails when it is wrong — so it rots in the one direction that
-      # embarrasses us, which is thanking a project we deleted. That is not
-      # hypothetical: the file's first draft credited zellij for holding your
-      # sessions three weeks after modules/moved.nix recorded it gone, in the
-      # same sentence as the zmx that replaced it. The check is deliberately
-      # dumb and says nothing about whether a SENTENCE is still true; it only
-      # refuses a credit with nothing in the tree behind it, and a table row
-      # left standing after the credit went.
-      - name: THANKS.md still credits what haus uses
-        run: bats test/thanks-drift.bats
-      # The trigger daemon's decisions — which scene rises, which one it may
-      # enter, which one it is allowed to leave — over stubbed probes and a fake
-      # clock. It is the half of `focus auto` that isn't macOS: the four real
-      # probes (pmset, networksetup, hausdisp/system_profiler) are what
-      # `focus auto --probe` checks on the Mac itself, and this suite says
-      # nothing about them. What it does protect is the rule the whole feature
-      # rests on — the daemon never overrides a state you chose — which fails
-      # in the worst possible way if it regresses: your Mac quietly disagreeing
-      # with you every thirty seconds.
-      - name: focus trigger tests
-        run: bash test/focus-auto.sh
-      # `haus plan`'s parsers, and the only part of plan CI can execute: they
-      # read a BUILT activation script and a home-manager generation, both of
-      # which this suite hand-writes as fixtures, so no Nix and no Mac needed.
-      # Worth running rather than only linting, because the failure mode they
-      # guard against is a preview that says "nothing was changed" about a
-      # rebuild that changes something — silence, which no lint can catch.
-      - name: haus plan parser tests
-        run: bash test/haus-plan.sh
-      # The refresher is `scruff`'s reader, and it fails in the one way nobody sees:
-      # it runs detached under `set -e`, so any non-zero leaves the LAST panel.tsv
-      # in place and the bar keeps showing worktrees that were reaped hours ago —
-      # no error, no empty bar, just a confidently stale one. Same hermetic shape
-      # as scruff's own acceptance suite (throwaway repos, shim gh, redirected cache).
-      - name: statusline refresher tests
-        run: bats test/statusline-refresh.bats
+
+  draw:
+    name: shell suites that draw
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      # From npm, never apt — the account is above `lint`.
+      - name: bats
+        run: sudo npm install -g bats
       # snug's `share/ui.sh` — the painter every script in this repo draws
       # through — at the rev this repo's flake.lock pins. One file over https,
       # not a clone and not Nix, so this job stays the cheap one it is.
@@ -513,12 +501,13 @@ jobs:
             -o "$RUNNER_TEMP/snug/ui.sh"
           echo "HAUS_UI_SH=$RUNNER_TEMP/snug/ui.sh" >> "$GITHUB_ENV"
       #
-      # ⚠️ MUST stay above every suite that renders through the painter —
-      # statusline, phase-painter — because they are all in THIS job and a
-      # runner has no `snug` on PATH and no /run/current-system. Below them it
-      # does not merely weaken the suite: statusline.bats's colour-gate cases
-      # assert cube escapes and go RED, while its six band cases SKIP, which
-      # reads as six passes. Measured on this PR before the move.
+      # ⚠️ Every suite below reads what that step just wrote, and that is the
+      # whole reason they are a job together. Inside the old single job this
+      # was a comment asking a reader to keep the fetch above them, and
+      # getting it wrong did not merely weaken a suite: statusline.bats's
+      # colour-gate cases assert cube escapes and go RED, while its six band
+      # cases SKIP, which reads as six passes. A runner has no `snug` on PATH
+      # and no /run/current-system, so there is nothing else for them to find.
 
       # The render path's counterpart suite. Its subject is the Fable/Mythos row
       # tint, whose correctness is a WIDTH invariant across rows that carry both
@@ -527,6 +516,83 @@ jobs:
       # shape again; needs only git + jq + bats.
       - name: statusline render tests
         run: bats test/statusline.bats
+
+      # The `haus rebuild` phase painter and the colour gate both end-user CLIs
+      # grew with it. Three silent failure modes: a record `snug run` cannot
+      # parse is a line that simply never appears; a repaint that assumes a
+      # width corrupts the screen only on a window narrower than the author's
+      # (52 columns and below for the finished `activate` row, 13 and below for
+      # the running one — measured in real ptys, which is what the last tests
+      # here build); and an ungated escape is invisible to anyone watching
+      # colour. Needs bash + python3 + bats + the file fetched above, no Nix and
+      # no Mac.
+      - name: phase painter and colour gate
+        run: bats test/phase-painter.bats
+
+      # The one PERMANENT exemption from that standard, and the only thing
+      # keeping it honest. bootstrap.sh and haus-activate.sh run before snug is
+      # reachable, so they carry nebelung's numbers inlined instead of naming a
+      # role — a copy of a generated table, which drifts the moment the palette
+      # moves and drifts INVISIBLY: a wrong index is green everywhere and only
+      # ever visible to someone holding the two files side by side. Diffs both
+      # against the ui.sh fetched above, so it must stay below that step too.
+      - name: installer palette, against snug's
+        run: bats test/installer-palette.bats
+
+      # `haus-secret` — the listing a person reads BEFORE they have a working
+      # machine (`haus doctor` sends them here), and the one CLI in this repo a
+      # launchd agent also exec's at boot. Both halves fail quietly: an unfolded
+      # `why` soft-wraps back to column 0 and reads as the next entry, and a
+      # painter that loads where it should not costs every room a thousand lines
+      # of bash for a value it prints on fd 1. The degradation cases are the
+      # point of the build-time substitution, so this suite takes HAUS_UI_SH out
+      # of its own environment — it must still stay below the fetch, because the
+      # painted cases want the real file. Needs bash + python3 + bats.
+      - name: haus-secret's listing and its two streams
+        run: bats test/haus-secret.bats
+
+      # `awake` — the CLI that is also a DATA SOURCE. `status` is its default
+      # verb and prints prose for a person, but the same script answers the
+      # bar's coffee pill on every tick through `status --raw`, and one escape
+      # or one glyph in those three tab-separated fields breaks the pill with no
+      # error anywhere. So this suite guards both directions at once: the
+      # sentence got a mark and roles, and `--raw` and `_run` never so much as
+      # source the painter. It stays BELOW the fetch because the painted cases
+      # want the real file. Needs bash + python3 + bats.
+      - name: awake's sentence, and the raw fields it must not touch
+        run: bats test/awake-ui.bats
+
+      # The "Fix it with AI" CTA on a failed `haus rebuild`: the breadcrumb the
+      # rebuild leaves for `haus fix`, the four gates in front of the offer, and
+      # the detached holder that has to outlive the window the rebuild ran in.
+      # Every part of it fails silently — a renamed crumb key answers "nothing
+      # to fix" for a rebuild that failed in front of you, an inverted gate
+      # offers a fix nothing can honour, and a holder that merely backgrounds
+      # looks identical until someone closes the terminal.
+      #
+      # ⚠️ MUST stay below "snug's painter, at the pinned rev" — three cases
+      # drive `haus-fix` on a pty and `skip` when no ui.sh is found, and a skip
+      # reads as a pass. Needs bash + git + bats + python3 (the pty), and perl
+      # for the one SIGHUP case (skipped without it).
+      - name: rebuild fix CTA
+        run: bats test/rebuild-fix-cta.bats
+
+  agents:
+    name: shell suites, the agent room
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      # From npm, never apt — the account is above `lint`.
+      - name: bats
+        run: sudo npm install -g bats
+      # The refresher is `scruff`'s reader, and it fails in the one way nobody sees:
+      # it runs detached under `set -e`, so any non-zero leaves the LAST panel.tsv
+      # in place and the bar keeps showing worktrees that were reaped hours ago —
+      # no error, no empty bar, just a confidently stale one. Same hermetic shape
+      # as scruff's own acceptance suite (throwaway repos, shim gh, redirected cache).
+      - name: statusline refresher tests
+        run: bats test/statusline-refresh.bats
 
       # The warm `scruff --json` both the agents pill and the Lanes palette read
       # instead of running scruff on a hot path. Every verb in it is an age, so
@@ -538,6 +604,7 @@ jobs:
       # on a runner that has no scruff at all. Needs only bash + bats.
       - name: scruff cache tests
         run: bats test/scruff-cache.bats
+
       # pi's prompt-cache alarm. Both of ITS failure modes are silent too, and
       # one of them is expensive: too quiet and a degenerate lane re-writes its
       # whole context every turn at 1-hour-TTL prices with nothing on screen
@@ -571,6 +638,128 @@ jobs:
       # a reused address. That is what hausfold/haus#663 cost two sessions.
       - name: vm-runtime tests
         run: bats test/vm-runtime.bats
+
+      # `haus skill` and `haus get --json` — A3 and A2 of the family
+      # agent-surface standard, and both are surfaces only an agent reads, so
+      # every way they break is silent: printing the UNRENDERED template puts
+      # `@hausVersion@` in front of a user and points an agent at option docs
+      # that were never generated; `skill install` meeting the read-only Nix
+      # symlinks haus itself put there has to refuse in words, because an agent
+      # that reads EPERM reaches for sudo; and a bare-value `--json` cannot tell
+      # "nothing defines this yet" from "defined as null", which is exactly the
+      # pair `haus unset` makes. Hermetic: a fixture skill dir, a fixture HOME,
+      # nix stubbed out. Needs bash + bats + jq, no Nix and no Mac.
+      - name: the agent surface (haus skill, haus get --json)
+        run: bats test/agent-surface.bats
+
+      # The github pill's "Fix with AI" rows, BOTH halves — the fetch that
+      # writes `<verdict>:<target>` into the cache (github.sh's own jq, lifted
+      # and run) and the runner that is handed it (modules/ai/fix-github.sh:
+      # the URL→owner/repo parse, the per-verdict brief, the lane name, the
+      # client pick, and resolve_repo over a throwaway filesystem). One suite
+      # because the cache field is a contract between two files and nothing
+      # else joins them: a verdict word spelled one way in the jq and another
+      # in the split is a button that never draws, with no error on either
+      # side. Everything else here fails the same way — LANE SPAWNED ON THE
+      # WRONG BRIEF (an owner/repo from the wrong path segments, a branch
+      # selector read as a PR number, a colon-joined root list walked
+      # line-wise) — and all of it produces a working lane a feel-test cannot
+      # catch. Needs bats, git and jq.
+      - name: github pill fix rows
+        run: bats test/fix-github.bats
+
+      # The GitHub bridge's consumer contract — `haus_gh_covers` and the
+      # statusline gate it feeds. Every failure in this seam is silent AND
+      # expensive in one direction: a coverage answer of "yes" when it should be
+      # "no" turns a 15-second readout into a 30-minute one and the pill just
+      # starts quietly lying about a merge that already happened. There is no
+      # error path to notice it, so the suite IS the guard, and it has to fail
+      # closed on all of: no scopes file, an empty one, a stale one, one repo
+      # out of two, an unparsable mtime.
+      #
+      # It runs statusline.sh, so it used to sit below the painter fetch on
+      # principle — and it is here rather than in `draw` because that fetch was
+      # never load-bearing for it. The difference is worth stating: it asserts
+      # on a BEHAVIOUR (did the render decide to refresh?) and owns no colour
+      # cases, so a painter-less run has nothing in it to skip and go quietly
+      # green. Measured: 29/29 with HAUS_UI_SH unset and with it pointed at a
+      # path that does not exist, which is now simply how it runs.
+      #
+      # Two flags mean something else on this runner than on the Mac these
+      # scripts ship to, which is why signal.sh and the suite both carry the
+      # same try-BSD-then-GNU shape statusline.sh has always had. `date -v` does
+      # not exist here at all. `stat -f` is --file-system and takes NO argument,
+      # so `%m` becomes a second FILE operand: a filesystem block on stdout and
+      # exit 1 (measured, coreutils 9.11 — not the "/ and exit 0" three comments
+      # in this repo used to claim). Honouring that status answers 0 for every
+      # file, which is why every coverage question came back "not covered" here
+      # before this. Needs bash + bats.
+      - name: github bridge signal tests
+        run: bats test/github-signal.bats
+
+  rooms:
+    name: shell suites, the rooms
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      # From npm, never apt — the account is above `lint`.
+      - name: bats
+        run: sudo npm install -g bats
+      - name: awake lifecycle tests
+        run: bash test/awake.sh
+
+      # lidawake's three failsafes, over a fake pmset and a fake clock. Every
+      # one of them is time-dependent and every one fails invisibly: a Mac that
+      # quietly stopped sleeping on a lid close looks exactly like a Mac you
+      # forgot to close, and the bill arrives as a flat battery in a bag.
+      - name: lidawake failsafe tests
+        run: bash test/lidawake.sh
+
+      # The weekly store cleanup's survival of a store path macOS will not let
+      # go of. One refused chmod on a launched app bundle aborts the WHOLE
+      # collection, so the wrapper pins that path and carries on — and every
+      # way of getting that wrong is invisible from outside: a loop whose exit
+      # condition is "nix stopped complaining" either spins forever, or pins
+      # something that isn't a store path and breaks the store it was saving.
+      # Faked at two seams (the collector, `xattr`), so it needs no nix, no
+      # root and no week.
+      - name: nix-gc pins what macOS won't release
+        run: bats test/nix-gc.bats
+
+      # THANKS.md's credit list against the tree that is supposed to use each
+      # project. A credit list has no consumer — nothing imports it, no build
+      # fails when it is wrong — so it rots in the one direction that
+      # embarrasses us, which is thanking a project we deleted. That is not
+      # hypothetical: the file's first draft credited zellij for holding your
+      # sessions three weeks after modules/moved.nix recorded it gone, in the
+      # same sentence as the zmx that replaced it. The check is deliberately
+      # dumb and says nothing about whether a SENTENCE is still true; it only
+      # refuses a credit with nothing in the tree behind it, and a table row
+      # left standing after the credit went.
+      - name: THANKS.md still credits what haus uses
+        run: bats test/thanks-drift.bats
+
+      # The trigger daemon's decisions — which scene rises, which one it may
+      # enter, which one it is allowed to leave — over stubbed probes and a fake
+      # clock. It is the half of `focus auto` that isn't macOS: the four real
+      # probes (pmset, networksetup, hausdisp/system_profiler) are what
+      # `focus auto --probe` checks on the Mac itself, and this suite says
+      # nothing about them. What it does protect is the rule the whole feature
+      # rests on — the daemon never overrides a state you chose — which fails
+      # in the worst possible way if it regresses: your Mac quietly disagreeing
+      # with you every thirty seconds.
+      - name: focus trigger tests
+        run: bash test/focus-auto.sh
+
+      # `haus plan`'s parsers, and the only part of plan CI can execute: they
+      # read a BUILT activation script and a home-manager generation, both of
+      # which this suite hand-writes as fixtures, so no Nix and no Mac needed.
+      # Worth running rather than only linting, because the failure mode they
+      # guard against is a preview that says "nothing was changed" about a
+      # rebuild that changes something — silence, which no lint can catch.
+      - name: haus plan parser tests
+        run: bash test/haus-plan.sh
 
       # float-term's `recenter` — the pass that centres a spawned popup on the
       # size it actually is. Pure arithmetic over two rectangles with AX and the
@@ -674,18 +863,6 @@ jobs:
       - name: gui-wait
         run: bats test/gui-wait.bats
 
-      # The `haus rebuild` phase painter and the colour gate both end-user CLIs
-      # grew with it. Three silent failure modes: a record `snug run` cannot
-      # parse is a line that simply never appears; a repaint that assumes a
-      # width corrupts the screen only on a window narrower than the author's
-      # (52 columns and below for the finished `activate` row, 13 and below for
-      # the running one — measured in real ptys, which is what the last tests
-      # here build); and an ungated escape is invisible to anyone watching
-      # colour. Needs bash + python3 + bats + the file fetched above, no Nix and
-      # no Mac.
-      - name: phase painter and colour gate
-        run: bats test/phase-painter.bats
-
       # `haus report` — the door to the one feedback channel anything we ship
       # has, and every way it breaks leaves a working-looking command behind: a
       # `body=` prefill opens GitHub's blank editor and files a shapeless report
@@ -713,52 +890,6 @@ jobs:
       # shell function. Needs bash + bats + jq, no Nix and no Mac.
       - name: the version verb and the pin comparison
         run: bats test/version-and-pin.bats
-
-      # `haus skill` and `haus get --json` — A3 and A2 of the family
-      # agent-surface standard, and both are surfaces only an agent reads, so
-      # every way they break is silent: printing the UNRENDERED template puts
-      # `@hausVersion@` in front of a user and points an agent at option docs
-      # that were never generated; `skill install` meeting the read-only Nix
-      # symlinks haus itself put there has to refuse in words, because an agent
-      # that reads EPERM reaches for sudo; and a bare-value `--json` cannot tell
-      # "nothing defines this yet" from "defined as null", which is exactly the
-      # pair `haus unset` makes. Hermetic: a fixture skill dir, a fixture HOME,
-      # nix stubbed out. Needs bash + bats + jq, no Nix and no Mac.
-      - name: the agent surface (haus skill, haus get --json)
-        run: bats test/agent-surface.bats
-
-      # The one PERMANENT exemption from that standard, and the only thing
-      # keeping it honest. bootstrap.sh and haus-activate.sh run before snug is
-      # reachable, so they carry nebelung's numbers inlined instead of naming a
-      # role — a copy of a generated table, which drifts the moment the palette
-      # moves and drifts INVISIBLY: a wrong index is green everywhere and only
-      # ever visible to someone holding the two files side by side. Diffs both
-      # against the ui.sh fetched above, so it must stay below that step too.
-      - name: installer palette, against snug's
-        run: bats test/installer-palette.bats
-
-      # `haus-secret` — the listing a person reads BEFORE they have a working
-      # machine (`haus doctor` sends them here), and the one CLI in this repo a
-      # launchd agent also exec's at boot. Both halves fail quietly: an unfolded
-      # `why` soft-wraps back to column 0 and reads as the next entry, and a
-      # painter that loads where it should not costs every room a thousand lines
-      # of bash for a value it prints on fd 1. The degradation cases are the
-      # point of the build-time substitution, so this suite takes HAUS_UI_SH out
-      # of its own environment — it must still stay below the fetch, because the
-      # painted cases want the real file. Needs bash + python3 + bats.
-      - name: haus-secret's listing and its two streams
-        run: bats test/haus-secret.bats
-
-      # `awake` — the CLI that is also a DATA SOURCE. `status` is its default
-      # verb and prints prose for a person, but the same script answers the
-      # bar's coffee pill on every tick through `status --raw`, and one escape
-      # or one glyph in those three tab-separated fields breaks the pill with no
-      # error anywhere. So this suite guards both directions at once: the
-      # sentence got a mark and roles, and `--raw` and `_run` never so much as
-      # source the painter. It stays BELOW the fetch because the painted cases
-      # want the real file. Needs bash + python3 + bats.
-      - name: awake's sentence, and the raw fields it must not touch
-        run: bats test/awake-ui.bats
 
       # The background-jobs deck's READERS. `nix flake check`'s `services-deck`
       # pins the deck's completeness — every launchd job has an entry — and
@@ -843,6 +974,7 @@ jobs:
       # idempotent, so a wrong key exits 0 and the fin just stays up.
       - name: lane-seen key join
         run: bats test/lane-seen.bats
+
       # The one parse of a pounce stdin-menu answer, over fixture commit
       # strings — "<action>\t<raw-row>", the shape every picker's reply wears.
       # The bug it pins shut is silent by construction: a case on the ANSWER's
@@ -851,6 +983,7 @@ jobs:
       # eighth private parse cannot land quietly. Needs only bash + bats.
       - name: menu commit parse
         run: bats test/menu-commit.bats
+
       # Spawn Agent's field reading. `--dial` gives the prompt step a commit
       # one field wider than every other step's, and BOTH ways of misreading it
       # produce a lane rather than an error — a task silently shortened by its
@@ -869,6 +1002,7 @@ jobs:
       # again — with no budget arithmetic on this side to get wrong.
       - name: spawn-agent field reading and lane naming
         run: bats test/spawn-agent.bats
+
       # Which lanes the Lanes picker offers. It drops the ones with no pane of
       # their own — a `scruff child` checkout resumes into the pane that made
       # it, so opening one here starts a client where no conversation lives.
@@ -880,62 +1014,6 @@ jobs:
       # missing row nobody notices.
       - name: lanes picker row filter
         run: bats test/lanes-picker.bats
-      # The "Fix it with AI" CTA on a failed `haus rebuild`: the breadcrumb the
-      # rebuild leaves for `haus fix`, the four gates in front of the offer, and
-      # the detached holder that has to outlive the window the rebuild ran in.
-      # Every part of it fails silently — a renamed crumb key answers "nothing
-      # to fix" for a rebuild that failed in front of you, an inverted gate
-      # offers a fix nothing can honour, and a holder that merely backgrounds
-      # looks identical until someone closes the terminal.
-      #
-      # ⚠️ MUST stay below "snug's painter, at the pinned rev" — three cases
-      # drive `haus-fix` on a pty and `skip` when no ui.sh is found, and a skip
-      # reads as a pass. Needs bash + git + bats + python3 (the pty), and perl
-      # for the one SIGHUP case (skipped without it).
-      - name: rebuild fix CTA
-        run: bats test/rebuild-fix-cta.bats
-      # The github pill's "Fix with AI" rows, BOTH halves — the fetch that
-      # writes `<verdict>:<target>` into the cache (github.sh's own jq, lifted
-      # and run) and the runner that is handed it (modules/ai/fix-github.sh:
-      # the URL→owner/repo parse, the per-verdict brief, the lane name, the
-      # client pick, and resolve_repo over a throwaway filesystem). One suite
-      # because the cache field is a contract between two files and nothing
-      # else joins them: a verdict word spelled one way in the jq and another
-      # in the split is a button that never draws, with no error on either
-      # side. Everything else here fails the same way — LANE SPAWNED ON THE
-      # WRONG BRIEF (an owner/repo from the wrong path segments, a branch
-      # selector read as a PR number, a colon-joined root list walked
-      # line-wise) — and all of it produces a working lane a feel-test cannot
-      # catch. Needs bats, git and jq.
-      - name: github pill fix rows
-        run: bats test/fix-github.bats
-      # The GitHub bridge's consumer contract — `haus_gh_covers` and the
-      # statusline gate it feeds. Every failure in this seam is silent AND
-      # expensive in one direction: a coverage answer of "yes" when it should be
-      # "no" turns a 15-second readout into a 30-minute one and the pill just
-      # starts quietly lying about a merge that already happened. There is no
-      # error path to notice it, so the suite IS the guard, and it has to fail
-      # closed on all of: no scopes file, an empty one, a stale one, one repo
-      # out of two, an unparsable mtime.
-      #
-      # It runs statusline.sh, so it sits below the painter step on principle —
-      # but it is NOT one of the suites that step is load-bearing for, and the
-      # difference is worth stating: it asserts on a BEHAVIOUR (did the render
-      # decide to refresh?) and owns no colour cases, so a painter-less run has
-      # nothing in it to skip and go quietly green. Measured: 29/29 with
-      # HAUS_UI_SH unset and with it pointed at a path that does not exist.
-      #
-      # Two flags mean something else on this runner than on the Mac these
-      # scripts ship to, which is why signal.sh and the suite both carry the
-      # same try-BSD-then-GNU shape statusline.sh has always had. `date -v` does
-      # not exist here at all. `stat -f` is --file-system and takes NO argument,
-      # so `%m` becomes a second FILE operand: a filesystem block on stdout and
-      # exit 1 (measured, coreutils 9.11 — not the "/ and exit 0" three comments
-      # in this repo used to claim). Honouring that status answers 0 for every
-      # file, which is why every coverage question came back "not covered" here
-      # before this. Needs bash + bats.
-      - name: github bridge signal tests
-        run: bats test/github-signal.bats
 
       # The mail watcher's five decisions (modules/notifications/mail-announce.py).
       # Every one of them fails silently, and in both directions — too many
