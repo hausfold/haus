@@ -68,10 +68,10 @@ jobs:
   # that and is the largest fixed cost in this half, which makes it the number
   # a new step is measured against. Under it, join an existing job.
   #
-  # Measured on the split's own first run, 34688533513, warm through the
-  # transitional prefix in each lineage step: eval 57s, checks 56s, acquire
-  # 77s, and the whole `check` run 77s wall against the 99–166s the single job
-  # had been costing. `acquire` is the pole and stays there until that nixfmt
+  # Measured on the split's own first run, 34688533513, warm off the entry
+  # the single job had saved, which each lineage step still read then: eval
+  # 57s, checks 56s, acquire 77s, and the whole `check` run 77s wall against
+  # the 99–166s the single job had been costing. `acquire` is the pole and stays there until that nixfmt
   # fetch goes.
   #
   # ⚠️ Those restores do NOT get smaller at the next push to main, and the
@@ -130,15 +130,6 @@ jobs:
           rev="$(jq -r '.nodes.nixpkgs.locked.rev // "norev"' flake.lock)"
           week="$(date -u +%G-W%V)"
           echo "prefix=nix-${{ runner.os }}-eval-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
-          # Transitional, added 2026-09-12 with the split: the entry this
-          # half saved as ONE job, which carries no token. Without it all
-          # three jobs start cold, and so does every PR opened before the
-          # next push to main — the lineage-reset cost, paid three times
-          # for a change that alters no derivation. Drop this output and
-          # the second restore prefix below once one push to main has
-          # saved the three tokened entries; after that it can only match
-          # something nothing purges and GitHub evicts at seven days.
-          echo "legacy=nix-${{ runner.os }}-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
       # The eval pulls nixpkgs; without a store to come back to, every run paid
       # for that from scratch. Within a lineage the key is the flake inputs and
       # the nix sources, so a lock bump or a module edit pays full price and
@@ -171,16 +162,13 @@ jobs:
       # one: the combined entry was ~0.5 GiB compressed against a 10 GB budget,
       # the three overlap heavily (all of them carry nixpkgs), and the weekly
       # reset bounds the total the same WAY it always did — but the total is
-      # three entries now, four in a transitional week, so the slope it bounds
-      # is steeper. `gh cache list --repo hausfold/haus` is the number that
-      # counts, and it is worth a look the first week after this. The pre-split
-      # entry
-      # carries no token, so nothing here purges it — the transitional prefix
-      # in the lineage step above reads it once so that the split does not
-      # start cold, and stops consulting it the moment the tokened entries
-      # exist, which is the first push to main after this lands. Nothing reads
-      # it after that, and GitHub evicts a cache nothing has read in seven
-      # days, which is what finally collects it.
+      # three entries now, so the slope it bounds is steeper. `gh cache list
+      # --repo hausfold/haus` is the number that counts, and it is worth a
+      # look the first week after this. The pre-split entry carries no token,
+      # so nothing here purges it — and with the transitional prefix that
+      # warmed the split off it now gone, nothing reads it either. GitHub
+      # evicts a cache nothing has read in seven days, which is what finally
+      # collects it.
       #
       # A new job in this half copies this step, changes the one token, and is
       # a new entry. ⚠️ Its token may not be a PREFIX of an existing one: the
@@ -195,7 +183,6 @@ jobs:
           primary-key: ${{ steps.lineage.outputs.prefix }}${{ hashFiles('flake.lock', '**/*.nix') }}
           restore-prefixes-first-match: |
             ${{ steps.lineage.outputs.prefix }}
-            ${{ steps.lineage.outputs.legacy }}
           # Only a push to main writes a cache, and this line is what makes
           # that true — GitHub's ref scoping governs READS, not writes. Left on
           # the default, every PR would upload its own multi-gigabyte copy
@@ -301,15 +288,6 @@ jobs:
           rev="$(jq -r '.nodes.nixpkgs.locked.rev // "norev"' flake.lock)"
           week="$(date -u +%G-W%V)"
           echo "prefix=nix-${{ runner.os }}-checks-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
-          # Transitional, added 2026-09-12 with the split: the entry this
-          # half saved as ONE job, which carries no token. Without it all
-          # three jobs start cold, and so does every PR opened before the
-          # next push to main — the lineage-reset cost, paid three times
-          # for a change that alters no derivation. Drop this output and
-          # the second restore prefix below once one push to main has
-          # saved the three tokened entries; after that it can only match
-          # something nothing purges and GitHub evicts at seven days.
-          echo "legacy=nix-${{ runner.os }}-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
       # This job's store is the big one and the one nobody else's is a superset
       # of: `nix flake check` BUILDS twenty-nine derivations. Every input here
       # is `eval`'s with a different token — read that copy for what each does.
@@ -319,7 +297,6 @@ jobs:
           primary-key: ${{ steps.lineage.outputs.prefix }}${{ hashFiles('flake.lock', '**/*.nix') }}
           restore-prefixes-first-match: |
             ${{ steps.lineage.outputs.prefix }}
-            ${{ steps.lineage.outputs.legacy }}
           save: ${{ github.ref == 'refs/heads/main' }}
           purge: true
           purge-prefixes: nix-${{ runner.os }}-checks-
@@ -545,15 +522,6 @@ jobs:
           rev="$(jq -r '.nodes.nixpkgs.locked.rev // "norev"' flake.lock)"
           week="$(date -u +%G-W%V)"
           echo "prefix=nix-${{ runner.os }}-acquire-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
-          # Transitional, added 2026-09-12 with the split: the entry this
-          # half saved as ONE job, which carries no token. Without it all
-          # three jobs start cold, and so does every PR opened before the
-          # next push to main — the lineage-reset cost, paid three times
-          # for a change that alters no derivation. Drop this output and
-          # the second restore prefix below once one push to main has
-          # saved the three tokened entries; after that it can only match
-          # something nothing purges and GitHub evicts at seven days.
-          echo "legacy=nix-${{ runner.os }}-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
       # This store is the odd one: `#show`, `#desktop-check` and the nix-darwin
       # a scaffolded consumer locks, none of which the other two jobs fetch.
       # What it does NOT hold is the reason this job is the pole — see the
@@ -565,7 +533,6 @@ jobs:
           primary-key: ${{ steps.lineage.outputs.prefix }}${{ hashFiles('flake.lock', '**/*.nix') }}
           restore-prefixes-first-match: |
             ${{ steps.lineage.outputs.prefix }}
-            ${{ steps.lineage.outputs.legacy }}
           save: ${{ github.ref == 'refs/heads/main' }}
           purge: true
           purge-prefixes: nix-${{ runner.os }}-acquire-
