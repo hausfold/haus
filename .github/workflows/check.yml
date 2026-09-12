@@ -9,11 +9,17 @@ on:
   workflow_dispatch:
 
 # A second push to a PR branch makes the first run's answer worthless, and the
-# abandoned run still holds a runner — on the macOS ones, a queue slot the next
-# PR then waits behind. Only PR runs cancel: a push to main is a distinct commit
-# whose tick someone may need to read back.
+# abandoned run still holds a runner — a runner the next PR then waits
+# behind.
+#
+# Only a PR run is ever in a shared group. Everything else keys on the commit,
+# so it gets a group of its own: putting main pushes in one group would
+# SERIALIZE them even with cancelling off, and GitHub cancels a *pending* run
+# when a newer one joins its group — so three merges inside one build would
+# leave the middle commit with no run at all. That is the tick this is
+# supposed to protect.
 concurrency:
-  group: check-${{ github.ref }}
+  group: check-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
