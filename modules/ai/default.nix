@@ -1460,6 +1460,15 @@ in
     # receiver draws what it finds).
     bar.fix-agent.enable = cfg.enable && lib.elem cfg.default clients;
 
+    # Bar — the merge-lease pill, and the one contribution this room makes that
+    # is a DEFAULT rather than a gate. `factory` is on PATH wherever this room
+    # is, so a machine that has it has a lease to report and grant, and the pill
+    # is on unless someone says otherwise (`haus.bar.items.factory = false`, or
+    # the open form). Gated on the room and not on `factory.enable` for the same
+    # reason the launcher's card is: the runner switch is about launchd keeping
+    # a watchdog alive, not about whether there is a lease to see.
+    bar.factory.enable = cfg.enable;
+
     # Launcher — Spawn Agent, and the Agent Worktrees cards on the Tips page.
     launcher.agents = {
       enable = spawnable;

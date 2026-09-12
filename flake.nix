@@ -5016,6 +5016,62 @@
               touch $out
             '';
 
+          # ---- bar-factory-default ---------------------------------------------
+          # The merge-lease pill is the one pill haus draws unasked, and it draws
+          # itself only where the room that ships `factory` is on. Five machines,
+          # because that claim has five halves and three of them are what a
+          # second `||` in the bar's `wanted` would have quietly eaten: the AI
+          # room RAISES the default (it is not a gate), and an explicit false
+          # still wins in BOTH spellings — the sugar and the open form.
+          #
+          # The last row is the one worth keeping honest. A machine with the room
+          # off may still ask for the pill and get it: it asks the disk every
+          # tick and hides itself when `factory` is missing, so a binary
+          # installed by hand lights it up with no rebuild. Filter that at eval
+          # instead and the hand-installed case becomes unreachable — which is
+          # the whole reason this contribution is not in `contributed`.
+          bar-factory-default =
+            let
+              drawn =
+                extraModules:
+                let
+                  cfg =
+                    (mkHaus {
+                      inherit system extraModules;
+                      username = "you";
+                      hostname = "example";
+                    }).config;
+                  top = cfg.home-manager.users.you.home.file.".config/sketchybar/top_items.sh".text;
+                in
+                if nixpkgs.lib.hasInfix "--add item factory" top then "yes" else "no";
+              factoryTable = ''
+                ai-on ${drawn [ ]}
+                ai-off ${drawn [ { haus.ai.enable = false; } ]}
+                items-false ${drawn [ { haus.bar.items.factory = false; } ]}
+                widget-false ${drawn [ { haus.bar.widgets.factory.enable = false; } ]}
+                asked-without-ai ${
+                  drawn [
+                    {
+                      haus.ai.enable = false;
+                      haus.bar.items.factory = true;
+                    }
+                  ]
+                }
+              '';
+              expectedFactoryTable = ''
+                ai-on yes
+                ai-off no
+                items-false no
+                widget-false no
+                asked-without-ai yes
+              '';
+            in
+            pkgs.runCommand "haus-bar-factory-default-ok" { } ''
+              diff -u ${pkgs.writeText "expected" expectedFactoryTable} \
+                      ${pkgs.writeText "actual" factoryTable}
+              touch $out
+            '';
+
           # The bottom bar's three groups. A pill's side reaches SketchyBar as
           # the `--add item <name> <side>` argument and NOTHING else reports it,
           # so a block that lost its side parameter would still evaluate, still

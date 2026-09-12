@@ -23,6 +23,12 @@
 #   default      whether the pill is drawn on a desktop that says nothing. The five
 #                core pills are true, the extras false — the same split the
 #                closed submodule shipped with, preserved leaf for leaf.
+#                `factory` is the one entry this field does not finish the
+#                sentence for: it is false here and raised to the AI room's own
+#                switch in modules/bar/default.nix, because the room that ships
+#                the binary is the only thing that knows there is a lease to
+#                draw. Still a plain false in the table, so the leaf a desktop
+#                writes and the docs it renders stay one shape.
 #   movable      whether the pill may be moved to the second bar. `claudeUsage`
 #                is the one false: it is a deprecated ALIAS for `aiUsage`, so it
 #                names no pill of its own and `bar.bottom.items` never carried
@@ -129,7 +135,7 @@
     movable = true;
     permissions = [ ];
     interval = 30;
-    description = "The merge lease, beside the coffee pill: whether this Mac may land pull requests while nobody is watching, and how much of that grant is left. It draws the time remaining, an infinity sign for a lease that runs until you revoke it, and nothing at all beyond its own glyph when no lease stands, because everything queueing at \"PR open\" is the ordinary human-in-the-loop workflow rather than a fault. Click for the grants: 4 hours, 12 hours, until revoked, and a Revoke button that goes solid red while there is authority to take back. RIGHT-CLICK revokes without opening anything. The pill hides itself entirely on a Mac with no `factory` on PATH, which is any machine with `haus.ai.enable` off, and comes back on its own the moment that binary lands. It reads `factory lease status --json` and writes nothing: the lease lives in a machine-local file no pull request can edit, which is the whole reason unattended merge authority is safe to grant at all. While one stands, `factory watchdog run` passes `factory shift` on a cadence and merges what the filter you typed can vouch for; `haus.ai.factory.enable` is what keeps that runner alive under launchd.";
+    description = "The merge lease, beside the coffee pill: whether this Mac may land pull requests while nobody is watching, and how much of that grant is left. It draws the time remaining, an infinity sign for a lease that runs until you revoke it, and nothing at all beyond its own glyph when no lease stands, because everything queueing at \"PR open\" is the ordinary human-in-the-loop workflow rather than a fault. Click for the grants: 4 hours, 12 hours, until revoked, and a Revoke button that goes solid red while there is authority to take back. RIGHT-CLICK revokes without opening anything. The one pill haus draws without being asked: it is on by default wherever `haus.ai.enable` is, because that room is what puts `factory` on this Mac and a Mac that has it has a lease to report. `haus.bar.items.factory = false` is how you keep the lease and lose the pill. The pill hides itself entirely on a Mac with no `factory` on PATH, which is any machine with `haus.ai.enable` off, and comes back on its own the moment that binary lands — so installing the tool by hand is enough, with no rebuild to remember. It reads `factory lease status --json` and writes nothing: the lease lives in a machine-local file no pull request can edit, which is the whole reason unattended merge authority is safe to grant at all. While one stands, `factory watchdog run` passes `factory shift` on a cadence and merges what the filter you typed can vouch for; `haus.ai.factory.enable` is what keeps that runner alive under launchd.";
   };
   agents = {
     default = false;
