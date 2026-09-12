@@ -34,6 +34,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: nixbuild/nix-quick-install-action@v35
+        with:
+          # `nix store gc` before the save would otherwise evict the flake
+          # inputs and the intermediate derivations — everything the next run
+          # wants and only the final `result` is rooted — and the restored
+          # cache would be worth nothing. These two make what the build used
+          # reachable, which is what makes it survive.
+          nix_conf: |
+            keep-env-derivations = true
+            keep-outputs = true
       # The eval pulls nixpkgs and `nix flake check` BUILDS twenty-four check
       # derivations; without a store to come back to, every run paid for both
       # from scratch. The key is the flake inputs and the nix sources, so a
