@@ -352,6 +352,13 @@ haus_verb=""
 for a in "$@"; do
   case "$a" in
     -v | --verbose) ;;
+    # `--version` is the same verb as `version` (both are dispatch arms below),
+    # and it is folded into one HERE so the exempt list stays a list of plain
+    # verb words. That shape is asserted from three suites — report-door,
+    # agent-surface and version-and-pin each grep this line for their own verb —
+    # and a `--`-spelled entry in it silently fails every one of those greps
+    # while the guard itself goes on working.
+    --version) haus_verb="version"; break ;;
     *)
       haus_verb="$a"
       break
@@ -359,7 +366,7 @@ for a in "$@"; do
   esac
 done
 case "$haus_verb" in
-  show | report | skill | version | --version) ;;
+  show | report | skill | version) ;;
   *) [ -e "$CONSUMER/flake.nix" ] || die "no config flake at $CONSUMER — set HAUS_CONSUMER, or run the bootstrap first." ;;
 esac
 unset haus_verb a
@@ -2778,7 +2785,8 @@ cmd_generations() {
 # 🚨 The version is printed to stdout ALONE: no glyph, no colour, no label. That
 # is why this verb is NOT in the REPORT list — `$(haus --version)` is a value, and
 # `haus get` keeps the same rule for the same reason. Every other line it draws
-# is prose, and prose goes to fd 2.
+# is prose, and prose goes to fd 2 through snug, not through the report body's
+# `info` (see the note beside the one line it draws).
 HAUS_VERSION="${HAUS_VERSION:-}"
 
 cmd_version() {
@@ -2807,7 +2815,17 @@ cmd_version() {
   when="$(jq -r '.nodes.haus.locked.lastModified // empty' "$lock" 2>/dev/null || true)"
   pinned="pinned $rev"
   [ -n "$when" ] && pinned="$pinned ($(date -r "$when" '+%Y-%m-%d' 2>/dev/null || echo '?'))"
-  info "$pinned — haus status for whether upstream has moved" >&2
+  # `hint`, not `info`: this is narration, and the report-body helpers are the
+  # wrong painter for it twice over. They write to fd 1 unconditionally, and
+  # their `C_*` were resolved once at load against fd 1 (see the palette block
+  # near the top) — so an `info … >&2` here would paint by whether STDOUT is a
+  # terminal, which for this verb is precisely the stream that is usually a pipe.
+  # `haus version 2>notes.log` would have written SGR escapes into the file while
+  # `$(haus --version)` drew the note to the terminal with no colour at all.
+  # `hint` goes through snug (no coprocess here, so it falls to ui.sh's own line
+  # on fd 2, and to plain text with no painter), which measures the stream it
+  # actually writes to.
+  hint "$pinned — haus status for whether upstream has moved"
 }
 
 cmd_status() {

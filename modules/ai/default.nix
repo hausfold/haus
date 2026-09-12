@@ -851,7 +851,9 @@ let
     | config flake | `~/.config/nix` (unless `HAUS_CONSUMER` says otherwise) |
     | haus version | `${lib.fileContents ../../VERSION}` |
 
-    Run `haus status` for the pinned revision and whether it's behind upstream.
+    `haus version` prints that release and nothing else, so it is the one to
+    read in a script; `haus status` adds the pinned revision and whether it's
+    behind upstream.
 
     ## Rooms
 

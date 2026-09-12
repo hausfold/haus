@@ -60,6 +60,12 @@ JSON
 # Load haus.sh as a library in a fresh shell, stub the machine away, run a
 # snippet. `LSREMOTE` is what the stubbed `git ls-remote` prints — each case
 # below sets the remote it wants to reason about.
+#
+# `REPORT` is taken from the environment rather than pinned to 1, and that is
+# load-bearing for half of this file: `status` is a report and draws its body on
+# fd 1, while `version` is narration and must not. A harness that set REPORT for
+# both would make every `hint` here land on fd 1 and quietly pass the one
+# assertion that matters — that the version is the whole of stdout.
 haus_sh() { # haus_sh <VAR=val…> <snippet>
   local snippet="${!#}"
   # ⚠️ No backticks anywhere in this string, in a comment least of all: it is
@@ -68,14 +74,17 @@ haus_sh() { # haus_sh <VAR=val…> <snippet>
   run env "${@:1:$#-1}" HAUS_CONSUMER="$HAUS_CONSUMER" HAUS_LIB=1 "$BASH" -c "
     set -uo pipefail
     source '$SUBJECT'
-    REPORT=1
+    REPORT=\"\${REPORT:-}\"
     current_gen() { echo 42; }
     gen_date() { echo 2026-09-11; }
     host_name() { echo mbp; }
     git() {
       [ \"\$1\" = ls-remote ] || return 1
-      printf '%s' \"\${LSREMOTE:-}\"
-      printf '%s' \"\${LSREMOTE:+\$(echo)}\"
+      # An empty LSREMOTE must print NOTHING, not a blank line: a blank first
+      # line would give awk a record whose \$1 is empty and make 'offline' look
+      # like 'answered with an empty sha'.
+      [ -n \"\${LSREMOTE:-}\" ] || return 0
+      printf '%s\\n' \"\$LSREMOTE\"
     }
     $snippet"
 }
@@ -88,7 +97,7 @@ fail() { printf '%s\n' "$*" >&2; return 1; }   # not a bats builtin
   # The regression itself. ls-remote is asked for both patterns and answers
   # with both lines; the lock holds the PEELED commit, so status must compare
   # against that one and agree with what 'haus update' would say.
-  haus_sh LSREMOTE="$TAGOBJ	refs/tags/v2026.09.03
+  haus_sh REPORT=1 LSREMOTE="$TAGOBJ	refs/tags/v2026.09.03
 $PEELED	refs/tags/v2026.09.03^{}" 'cmd_status'
   [ "$status" -eq 0 ] || fail "$output"
   [[ "$output" != *"newer haus is available"* ]] \
@@ -103,7 +112,7 @@ $PEELED	refs/tags/v2026.09.03^{}" 'cmd_status'
   # pattern spells it out. Asserted on the call, since a remote that never sends
   # the line cannot be told from one whose line we ignored.
   local asked="$BATS_TEST_TMPDIR/asked"
-  haus_sh ASKED="$asked" '
+  haus_sh REPORT=1 ASKED="$asked" '
     git() { printf "%s\n" "$*" >>"$ASKED"; return 1; }
     cmd_status'
   [ "$status" -eq 0 ] || fail "$output"
@@ -114,7 +123,7 @@ $PEELED	refs/tags/v2026.09.03^{}" 'cmd_status'
 @test "a tag that HAS moved is still reported as behind" {
   # The fix must not silence the real signal: same shape, different commit
   # under the tag, and status has to say so.
-  haus_sh LSREMOTE="$TAGOBJ	refs/tags/v2026.09.03
+  haus_sh REPORT=1 LSREMOTE="$TAGOBJ	refs/tags/v2026.09.03
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	refs/tags/v2026.09.03^{}" 'cmd_status'
   [[ "$output" == *"newer haus is available upstream (aaaaaaaaaaaa)"* ]] || fail "$output"
 }
@@ -123,10 +132,10 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	refs/tags/v2026.09.03^{}" 'cmd_status'
   # `github:hausfold/haus` locks a branch head — one ls-remote line, no peel,
   # and the first-line fallback is the whole answer. Both directions.
   lockfile hausfold haus "" "$PEELED"
-  haus_sh LSREMOTE="$PEELED	refs/heads/main" 'cmd_status'
+  haus_sh REPORT=1 LSREMOTE="$PEELED	refs/heads/main" 'cmd_status'
   [[ "$output" == *"up to date with upstream"* ]] || fail "behind on a branch it matches: $output"
 
-  haus_sh LSREMOTE="$TAGOBJ	refs/heads/main" 'cmd_status'
+  haus_sh REPORT=1 LSREMOTE="$TAGOBJ	refs/heads/main" 'cmd_status'
   [[ "$output" == *"newer haus is available upstream (2d493149fe59)"* ]] || fail "$output"
 }
 
@@ -138,7 +147,7 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	refs/tags/v2026.09.03^{}" 'cmd_status'
   # middle of itself, silently, every time — which is why the assertion here is
   # on the EXIT CODE and on a line drawn after the probe, not just on the absence
   # of an upstream claim.
-  haus_sh 'git() { return 1; }; cmd_status; echo REACHED-THE-END'
+  haus_sh REPORT=1 'git() { return 1; }; cmd_status; echo REACHED-THE-END'
   [ "$status" -eq 0 ] || fail "offline status exits non-zero: $output"
   [[ "$output" == *"REACHED-THE-END"* ]] || fail "died mid-command: $output"
   [[ "$output" == *"56bbe8d99310"* ]] || fail "no pinned line: $output"
@@ -147,7 +156,7 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	refs/tags/v2026.09.03^{}" 'cmd_status'
 }
 
 @test "a remote that answers with nothing claims nothing" {
-  haus_sh LSREMOTE= 'cmd_status'
+  haus_sh REPORT=1 LSREMOTE= 'cmd_status'
   [ "$status" -eq 0 ] || fail "$output"
   [[ "$output" != *"newer haus"* ]] || fail "$output"
   [[ "$output" != *"up to date"* ]] || fail "$output"
@@ -165,9 +174,18 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	refs/tags/v2026.09.03^{}" 'cmd_status'
 }
 
 @test "the pinned revision is a note on fd 2, not part of the value" {
+  # Drawn with `hint`, which is the narration painter — it measures the stream it
+  # writes to. The report body's `info` would have measured fd 1, so the note
+  # would carry colour into a redirected stderr and none at all to a terminal
+  # whose stdout is the pipe this verb usually feeds.
   haus_sh HAUS_VERSION=2026.09.12 'cmd_version 2>&1'
   [[ "$output" == *"pinned 56bbe8d99310"* ]] || fail "no pin: $output"
   [[ "$output" == *"haus status"* ]] || fail "does not hand the upstream question on: $output"
+
+  # And it is not on fd 1, whatever REPORT happens to say — a `haus version`
+  # reached through a report's stream split must still hand back the value alone.
+  haus_sh REPORT=1 HAUS_VERSION=2026.09.12 'cmd_version 2>/dev/null'
+  [ "$output" = "2026.09.12" ] || fail "the note reached stdout: $(printf '%q' "$output")"
 }
 
 @test "no lock is a version, not a failure" {
@@ -193,8 +211,15 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	refs/tags/v2026.09.03^{}" 'cmd_status'
   # that has not finished installing.
   grep -qE '^  version\|--version\) cmd_version ;;$' "$SUBJECT" \
     || fail "the version arm has moved or changed shape"
-  grep -qE '^  show \| report \| skill \| version \| --version\) ;;$' "$SUBJECT" \
+  # 🚨 The exempt list is a list of plain verb WORDS, and it has to stay one:
+  # report-door.bats and agent-surface.bats each grep this same line with
+  # `[a-z |]*` for their own verb, so a `--version` spelled into it turns both of
+  # those suites red while the guard goes on working. `--version` is folded to
+  # `version` in the loop above the list instead.
+  grep -qE '^  show \| report \| skill \| version\) ;;$' "$SUBJECT" \
     || fail "version is no longer exempt from the config-flake guard"
+  grep -qE '^    --version\) haus_verb="version"; break ;;$' "$SUBJECT" \
+    || fail "--version is no longer folded to the verb before the guard"
 
   # And end to end, with no flake.nix at all.
   run env HAUS_CONSUMER="$BATS_TEST_TMPDIR/nothing" HAUS_VERSION=2026.09.12 \
@@ -213,7 +238,7 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	refs/tags/v2026.09.03^{}" 'cmd_status'
   grep -q 'haus version ' "$SUBJECT" || fail "usage() never mentions it"
   grep -qE "die \"unknown command .*\bversion\"" "$SUBJECT" \
     || fail "the unknown-command list does not offer it"
-  grep -q "'version:" "$BATS_TEST_DIRNAME/../modules/core/haus-completion.zsh" \
+  grep -qE "^    'version:" "$BATS_TEST_DIRNAME/../modules/core/haus-completion.zsh" \
     || fail "zsh completion does not offer it"
 }
 
