@@ -81,6 +81,7 @@ _haus() {
     'add:pin a desktop and select it, or a room with --room --namespace'
     'desktop:list every desktop this machine can select, or switch to one'
     'remove:unpin a desktop or room this machine added, and reselect'
+    'version:the haus release this machine is running (--version too)'
     'help:list every command'
   )
 
