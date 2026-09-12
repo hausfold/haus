@@ -173,6 +173,53 @@ for _ in $(seq 1 36); do grown 2>/dev/null && break; sleep 5; done
 grown 2>/dev/null \
   || die "$NAME's APFS container has not grown to ${DISK_GB} GB after 3 min — \`ssh $GUEST_USER@$IP diskutil apfs list\`; the base's tart-guest-agent is meant to do this at boot"
 
+# ---- 1.6 put Gatekeeper back -----------------------------------------------
+# The cirruslabs base ships Gatekeeper in a state no real Mac is ever in, and
+# it is wrong twice over: assessments are off wholesale (`spctl
+# --master-disable`), and underneath that the policy DB has its Developer ID
+# rules switched off too — the "App Store" setting, not the "App Store and
+# identified developers" every Mac ships with. Sensible for a CI worker that
+# runs unsigned binaries; useless for an image we test SHIPPED apps on. With
+# assessments off a Developer ID app opens with no dialog at all; with them
+# back on but the rules still disabled it is refused as "not downloaded from
+# the App Store". Neither is what a user sees, so neither is evidence, and the
+# second one reads as a signing bug in the app under test rather than a fact
+# about the image (cost a perch release a day, 2026-09-11).
+#
+# `spctl --enable --label "Developer ID"` is how this was spelled until macOS
+# 15 removed the subcommand, so the rows go in directly — the same reasoning as
+# the TCC insert in step 3a, and legal for the same reason: SIP is off in this
+# base. `Unnotarized Developer ID` and `Testflight` stay disabled; they are
+# disabled on a stock Mac too, and switching them on would make the image lie
+# in the other direction.
+#
+# Measured 2026-09-12 on a Tahoe 26.6.2 guest: the UPDATE plus `killall
+# syspolicyd` reads back "developer id enabled" with no reboot, and survives
+# one. Before bootstrap rather than after, so a base that has moved on us
+# fails here and not forty minutes deeper.
+say "restoring Gatekeeper (the base ships it off, and App-Store-only underneath)…"
+guest <<'EOS'
+set -euo pipefail
+db=/var/db/SystemPolicyConfiguration/SystemPolicy
+# NOT /var/db/SystemPolicy — that path is empty on macOS 26 and a `sudo cp`
+# onto it silently creates a decoy the real syspolicyd never reads.
+[ -s "$db" ] || { echo "no policy DB at $db — macOS moved it again" >&2; exit 1; }
+
+# --global-enable is the current spelling, --master-enable the one before it;
+# which of the two a given release answers to is not worth branching on, and
+# the verify below is the real check either way.
+sudo -n spctl --global-enable 2>/dev/null || sudo -n spctl --master-enable 2>/dev/null || true
+sudo -n sqlite3 "$db" \
+  "UPDATE authority SET disabled = 0 WHERE label IN ('Developer ID', 'Notarized Developer ID');"
+sudo -n killall syspolicyd 2>/dev/null || true
+sleep 3
+
+status=$(spctl --status --verbose 2>&1)
+printf '%s\n' "$status" | grep -qx 'assessments enabled' \
+  && printf '%s\n' "$status" | grep -qx 'developer id enabled' \
+  || { echo "Gatekeeper not restored — spctl says:" >&2; printf '%s\n' "$status" >&2; exit 1; }
+EOS
+
 # ---- 2. raise the house ----------------------------------------------------
 # The PINNED raw URL, never hausfold.co/hacker.sh: the worker resolves the
 # latest release tag, which drifts, and an image nobody can rebuild is not
