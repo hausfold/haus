@@ -8,10 +8,28 @@ on:
   # having to push to main first.
   workflow_dispatch:
 
+# A second push to a PR branch makes the first run's answer worthless, and the
+# abandoned run still holds a runner — a runner the next PR then waits
+# behind.
+#
+# Only a PR run is ever in a shared group. Everything else keys on the commit,
+# so it gets a group of its own: putting main pushes in one group would
+# SERIALIZE them even with cancelling off, and GitHub cancels a *pending* run
+# when a newer one joins its group — so three merges inside one build would
+# leave the middle commit with no run at all. That is the tick this is
+# supposed to protect.
+concurrency:
+  group: check-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   eval:
     name: eval the example host
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # cache-nix-action purges its own superseded entries through the API.
+      actions: write
     # A ceiling, not a target: this job runs in ~2 minutes. It exists because
     # GitHub's default is SIX HOURS, and a step that hangs rather than fails
     # sits there burning the whole budget while the PR shows "running" — which
@@ -21,12 +39,29 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@main
-      # Pure evaluation of the full darwin system — catches syntax errors, bad
-      # option names, and broken module wiring before any consumer does. (Eval
-      # is platform-independent; no macOS runner needed until we *build*.)
-      # aarch64 only: nixpkgs 26.11 dropped x86_64-darwin, so there's no Intel
-      # example left to eval (see flake.nix `allSystems`).
+      - uses: nixbuild/nix-quick-install-action@v35
+      # The eval pulls nixpkgs and `nix flake check` BUILDS twenty-four check
+      # derivations; without a store to come back to, every run paid for both
+      # from scratch. The key is the flake inputs and the nix sources, so a
+      # lock bump or a module edit pays full price and everything else — a
+      # docs change, a shell script, a bats fixture — restores.
+      - name: Restore the Nix store
+        uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock', '**/*.nix') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          # Only a push to main writes a cache, and this line is what makes
+          # that true — GitHub's ref scoping governs READS, not writes. Left on
+          # the default, every PR would upload its own multi-gigabyte copy
+          # scoped to `refs/pull/N/merge`; this repo is MADE of .nix files, so
+          # nearly every PR misses the key, and two open ones would push us past
+          # GitHub's 10 GB budget. Its LRU eviction would then take the main
+          # entry this whole thing exists for.
+          save: ${{ github.event_name != 'pull_request' }}
+          purge: true
+          purge-prefixes: nix-${{ runner.os }}-
+          purge-created: 0
+          purge-primary-key: never
       - run: nix eval .#darwinConfigurations.example.system.drvPath
       # The platform-independent checks are declared for Linux too precisely so
       # they can run HERE — TWENTY-FOUR of them, everything in flake.nix's `checks`
@@ -260,6 +295,18 @@ jobs:
       # a flake check — same reasoning, same job.
       - name: haus add/desktop/remove tests
         run: bash test/haus-add.sh
+
+      # Last, because the size that matters is the one about to be SAVED. No
+      # `gc-max-store-size-*` is set, so the action collects no garbage and
+      # saves the store whole — which is not a default worth overriding here:
+      # this job runs `nix eval` and `nix flake check` and never `nix build`,
+      # so it creates NO gcroot at all, and a collector run before the save
+      # would empty almost everything it had just fetched and built. The cost
+      # is that the store carries forward and creeps; this line is how that
+      # stays readable rather than arriving as a surprise eviction at GitHub's
+      # 10 GB per-repo ceiling.
+      - name: How big a store we are about to save
+        run: du -sh /nix/store
 
   shellcheck:
     name: shell scripts
