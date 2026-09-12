@@ -746,6 +746,20 @@ jobs:
       - name: barlib runtime tests
         run: bats test/barlib.bats
 
+      # The page pill's fraction. It counts PLACES — a workspace with a window
+      # on it — out of one `aerospace` call that treats the two kinds
+      # differently: a page is non-persistent and so listed only while it is
+      # live, while the base (`T`) is persistent and listed whether or not
+      # anything is on it. `--empty no` is the whole of what makes them
+      # comparable, and every way to get this wrong draws a plausible number
+      # nobody can check, or hides the pill in the one state it exists for: an
+      # emptied `T` whose pages nothing else on screen mentions. Hermetic: fake
+      # $HOME, aerospace and sketchybar as recorders, the subject's PATH prelude
+      # rewritten so a real Mac's workspaces cannot answer. Needs only bash +
+      # bats.
+      - name: page pill count
+        run: bats test/page-pill.bats
+
       # The aiUsage pill's weekly SUB-limits. A Max plan caps some model
       # families inside the weekly window rather than beside it, so a family can
       # be spent for the week while the weekly gauge it lives in reads 50% — a

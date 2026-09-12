@@ -57,7 +57,9 @@ case "${1:-}" in
     # persistent workspaces plus every non-persistent one currently holding a
     # window or visible — a page is never persistent (lane-open.sh keeps
     # `T/<repo>` out on purpose), so every `…/…` line in that output is a LIVE
-    # page. Same call and same rule as the bar's page pill.
+    # page. Same rule for what a page IS as the bar's page pill, but a plainer
+    # call than the pill's `--empty no`: this asks only whether a page exists
+    # ANYWHERE, so an empty workspace changes no answer it gives.
     #
     # Written only when AeroSpace actually answered: a tiler that is not running
     # exits non-zero, and an empty answer is not "no pages", it is "no answer".
