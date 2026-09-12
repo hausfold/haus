@@ -1544,10 +1544,13 @@ in
   # package for it.
   fonts.packages = [ monoPackage ] ++ lib.optional (sansPackage != null) sansPackage;
 
-  # Homebrew's tap-trust check is flaky under sudo-driven activation (the
-  # per-user trust store gets bypassed), so third-party taps fail with "Refusing
-  # to load cask … from untrusted tap". We curate our taps ourselves; disable the
-  # requirement globally via a brew.env that `bin/brew` reads on every call.
+  # (nix-darwin's Brewfile now stamps `trusted: true` on every entry, which
+  # replaces HOMEBREW_NO_REQUIRE_TAP_TRUST — brew odeprecated the variable and
+  # warns on every bundle run while it's set — and covers the same flaky
+  # sudo-activation case that once made us disable the tap-trust check
+  # globally: the per-user trust store gets bypassed under sudo, but the
+  # Brewfile's trust declarations are read as data, not looked up in it. Any
+  # haus tap a host adds through homebrew.taps gets the same stamp.)
   #
   # HOMEBREW_API_AUTO_UPDATE_SECS only bites hosts that set
   # `haus.homebrew.autoUpdate = true` (the haus default is false, which
@@ -1567,7 +1570,6 @@ in
   # other variable is reset. Only brew.env survives that, because `bin/brew`
   # reads it itself on each call. Hence both, and hence not bench either.
   environment.etc."homebrew/brew.env".text = ''
-    HOMEBREW_NO_REQUIRE_TAP_TRUST=1
     HOMEBREW_API_AUTO_UPDATE_SECS=3600
     HOMEBREW_NO_ENV_HINTS=1
   '';

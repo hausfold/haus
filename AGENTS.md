@@ -333,10 +333,13 @@ PR; hardcoded identity. Advisory, never a gate.
   (`pkgs.pounce-app`, pinned by pounce's `nix/release.nix`); a source build is
   adhoc-signed and loses the grant every rebuild — only `bench try`'s dev-app
   injection runs one, re-signed. New machine: `pounce --request-accessibility`.
-- **Homebrew tap-trust** (`modules/core`): `HOMEBREW_NO_REQUIRE_TAP_TRUST=1` in
-  `/etc/homebrew/brew.env` — the only place a `HOMEBREW_*` setting reaches the
-  rebuild's `brew bundle` (activation runs it under `sudo … env …`); the
-  API-refresh window and env-hint silencing live there too.
+- **Homebrew tap-trust** (`modules/core`): nix-darwin's Brewfile stamps
+  `trusted: true` on every entry — the old `HOMEBREW_NO_REQUIRE_TAP_TRUST=1`
+  workaround is gone (brew odeprecated the variable and warns on every bundle
+  run while it's set). The trust declarations ride the Brewfile, the only
+  place trust reaches the rebuild's `brew bundle` (activation runs it under
+  `sudo … env …`); the API-refresh window and env-hint silencing still live
+  in `/etc/homebrew/brew.env`.
 - **Ghostty's `--title` is INSTANCE-WIDE.** Lanes
   (`modules/terminal/lanes/lane-open.sh`) and float popups
   (`modules/terminal/scripts/float-term.sh`) are own processes launched
