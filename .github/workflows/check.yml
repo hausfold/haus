@@ -23,6 +23,50 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # ── The nix half, and which of its three jobs a new step joins ───────────
+  #
+  # It was one job of six steps run one after another, and it was the PR gate:
+  # ~1m40s, against a shell half that has been four parallel jobs of 58s or
+  # less since #716. Warm — a PR touching no .nix file, which is most of them
+  # — that 1m40s is 35s of cache restore and 56s of work. Measured on run
+  # 34686000184: nix eval 6s, nix flake check 1s, host template 7s, haus show
+  # 6s, haus add 36s.
+  #
+  # ⚠️ Do not quote docs/ci.md's `nix eval` 55s and `nix flake check` 37s
+  # beside those. Those are the COLD figures — the same steps with no store to
+  # come back to — and they are not additive with the warm ones. Every
+  # re-measure starts by reading the "Restore the Nix store" step: 30s-plus
+  # means warm, under a second means the key missed and everything below it
+  # paid full price. Recent runs sit at 92–132s warm and 143–166s cold, and
+  # reading one for the other is how this half got measured wrong once already.
+  #
+  # The grouping is by what a step NEEDS, then by what a restore costs:
+  #
+  #   eval      the flake read straight, plus the two bash suites that read
+  #             what it BUILDS — `nix eval`, the host template's defaults and
+  #             `haus show`. Not one of the three is worth a restore of its
+  #             own, so they are one job.
+  #   checks    `nix flake check` alone. Warm it is 1s and this split buys
+  #             nothing; COLD it is the whole reason there are three jobs and
+  #             not two, because it is the one step that BUILDS — all
+  #             twenty-nine derivations — and a lock bump makes every run
+  #             cold. It is also the step this repo keeps adding to, and the
+  #             only one whose store is nobody else's subset.
+  #   acquire   `haus add`/`desktop`/`remove` alone. It is the pole at 36s,
+  #             and 24 of those are `nixpkgs#nixfmt` resolving through the
+  #             flake REGISTRY — it unpacks channels.nixos.org's
+  #             nixexprs.tar.xz into ~/.cache/nix, which the /nix store cache
+  #             does not hold, so that fetch is paid warm and cold alike.
+  #             THAT is the next cut in this half, inside the suite rather
+  #             than as a fourth job: everything else here is already smaller
+  #             than the restore standing in front of it.
+  #
+  # Three jobs and not six, for the shell half's reason one line down from
+  # here: the gate is the longest job, not the total, and every job pays
+  # checkout, the Nix install and a cache RESTORE again. The restore is ~35s
+  # of that and is the largest fixed cost in this half, which makes it the
+  # number a new step is measured against. Under it, join an existing job.
+
   eval:
     name: eval the example host
     runs-on: ubuntu-latest
@@ -30,12 +74,12 @@ jobs:
       contents: read
       # cache-nix-action purges its own superseded entries through the API.
       actions: write
-    # A ceiling, not a target: this job runs in ~2 minutes. It exists because
-    # GitHub's default is SIX HOURS, and a step that hangs rather than fails
-    # sits there burning the whole budget while the PR shows "running" — which
-    # is exactly what happened on 2026-08-18, when the shellcheck job's
+    # A ceiling, not a target: this job runs in about a minute. It exists
+    # because GitHub's default is SIX HOURS, and a step that hangs rather than
+    # fails sits there burning the whole budget while the PR shows "running" —
+    # which is exactly what happened on 2026-08-18, when the shellcheck job's
     # `apt-get update` stalled on the Azure Ubuntu mirrors and had to be
-    # cancelled by hand after two hours.
+    # cancelled by hand after two hours. All three jobs in this half carry it.
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -51,29 +95,81 @@ jobs:
       # So the prefix carries an ISO week and the nixpkgs rev, and the lineage
       # restarts on either. The first main push of a week (or of a nixpkgs
       # bump, which would otherwise union a second stdenv onto the first)
-      # builds cold and saves a fresh ~0.5 GB entry; `purge-prefixes` below is
-      # still the broad `nix-<os>-`, so that save is also what deletes the
-      # lineage it replaces. One cold run a week is the whole cost of it, and
-      # PRs opened in the gap before that push pay full price too. A
+      # builds cold and saves a fresh entry, and that save is also what deletes
+      # the lineage it replaces. One cold run a week is the whole cost of it,
+      # and PRs opened in the gap before that push pay full price too. A
       # `gc-max-store-size` cap instead of any of this would take exactly the
       # paths the next run wants — see the comment on that input below.
+      #
+      # The `eval-` token in front of the week is this half's other rule; the
+      # block above the restore step has it. The other two jobs carry this
+      # same step with their own token and no second copy of this account.
       #
       # Watch the slope with workshop's `script/probes/ci-cache-value.sh haus`.
       - name: Which store lineage this run belongs to
         id: lineage
         run: |
           rev="$(jq -r '.nodes.nixpkgs.locked.rev // "norev"' flake.lock)"
-          echo "prefix=nix-${{ runner.os }}-$(date -u +%G-W%V)-${rev:0:12}-" >> "$GITHUB_OUTPUT"
-      # The eval pulls nixpkgs and `nix flake check` BUILDS twenty-four check
-      # derivations; without a store to come back to, every run paid for both
-      # from scratch. Within a lineage the key is the flake inputs and the nix
-      # sources, so a lock bump or a module edit pays full price and everything
-      # else — a docs change, a shell script, a bats fixture — restores.
+          week="$(date -u +%G-W%V)"
+          echo "prefix=nix-${{ runner.os }}-eval-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
+          # Transitional, added 2026-09-12 with the split: the entry this
+          # half saved as ONE job, which carries no token. Without it all
+          # three jobs start cold, and so does every PR opened before the
+          # next push to main — the lineage-reset cost, paid three times
+          # for a change that alters no derivation. Drop this output and
+          # the second restore prefix below once one push to main has
+          # saved the three tokened entries; after that it can only match
+          # something nothing purges and GitHub evicts at seven days.
+          echo "legacy=nix-${{ runner.os }}-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
+      # The eval pulls nixpkgs; without a store to come back to, every run paid
+      # for that from scratch. Within a lineage the key is the flake inputs and
+      # the nix sources, so a lock bump or a module edit pays full price and
+      # everything else — a docs change, a shell script, a bats fixture —
+      # restores.
+      #
+      # ⚠️ ONE ENTRY PER JOB, AND THE JOB'S NAME IS IN THE KEY. This half's
+      # three jobs on the single primary key they used to share would have
+      # raced on main in two ways at once, both silent:
+      #
+      #   the SAVE — whichever job reached its post phase first would write the
+      #   entry and the other two would be refused it as already present. Their
+      #   stores are not each other's: `checks` builds twenty-nine derivations
+      #   `eval` never asks for, and `acquire` carries nix-darwin, nixfmt and a
+      #   scaffolded consumer's lock that neither of the others fetches. A
+      #   shared key means two of the three come back to a store missing what
+      #   they need and rebuild it on every run — which reads not as a race but
+      #   as a cache that quietly stopped paying.
+      #
+      #   the PURGE — `purge-prefixes` below used to be the broad `nix-<os>-`
+      #   with `purge-created: 0`, which takes every entry under that prefix
+      #   created before this job's post phase. `purge-primary-key: never`
+      #   protects only the job's OWN key, so three jobs sweeping that prefix
+      #   together on main would each delete the other two's fresh entries.
+      #
+      # So the job token sits between the OS and the week, and each job purges
+      # `nix-<os>-<job>-` alone. The weekly reset still works — a new week
+      # lands a new key under the same job prefix and the old one is swept —
+      # and no job can reach another's. Three entries per lineage rather than
+      # one: the combined entry was ~0.5 GiB compressed against a 10 GB budget,
+      # the three overlap heavily (all of them carry nixpkgs), and the weekly
+      # reset bounds the total exactly as it always did. The pre-split entry
+      # carries no token, so nothing here purges it — the transitional prefix
+      # in the lineage step above reads it once so that the split does not
+      # start cold, and stops consulting it the moment the tokened entries
+      # exist, which is the first push to main after this lands. Nothing reads
+      # it after that, and GitHub evicts a cache nothing has read in seven
+      # days, which is what finally collects it.
+      #
+      # A new job in this half copies this step, changes the one token, and is
+      # a new entry. Duplicated rather than shared, because two jobs share no
+      # environment — the same call `draw` and `eval` make for snug's fetch.
       - name: Restore the Nix store
         uses: nix-community/cache-nix-action@v7
         with:
           primary-key: ${{ steps.lineage.outputs.prefix }}${{ hashFiles('flake.lock', '**/*.nix') }}
-          restore-prefixes-first-match: ${{ steps.lineage.outputs.prefix }}
+          restore-prefixes-first-match: |
+            ${{ steps.lineage.outputs.prefix }}
+            ${{ steps.lineage.outputs.legacy }}
           # Only a push to main writes a cache, and this line is what makes
           # that true — GitHub's ref scoping governs READS, not writes. Left on
           # the default, every PR would upload its own multi-gigabyte copy
@@ -86,18 +182,19 @@ jobs:
           # that branch, which no run on main can purge and only that branch
           # can restore.
           save: ${{ github.ref == 'refs/heads/main' }}
-          # One store entry per ref, not one per key we have ever had. The
-          # sweep runs AFTER the save, not before: it takes every `nix-<os>-`
-          # entry created before this job's post phase, which the one just
-          # written is not. `purge-primary-key: never` is what keeps the pass
-          # that DOES run first off the entry being reused when the key
-          # already hits. Both are scoped to the run's own ref, so a PR can
-          # only ever reach its own.
+          # One store entry per ref per JOB, not one per key we have ever had.
+          # The sweep runs AFTER the save, not before: it takes every
+          # `nix-<os>-eval-` entry created before this job's post phase, which
+          # the one just written is not. `purge-primary-key: never` is what
+          # keeps the pass that DOES run first off the entry being reused when
+          # the key already hits. Both are scoped to the run's own ref, so a PR
+          # can only ever reach its own — and now to this job's own prefix, so
+          # it cannot reach `checks` or `acquire` either.
           purge: true
-          purge-prefixes: nix-${{ runner.os }}-
+          purge-prefixes: nix-${{ runner.os }}-eval-
           purge-created: 0
           purge-primary-key: never
-          # No `gc-max-store-size-*`: every `nix build` this job reaches is
+          # No `gc-max-store-size-*`: every `nix build` this half reaches is
           # `--no-link`, so nothing here becomes a gcroot, and a collector run
           # before the save would empty almost everything it had just fetched
           # and built. The store is saved whole and carries forward, which the
@@ -105,8 +202,105 @@ jobs:
           # on the runs that save, and `gh cache list --repo hausfold/haus`
           # reports the compressed entry the 10 GB actually counts.
       - run: nix eval .#darwinConfigurations.example.system.drvPath
+
+      # The annotated host template (hosts/<host>/options.nix) ships every
+      # option's DEFAULT as a line you can uncomment. host-template.nix's own
+      # build already proves the file parses both as-shipped and uncommented;
+      # this proves the uncommented values are LEGAL for their options — a
+      # `defaultText` that has drifted from the real default (wrong type, a
+      # stale enum member) parses fine and only fails on the machine of whoever
+      # uncomments that one line, months later. `…` placeholders are the
+      # deliberately-not-pasteable ones and are excluded, exactly as the
+      # derivation's own check does.
+      - name: every default in the host template is settable
+        run: |
+          tmpl=$(nix build --no-link --print-out-paths .#host-template)
+          host=$(mktemp -d)
+          printf '{ ... }:\n\n{\n  imports = [ ./options.nix ];\n}\n' > "$host/default.nix"
+          # The ` =` is load-bearing — see modules/host-template.nix, which runs
+          # the same substitution: a description line that wraps to start with
+          # `haus.` is not an assignment and uncommenting it breaks the parse.
+          sed -E 's/^  # (haus\.[A-Za-z0-9._-]+ =)/  \1/' "$tmpl/share/haus/host-options.nix" \
+            | grep -v '= …;$' > "$host/options.nix"
+          # A prefix that no longer matches would uncomment NOTHING and this
+          # step would pass on an empty host — the one failure it can't see.
+          grep -q '^  haus\.' "$host/options.nix"
+          nix eval --impure --apply 'x: x.system.drvPath' --expr \
+            "(builtins.getFlake \"path:$PWD\").mkHaus { username = \"ada\"; hostname = \"lovelace\"; host = $host; }"
+
+      # `haus show`'s exit codes, flags and JSON envelope, against the built
+      # `#show` wrapper — the same thing `nix run github:hausfold/haus#show`
+      # hands a publisher. It lives in this half rather than beside the other
+      # shell suites because it needs a real `nix eval`, which is exactly what a
+      # Nix BUILD may not do: the `desktop-show` check in `checks` covers
+      # everything about this command that can be answered inside a derivation,
+      # and this covers the part a publisher's CI actually depends on, which is
+      # the number the process exits with.
+      # `haus show`'s report draws through snug's bash painter now — five
+      # budgeted tables — and a runner has no `snug` on PATH and no
+      # /run/current-system, so without this the suite exercises only the
+      # no-painter fallback and the tables ship untested. Same fetch as the
+      # `draw` job's "snug's painter, at the pinned rev" and `acquire`'s,
+      # duplicated rather than shared because no two jobs share an environment.
+      - name: snug's painter, at the pinned rev
+        run: |
+          rev="$(jq -r '.nodes.snug.locked.rev' flake.lock)"
+          [ -n "$rev" ] && [ "$rev" != null ] || { echo "no snug rev in flake.lock"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/snug"
+          curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 \
+            "https://raw.githubusercontent.com/hausfold/snug/$rev/share/ui.sh" \
+            -o "$RUNNER_TEMP/snug/ui.sh"
+          echo "HAUS_UI_SH=$RUNNER_TEMP/snug/ui.sh" >> "$GITHUB_ENV"
+
+      - name: haus show tests
+        run: bash test/haus-show.sh
+
+  checks:
+    name: the flake's checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # cache-nix-action purges its own superseded entries through the API.
+      actions: write
+    # The ceiling the other two carry, for the account above `eval`.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: nixbuild/nix-quick-install-action@v35
+      # The lineage prefix, with this job's own token — the account is above
+      # `eval`'s copy of this step, and so is the reason the token is there.
+      - name: Which store lineage this run belongs to
+        id: lineage
+        run: |
+          rev="$(jq -r '.nodes.nixpkgs.locked.rev // "norev"' flake.lock)"
+          week="$(date -u +%G-W%V)"
+          echo "prefix=nix-${{ runner.os }}-checks-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
+          # Transitional, added 2026-09-12 with the split: the entry this
+          # half saved as ONE job, which carries no token. Without it all
+          # three jobs start cold, and so does every PR opened before the
+          # next push to main — the lineage-reset cost, paid three times
+          # for a change that alters no derivation. Drop this output and
+          # the second restore prefix below once one push to main has
+          # saved the three tokened entries; after that it can only match
+          # something nothing purges and GitHub evicts at seven days.
+          echo "legacy=nix-${{ runner.os }}-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
+      # This job's store is the big one and the one nobody else's is a superset
+      # of: `nix flake check` BUILDS twenty-nine derivations. Every input here
+      # is `eval`'s with a different token — read that copy for what each does.
+      - name: Restore the Nix store
+        uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: ${{ steps.lineage.outputs.prefix }}${{ hashFiles('flake.lock', '**/*.nix') }}
+          restore-prefixes-first-match: |
+            ${{ steps.lineage.outputs.prefix }}
+            ${{ steps.lineage.outputs.legacy }}
+          save: ${{ github.ref == 'refs/heads/main' }}
+          purge: true
+          purge-prefixes: nix-${{ runner.os }}-checks-
+          purge-created: 0
+          purge-primary-key: never
       # The platform-independent checks are declared for Linux too precisely so
-      # they can run HERE — TWENTY-FOUR of them, everything in flake.nix's `checks`
+      # they can run HERE — TWENTY-NINE of them, everything in flake.nix's `checks`
       # before the `optionalAttrs (hasSuffix "-darwin" system)` line, which is
       # the only thing that decides the split and the only place to re-derive
       # this list from:
@@ -207,6 +401,17 @@ jobs:
       #                            passing them as arguments and substitutes them into
       #                            the run string instead, so the old spelling still
       #                            parses, still runs, and hands the command no file
+      #   factory-fixer-argv       `haus-factory-fixer` is a pure argv reorder
+      #                            with BOTH ends outside its own file — the
+      #                            LOCKED factory's runner appends `<repo>
+      #                            <branch> <run url>`, `haus-fix-github` reads
+      #                            `<selector> <verdict> <url>`, and the verdict
+      #                            is carried by neither. Here rather than on the
+      #                            Mac because factory outputs Linux, and here at
+      #                            all because `factory doctor` cannot see this:
+      #                            the failure is a 3 a.m. lane briefed on a
+      #                            branch name parsed as a repo, under a shift
+      #                            log that says the night went fine
       #   tool-skills              every skill name modules/ai lists is one the
       #                            pinned tool actually ships — a home file, so
       #                            a wrong name is a failed `haus rebuild`.
@@ -239,6 +444,16 @@ jobs:
       # short in the same reading — it said fifteen and named fifteen, and the
       # eval said eighteen.
       #
+      # ⚠️ A fourth time on 2026-09-12, in the reading that moved this census
+      # into a job of its own — and this one had rotted in BOTH directions at
+      # once, which is new and is why COUNTING THE LIST is not enough: the
+      # sentence said twenty-four, the bullets under it named twenty-eight, and
+      # the eval said twenty-nine. `factory-fixer-argv` was the one running
+      # unlisted. The darwin sentence was two short again at the same moment —
+      # it said eighteen and named eighteen, and the eval said twenty
+      # (`bar-factory-default`, `scene-leader-key`). Count neither sentence
+      # against its own list. Run both evals.
+      #
       # All but the last two mirror a rule that lives in another repo, in a
       # generated dotfile, in a shell script, or in a README — where drift is
       # silent.
@@ -259,7 +474,7 @@ jobs:
       #   nix eval --json .#checks.x86_64-linux   --apply builtins.attrNames
       #   nix eval --json .#checks.aarch64-darwin --apply builtins.attrNames
       #
-      # The darwin-only EIGHTEEN fingerprint a real evaluated system, so they
+      # The darwin-only TWENTY fingerprint a real evaluated system, so they
       # stay guarded and don't run here — they fire on a Mac, by hand, or not at
       # all: catalogue (every desktop and compat alias raised as a real system),
       # fragment-compat (the retired top-level fragments' old spelling against
@@ -269,55 +484,72 @@ jobs:
       # accent-reach, scale-reach, font-reach, standalone-modules, ai-room,
       # app-collections, login-note, desktop-seam, editor-choice,
       # bar-bottom-focus, bar-bottom-groups, bar-third-party-widget,
-      # bar-widget-header, bar-widget-intervals, and settings-writes (what each
+      # bar-widget-header, bar-widget-intervals, bar-factory-default (the
+      # merge-lease pill, the one pill haus draws unasked), scene-leader-key
+      # (`haus.focus.scenes.<name>.key` reaching both the room that binds it
+      # and the one that teaches it, and the collision that is not a build
+      # error but a second [mode.launch.binding] row), and settings-writes (what each
       # shipping desktop actually WRITES across §5.6's ten macOS settings
       # groups, and which file supplied it — the layer below the declared
       # `null` every other surface reads).
       #
-      # ⚠️ Two of those fifteen are the reason `nix flake check` on a Mac is
+      # ⚠️ Two of those twenty are the reason `nix flake check` on a Mac is
       # not optional before a PR: the *-reach tables enumerate every generated
       # home file, so ANY new one is a missing row — and CI here can never see
       # it. main has merged red on exactly that at least twice.
       - run: nix flake check
-      # The annotated host template (hosts/<host>/options.nix) ships every
-      # option's DEFAULT as a line you can uncomment. host-template.nix's own
-      # build already proves the file parses both as-shipped and uncommented;
-      # this proves the uncommented values are LEGAL for their options — a
-      # `defaultText` that has drifted from the real default (wrong type, a
-      # stale enum member) parses fine and only fails on the machine of whoever
-      # uncomments that one line, months later. `…` placeholders are the
-      # deliberately-not-pasteable ones and are excluded, exactly as the
-      # derivation's own check does.
-      - name: every default in the host template is settable
-        run: |
-          tmpl=$(nix build --no-link --print-out-paths .#host-template)
-          host=$(mktemp -d)
-          printf '{ ... }:\n\n{\n  imports = [ ./options.nix ];\n}\n' > "$host/default.nix"
-          # The ` =` is load-bearing — see modules/host-template.nix, which runs
-          # the same substitution: a description line that wraps to start with
-          # `haus.` is not an assignment and uncommenting it breaks the parse.
-          sed -E 's/^  # (haus\.[A-Za-z0-9._-]+ =)/  \1/' "$tmpl/share/haus/host-options.nix" \
-            | grep -v '= …;$' > "$host/options.nix"
-          # A prefix that no longer matches would uncomment NOTHING and this
-          # step would pass on an empty host — the one failure it can't see.
-          grep -q '^  haus\.' "$host/options.nix"
-          nix eval --impure --apply 'x: x.system.drvPath' --expr \
-            "(builtins.getFlake \"path:$PWD\").mkHaus { username = \"ada\"; hostname = \"lovelace\"; host = $host; }"
 
-      # `haus show`'s exit codes, flags and JSON envelope, against the built
-      # `#show` wrapper — the same thing `nix run github:hausfold/haus#show`
-      # hands a publisher. It lives in this job rather than beside the other
-      # shell suites because it needs a real `nix eval`, which is exactly what a
-      # Nix BUILD may not do: the `desktop-show` check above covers everything
-      # about this command that can be answered inside a derivation, and this
-      # covers the part a publisher's CI actually depends on, which is the
-      # number the process exits with.
-      # `haus show`'s report draws through snug's bash painter now — five
-      # budgeted tables — and a runner has no `snug` on PATH and no
-      # /run/current-system, so without this the suite exercises only the
-      # no-painter fallback and the tables ship untested. Same fetch as the
-      # `draw` job's "snug's painter, at the pinned rev", duplicated rather than
-      # shared because two jobs share no environment.
+  acquire:
+    name: acquisition, against a real lock
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # cache-nix-action purges its own superseded entries through the API.
+      actions: write
+    # The ceiling the other two carry, for the account above `eval`.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: nixbuild/nix-quick-install-action@v35
+      # The lineage prefix, with this job's own token — the account is above
+      # `eval`'s copy of this step, and so is the reason the token is there.
+      - name: Which store lineage this run belongs to
+        id: lineage
+        run: |
+          rev="$(jq -r '.nodes.nixpkgs.locked.rev // "norev"' flake.lock)"
+          week="$(date -u +%G-W%V)"
+          echo "prefix=nix-${{ runner.os }}-acquire-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
+          # Transitional, added 2026-09-12 with the split: the entry this
+          # half saved as ONE job, which carries no token. Without it all
+          # three jobs start cold, and so does every PR opened before the
+          # next push to main — the lineage-reset cost, paid three times
+          # for a change that alters no derivation. Drop this output and
+          # the second restore prefix below once one push to main has
+          # saved the three tokened entries; after that it can only match
+          # something nothing purges and GitHub evicts at seven days.
+          echo "legacy=nix-${{ runner.os }}-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
+      # This store is the odd one: `#show`, `#desktop-check` and the nix-darwin
+      # a scaffolded consumer locks, none of which the other two jobs fetch.
+      # What it does NOT hold is the reason this job is the pole — see the
+      # `nixpkgs#nixfmt` note in the banner above `eval`. Every input here is
+      # `eval`'s with a different token; read that copy for what each does.
+      - name: Restore the Nix store
+        uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: ${{ steps.lineage.outputs.prefix }}${{ hashFiles('flake.lock', '**/*.nix') }}
+          restore-prefixes-first-match: |
+            ${{ steps.lineage.outputs.prefix }}
+            ${{ steps.lineage.outputs.legacy }}
+          save: ${{ github.ref == 'refs/heads/main' }}
+          purge: true
+          purge-prefixes: nix-${{ runner.os }}-acquire-
+          purge-created: 0
+          purge-primary-key: never
+      # `haus add` renders through snug's painter the same way `haus show`
+      # does, so it gets the same file at the same pinned rev. Nothing in the
+      # suite SKIPS without it — the assertions are on words, not on colour —
+      # but it is what the suite has always run with, and a curl of one file is
+      # the cheapest step in this half. The account is above `eval`'s copy.
       - name: snug's painter, at the pinned rev
         run: |
           rev="$(jq -r '.nodes.snug.locked.rev' flake.lock)"
@@ -328,24 +560,25 @@ jobs:
             -o "$RUNNER_TEMP/snug/ui.sh"
           echo "HAUS_UI_SH=$RUNNER_TEMP/snug/ui.sh" >> "$GITHUB_ENV"
 
-      - name: haus show tests
-        run: bash test/haus-show.sh
-
       # Acquisition step D: `haus add`/`desktop`/`remove` edit a real
-      # scaffolded consumer flake.nix and run a real `nix flake lock`, which
-      # is exactly why this lives beside `haus show tests` rather than inside
-      # a flake check — same reasoning, same job.
+      # scaffolded consumer flake.nix and run a real `nix flake lock`, which is
+      # exactly why this needs a real nix rather than a flake check — and, at
+      # 36s, why it is a job rather than a step beside `haus show tests`. Both
+      # suites still ask for the same thing, a real `nix eval`; this one just
+      # costs more than the restore in front of it, which is this half's line
+      # for when a step earns a job of its own.
       - name: haus add/desktop/remove tests
         run: bash test/haus-add.sh
 
   # ── The shell half, and which of its four jobs a new suite joins ─────────
   #
   # It was one job of fifty steps run one after another: 2m28s, which made it
-  # the family's slowest gate — `eval` beside it is ~1m40s now that it keeps its
-  # Nix store between runs, and a PR waits for the slower of the two. Split four
-  # ways the longest of them is under a minute (measured: lint 23s, rooms 53s,
-  # draw 55s, agents 58s), so the shell half is no longer the pole and has room
-  # to grow before it is one again. The run went 2m30s → 1m43s.
+  # the family's slowest gate — the nix half beside it was ~1m40s in one job,
+  # and a PR waits for the slowest job of all of them. Split four ways the
+  # longest of these is under a minute (measured: lint 23s, rooms 53s, draw
+  # 55s, agents 58s), so the shell half is not the pole and has room to grow
+  # before it is one again. The run went 2m30s → 1m43s; the nix half's own
+  # split, the banner at the top of this file, took it down from there.
   #
   # The grouping is by what a suite NEEDS, never by count. Fifty jobs would be
   # SLOWER, not faster: the gate is the longest job rather than the total, and

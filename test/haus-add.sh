@@ -4,7 +4,10 @@
 # SCAFFOLDED consumer flake, which is exactly what `haus show`'s suite needs
 # and exactly why this one runs the same way: `modules/core/haus.sh` run
 # directly, under the interpreter resolved below (no derivation may shell out to
-# `nix`), from the "eval the example host" job, where a real nix exists.
+# `nix`), from CI's "acquisition, against a real lock" job, where a real nix
+# exists. It has a job to itself because it is the longest step in that half —
+# see the banner over the nix jobs in .github/workflows/check.yml, which also
+# names where its 36 seconds go.
 #
 # Runs on Linux: none of this is a Mac — it edits a text file and asks Nix to
 # resolve inputs. `haus rebuild` is never called; every write here stops one
