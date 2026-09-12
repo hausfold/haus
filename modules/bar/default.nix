@@ -2157,13 +2157,30 @@ lib.mkIf config.haus.bar.enable {
         }
       );
 
+  # ---- the one pill whose default another room decides ------------------------
+  # Every other bundled pill starts where widgets.nix says it starts. This one
+  # starts where the AI room is: that room is what puts `factory` on PATH, and a
+  # Mac with the binary has a merge lease to report and grant whether or not
+  # anyone thought to name the pill. Written as the SUGAR's default rather than
+  # folded into `wanted` below, so that `haus.bar.items.factory = false` still
+  # means what it says — an explicit definition beats an mkDefault, where a
+  # second `||` in `wanted` would have swallowed it silently.
+  #
+  # Not a `contributed` entry (see that predicate): the pill asks the disk at
+  # runtime and hides itself when the answer is no, which is the better answer
+  # for a binary a person can install by hand. This only moves the start.
+  haus.bar.items.factory = lib.mkDefault config.haus._contrib.bar.factory.enable;
+
   # ---- the bundled pills, pre-declared as widgets -----------------------------
   # Every pill this repo ships exists in `haus.bar.widgets` on every machine,
   # whether anyone named it or not, and this is where. Three things arrive here
   # and each is a different kind of answer:
   #
   #   enable      what `bar.items` says, or — for `focus`, which has no switch in
-  #               that table — what the Focus room says. mkDefault, so a desktop
+  #               that table — what the Focus room says. (What `bar.items` says
+  #               about `factory` is the AI room's answer, set just above; the
+  #               fold happens one layer down so an explicit false survives it.)
+  #               mkDefault, so a desktop
   #               that reaches for the open form directly
   #               (`widgets.cpu.enable = true`) wins over the sugar's default
   #               without having to know the sugar exists.

@@ -561,6 +561,38 @@ in
       };
     };
 
+    # The AI room's other pill, and the one contribution here that is a DEFAULT
+    # rather than a gate. `agents` and `focus` are filtered by `contributed` in
+    # default.nix — asked for without their room they would draw something
+    # permanently dormant — but the merge-lease pill answers that question of
+    # the DISK, every tick: no `factory` on PATH and it hides itself, and comes
+    # back on its own the moment the binary lands. A pill that can do that must
+    # not also vanish at eval, because then a machine that installs `factory` by
+    # hand gets nothing and a rebuild is what it takes to notice.
+    #
+    # So this one only moves where `haus.bar.items.factory` STARTS: on wherever
+    # the room that ships the binary is on, off otherwise, and any explicit
+    # answer — in a desktop, in a host, or through the open form — beats it.
+    _contrib.bar.factory = contrib.mkExtensionPoint {
+      description = ''
+        The AI room's `factory` pill: the merge lease, and how much of it is
+        left.
+
+        On, `haus.bar.items.factory` defaults to true — the room put `factory`
+        on PATH, so there is a lease to report and grant. Off, it defaults to
+        false and the pill would hide itself anyway. Either way it is a
+        DEFAULT: `haus.bar.items.factory` and `haus.bar.widgets.factory.enable`
+        both still say the last word.
+      '';
+      options = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+          description = "Whether the bar draws the merge-lease pill by default.";
+        };
+      };
+    };
+
     bar.enable = lib.mkOption {
       type = lib.types.bool;
       # Rooms are opt-in: the neutral catalogue selects none, and a desktop
@@ -1330,6 +1362,10 @@ in
         The focus (Do-Not-Disturb) pill is separate — it rides
         haus.focus.enable, not this set. It can still be moved to the second bar
         with `haus.bar.bottom.items.focus`.
+
+        `factory`, the merge-lease pill, is the one leaf here whose default is
+        not fixed: it follows `haus.ai.enable`, the room that puts the `factory`
+        binary on the machine. Set it either way to say so yourself.
 
         This is the MENU BAR's set, and it is one group: the movable pills all
         sit on the right, because its left is the workspace pills, the front app

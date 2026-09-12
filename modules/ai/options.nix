@@ -46,7 +46,11 @@ in
         own. What it adds to OTHER rooms it adds only when they are present: the
         `c` alias arrives with the terminal, the
         `agents` pill with the bar, the agent commands with the launcher. None
-        of those rooms is switched on by turning this one on.
+        of those rooms is switched on by turning this one on. One of those
+        arrivals is unasked: a bar on this machine draws the merge-lease pill by
+        default, because `factory` is here and a lease is a thing you leave
+        switched on (`haus.bar.items.factory = false` if you would rather not
+        see it).
 
         Off is right for any machine not running coding agents — it's a large
         surface a non-developer never sees. The neutral default installs no
