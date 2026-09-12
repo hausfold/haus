@@ -96,7 +96,10 @@ modules/
                           #   ImageMagick), looks/ holds the hand-made PNGs
   terminal/               # zsh, starship, git, yazi, ghostty + zmx + theming; floatring +
                           #   floatpin (haus.terminal.floatBorder, haus.terminal.floatOnTop;
-                          #   floating is a LAYOUT in AeroSpace, not a stacking order)
+                          #   floating is a LAYOUT in AeroSpace, not a stacking order). nixd
+                          #   ships here and is NOT in the developer pack — every haus Mac is
+                          #   configured in Nix, so the server that explains an option is
+                          #   floor, not toolbelt; zed's settings.json names its store path
   windows/                # AeroSpace tiling + hausrect (window rects by id, which AeroSpace
                           #   cannot report; scripts/tiling-mode.sh sizes its grid off them)
   bar/                    # SketchyBar + barpop
