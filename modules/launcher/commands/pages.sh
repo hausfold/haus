@@ -94,6 +94,12 @@ WID="$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null | tr
 # exactly the set of pages, since lane-open.sh deliberately keeps `T/<repo>` OUT
 # of persistent-workspaces so an emptied page evaporates instead of accreting.
 #
+# Not the same question the bar's page pill asks, since 2026-09-12: it counts
+# places with a window ON them (`--empty no`), where this offers everywhere you
+# can GO. They differ over an emptied base — the bare `T` forced in below is
+# exactly what you throw a window back to, and the pill does not count it — so
+# the pill's `2/3` need not be this list's third row.
+#
 # A page is any workspace with a `/` in it, not a `T/` one: `T/<repo>` is the
 # only producer haus ships (lane-open.sh), but AeroSpace makes a workspace on
 # first use and the bar's page pill names the page of whatever workspace you are
