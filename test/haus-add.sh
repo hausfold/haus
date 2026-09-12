@@ -63,18 +63,24 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 # assumed.
 #
 # **nixfmt comes from THIS flake's lock, never the flake REGISTRY.** A bare
-# `nixpkgs#nixfmt` resolves the name through the registry, which unpacks
-# channels.nixos.org's nixexprs.tar.xz into ~/.cache/nix — not the /nix store,
-# so cache-nix-action does not hold it and the fetch is paid warm and cold
-# alike: 24 of this suite's 36 seconds, and what made it the pole of the whole
-# nix half. `--inputs-from "$root"` puts the flake's own inputs in front of the
-# registry, so the name resolves out of flake.lock with no fetch at all — the
-# same nixpkgs `nix fmt` formats with (flake.nix's `formatter`), which is the
-# one this repo is actually formatted by. Run 34690798332: 38s → 13s, and the
-# job's remaining time is the store restore in front of it. It does not fall BACK to the
-# registry, which is the property worth keeping: with an empty
-# `--flake-registry` the line below still builds, and the same line without
-# `--inputs-from` fails with "cannot find flake 'flake:nixpkgs'".
+# `nixpkgs#nixfmt` resolves the NAME through the registry, and on a CI runner
+# that means unpacking channels.nixos.org's nixexprs.tar.xz into ~/.cache/nix —
+# not the /nix store, so cache-nix-action does not hold it and the fetch is
+# paid warm and cold alike: 24 of this suite's 36 seconds, and what made it the
+# pole of the whole nix half (38s → 13s on run 34690798332).
+#
+# `--inputs-from "$root"` puts the flake's own inputs in front of the registry,
+# so the name resolves out of flake.lock with no fetch at all — the same
+# nixpkgs `nix fmt` formats with (flake.nix's `formatter`), which is the one
+# this repo is actually formatted by. It does not fall BACK to the registry,
+# which is the property worth keeping: with an empty `--flake-registry` the
+# line below still builds, and the same line without `--inputs-from` fails with
+# "cannot find flake 'flake:nixpkgs'".
+#
+# Running this suite BY HAND on a haus Mac never showed the cost: Determinate
+# maps `flake:nixpkgs` to its own weekly FlakeHub pin, not that tarball, and
+# the machine has it. The runner is the one that paid, which is why the number
+# above is a CI number.
 show="$(nix build --no-link --print-out-paths "$root#show")/bin/haus-show"
 check="$(nix build --no-link --print-out-paths "$root#desktop-check")/share/haus/desktop-check"
 nixfmt_bin="$(nix build --no-link --print-out-paths --inputs-from "$root" nixpkgs#nixfmt)/bin"
