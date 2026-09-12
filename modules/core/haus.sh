@@ -34,6 +34,7 @@
 #                        room with --room --namespace <ns> — no rebuild
 #   haus desktop [name]  list what this machine has, or switch to one — no rebuild
 #   haus remove <name>   unpin a desktop and reselect explicitly — no rebuild
+#   haus version         the release this haus was built from ('--version' too)
 set -euo pipefail
 
 # A bare/sudo/login-item shell may have almost nothing on PATH; make sure the
@@ -277,13 +278,18 @@ snug_close() { # everything down: end the region and drop the coprocess
 #   report      status doctor plan diff permissions services btm generations get
 #               capture report
 #   narration   rebuild update rollback set unset reset options add desktop
-#               remove edit tour revert-settings skill
+#               remove edit tour revert-settings skill version
 #
 # `skill` is in the narration column and that is not an oversight: its payload
 # is `cat`, which is on fd 1 whatever REPORT says, so `haus skill | pbcopy` is
 # already whole — and `haus skill install` changes the machine, which is what
 # the narration column means. Listing it as a report would move `install`'s
 # every "wrote …" line into the document `haus skill` is supposed to be.
+#
+# `version` is there for the narrower version of the same reason: its payload is
+# one bare `printf` on fd 1, because `$(haus --version)` is a value and a value
+# may not wear a glyph. Making it a report would paint that line and put the
+# glyph inside the string every caller compares.
 #
 # A report never touches the coprocess. That costs it snug's folding — the same
 # price `bench`'s tables pay, and the same one these verbs have always paid —
@@ -353,7 +359,7 @@ for a in "$@"; do
   esac
 done
 case "$haus_verb" in
-  show | report | skill) ;;
+  show | report | skill | version | --version) ;;
   *) [ -e "$CONSUMER/flake.nix" ] || die "no config flake at $CONSUMER — set HAUS_CONSUMER, or run the bootstrap first." ;;
 esac
 unset haus_verb a
@@ -758,6 +764,11 @@ haus — the everyday CLI for a haus machine.
                       explicitly (default: blank) so removing your selected
                       desktop can't silently fall back to the opinionated one.
                       Never rebuilds.
+  haus version        the haus release this machine is running, on stdout and
+                      nothing else, so $(haus version) is the value. 'haus
+                      --version' is the same command. The pinned revision is
+                      printed beside it as a note, and whether upstream has
+                      moved past it is 'haus status'
 
 colour and width
   Colour is written only when stdout is a terminal and NO_COLOR is unset.
@@ -2749,6 +2760,56 @@ cmd_generations() {
   return 0
 }
 
+# ---- haus version ------------------------------------------------------------
+# The first thing anybody types at a CLI they have just met, and until now the
+# one thing haus answered with `✗ unknown command '--version'` followed by the
+# entire verb list. `--version` is a dispatch arm beside the verb rather than a
+# documented-away alias, because it is the spelling people actually reach for and
+# a CLI that refuses it has taught them nothing except that it is unfriendly.
+#
+# What it answers is the RELEASE the running binary was built from — `VERSION` at
+# the revision this machine pinned — handed in by the wrapper in
+# modules/core/default.nix, exactly the way HAUS_SKILL_DIR and HAUS_UI_SH are and
+# for exactly the same reason: haus.sh is `builtins.readFile`'d into a store
+# binary, so `dirname $0` is /nix/store and there is no checkout to look beside.
+# Nothing here can be derived on this machine, and a version guessed from the
+# lock would be the wrong fact anyway — see below.
+#
+# 🚨 The version is printed to stdout ALONE: no glyph, no colour, no label. That
+# is why this verb is NOT in the REPORT list — `$(haus --version)` is a value, and
+# `haus get` keeps the same rule for the same reason. Every other line it draws
+# is prose, and prose goes to fd 2.
+HAUS_VERSION="${HAUS_VERSION:-}"
+
+cmd_version() {
+  # A `bash haus.sh` out of a checkout genuinely has no version — the file is a
+  # template's worth of nothing without the wrapper — and inventing one would put
+  # a wrong answer in a bug report. Same refusal, and the same sentence, as
+  # `haus skill` meeting an empty HAUS_SKILL_DIR.
+  [ -n "$HAUS_VERSION" ] \
+    || die "this haus doesn't know its own version — HAUS_VERSION is empty. Run the 'haus' on PATH rather than the script."
+  printf '%s\n' "$HAUS_VERSION"
+
+  # The pin, as the second sentence rather than the first. These two facts are
+  # allowed to disagree: the line above is what is RUNNING, and the lock is what
+  # the next rebuild would build from, so a config updated but not yet rebuilt
+  # shows one of each. `haus status` owns the comparison against upstream, and is
+  # named here so the two verbs divide that question instead of answering it
+  # twice and differently.
+  #
+  # Best-effort and silent without a lock: `version` is exempt from the
+  # config-flake guard above the dispatch, so a bootstrap that stopped half way
+  # still gets its answer.
+  local lock="$CONSUMER/flake.lock" rev when pinned
+  [ -f "$lock" ] || return 0
+  rev="$(jq -r '.nodes.haus.locked.rev // "" | .[0:12]' "$lock" 2>/dev/null || true)"
+  [ -n "$rev" ] || return 0
+  when="$(jq -r '.nodes.haus.locked.lastModified // empty' "$lock" 2>/dev/null || true)"
+  pinned="pinned $rev"
+  [ -n "$when" ] && pinned="$pinned ($(date -r "$when" '+%Y-%m-%d' 2>/dev/null || echo '?'))"
+  info "$pinned — haus status for whether upstream has moved" >&2
+}
+
 cmd_status() {
   local host lockrev lockdate url owner repo ref remoterev
   host="$(host_name)"
@@ -2775,7 +2836,37 @@ cmd_status() {
     repo="$(jq -r '.nodes.haus.original.repo // "haus"' "$CONSUMER/flake.lock")"
     ref="$(jq -r '.nodes.haus.original.ref // "HEAD"' "$CONSUMER/flake.lock")"
     url="https://github.com/$owner/$repo.git"
-    remoterev="$(git ls-remote "$url" "$ref" 2>/dev/null | awk 'NR==1{print $1}')"
+    # 🚨 A TAG has two objects, and the lock pins the wrong one to compare
+    # against. `github:hausfold/haus/v2026.09.03` — what script/build-golden-vm.sh
+    # writes, and what any consumer who wants a stable pin writes — locks the
+    # COMMIT the tag peels to, while `git ls-remote <url> v2026.09.03` answers
+    # with the annotated tag OBJECT. Two different hashes for the same release,
+    # so `NR==1` never matched the lock and this line said "a newer haus is
+    # available upstream" on every run, for a config that was exactly current
+    # and that `haus update` correctly called "already at the latest". Two
+    # commands contradicting each other forever is worse than neither saying
+    # anything.
+    #
+    # The peeled ref has to be ASKED FOR by its full name: a bare `v2026.09.03`
+    # pattern matches `refs/tags/v2026.09.03` and not `refs/tags/v2026.09.03^{}`,
+    # so the peel line simply isn't in the answer unless the pattern spells it.
+    # Hence both patterns, and prefer the peel when it comes back — a branch, a
+    # bare `HEAD` and a lightweight tag have none, and fall through to the first
+    # line exactly as before.
+    #
+    # The trailing `|| true` is what makes the line above it actually best-effort,
+    # and it was missing: `git ls-remote` on a laptop with no network exits
+    # non-zero, `pipefail` carries that out of the pipeline, and an assignment
+    # whose command substitution failed is a failed command under `set -e`. So
+    # every offline `haus status` stopped dead right here and exited 1 — silently,
+    # with no upstream line and nothing on either stream to say why, so
+    # `haus status && …` stopped too and any section added after this one would
+    # never have drawn. The one state this whole block is written to tolerate was
+    # the one it died on.
+    remoterev="$(git ls-remote "$url" "$ref" "refs/tags/$ref^{}" 2>/dev/null | awk '
+      $2 ~ /\^\{\}$/ { peeled = $1 }
+      NR == 1        { first = $1 }
+      END            { print (peeled == "" ? first : peeled) }')" || true
     if [ -n "$remoterev" ] && [ "$remoterev" != "$lockrev" ]; then
       warn "  a newer haus is available upstream (${remoterev:0:12}) — haus update"
     elif [ -n "$remoterev" ]; then
@@ -6288,6 +6379,7 @@ case "${1:-status}" in
   add)         shift; cmd_add "$@" ;;
   desktop)     cmd_desktop "${2:-}" ;;
   remove)      cmd_remove "${2:-}" "${3:-}" ;;
+  version|--version) cmd_version ;;
   -h|--help|help) usage ;;
-  *)           die "unknown command '$1' — try: rebuild fix update rollback generations status edit options set get unset reset plan diff capture revert-settings doctor report skill permissions services btm tour show add desktop remove" ;;
+  *)           die "unknown command '$1' — try: rebuild fix update rollback generations status edit options set get unset reset plan diff capture revert-settings doctor report skill permissions services btm tour show add desktop remove version" ;;
 esac

@@ -1137,6 +1137,16 @@ in
       # `haus skill install` parses the table that room installs by, rather
       # than carrying its own copy.
       #
+      # `HAUS_VERSION` is the fourth, and the smallest: the release this build
+      # came from, which `haus version` / `haus --version` answers with. It has
+      # to be handed in for the same reason the other three do — haus.sh is a
+      # static `readFile` with no Nix values in it and no checkout beside it —
+      # and it is deliberately not derived from the consumer's lock at runtime.
+      # The lock says what the NEXT rebuild would build; this says what is
+      # running now, and on a machine whose lock has moved since its last
+      # rebuild those are different facts. `haus status` compares the lock with
+      # upstream; this verb never reaches the network.
+      #
       # The two tools: `gum` draws `haus set`'s picker and is in nixpkgs
       # but in nobody's profile — bootstrap.sh fetches it ad-hoc with `nix build
       # nixpkgs#gum`, which is exactly the sort of thing an end-user command must
@@ -1165,7 +1175,8 @@ in
           } \
             --set-default HAUS_UI_SH ${snug}/share/ui.sh \
             --set-default HAUS_SKILL_DIR ${hausSkill} \
-            --set-default HAUS_AGENT_SKILL_DIRS ${lib.escapeShellArg agentSkillDirs}
+            --set-default HAUS_AGENT_SKILL_DIRS ${lib.escapeShellArg agentSkillDirs} \
+            --set-default HAUS_VERSION ${lib.escapeShellArg (lib.fileContents ../../VERSION)}
         '';
       })
 
