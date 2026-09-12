@@ -32,14 +32,22 @@ jobs:
   # 34686000184: nix eval 6s, nix flake check 1s, host template 7s, haus show
   # 6s, haus add 36s.
   #
-  # ⚠️ Do not quote the workshop's docs/ci.md `nix eval` 55s and `nix flake
-  # check` 37s
-  # beside those. Those are the COLD figures — the same steps with no store to
-  # come back to — and they are not additive with the warm ones. Every
-  # re-measure starts by reading the "Restore the Nix store" step: 30s-plus
-  # means warm, under a second means the key missed and everything below it
-  # paid full price. Recent runs sit at 92–132s warm and 143–166s cold, and
-  # reading one for the other is how this half got measured wrong once already.
+  # ⚠️ Do not quote the workshop's docs/ci.md `nix eval` 55s beside those.
+  # That is the COLD figure — the same step with no store to come back to —
+  # and it is not additive with the warm ones. Those runs sat at 92–132s warm
+  # and 143–166s cold, and reading one for the other is how this half got
+  # measured wrong once already.
+  #
+  # ⚠️ The `nix flake check` 37s that used to sit beside that 55s is gone, and
+  # the split is what took it: 37s was measured with the check running AFTER
+  # `nix eval` in the same job, so nixpkgs was already in the store and paid
+  # for. `checks` is its own job with its own empty store now, and cold it is
+  # 57s (run 34693030435). Any cold figure from before #721 carries the same
+  # hazard — it was measured downstream of a step that is a different job now.
+  #
+  # Every re-measure starts by reading the "Restore the Nix store" step:
+  # 30s-plus means warm, under a second means the key missed and everything
+  # below it paid full price.
   #
   # The grouping is by what a step NEEDS, then by what a restore costs:
   #
@@ -100,6 +108,64 @@ jobs:
   # then expect three entries of roughly the old one's size, and read the job
   # token out of the key the restore step logs if you want to know whether the
   # split is keying correctly — the size tells you nothing about that.
+  #
+  # ── Whether to save a NARROWER store per job. Measured; the answer is no ──
+  #
+  # Run 34693030435 ran each of these three jobs' steps twice off this
+  # branch's base: once from an EMPTY store, which is what the job actually
+  # needs, and once restoring the live entry and then reading nothing, which is
+  # what the entry carries. As nar bytes:
+  #
+  #              needs (cold)   carries (warm)   never opened
+  #     eval       1100 MiB       1877 MiB          41%
+  #     checks     1126 MiB       1826 MiB          38%
+  #     acquire     685 MiB       1876 MiB          64%
+  #
+  # `acquire` is the clearest: 1229 MiB it never opens, against 685 MiB it
+  # does. Two SEPARATE things put it there, and only the diff of the three
+  # artifacts separates them — about 733 MiB is `eval`'s and `checks`' cold
+  # stores, which the pre-split job built and all three entries inherited
+  # through the transitional prefix #722 removed; the other ~496 MiB, 300
+  # paths, is in no job's cold store at all. That is the within-lineage save
+  # creep the block above describes — the same `-source` unpacked at a dozen
+  # revs, plus 175 `.drv`s — arriving at ~24 MiB a save because a restore
+  # unions and nothing collects.
+  #
+  # So the reset clears both, but only the first stays cleared. At the ~3:1
+  # these entries compress at (1826 MiB of nar went out as a 597 MiB entry)
+  # the first run of a lineage saves ~373 / ~368 / ~233 MiB against 637 / 597 /
+  # 637 today, and restores scale with the entry — nebelung's 332 MiB comes
+  # back in 17s, these 600-odd MiB ones in 34-48s, so 0.05-0.06s per
+  # compressed MiB — putting them at ~20 / ~20 / ~10s and the jobs at
+  # ~39 / ~26 / ~29s. ⚠️ Those are FIRST-RUN-OF-THE-WEEK numbers. The creep
+  # resumes immediately and the next reset is what collects it, so the honest
+  # shape of this half's cost is a sawtooth, not a floor.
+  #
+  # ⚠️ Which is exactly why not to narrow them by hand on top of that. The gate
+  # is the longest job of the RUN, and measured over eight PR runs that is
+  # `acquire` at 70s avg (min 54s), `eval` at 61s — and `shell suites, the
+  # agent surface` at 57s, which becomes the pole the moment these three drop
+  # under it. Everything the nix half's restore could still give back after the
+  # reset is time the shell half is already spending, so a `gc-max-store-size`
+  # (which has nothing to root — the input below says why) or a hand-rolled
+  # root set buys the gate ZERO. Re-open this when the POLE shell job gets
+  # under 40s, not when `lint` does.
+  #
+  # The ~35s restore the banner above measures a new step against is a W37
+  # number and moves with all of this. Read the restore step of the run in
+  # front of you rather than quoting either figure — and note that the bar is
+  # per JOB and lowest where the store is smallest, so the first run of a week
+  # puts `acquire`'s at ~10s, which its own 13s step would clear. That is not
+  # an argument for a fourth job: `acquire`'s note below says why splitting it
+  # again only moves the seconds, and by mid-week the bar is back over it.
+  #
+  # The sharpest reading of "the restore is the gate, not the work under it":
+  # `acquire` is currently FASTER with no cache at all — 44s cold against 54s
+  # warm at its best — because 233 MiB from cache.nixos.org costs less than
+  # 637 MiB from GitHub. Dropping its cache is still the wrong move, since the
+  # reset takes that same restore to ~10s; but if a job in this half ever
+  # carries a store it does not roughly fill, check the cold number before
+  # assuming the cache pays.
 
   eval:
     name: eval the example host
