@@ -939,9 +939,10 @@ in
       # `~/.config/nix` is where the config flake lives — the same assumption
       # `haus.sh` starts from (its CONSUMER, overridable by $HAUS_CONSUMER),
       # the palette's rebuild command and the agent instructions all make. An
-      # env var can't reach a JSON settings file, so the escape hatch here is
-      # the ordinary one: a host that keeps its flake elsewhere sets
-      # `programs.zed-editor.userSettings.lsp.nixd.settings` itself.
+      # env var can't reach a settings file, so the escape hatch here is the
+      # ordinary one: a host that keeps its flake elsewhere sets
+      # `programs.zed-editor.userSettings.lsp.nixd.settings` or
+      # `programs.helix.languages.language-server.nixd.config` itself.
       #
       # The host attribute is read the way `haus` reads it (`host_name`): by
       # name first, then the only one in the flake — `darwinConfigurations.<x>`
@@ -1592,6 +1593,46 @@ in
       # it. Every other editor in the table is a package in `home.packages`.
       programs.helix = lib.mkIf (terminalCfg.editorName == "helix") {
         enable = true;
+
+        # The same nixd wiring zed gets, in helix's spelling —
+        # `~/.config/helix/languages.toml`. Helix already NAMES nixd for .nix
+        # files (its built-in languages.toml lists `[ "nil", "nixd" ]`), so a
+        # haus machine starts the server without this; what it does not have
+        # without this is the two things worth having, and both are silent when
+        # missing: the settings that point nixd at YOUR machine, and nil's
+        # removal from that list — helix starts every server a language names,
+        # and nil is not a package haus installs.
+        languages = {
+          language-server.nixd = {
+            # The store path, for the reason zed's `binary.path` carries one:
+            # the bare name resolves against whatever PATH the editor was
+            # launched with, and a rebuild rewrites this file anyway.
+            command = "${pkgs.nixd}/bin/nixd";
+            # 🚨 The `nixd` key is load-bearing and fails SILENTLY without it.
+            # nixd takes no configuration from initializationOptions at all
+            # (2.9.x) — it asks the client for section "nixd" over
+            # `workspace/configuration`, and helix answers that by walking the
+            # section's dots into this `config` table
+            # (helix-term/src/application.rs). Flatten the exprs up one level
+            # and helix answers null: no error, no log line, just a server that
+            # knows Nix and not you — which is the half worth having.
+            config.nixd = {
+              nixpkgs.expr = "${nixdConsumer}.pkgs";
+              options.darwin.expr = "${nixdConsumer}.options";
+              options.home-manager.expr = "${nixdConsumer}.options.home-manager.users.type.getSubOptions []";
+            };
+          };
+          # A `language-servers` list REPLACES the built-in one rather than
+          # extending it (helix merges languages.toml to depth 3, and this list
+          # sits below that) — which is exactly what drops nil.
+          language = [
+            {
+              name = "nix";
+              language-servers = [ "nixd" ];
+            }
+          ];
+        };
+
         settings = {
           theme = "nebelung";
           editor = {

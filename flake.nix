@@ -1263,10 +1263,13 @@
               # NOT a consequence of the editor choice: every row should read
               # `nixd=pkg`, because a haus machine's own config is the file its
               # owner is most likely to open and the editor will go looking.
-              # `lsp` is the other half of that, and only zed's row can answer
-              # it — the binary in the profile and the path zed's settings.json
-              # names have to be the same file, and nothing at eval time
-              # notices when they stop being (you find out from a popup).
+              # `lsp` is the other half of that, and only the two editors this
+              # room writes settings FOR can answer it — the binary in the
+              # profile and the path those settings name have to be the same
+              # file, and nothing at eval time notices when they stop being
+              # (you find out from a popup). The other five rows read `none`
+              # and should: vscode and cursor get no settings from haus at all,
+              # and a terminal editor without one is a person's own business.
               nixdPkgs = builtins.filter (p: (p.pname or "") == "nixd") home.home.packages;
               nixdPath = if nixdPkgs == [ ] then "MISSING" else "${builtins.head nixdPkgs}/bin/nixd";
               zedNixd =
@@ -1279,12 +1282,38 @@
                   "wired"
                 else
                   "DRIFTED";
+              # helix's half reads one thing zed's cannot: the `nixd` KEY the
+              # exprs sit under. nixd asks the client for section "nixd" over
+              # `workspace/configuration` and ignores initializationOptions, so
+              # exprs written one level up are answered with null — a server
+              # that starts, works, and knows nothing about your machine, with
+              # nothing on any stream to say so. The language entry is read for
+              # the same reason: dropping it puts `nil` back in the list and
+              # helix starts a server this layer never installs.
+              helixNixd =
+                let
+                  ls = home.programs.helix.languages;
+                  nixLangServers = map (l: l.language-servers or [ ]) (
+                    builtins.filter (l: l.name == "nix") (ls.language or [ ])
+                  );
+                in
+                if !(ls ? language-server) then
+                  "none"
+                else if
+                  ls.language-server.nixd.command == nixdPath
+                  && (ls.language-server.nixd.config or { }) ? nixd
+                  && nixLangServers == [ [ "nixd" ] ]
+                then
+                  "wired"
+                else
+                  "DRIFTED";
+              nixdLsp = if name == "helix" then helixNixd else zedNixd;
               yn = b: if b then "yes" else "no";
               orNone = xs: if xs == [ ] then "none" else builtins.concatStringsSep "," xs;
             in
             "${name} EDITOR=${home.home.sessionVariables.EDITOR} installed=${installed} "
             + "helix-pkg=${yn helixPkg} zed-cask=${yn zedCask} themes=${orNone themed} ports=${orNone ports} "
-            + "nixd=${if nixdPkgs == [ ] then "NOTHING" else "pkg"} lsp=${zedNixd}";
+            + "nixd=${if nixdPkgs == [ ] then "NOTHING" else "pkg"} lsp=${nixdLsp}";
           editorOverrideRow =
             let
               full = editorHome [
@@ -1324,7 +1353,7 @@
             );
           expectedEditorTable = ''
             cursor EDITOR=cursor -w installed=cask helix-pkg=no zed-cask=no themes=none ports=none nixd=pkg lsp=none
-            helix EDITOR=hx installed=hm helix-pkg=yes zed-cask=no themes=helix ports=helix nixd=pkg lsp=none
+            helix EDITOR=hx installed=hm helix-pkg=yes zed-cask=no themes=helix ports=helix nixd=pkg lsp=wired
             nano EDITOR=nano installed=pkg helix-pkg=no zed-cask=no themes=none ports=none nixd=pkg lsp=none
             neovim EDITOR=nvim installed=pkg helix-pkg=no zed-cask=no themes=none ports=none nixd=pkg lsp=none
             vim EDITOR=vim installed=pkg helix-pkg=no zed-cask=no themes=none ports=none nixd=pkg lsp=none
