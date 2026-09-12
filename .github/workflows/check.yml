@@ -53,14 +53,16 @@ jobs:
   #             twenty-nine derivations — and a lock bump makes every run
   #             cold. It is also the step this repo keeps adding to, and the
   #             only one whose store is nobody else's subset.
-  #   acquire   `haus add`/`desktop`/`remove` alone. It is the pole at 36s,
-  #             and 24 of those are `nixpkgs#nixfmt` resolving through the
-  #             flake REGISTRY — it unpacks channels.nixos.org's
-  #             nixexprs.tar.xz into ~/.cache/nix, which the /nix store cache
-  #             does not hold, so that fetch is paid warm and cold alike.
-  #             THAT is the next cut in this half, inside the suite rather
-  #             than as a fourth job: everything else here is already smaller
-  #             than the restore standing in front of it.
+  #   acquire   `haus add`/`desktop`/`remove` alone. It was the pole at 36s,
+  #             24 of which were `nixpkgs#nixfmt` resolving through the flake
+  #             REGISTRY — that unpacks channels.nixos.org's nixexprs.tar.xz
+  #             into ~/.cache/nix, which is not the /nix store, so
+  #             cache-nix-action never held it and the fetch was paid warm and
+  #             cold alike. test/haus-add.sh now takes nixfmt from this
+  #             flake's OWN lock (`--inputs-from`), so the name resolves with
+  #             no fetch at all and the step is 13s. Nothing left in this half
+  #             is bigger than the restore standing in front of it, so the
+  #             next step joins a job rather than opening a fourth.
   #
   # Three jobs and not six, for the reason the shell half's banner further down
   # gives: the gate is the longest job, not the total, and every job pays
@@ -71,8 +73,22 @@ jobs:
   # Measured on the split's own first run, 34688533513, warm off the entry
   # the single job had saved, which each lineage step still read then: eval
   # 57s, checks 56s, acquire 77s, and the whole `check` run 77s wall against
-  # the 99–166s the single job had been costing. `acquire` is the pole and stays there until that nixfmt
-  # fetch goes.
+  # the 99–166s the single job had been costing. Taking the nixfmt fetch out
+  # of the suite (34690798332) took its step from 38s to 13s, and what the
+  # three jobs now do is eval 19s across its four steps, checks 2s, acquire
+  # 13s.
+  #
+  # ⚠️ Job TOTALS stopped tracking that — 66s, 41s and 69s on the same run —
+  # because everything left in them is the RESTORE, 33-47s of it, which varies
+  # by more between two runs than any step in this half now costs. Read the
+  # step, not the job, and split nothing further until a step can beat the
+  # restore standing in front of it.
+  #
+  # Whether the nixfmt cut still holds is one grep of the acquire log, and the
+  # string is **channels.nixos.org**, not `nixexprs.tar.xz`: the flake's own
+  # locked nixpkgs is a nixexprs.tar.xz too (releases.nixos.org, flake.lock),
+  # so a COLD run — which the lineage reset below guarantees at least weekly —
+  # prints that shape legitimately while fetching the input the cut moved TO.
   #
   # ⚠️ Those restores do NOT get smaller at the next push to main, and the
   # first draft of this comment said they would. The store is saved WHOLE —
@@ -141,12 +157,11 @@ jobs:
       # raced on main in two ways at once, both silent:
       #
       #   the SAVE — whichever job reached its post phase first would write the
-      #   entry and the other two would be refused it as already present. Their
-      #   stores are not each other's: `checks` builds twenty-nine derivations
-      #   `eval` never asks for, and `acquire` carries nix-darwin, nixfmt and a
-      #   scaffolded consumer's lock that neither of the others fetches. A
-      #   shared key means two of the three come back to a store missing what
-      #   they need and rebuild it on every run — which reads not as a race but
+      #   entry and the other two would be refused it as already present.
+      #   `checks` is the one whose store is nobody's subset: twenty-nine
+      #   derivations `eval` never asks for. A shared key means the first
+      #   writer decides what the other two come back to, and whichever of them
+      #   needed more rebuilds it on every run — which reads not as a race but
       #   as a cache that quietly stopped paying.
       #
       #   the PURGE — `purge-prefixes` below used to be the broad `nix-<os>-`
@@ -154,6 +169,15 @@ jobs:
       #   created before this job's post phase. `purge-primary-key: never`
       #   protects only the job's OWN key, so three jobs sweeping that prefix
       #   together on main would each delete the other two's fresh entries.
+      #
+      # ⚠️ Neither of those is "the three stores are disjoint", and an earlier
+      # draft of this comment said it was. They overlap heavily and `acquire`'s
+      # is close to a SUBSET: `#show` and `#desktop-check` are `eval`'s too
+      # (test/haus-show.sh builds both), the scaffolded consumer pins
+      # `path:$root` so its lock is haus's own inputs, and since the nixfmt cut
+      # even nixfmt is shared — `.#host-template` realizes it in `eval`. Three
+      # entries are for the write refusal and the purge sweep above, not for
+      # unshared content, and collapsing them back to one loses both.
       #
       # So the job token sits between the OS and the week, and each job purges
       # `nix-<os>-<job>-` alone. The weekly reset still works — a new week
@@ -522,11 +546,13 @@ jobs:
           rev="$(jq -r '.nodes.nixpkgs.locked.rev // "norev"' flake.lock)"
           week="$(date -u +%G-W%V)"
           echo "prefix=nix-${{ runner.os }}-acquire-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
-      # This store is the odd one: `#show`, `#desktop-check` and the nix-darwin
-      # a scaffolded consumer locks, none of which the other two jobs fetch.
-      # What it does NOT hold is the reason this job is the pole — see the
-      # `nixpkgs#nixfmt` note in the banner above `eval`. Every input here is
-      # `eval`'s with a different token; read that copy for what each does.
+      # This store holds `#show`, `#desktop-check`, nixfmt and what a
+      # scaffolded consumer locks — all of which `eval` realizes too, so the
+      # entry is near enough a subset of that one. It is separate for the write
+      # refusal and the purge, both in the banner above `eval`; what made this
+      # job the POLE was never its store but the registry fetch, and that is in
+      # the same banner. Every input here is `eval`'s with a different token;
+      # read that copy for what each does.
       - name: Restore the Nix store
         uses: nix-community/cache-nix-action@v7
         with:
@@ -556,10 +582,12 @@ jobs:
       # Acquisition step D: `haus add`/`desktop`/`remove` edit a real
       # scaffolded consumer flake.nix and run a real `nix flake lock`, which is
       # exactly why this needs a real nix rather than a flake check — and, at
-      # 36s, why it is a job rather than a step beside `haus show tests`. Both
-      # suites still ask for the same thing, a real `nix eval`; this one just
-      # costs more than the restore in front of it, which is this half's line
-      # for when a step earns a job of its own.
+      # 36s, why it got a job rather than a step beside `haus show tests`. Two
+      # thirds of that was the registry fetch the suite no longer makes, and at
+      # 13s it no longer clears this half's bar for a job of its own. It keeps
+      # one anyway: folding it back into `eval` would only move the seconds,
+      # and the two would then share one cache entry, which is the arrangement
+      # the banner above `eval` describes going wrong.
       - name: haus add/desktop/remove tests
         run: bash test/haus-add.sh
 
