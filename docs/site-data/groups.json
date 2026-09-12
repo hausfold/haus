@@ -630,11 +630,23 @@
     "displays": {
       "blurb": "Per-display overrides, keyed by which screen you mean.",
       "kind": "room",
-      "optionCount": 2,
+      "optionCount": 6,
       "options": {
         "haus.displays": {
           "desktopSafe": "recursive",
           "validator": "display-selectors"
+        },
+        "haus.displays.<name>.arrangement": {
+          "desktopSafe": true
+        },
+        "haus.displays.<name>.arrangement.align": {
+          "desktopSafe": true
+        },
+        "haus.displays.<name>.arrangement.of": {
+          "desktopSafe": true
+        },
+        "haus.displays.<name>.arrangement.side": {
+          "desktopSafe": true
         },
         "haus.displays.<name>.uiScale": {
           "desktopSafe": true
@@ -1897,7 +1909,7 @@
       "namespaces": [
         "displays"
       ],
-      "optionCount": 2,
+      "optionCount": 6,
       "order": 30,
       "title": "Displays"
     },
