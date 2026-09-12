@@ -40,16 +40,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: nixbuild/nix-quick-install-action@v35
+      # Which store the restore below is allowed to come back to. A restore
+      # UNIONS and nothing collects it, so one lineage grows forever: this
+      # entry put on ~24 MiB per save over its first six, on a key that moves
+      # with nearly every push to main, and at a dozen pushes a day 10 GB is
+      # weeks away rather than years. Arriving there is not a warning — a save
+      # that no longer fits just means every run pays full price again, which
+      # is the surprise the cache exists to prevent.
+      #
+      # So the prefix carries an ISO week and the nixpkgs rev, and the lineage
+      # restarts on either. The first main push of a week (or of a nixpkgs
+      # bump, which would otherwise union a second stdenv onto the first)
+      # builds cold and saves a fresh ~0.5 GB entry; `purge-prefixes` below is
+      # still the broad `nix-<os>-`, so that save is also what deletes the
+      # lineage it replaces. One cold run a week is the whole cost of it, and
+      # PRs opened in the gap before that push pay full price too. A
+      # `gc-max-store-size` cap instead of any of this would take exactly the
+      # paths the next run wants — see the comment on that input below.
+      #
+      # Watch the slope with workshop's `script/probes/ci-cache-value.sh haus`.
+      - name: Which store lineage this run belongs to
+        id: lineage
+        run: |
+          rev="$(jq -r '.nodes.nixpkgs.locked.rev // "norev"' flake.lock)"
+          echo "prefix=nix-${{ runner.os }}-$(date -u +%G-W%V)-${rev:0:12}-" >> "$GITHUB_OUTPUT"
       # The eval pulls nixpkgs and `nix flake check` BUILDS twenty-four check
       # derivations; without a store to come back to, every run paid for both
-      # from scratch. The key is the flake inputs and the nix sources, so a
-      # lock bump or a module edit pays full price and everything else — a
-      # docs change, a shell script, a bats fixture — restores.
+      # from scratch. Within a lineage the key is the flake inputs and the nix
+      # sources, so a lock bump or a module edit pays full price and everything
+      # else — a docs change, a shell script, a bats fixture — restores.
       - name: Restore the Nix store
         uses: nix-community/cache-nix-action@v7
         with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock', '**/*.nix') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
+          primary-key: ${{ steps.lineage.outputs.prefix }}${{ hashFiles('flake.lock', '**/*.nix') }}
+          restore-prefixes-first-match: ${{ steps.lineage.outputs.prefix }}
           # Only a push to main writes a cache, and this line is what makes
           # that true — GitHub's ref scoping governs READS, not writes. Left on
           # the default, every PR would upload its own multi-gigabyte copy
