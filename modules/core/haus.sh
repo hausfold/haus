@@ -4205,11 +4205,11 @@ cmd_doctor() {
 
   # Background jobs — rendered from the deck every room contributes to, never
   # from a second copy of it here. It was three GUI agents named by hand in this
-  # file out of the eighteen launchd jobs the repo declares, so a wedged
+  # file out of the seventeen launchd jobs the repo declares, so a wedged
   # bottom bar, webhook tunnel or dev proxy was invisible to doctor, and every
   # failure pointed at a `/tmp/<name>.err.log` that was right for two of them.
   #
-  # Only what wants attention, plus a line counting the rest: eighteen green
+  # Only what wants attention, plus a line counting the rest: seventeen green
   # ticks is a wall people skim, and skimming is how the one red line in it gets
   # missed. `haus services` is the roster, and _svc_report says so on its way
   # out.
@@ -4931,7 +4931,7 @@ _svc_domain() {
 # ONE `launchctl print` per job, and no `pgrep`: launchd's own view is the
 # authority on a job it owns, and it answers for DAEMONS as well as agents
 # without sudo — measured, `launchctl print system/<label>` returns 0 for a
-# non-root caller. That is what makes three of the eighteen jobs probeable at
+# non-root caller. That is what makes three of the seventeen jobs probeable at
 # all; the list this replaced could only ever ask about agents, because
 # `pgrep -qx` was the probe and a process name was the only handle it had.
 #
@@ -5021,7 +5021,7 @@ _svc_status() {
 }
 
 # How an idle job's idleness reads to a person, per liveness class — because
-# "not running" on its own reads as broken, and for six of haus's eighteen jobs it
+# "not running" on its own reads as broken, and for six of haus's seventeen jobs it
 # is the healthy answer. A `periodic` one is waiting for its schedule, a
 # `dormant` one for the file its KeepAlive names.
 _svc_idle_note() {
@@ -5039,7 +5039,7 @@ _svc_idle_note() {
 #
 # That counting line is the whole difference between this and the loop it
 # replaced. Doctor drew a green tick per agent back when it knew about three; the
-# same shape over eighteen is a wall of ticks nobody reads, and a checklist
+# same shape over seventeen is a wall of ticks nobody reads, and a checklist
 # people skim is one that hides the single red line in it. The roster, with
 # what each job is FOR, is `haus services` — one command away and named on the
 # way out.
@@ -5086,7 +5086,7 @@ _svc_report() {
 
   # Absent is counted rather than listed, for a reason worth saying: the normal
   # way to have one is to have all of them. A generation whose plists are not
-  # bootstrapped yet has EVERY job absent, and eighteen identical lines saying
+  # bootstrapped yet has EVERY job absent, and seventeen identical lines saying
   # so is noise wrapped around a single fact.
   if [ "$absent" -gt 0 ]; then
     any=1
@@ -5317,7 +5317,7 @@ _perm_wait() {
 # deck's rules exist to stop.
 #
 # It walks the services deck rather than a list of its own. Until this deck
-# existed it named three agents by hand out of the eighteen jobs the repo
+# existed it named three agents by hand out of the seventeen jobs the repo
 # declares, so a wedged bottom bar, tunnel or proxy was invisible to it.
 _perm_agent_wedged() {
   local key domain label liveness state

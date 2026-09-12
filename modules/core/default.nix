@@ -58,7 +58,7 @@ let
   svcSet = v: v != null && v != [ ] && v != { };
 
   # What "healthy" means for this job, derived from the job's own serviceConfig
-  # rather than declared beside it. Twelve of haus's eighteen jobs expect to be
+  # rather than declared beside it. Eleven of haus's seventeen jobs expect to be
   # running; the other six are healthy precisely BECAUSE they are not, and a
   # deck that could not tell the difference would report a red line for the
   # weekly GC every day but Sunday — which is how a checklist teaches people to
@@ -800,9 +800,9 @@ in
       #
       # There is only one way to earn this, and the message names it because it
       # is not obvious from the entry: the job is behind a condition its entry
-      # did not repeat. Five of haus's own jobs are (`bar-bottom`,
-      # `focus-auto`, `focus-watcher`, `haus-agent-awake`, `haus-lidawake`), so
-      # this is the failure the next room to add one will hit.
+      # did not repeat. Six of haus's own jobs are (`bar-bottom`, `focus-auto`,
+      # `focus-watcher`, `haus-agent-awake`, `haus-factory`, `haus-lidawake`),
+      # so this is the failure the next room to add one will hit.
       assertion = svcOrphans == { };
       message = ''
         haus: these haus._contrib.services entries name a launchd job this

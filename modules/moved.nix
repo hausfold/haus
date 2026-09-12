@@ -124,6 +124,24 @@
     # step, and reinstalling is the palette's Install App (VLC is on that shelf)
     # or a roster entry of your own.
 
+    # 2026-09-12 — meridian is gone: `haus.ai.meridian.enable` and
+    # `haus.ai.meridian.port`, `modules/meridian/`, and the two pi pieces that
+    # existed only to make the proxy's prompt cache bearable. Both leaves were
+    # public and desktop-safe; no shipped desktop set either, and the one
+    # consumer's host moved in the same round.
+    #
+    # No entry, for the renderer reason the zellij and videoPlayer removals
+    # spell out below: `mkRemovedOptionModule` defines `config.assertions`, and
+    # this file is imported into pure-lib evals that have none. A host still
+    # setting either leaf gets the module system's own unknown-option error,
+    # naming the file and the line.
+    #
+    # There is no successor to rename to, and that is the point rather than an
+    # omission. The proxy still exists upstream and still runs from a plist you
+    # write; what haus stopped doing is declaring it. The room's activation
+    # script used to evict a hand-installed `co.hausfold.meridian` agent on
+    # every rebuild, so a machine that had both now keeps the hand-written one.
+
     # 2026-08-13 — the whole coding-agent capability became `haus.ai.*`, and
     # deliberately got NO alias here. `haus.agents.*` and
     # `haus.developer.agents.enable` are gone rather than deprecated: haus

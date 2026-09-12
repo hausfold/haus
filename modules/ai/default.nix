@@ -778,8 +778,9 @@ let
   # user profile. Homebrew is in for the same reason it is in the github room's
   # copy of this line — a hook is whatever the person wrote.
   #
-  # Named `userPath`, the same as the copies in modules/github, modules/meridian
-  # and modules/windows, and deliberately not something of its own: `grep
+  # Named `userPath`, the same as the copies in modules/github, modules/bar,
+  # modules/windows and modules/notifications, and deliberately not something
+  # of its own: `grep
   # userPath modules` is how somebody finds every launchd PATH in this repo, and
   # a private name would take this one out of that answer.
   #

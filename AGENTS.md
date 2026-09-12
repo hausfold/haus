@@ -124,11 +124,6 @@ modules/
                           #   declares a NEED — names and prose, never a value
   portless/               # haus.portless: .localhost URLs; a ROOT daemon on :443, the npm
                           #   tarball with no lockfile
-  meridian/               # haus.ai.meridian: loopback Anthropic API off a Claude Max
-                          #   subscription. A per-USER agent — it reads Claude Code's OAuth
-                          #   token from the login keychain, which root cannot;
-                          #   buildNpmPackage against a committed lockfile. Namespace ≠
-                          #   directory; its options.nix says why
 desktops/                 # hacker (default), blank, everyday, minimal — data, one per host
 compat/presets.nix        # the retired preset format as warning aliases; never grow it,
                           #   delete it with the `presets` output
@@ -419,8 +414,8 @@ PR; hardcoded identity. Advisory, never a gate.
   `share/haus/services.json`; `haus services` draws it, `haus doctor` reports
   what wants attention. The entry carries only `title`, `why`, `cost`, `domain`
   — label, log path and liveness are READ off the plist (six of the repo's
-  eighteen jobs are healthy precisely BECAUSE they are not running). Gate it
-  exactly as the job is gated — six of the eighteen are, and an entry not
+  seventeen jobs are healthy precisely BECAUSE they are not running). Gate it
+  exactly as the job is gated — six of the seventeen are, and an entry not
   repeating the `lib.mkIf` names a job the machine hasn't got: an eval-time
   assertion, not a silent row. **An idle job's last exit
   code is a finding; a live one's is not** — an idle job that exited non-zero
