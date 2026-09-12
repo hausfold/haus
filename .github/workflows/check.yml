@@ -311,9 +311,10 @@ jobs:
   # ── The shell half, and which of its four jobs a new suite joins ─────────
   #
   # It was one job of fifty steps run one after another: 2m28s, which made it
-  # the family's slowest gate. `eval` beside it takes ~2m15s and a PR waits for
-  # the slower of the two, so the shell half is split four ways and comes in
-  # around 50s — no longer the pole, and with room to grow before it is one
+  # the family's slowest gate. `eval` beside it takes ~2m10s and a PR waits for
+  # the slower of the two, so the shell half is split four ways and its longest
+  # job now comes in under a minute (measured: lint 24s, rooms 41s, draw 52s,
+  # agents 56s) — no longer the pole, and with room to grow before it is one
   # again.
   #
   # The grouping is by what a suite NEEDS, never by count. Fifty jobs would be
@@ -326,8 +327,9 @@ jobs:
   #   draw     bats + snug's `share/ui.sh` at the rev flake.lock pins. The
   #            fetch is this job's FIRST step and every suite in it reads what
   #            that step writes.
-  #   agents   bats + the image: the AI room's own scripts, and the GitHub
-  #            bridge the statusline reads through.
+  #   agents   bats + the image: the AI room's own scripts, plus the two
+  #            surfaces an agent reads THROUGH it — `haus skill`/`haus get
+  #            --json`, and the GitHub bridge the statusline gates on.
   #   rooms    bats + the image: every other room's scripts, hermetic over
   #            stubs and fixtures.
   #
@@ -578,7 +580,7 @@ jobs:
         run: bats test/rebuild-fix-cta.bats
 
   agents:
-    name: shell suites, the agent room
+    name: shell suites, the agent surface
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
