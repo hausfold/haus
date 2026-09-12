@@ -470,7 +470,7 @@ jobs:
           # unsubstituted; and it is an end-user CLI that launchd agents also
           # exec at boot to read a value, where a non-zero is a room starting
           # without its secret and nothing on screen to say so.
-          shellcheck --severity=warning modules/secrets/haus-secret.sh bootstrap.sh modules/ai/fix.sh modules/ai/fix-github.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/haus-bar-poke.sh modules/core/lidawake.sh test/lidawake.sh modules/core/nix-gc.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/terminal/lanes/lane-focus.sh modules/terminal/scripts/raise-session.sh modules/windows/scripts/fullscreen-toggle.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/launcher/commands/lib/menu-commit.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh modules/ai/statusline.sh modules/github/signal.sh modules/terminal/scripts/image-preview.sh modules/terminal/lanes/lane-open.sh modules/bar/sketchybar/barlib.sh
+          shellcheck --severity=warning modules/secrets/haus-secret.sh bootstrap.sh modules/ai/fix.sh modules/ai/fix-github.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/haus-bar-poke.sh modules/core/lidawake.sh test/lidawake.sh modules/core/nix-gc.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/terminal/lanes/lane-focus.sh modules/terminal/scripts/raise-session.sh modules/windows/scripts/fullscreen-toggle.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/focus-timer.sh test/focus-engine.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/launcher/commands/lib/menu-commit.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh modules/ai/statusline.sh modules/github/signal.sh modules/terminal/scripts/image-preview.sh modules/terminal/lanes/lane-open.sh modules/bar/sketchybar/barlib.sh
 
   draw:
     name: shell suites that draw
@@ -744,6 +744,14 @@ jobs:
       # with you every thirty seconds.
       - name: focus trigger tests
         run: bash test/focus-auto.sh
+
+      # `focus 25` — the fuse. Same split and the same stakes one level down:
+      # the decisions are a state dir and a clock, and what they protect is the
+      # rule that a timer ends only the quiet it armed. Get that wrong and a Mac
+      # un-quiets itself in the middle of something, with nothing on screen that
+      # explains why.
+      - name: focus timer tests
+        run: bash test/focus-timer.sh
 
       # `haus plan`'s parsers, and the only part of plan CI can execute: they
       # read a BUILT activation script and a home-manager generation, both of

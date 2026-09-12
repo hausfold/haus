@@ -103,8 +103,9 @@ in
     # reading `config.haus.focus.scenes` whole.
     _contrib.launcher.focus = contrib.mkExtensionPoint {
       description = ''
-        The Focus room's palette rows: **Toggle Focus**, one **Scene** command
-        per declared scene, and **Leave Scene** beside them.
+        The Focus room's palette rows: **Toggle Focus**, a **Focus 25m** per
+        declared timer, one **Scene** command per declared scene, and **Leave
+        Scene** beside them.
 
         Off, none of them is installed and none appears on the cheatsheet — the
         commands exec `~/.local/bin/focus`, which only that room ships.
@@ -144,6 +145,16 @@ in
             takes and what the row fuzzy-matches, so the palette row and the
             CLI teach each other; the description and the leader key are the
             only fields the palette renders.
+          '';
+        };
+        timers = lib.mkOption {
+          type = lib.types.listOf lib.types.ints.positive;
+          default = [ ];
+          description = ''
+            The timer durations to offer, in minutes — `haus.focus.timers`. The
+            number is both what the row says and what `focus <minutes>` takes,
+            the same way a scene's name is, so the row and the CLI teach each
+            other and there is no second spelling to keep in step.
           '';
         };
       };

@@ -261,6 +261,10 @@ let
   # never survive a command that wasn't installed.
   factoryContrib = config.haus._contrib.launcher.factory;
   scenes = focusContrib.scenes;
+  # Empty with the room off, the same way `scenes` is — a `Focus 25m` command
+  # execs the `~/.local/bin/focus` that only the Focus room ships, and the
+  # contribution is what says whether it exists.
+  timers = focusContrib.timers;
 
   # The `# pounce:` header is line-based, so a description must stay one line —
   # a newline in a host's string would end the header early and turn the rest
@@ -281,6 +285,27 @@ let
       # doesn't get from the static ./commands dir. Absolute path: the
       # daemon's environment has no user PATH.
       exec "$HOME/.local/bin/focus" scene ${name}
+    '';
+
+  # The timer rows: `focus 25` is quiet with a fuse, so each declared duration
+  # is its own command. Generated rather than static for the same reason the
+  # scene rows are — the durations are config, and a static file would be a row
+  # for a number this host never asked for. The number is a safe filename and a
+  # safe shell word by construction: the option is a list of positive ints.
+  # ONE string for the header and the cheatsheet row, the same rule the scene
+  # rows follow, so the two surfaces cannot drift.
+  timerDescription = minutes: "Quiet for ${toString minutes} minutes, then off again";
+
+  timerCommand =
+    minutes:
+    pkgs.writeText "pounce-focus-${toString minutes}.sh" ''
+      #!/bin/bash
+      # pounce: name = Focus ${toString minutes}m
+      # pounce: description = ${timerDescription minutes}
+      # pounce: icon = moon.zzz.fill
+      # Generated from haus.focus.timers, by way of the Focus room's
+      # contribution. Absolute path: the daemon's environment has no user PATH.
+      exec "$HOME/.local/bin/focus" ${toString minutes}
     '';
 
   # `focus scene off` beside them, so the palette can end what it started.
@@ -362,6 +387,9 @@ let
       lib.mapAttrsToList (name: s: "install -m555 ${sceneCommand name s} $out/scene-${name}.sh\n") scenes
     )}
     ${lib.optionalString (scenes != { }) "install -m555 ${sceneOffCommand} $out/scene-off.sh"}
+    # `focus-<n>.sh` can't collide with a static command either: focus.sh is the
+    # only name this room spends on that word, and it has no number.
+    ${lib.concatMapStrings (m: "install -m555 ${timerCommand m} $out/focus-${toString m}.sh\n") timers}
   '';
 
   # The command library this machine actually installs: pounce's built-ins, the
@@ -649,14 +677,19 @@ let
           )
       );
 
-  # The scene commands' rows, from the SAME config the scripts above are
-  # generated from — not from their headers, which would be reading a generated
-  # file at eval. Key = the scene's name, which is both what you type to
-  # fuzzy-match the row and what `focus scene <name>` takes, so the palette row
-  # and the CLI teach each other. mapAttrsToList is attr-sorted, so the page
-  # order is stable.
-  sceneCommandRows =
-    lib.mapAttrsToList (name: s: {
+  # The generated Focus commands' rows — the timers and the scenes — from the
+  # SAME config the scripts above are generated from, not from their headers,
+  # which would be reading a generated file at eval. Key = what you type: a
+  # duration for a timer (`25m` → `focus 25`) and the scene's own name for a
+  # scene, each both the row's fuzzy-match and the CLI's argument, so the
+  # palette and the CLI teach each other. Timers first and in declared order;
+  # mapAttrsToList is attr-sorted, so the whole page order is stable.
+  focusCommandRows =
+    map (m: {
+      key = "${toString m}m";
+      action = timerDescription m;
+    }) timers
+    ++ lib.mapAttrsToList (name: s: {
       key = name;
       action = sceneDescription name s;
     }) scenes
@@ -1962,7 +1995,7 @@ lib.mkIf config.haus.launcher.enable {
             # does. A row whose `items` entry scopes it to certain pages carries
             # them in its caption, because "installed" and "listed right now"
             # stopped being the same question.
-            items = riceCommandRows ++ sceneCommandRows;
+            items = riceCommandRows ++ focusCommandRows;
           }
         ]
       );

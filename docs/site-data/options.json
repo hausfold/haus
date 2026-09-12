@@ -2979,6 +2979,27 @@
     "readOnly": false,
     "type": "string"
   },
+  "haus.focus.timers": {
+    "declarations": [
+      "modules/focus/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ 25 60 ]"
+    },
+    "description": "Minutes offered as palette rows — a `Focus 25m` command per entry, each\nwith a line on the cheatsheet's Palette Commands page. Empty means no\nrows; the CLI takes any duration either way.\n\n`focus <minutes>` is quiet with a fuse on it: it turns Do Not Disturb\non, writes down when to stop, and a launchd one-shot turns it back off\nat the end. A bare number is MINUTES here, where `awake 3` is hours —\neach verb takes the unit it is used in — and `25m`, `90min` and `1h`\nare spelled out in both. A day is the ceiling: past that you want a\nscene, which has a name and can say what else it changes.\n\nIt ends only the quiet it started. A quiet you switch off and on again\nwhile the timer runs is a different quiet — one you chose — and the\ntimer forgets itself rather than ending it; so does entering a scene,\nwhich owns the whole state while it runs. It checks about once a\nminute, including for Focus turned off from Control Center or a phone,\nso off-and-straight-back-on inside one of those gaps is the sequence it\ncan miss. `focus timer` says what is left, and `focus timer off` drops\nthe countdown while keeping you quiet.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  25\n  50\n  90\n]"
+    },
+    "loc": [
+      "haus",
+      "focus",
+      "timers"
+    ],
+    "readOnly": false,
+    "type": "list of (positive integer, meaning >0)"
+  },
   "haus.focus.triggers.interval": {
     "declarations": [
       "modules/focus/options.nix"
