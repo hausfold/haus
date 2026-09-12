@@ -191,7 +191,7 @@ lib.mkMerge [
     );
   }
   (lib.mkIf cfg.enable {
-    # A scene's name is what a person types after `focus scene`, so the four
+    # A scene's name is what a person types after `focus scene`, so the five
     # words that subcommand already spends are names a scene could hold and never
     # be entered under — it would build, validate, appear in `focus scene list`,
     # and do nothing. `quiet` is the interesting one: it is a real scene, spelled
@@ -208,6 +208,9 @@ lib.mkMerge [
           "off"
           "quiet"
           "status"
+          # The verb a scene's own `key` spends: `focus scene toggle <name>` is
+          # what the generated leader binding runs.
+          "toggle"
         ];
         names = lib.attrNames cfg.scenes;
         claimed = lib.intersectLists reserved names;
@@ -233,7 +236,7 @@ lib.mkMerge [
             `focus scene` already spends (${lib.concatStringsSep ", " reserved}).
             `quiet` is the built-in scene — the one `focus on`, the bar pill and
             the palette command enter; shape it with haus.focus.slack.* and
-            haus.focus.hooks. The other three are subcommands. Rename the scene.
+            haus.focus.hooks. The other four are subcommands. Rename the scene.
           '';
         }
         {
@@ -294,9 +297,16 @@ lib.mkMerge [
     #
     # The launcher's point carries the scenes as well as the switch, because a
     # scene becomes its own palette command and its own cheatsheet row. It gets
-    # the ONE field it renders: `hooks`, `apps`, `audio` and `dnd` never cross,
+    # only the fields it renders: `hooks`, `apps`, `audio` and `dnd` never cross,
     # so a rename inside a scene's shape cannot reach the launcher, and the
     # launcher's option surface never grows a copy of this room's.
+    #
+    # The third write is the KEY, and it goes to BOTH rooms because two different
+    # things are made out of it: windows binds it in launch mode, the launcher
+    # teaches it on the cheatsheet. Neither could render the other's half —
+    # AeroSpace owns the mode, pounce owns the page — and both read the same
+    # `scenes.<name>.key` one `mapAttrs` apart, so the binding and the row it is
+    # taught by cannot drift.
     haus._contrib = {
       # The moon's Accessibility grant is NOT contributed here, and the reason
       # is the rule stated twelve lines up: it is SketchyBar's grant, not this
@@ -308,8 +318,32 @@ lib.mkMerge [
       bar.focus.enable = true;
       launcher.focus = {
         enable = true;
-        scenes = lib.mapAttrs (_: s: { inherit (s) description; }) cfg.scenes;
+        scenes = lib.mapAttrs (_: s: {
+          inherit (s) description;
+          key = if s.key == null then "" else s.key;
+        }) cfg.scenes;
       };
+
+      # One entry per scene that asked for a key. A scene with none contributes
+      # nothing rather than an entry with an empty key: the registry is what a
+      # reader greps to find every leader key a room generates, and rows for
+      # keys nobody bound would bury the ones that exist.
+      #
+      # `toggle`, not the bare enter the palette row runs, because a key has no
+      # room for a second half. ⌘Space carries Leave Scene beside every Scene
+      # row; the leader has one keystroke, so it has to mean both directions.
+      windows.leaderActions = lib.mapAttrs' (
+        name: s:
+        lib.nameValuePair "focus-scene-${name}" {
+          key = s.key;
+          # The stable path, like the palette command beside it — AeroSpace's
+          # launch-mode exec has no profile on its PATH either. Safe unquoted
+          # after `scene toggle`: the assertion above pins a scene name to one
+          # word of [A-Za-z0-9_-].
+          command = "\"$HOME/.local/bin/focus\" scene toggle ${name}";
+          source = "haus.focus.scenes.${name}.key";
+        }
+      ) (lib.filterAttrs (_: s: s.key != null) cfg.scenes);
     };
 
     # The reverse reach is still direct, and named rather than left to be found:

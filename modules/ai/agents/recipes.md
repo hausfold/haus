@@ -189,6 +189,10 @@ It's a list, so if the host file already sets `leaderExtras`, add to that list
 rather than writing a second assignment — two assignments to the same list option
 conflict, and the build will tell you so.
 
+A focus scene has its own field and doesn't need one of these:
+`haus.focus.scenes.<name>.key = "r"` binds the leader key, generates the
+cheatsheet row, and toggles the scene on the second press.
+
 ## "Expand @@ to my email"
 
 ```nix

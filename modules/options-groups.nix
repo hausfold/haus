@@ -218,6 +218,7 @@ let
       "scenes.<name>.description"
       "scenes.<name>.dnd"
       "scenes.<name>.hooks"
+      "scenes.<name>.key"
       "scenes.<name>.preventSleep"
       "scenes.<name>.restorePreviousState"
       "scenes.<name>.when.days"
@@ -1207,7 +1208,7 @@ let
       order = 90;
       blurb = "One quiet switch: Do Not Disturb, an optional status somewhere else, and your own hooks on both edges — plus the named states (`scenes`) around it, of which quiet is the built-in one. A scene can carry a `when` (a daily window, a network, the power source, the screens) and be entered for you, on a rule that never overrides a state you chose.";
       agent = {
-        cli = "focus on|off|toggle|status · focus scene <name>|off|list · focus auto --probe";
+        cli = "focus on|off|toggle|status · focus scene <name>|toggle <name>|off|list · focus auto --probe";
         asks = [
           "make my mac quiet"
           "turn on do not disturb"

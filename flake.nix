@@ -5029,6 +5029,86 @@
             touch $out
           '';
 
+          # ---- scene-leader-key ------------------------------------------------
+          # `haus.focus.scenes.<name>.key`: the one surface a scene used to need
+          # a hand-written `haus.keys.leaderExtras` entry for. It crosses two
+          # rooms that must not read each other — windows binds the key,
+          # the launcher teaches it — so what this pins is that ONE leaf reaches
+          # BOTH, and that the collision check sees the contributed half.
+          #
+          # The negative case is the one that earns the check. A scene key that
+          # lands on a roster letter is not a build error in AeroSpace: it is a
+          # second row in [mode.launch.binding], and whichever it parses last
+          # wins while the other silently stops firing. `t` is Ghostty's, put
+          # there by the windows room itself, so the collision is reachable
+          # without the fixture naming a roster at all.
+          scene-leader-key =
+            let
+              machine =
+                scene:
+                (mkHaus {
+                  inherit system;
+                  username = "you";
+                  hostname = "example";
+                  extraModules = [
+                    {
+                      haus.windows.enable = true;
+                      haus.launcher.enable = true;
+                      haus.focus.enable = true;
+                      haus.focus.scenes.recording = scene;
+                    }
+                  ];
+                }).config;
+              bound = machine {
+                description = "camera on, nothing interrupts";
+                key = "r";
+              };
+              home = bound.home-manager.users.you.home.file;
+              refused = scene: map (a: a.message) (builtins.filter (a: !a.assertion) (machine scene).assertions);
+              collision = refused { key = "t"; };
+              malformed = refused { key = "a'; rm -rf ~"; };
+              silent = refused { description = "no key here"; };
+            in
+            pkgs.runCommand "haus-scene-leader-key-ok" { } ''
+              toml=${pkgs.writeText "aerospace.toml" home.".config/aerospace/aerospace.toml".text}
+              script=${pkgs.writeText "leader-extra-r.sh" home.".config/aerospace/leader-extra-r.sh".text}
+              sheet=${pkgs.writeText "cheatsheet.json" home.".config/pounce/cheatsheet.json".text}
+
+              # The binding, in launch mode's own table: drop the indicator, exec
+              # the script, return to main — the same three steps a leaderExtra
+              # takes, which is the point of joining the two lists.
+              grep -qF "r = ['exec-and-forget /Users/you/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget /Users/you/.config/aerospace/leader-extra-r.sh', 'mode main']" "$toml"
+
+              # `toggle`, not a bare enter: a key has nowhere to put the way back.
+              grep -qF 'exec "$HOME/.local/bin/focus" scene toggle recording' "$script"
+              # And the script says which line to edit, not which room wrote it.
+              grep -qF 'haus.focus.scenes.recording.key' "$script"
+
+              # The cheatsheet row, from the same leaf.
+              grep -qF '"key":"r"' "$sheet"
+              grep -qF 'Scene: recording' "$sheet"
+
+              ${nixpkgs.lib.optionalString (collision == [ ]) ''
+                echo 'a scene key on a roster letter was accepted — it would shadow the app silently' >&2
+                exit 1''}
+              ${nixpkgs.lib.optionalString (malformed == [ ]) ''
+                echo 'a scene key carrying shell was accepted — it is spelled into a generated script' >&2
+                exit 1''}
+              ${nixpkgs.lib.optionalString (silent != [ ]) ''
+                echo 'a scene with no key was refused — no key is the ordinary case, not an error' >&2
+                exit 1''}
+
+              # The diagnostic has to name the option, not just the key: the two
+              # halves of the list are written in different files by different
+              # people.
+              cat > messages.txt <<'MESSAGES'
+              ${builtins.concatStringsSep "\n" (collision ++ malformed)}
+              MESSAGES
+              grep -qF 'haus.focus.scenes.recording.key' messages.txt
+
+              touch $out
+            '';
+
           bar-bottom-focus =
             let
               cfg =

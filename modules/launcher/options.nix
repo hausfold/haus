@@ -122,14 +122,27 @@ in
                 default = "";
                 description = "The scene's one-line description — `haus.focus.scenes.<name>.description`.";
               };
+              # The cheatsheet half of a scene's key. The BINDING is the windows
+              # room's (`_contrib.windows.leaderActions`) — AeroSpace owns launch
+              # mode and pounce owns the page, so the one fact lands in two rooms
+              # rather than one room rendering the other's surface.
+              options.key = lib.mkOption {
+                type = lib.types.str;
+                default = "";
+                description = ''
+                  The launch-mode key that enters the scene —
+                  `haus.focus.scenes.<name>.key`. Empty means the scene asked
+                  for no key, and the Launch Mode page gets no row for it.
+                '';
+              };
             }
           );
           default = { };
           description = ''
             The declared scenes, keyed by name. The key is what `focus scene`
             takes and what the row fuzzy-matches, so the palette row and the
-            CLI teach each other; the description is the only field the palette
-            renders.
+            CLI teach each other; the description and the leader key are the
+            only fields the palette renders.
           '';
         };
       };
