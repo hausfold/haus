@@ -5,6 +5,11 @@
 # bar pill, the pounce palette command, and the CLI all drive this one script,
 # so no two surfaces can ever disagree about what a toggle does.
 #
+# `focus 25` is the same switch with a fuse: quiet now, quiet off again in
+# twenty-five minutes. What is stored is the until-timestamp, and what burns it
+# down is a launchd one-shot — see the timer section for the one rule it obeys,
+# which is the room's rule everywhere: it ends only the quiet it armed.
+#
 # `scene` is the same idea with more than one member: haus.focus.scenes.<name>
 # declares a state (quiet · awake · an input device · apps · hooks) and this
 # script enters and leaves it. `quiet` is the built-in one, which is why
@@ -27,6 +32,12 @@ SCENE_PID="$STATE_DIR/scene-caffeinate.pid"
 # inside one interval is invisible, and the daemon evicts a scene YOU entered.
 SCENE_ENTRY="$STATE_DIR/scene-entry"
 AUTO_STATE="$STATE_DIR/auto.json"
+# `focus 25` — the until-timestamp, and the claim it is burning (see the timer
+# section). QUIET_ENTRY is the same idea as SCENE_ENTRY one level down: every
+# write of the quiet state bumps it, so a fuse can tell the quiet it armed from
+# a quiet you turned off and on again while it slept.
+TIMER_FILE="$STATE_DIR/timer.json"
+QUIET_ENTRY="$STATE_DIR/quiet-entry"
 SCENES="@scenes@"
 SWITCH_AUDIO="@switchAudio@" # empty unless some scene names an input device
 
@@ -89,6 +100,12 @@ UI_WANT="ui_col ui_trow ui_table_data ui_table_clear"
 # sets these.
 DATE="${FOCUS_DATE_BIN:-/bin/date}"
 PMSET="${FOCUS_PMSET_BIN:-/usr/bin/pmset}"
+# Not probes: the two macOS binaries the timer and the DND leg act THROUGH.
+# Overridable for the same reason the probes are — test/focus-timer.sh drives a
+# whole arm-and-expire on a machine with neither, which is the only way the
+# claim rule can be run rather than read. Nothing else sets them.
+LAUNCHCTL="${FOCUS_LAUNCHCTL_BIN:-/bin/launchctl}"
+OSASCRIPT="${FOCUS_OSASCRIPT_BIN:-/usr/bin/osascript}"
 NETWORKSETUP="${FOCUS_NETWORKSETUP_BIN:-/usr/sbin/networksetup}"
 SYSTEM_PROFILER="${FOCUS_SYSTEM_PROFILER_BIN:-/usr/sbin/system_profiler}"
 # The displays room's helper, when this machine has it: one CGGetActiveDisplayList
@@ -106,6 +123,11 @@ BAR_POKE="${FOCUS_BAR_POKE_BIN:-/run/current-system/sw/bin/haus-bar-poke}"
 
 # Must match the AppleSymbolicHotKeys 175 binding written by default.nix.
 KEY_CODE=@keyCode@
+# The launchd job that sleeps out a `focus 25`. Substituted rather than typed
+# here as well as in the agent, for the same reason the key code is: a label
+# that does not match is a `kickstart` that silently starts nothing, and a fuse
+# that never burns.
+TIMER_LABEL=@timerLabel@
 
 SLACK_ENABLED=@slackEnabled@
 SLACK_TOKEN_CMD=@slackTokenCommand@
@@ -175,6 +197,14 @@ focus_state() {
     /bin/cat "$STATE_FILE" 2>/dev/null || echo off
 }
 
+quiet_entry_id() {
+    local n
+    n=$(/bin/cat "$QUIET_ENTRY" 2>/dev/null || true)
+    case "$n" in "" | *[!0-9]*) echo 0 ;; *) echo "$n" ;; esac
+}
+
+quiet_entry_bump() { printf '%s\n' "$(($(quiet_entry_id) + 1))" >"$QUIET_ENTRY"; }
+
 # Press the DND chord. Preferred: `pounce focus toggle` — since pounce 0.4.3
 # the CLI forwards the press to the resident daemon whenever the calling
 # context lacks the grant (TCC checks the RESPONSIBLE process — sketchybar
@@ -186,7 +216,7 @@ press_hotkey() {
     if pounce_focus_available && "$POUNCE_BIN" focus toggle 2>/dev/null; then
         return 0
     fi
-    /usr/bin/osascript -e "tell application \"System Events\" to key code $KEY_CODE using {control down, option down, shift down, command down}" >/dev/null 2>&1
+    "$OSASCRIPT" -e "tell application \"System Events\" to key code $KEY_CODE using {control down, option down, shift down, command down}" >/dev/null 2>&1
 }
 
 slack_token() { /bin/bash -c "$SLACK_TOKEN_CMD" 2>/dev/null || true; }
@@ -288,6 +318,11 @@ apply() { # $1 = on|off
     fi
     /bin/mkdir -p "$STATE_DIR"
     printf '%s\n' "$want" >"$STATE_FILE"
+    # Every write of the quiet state is a new quiet, and the counter is how a
+    # timer tells one from the next: a fuse armed under 7 and reaching expiry at
+    # 8 is looking at a quiet somebody else chose. Bumped on the way OFF too —
+    # off-then-on inside one fuse is exactly the sequence the claim has to see.
+    quiet_entry_bump
     slack_set "$want"
     run_hooks "$want"
     poke_bar
@@ -351,7 +386,7 @@ audio_input_set() { # $1 = exact device name
 # `application X is running` is the one form that answers without launching what
 # it asks about — `tell application X to ...` would start it.
 app_running() { # $1 = app name, bundle id or path
-    /usr/bin/osascript - "$1" <<'EOS' 2>/dev/null | grep -q true
+    "$OSASCRIPT" - "$1" <<'EOS' 2>/dev/null | grep -q true
 on run argv
     set a to item 1 of argv
     try
@@ -371,7 +406,7 @@ EOS
 # ⌘Q from the Dock doesn't wait either. Guarded by `is running` so quitting what
 # is already gone can never be what starts it.
 app_quit() { # $1 = app name, bundle id or path
-    /usr/bin/osascript - "$1" <<'EOS' >/dev/null 2>&1
+    "$OSASCRIPT" - "$1" <<'EOS' >/dev/null 2>&1
 on run argv
     set a to item 1 of argv
     try
@@ -644,6 +679,248 @@ scene_list() {
         desc=$(scene_field "$name" .description)
         printf '  %s %-14s %s\n' "$([ "$now" = "$name" ] && echo '*' || echo ' ')" "$name" "$desc"
     done < <(scene_names)
+}
+
+# ---- the timer -------------------------------------------------------------
+# `focus 25` is quiet with a fuse on it. What is written down is the
+# UNTIL-TIMESTAMP, never the sleeping process: a logout, a reboot or a rebuild
+# takes the process and leaves the fact, and the agent's RunAtLoad picks the
+# file back up with whatever is left of it.
+#
+# A fuse is a CLAIM on the quiet it armed, and it burns only while that claim
+# stands — the same "reverse only the lever you pulled" rule the scene engine
+# and the trigger daemon each follow, one level down. `timer_claim` is the
+# whole of it, and every one of its three questions is a way to be void:
+#
+#   * THE QUIET COUNTER MOVED. Every write of the quiet state bumps it, so a
+#     quiet you switched off and on again while the fuse slept is a different
+#     quiet — one you chose, which nothing here may end. This is the case the
+#     feature would otherwise get wrong, and it is the reason the counter
+#     exists: without it, `focus 25` followed by two hand toggles un-quiets you
+#     twenty minutes later for no reason you could name.
+#   * THE MAC IS NO LONGER QUIET. Nothing left to end.
+#   * A SCENE IS ON. A scene owns the whole state while it runs, so un-quieting
+#     underneath it would leave the pill saying one thing and the caffeinate
+#     hold, the microphone and the apps saying another. Arming refuses while a
+#     scene is on for the same reason; this catches one entered afterwards.
+#
+# Void always resolves to "forget the fuse", never to "act anyway" — a fuse
+# that cannot prove what it is burning has nothing to burn. It also resolves
+# the file: `timer_claim` deletes it on the way out, so a dead fuse cannot keep
+# counting down on the bar.
+
+now() {
+    if [ -n "${FOCUS_NOW:-}" ]; then
+        printf '%s\n' "$FOCUS_NOW"
+    else
+        "$DATE" +%s
+    fi
+}
+
+timer_read() { "$JQ" -r "$1 // empty" "$TIMER_FILE" 2>/dev/null; }
+
+# `focus 25` — a bare number is MINUTES here, where `awake 3` is hours. Each
+# verb takes the unit it is actually used in: quiet is a stretch of work,
+# awake is an afternoon. `25m`, `90m` and `1h` are spelled out either way, so
+# only the bare form differs, and only the usage text can say so.
+#
+# Capped at a day, because past that you want a scene: a state that outlives
+# the sitting has apps, a microphone and a name, and `haus.focus.scenes` is
+# where those live. The cap is also Slack's own snooze ceiling, so a fuse can
+# never outlast the snooze it set.
+parse_minutes() { # $1 = 25 | 25m | 90min | 1h — prints seconds, or fails
+    local value=$1 amount unit=m
+    case "$value" in
+        *minutes) amount=${value%minutes} ;;
+        *minute) amount=${value%minute} ;;
+        *mins) amount=${value%mins} ;;
+        *min) amount=${value%min} ;;
+        *hours)
+            amount=${value%hours}
+            unit=h
+            ;;
+        *hour)
+            amount=${value%hour}
+            unit=h
+            ;;
+        *hrs)
+            amount=${value%hrs}
+            unit=h
+            ;;
+        *hr)
+            amount=${value%hr}
+            unit=h
+            ;;
+        *m) amount=${value%m} ;;
+        *h)
+            amount=${value%h}
+            unit=h
+            ;;
+        *) amount=$value ;;
+    esac
+    # 10#, or `09` reads as octal — the same trap win_minutes carries below.
+    case "$amount" in '' | *[!0-9]*) return 1 ;; esac
+    amount=$((10#$amount))
+    [ "$amount" -gt 0 ] || return 1
+    if [ "$unit" = h ]; then
+        [ "$amount" -le 24 ] || return 1
+        printf '%s\n' "$((amount * 3600))"
+    else
+        [ "$amount" -le 1440 ] || return 1
+        printf '%s\n' "$((amount * 60))"
+    fi
+}
+
+# Rounded UP to the next minute: "1m" through the final minute is the honest
+# thing for a pill to say, where "0m" reads as finished for sixty seconds. Same
+# rounding `awake` uses, and the pill's own label is formatted from the raw
+# seconds so the two can differ in width without differing in meaning.
+format_remaining() { # $1 = seconds
+    local minutes=$((($1 + 59) / 60)) hours
+    hours=$((minutes / 60))
+    minutes=$((minutes % 60))
+    if [ "$hours" -gt 0 ]; then
+        printf '%dh %02dm\n' "$hours" "$minutes"
+    else
+        printf '%dm\n' "$minutes"
+    fi
+}
+
+# Does the fuse still own the quiet it armed? Answers no by deleting it, which
+# is the self-heal that keeps a dead fuse off the pill without anything having
+# to run on a timer to sweep it. Says nothing about the CLOCK — expiry is the
+# caller's question and this one is only about the claim.
+timer_claim() {
+    local entry
+    [ -f "$TIMER_FILE" ] || return 1
+    entry=$(timer_read .entry)
+    case "$(timer_read .until)" in "" | *[!0-9]*) entry="" ;; esac
+    if [ -z "$entry" ] || [ "$entry" != "$(quiet_entry_id)" ] \
+        || [ "$(scene_active)" != off ] || [ "$(focus_state)" != on ]; then
+        /bin/rm -f "$TIMER_FILE"
+        return 1
+    fi
+    return 0
+}
+
+# Seconds left, or nothing at all — for a void fuse, for no fuse, and for one
+# whose moment has come and gone while the agent is still waking up. All three
+# read the same to a pill, and correctly so: there is no countdown to draw.
+timer_remaining() {
+    local until current
+    timer_claim || return 0
+    until=$(timer_read .until)
+    current=$(now)
+    [ "$until" -gt "$current" ] && printf '%s\n' "$((until - current))"
+    return 0
+}
+
+timer_domain() { printf 'gui/%s/%s\n' "$(/usr/bin/id -u)" "$TIMER_LABEL"; }
+
+# Drop the fuse and leave the quiet alone. The counter already voids a fuse the
+# moment anything writes the quiet state, so this is the tidying half: it takes
+# the file off the pill and the sleeping agent out of the process list in the
+# same breath, rather than leaving a job to wake at 14:35 and find nothing to do.
+timer_cancel() {
+    [ -f "$TIMER_FILE" ] || return 0
+    /bin/rm -f "$TIMER_FILE"
+    "$LAUNCHCTL" kill TERM "$(timer_domain)" >/dev/null 2>&1 || true
+}
+
+timer_arm() { # $1 = seconds
+    local seconds=$1 until token at
+    if [ "$(scene_active)" != off ]; then
+        note "a scene is on — 'focus scene off' first, or give that scene a when.time window"
+        exit 1
+    fi
+    # Not `apply on` unconditionally: on an already-quiet Mac that would re-run
+    # the Slack leg and the hooks for a quiet that never changed, which is the
+    # same edge-pairing rule `takeDnd` keeps for scenes. Arming over a quiet you
+    # set by hand is still a fuse — you asked for one — it is just not a second
+    # entry into a state you are already in.
+    [ "$(focus_state)" = on ] || apply on
+    /bin/mkdir -p "$STATE_DIR"
+    # AFTER the apply, so the id recorded below is the one that write produced.
+    # On an already-quiet Mac this bump is the only one, and it is what makes
+    # the fuse's claim specific rather than "whatever quiet is on at 14:35".
+    quiet_entry_bump
+    until=$(($(now) + seconds))
+    token="$until-$$-${RANDOM:-0}"
+    if ! "$JQ" -n --arg t "$token" --argjson u "$until" --argjson e "$(quiet_entry_id)" \
+        '{token:$t,until:$u,entry:$e}' >"$TIMER_FILE" 2>/dev/null; then
+        /bin/rm -f "$TIMER_FILE"
+        note "could not write the timer — quiet is on; 'focus off' ends it"
+        exit 1
+    fi
+    # `-k` restarts a job that is already sleeping on an older fuse, so a second
+    # `focus 25` replaces the first rather than racing it.
+    if ! "$LAUNCHCTL" kickstart -k "$(timer_domain)" >/dev/null 2>&1; then
+        /bin/rm -f "$TIMER_FILE"
+        note "could not start $TIMER_LABEL — rebuild once so its launchd job is loaded."
+        note "quiet is on and will stay on; 'focus off' ends it"
+        exit 1
+    fi
+    poke_bar
+    at=$("$DATE" -r "$until" '+%H:%M' 2>/dev/null || true)
+    note "quiet for $(format_remaining "$seconds")${at:+ (until $at)}"
+}
+
+timer_status() {
+    local left
+    left=$(timer_remaining)
+    if [ -z "$left" ]; then
+        printf 'no timer\n'
+    else
+        printf 'quiet for %s more\n' "$(format_remaining "$left")"
+    fi
+}
+
+# The fuse burning down. Ordered the way the trigger daemon orders its own
+# edge: the file goes FIRST and the state changes after it. `apply` exits 1
+# when the DND keypress has no Accessibility grant, and a fuse still on disk
+# after that failure would be retried by the agent's next RunAtLoad — one
+# failed un-quiet per login, forever. One attempt per fuse is the right number:
+# the failure is still visible, and it happens once.
+timer_fire() { # $1 = the token this run armed under
+    [ "$(timer_read .token)" = "$1" ] || return 0
+    timer_claim || return 0
+    /bin/rm -f "$TIMER_FILE"
+    apply off
+    notify "Quiet is off — the timer ran out"
+}
+
+# The launchd one-shot behind `focus 25`. It sleeps out what is left of the
+# fuse and then fires it.
+#
+# A LOOP rather than one sleep, because the clock and the sleep disagree across
+# a lid close: a Mac that suspends for an hour mid-fuse comes back with the
+# sleep either finished early or not finished at all, and only the timestamp
+# knows which. Re-reading the clock after every wait makes both cases the same
+# case — and a fuse whose moment passed while the Mac was shut fires on the way
+# back up rather than at 3am tomorrow.
+timer_run() {
+    local until token current remaining child=0
+    [ -f "$TIMER_FILE" ] || exit 0
+    until=$(timer_read .until)
+    token=$(timer_read .token)
+    case "$until" in "" | *[!0-9]*)
+        /bin/rm -f "$TIMER_FILE"
+        exit 0
+        ;;
+    esac
+    while :; do
+        current=$(now)
+        remaining=$((until - current))
+        [ "$remaining" -gt 0 ] || break
+        /bin/sleep "$remaining" &
+        child=$!
+        # A TERM from `timer_cancel` or from a replacing `kickstart -k` means
+        # the fuse is gone: take the sleep down with us and change nothing.
+        trap 'if [ "$child" -gt 0 ]; then /bin/kill "$child" 2>/dev/null || true; fi; exit 0' TERM INT HUP
+        wait "$child" || true
+        child=0
+    done
+    timer_fire "$token"
 }
 
 # ---- triggers --------------------------------------------------------------
@@ -1054,6 +1331,15 @@ doctor() {
     echo "       Without it, the app invoking focus needs its own grant (System"
     echo "       Settings → Privacy & Security → Accessibility)."
 
+    # The one thing about `focus 25` that is setup rather than state: with its
+    # job unloaded the arm refuses outright, and the fix is a rebuild.
+    if "$LAUNCHCTL" print "$(timer_domain)" >/dev/null 2>&1; then
+        echo "  [ok] timer: $TIMER_LABEL is loaded — 'focus 25' has something to sleep in"
+    else
+        echo "  [!!] timer: $TIMER_LABEL is not loaded, so 'focus 25' would refuse."
+        echo "       Rebuild once (the agent is installed with the room)."
+    fi
+
     local scenes
     scenes=$(scene_names | /usr/bin/wc -l | /usr/bin/tr -d ' ')
     if [ "$scenes" = 0 ]; then
@@ -1103,10 +1389,22 @@ doctor() {
 # bar pill and the palette command both call `toggle`, and a pill that turns
 # quiet off while a caffeinate hold and a switched microphone stay behind is a
 # pill that lies about what it just did.
+#
+# Each of the three ends the fuse as well, and says so by dropping it before it
+# acts: every one of them writes the quiet state, which voids a running claim
+# anyway, so this only decides whether the bar and the process list find out
+# now or at 14:35.
 case "${1:-toggle}" in
-    on) apply on ;;
-    off) if [ "$(scene_active)" != off ]; then scene_off; else apply off; fi ;;
+    on)
+        timer_cancel
+        apply on
+        ;;
+    off)
+        timer_cancel
+        if [ "$(scene_active)" != off ]; then scene_off; else apply off; fi
+        ;;
     toggle)
+        timer_cancel
         if [ "$(scene_active)" != off ]; then
             scene_off
         elif [ "$(focus_state)" = on ]; then
@@ -1115,7 +1413,47 @@ case "${1:-toggle}" in
             apply on
         fi
         ;;
-    status) focus_state ;;
+    # `status` is the word; `status --raw` is the pill's, and it carries the
+    # countdown so one call per tick answers both halves of what the pill draws.
+    # The second state read behind it is only paid while a fuse exists, which is
+    # exactly when there is a countdown to draw.
+    status)
+        case "${2:-}" in
+            "") focus_state ;;
+            --raw)
+                TIMER_LEFT=""
+                [ -f "$TIMER_FILE" ] && TIMER_LEFT=$(timer_remaining)
+                printf '%s\t%s\n' "$(focus_state)" "${TIMER_LEFT:-0}"
+                ;;
+            *)
+                echo "usage: focus status [--raw]" >&2
+                exit 64
+                ;;
+        esac
+        ;;
+    # The fuse on its own: what is left of it, and the one way to drop it
+    # WITHOUT ending the quiet it is burning — "actually, I'll stay quiet".
+    timer)
+        case "${2:-status}" in
+            "" | status) timer_status ;;
+            off | cancel)
+                if [ -f "$TIMER_FILE" ]; then
+                    timer_cancel
+                    poke_bar
+                    note "timer off — quiet stays on"
+                else
+                    note "no timer"
+                fi
+                ;;
+            *)
+                echo "usage: focus timer [off]" >&2
+                exit 64
+                ;;
+        esac
+        ;;
+    # launchd's entry point, not a word anybody types — the underscore says so,
+    # the same way `awake _run` does.
+    _timer) timer_run ;;
     doctor) doctor ;;
     # The launchd tick, and the one command that shows what it sees. `auto` on
     # its own acts; `auto --probe` only ever reads.
@@ -1129,7 +1467,15 @@ case "${1:-toggle}" in
                 ;;
         esac
         ;;
+    # Entering or leaving a scene ends the fuse: a scene owns the whole state
+    # while it runs, and a countdown left ticking under one would be counting
+    # down to an un-quiet the scene never asked for. `list` and `status` change
+    # nothing, so they keep it.
     scene)
+        case "${2:-status}" in
+            "" | status | list) ;;
+            *) timer_cancel ;;
+        esac
         case "${2:-status}" in
             "" | status) scene_status ;;
             list) scene_list ;;
@@ -1138,10 +1484,20 @@ case "${1:-toggle}" in
             *) scene_enter "$2" ;;
         esac
         ;;
+    # A duration is a word too: `focus 25` is the quiet switch with a fuse on
+    # it. Last, so it can never shadow a verb — and it is the only arm that
+    # fails into the usage text, which is what makes a typo'd verb readable
+    # instead of "unknown duration".
     *)
-        echo "usage: focus [on|off|toggle|status|doctor]" >&2
-        echo "       focus scene [<name>|toggle <name>|off|list|status]" >&2
-        echo "       focus auto [--probe]" >&2
-        exit 64
+        if TIMER_SECONDS=$(parse_minutes "$1"); then
+            timer_arm "$TIMER_SECONDS"
+        else
+            echo "usage: focus [on|off|toggle|status [--raw]|doctor]" >&2
+            echo "       focus <minutes>   quiet, then off again — 25 · 25m · 90min · 1h" >&2
+            echo "       focus timer [off] what is left of it (off keeps the quiet)" >&2
+            echo "       focus scene [<name>|toggle <name>|off|list|status]" >&2
+            echo "       focus auto [--probe]" >&2
+            exit 64
+        fi
         ;;
 esac

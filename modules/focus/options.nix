@@ -101,6 +101,44 @@
       '';
     };
 
+    focus.timers = lib.mkOption {
+      type = lib.types.listOf lib.types.ints.positive;
+      default = [
+        25
+        60
+      ];
+      # Spelled on ONE line for ../host-template.jq: the annotated host file
+      # comments each default with `  # `, and the "is it still legal once
+      # uncommented" check un-comments only the line the option name is on — so
+      # a default that renders across several lines leaves the rest commented
+      # and the file stops parsing. The template's own build catches that
+      # loudly; this is the escape hatch it points at.
+      defaultText = lib.literalExpression "[ 25 60 ]";
+      example = [
+        25
+        50
+        90
+      ];
+      description = ''
+        Minutes offered as palette rows — a `Focus 25m` command per entry, each
+        with a line on the cheatsheet's Palette Commands page. Empty means no
+        rows; the CLI takes any duration either way.
+
+        `focus <minutes>` is quiet with a fuse on it: it turns Do Not Disturb
+        on, writes down when to stop, and a launchd one-shot turns it back off
+        at the end. A bare number is MINUTES here, where `awake 3` is hours —
+        each verb takes the unit it is used in — and `25m`, `90min` and `1h`
+        are spelled out in both. A day is the ceiling: past that you want a
+        scene, which has a name and can say what else it changes.
+
+        It ends only the quiet it started. A quiet you switch off and on again
+        while the timer runs is a different quiet — one you chose — and the
+        timer forgets itself rather than ending it; so does entering a scene,
+        which owns the whole state while it runs. `focus timer` says what is
+        left, and `focus timer off` drops the countdown while keeping you quiet.
+      '';
+    };
+
     focus.triggers.interval = lib.mkOption {
       type = lib.types.ints.positive;
       default = 30;

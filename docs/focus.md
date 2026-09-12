@@ -71,6 +71,40 @@ Focus can't do: tell your **teammates** and silence your **phone**.
 - `dnd.setSnooze` / `dnd.endSnooze` → pauses Slack push on all devices
 - Scopes: `users.profile:write`, `dnd:write`, on a personal user token
 
+## The timer
+
+`focus 25` is the same switch with a fuse: quiet now, quiet off again in
+twenty-five minutes. What gets written down is the **until-timestamp**, never
+the sleeping process, so a logout, a reboot or a rebuild takes the process and
+leaves the fact — the agent's `RunAtLoad` picks the file back up with whatever
+is left of it, and a fuse whose moment passed while the Mac was shut fires on
+the way back up. It is a launchd one-shot per arm rather than a poll, for the
+same reason `awake` is one: nothing ticks on a Mac where nobody set a timer.
+
+A fuse is a **claim on the quiet it armed**, and it burns only while that claim
+stands — the same "reverse only the lever you pulled" rule the scene engine
+follows, one level down. Three things void it, and each resolves to *forget the
+fuse*, never to *act anyway*:
+
+1. **The quiet counter moved.** Every write of the quiet state bumps it, so a
+   quiet you switched off and on again while the fuse slept is a different
+   quiet — one you chose, which nothing may end for you.
+2. **The Mac is no longer quiet.** Nothing left to end.
+3. **A scene is on.** A scene owns the whole state while it runs. Arming
+   refuses under one; entering one afterwards drops the fuse.
+
+Arming over a quiet you set by hand still arms, and that is deliberate rather
+than an exception to the rule above: typing `focus 25` at an already-quiet Mac
+is choosing an end time, not being given one. The distinction the rule is
+actually about is **a quiet the fuse never armed** — and unlike the trigger
+daemon, which acts with nothing on screen, the countdown has been on the bar
+since you set it, so nothing the fuse does is a surprise.
+
+One blind spot, the room's existing one: DND toggled from Control Center or
+your phone never reaches the counter, so quiet switched off and on again *that*
+way leaves the fuse burning. It ends the quiet at the minute the pill has been
+counting down to all along.
+
 ## Scenes
 
 `haus.focus.scenes.<name>` is the same machinery with the member list opened

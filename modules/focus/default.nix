@@ -35,6 +35,12 @@ let
   # shift(131072) + cmd(1048576). focus.sh presses key code @keyCode@ with the
   # same four modifiers — keep the two in lockstep.
   keyCode = 105;
+
+  # The launchd job `focus 25` kickstarts. ONE binding, read by the agent below
+  # and substituted into the engine: the engine spells the label to kickstart
+  # it, and a label that doesn't match is a kickstart that starts nothing and a
+  # fuse that never burns — no error, no banner, just a Mac that stays quiet.
+  timerLabel = "com.hausfold.focus-timer";
   hotkeyXml = "<dict><key>enabled</key><true/><key>value</key><dict><key>parameters</key><array><integer>65535</integer><integer>${toString keyCode}</integer><integer>1966080</integer></array><key>type</key><string>standard</string></dict></dict>";
 
   # Double-escaped substitutions: the inner escape is what lands in the script
@@ -137,6 +143,7 @@ let
       --subst-var-by jq ${pkgs.jq}/bin/jq \
       --subst-var-by uiSh ${pkgs.snug}/share/ui.sh \
       --subst-var-by keyCode ${toString keyCode} \
+      --subst-var-by timerLabel ${shq timerLabel} \
       --subst-var-by pounceBin ${shq pounceBin} \
       --subst-var-by slackEnabled ${if cfg.slack.enable then "1" else "0"} \
       --subst-var-by slackTokenCommand ${shq slackTokenCommand} \
@@ -322,6 +329,11 @@ lib.mkMerge [
           inherit (s) description;
           key = if s.key == null then "" else s.key;
         }) cfg.scenes;
+        # The durations, for the same reason the scenes cross: a palette row
+        # exists exactly when the thing behind it does. A number is the whole
+        # of what the launcher renders — `focus <n>` takes minutes and the row
+        # says minutes, so there is nothing else for the two sides to agree on.
+        timers = cfg.timers;
       };
 
       # One entry per scene that asked for a key. A scene with none contributes
@@ -393,6 +405,44 @@ lib.mkMerge [
         ];
         WatchPaths = [ "/Users/${username}/Library/DoNotDisturb/DB" ];
         RunAtLoad = false;
+      };
+    };
+
+    # The fuse behind `focus 25`: a one-shot that sleeps out whatever is left of
+    # the timer and un-quiets. ALWAYS installed with the room, not gated on
+    # anything — a timer is a thing you type at a Mac, not a thing a host
+    # declares, and `focus 25` refuses outright when its job is missing (`focus
+    # doctor` checks it). Awake's agent is present for the same reason and reads
+    # the same on the deck: no KeepAlive, no interval, so `haus services` calls
+    # it idle, which it is — with no timer file it exits immediately.
+    #
+    # RunAtLoad is TRUE here, where the trigger daemon's is false: this one
+    # neither opens apps nor talks to System Events, and what it does instead is
+    # resume a fuse that outlived a login or a rebuild. A timer lost to a
+    # `haus rebuild` would be the feature's worst failure — a Mac left quiet
+    # with nothing left that knows to stop.
+    haus._contrib.services.focus-timer = {
+      order = 57;
+      title = "Focus timer — focus 25";
+      why = ''
+        Sleeps out a `focus 25` and turns quiet back off at the end of it, and
+        picks an unfinished one back up after a login or a rebuild.
+      '';
+      cost = "`focus 25` refuses, and a timer already running would never end";
+    };
+
+    launchd.user.agents.focus-timer = {
+      serviceConfig = {
+        Label = timerLabel;
+        ProgramArguments = [
+          "${engine}/bin/focus"
+          "_timer"
+        ];
+        RunAtLoad = true;
+        ProcessType = "Background";
+        StandardOutPath = "/tmp/focus-timer.out.log";
+        StandardErrorPath = "/tmp/focus-timer.err.log";
+        EnvironmentVariables.HOME = "/Users/${username}";
       };
     };
 

@@ -231,6 +231,7 @@ let
       "slack.statusEmoji"
       "slack.statusText"
       "slack.tokenCommand"
+      "timers"
       "triggers.interval"
     ];
     fonts = [
@@ -1206,13 +1207,15 @@ let
     focus = {
       title = "Focus";
       order = 90;
-      blurb = "One quiet switch: Do Not Disturb, an optional status somewhere else, and your own hooks on both edges — plus the named states (`scenes`) around it, of which quiet is the built-in one. A scene can carry a `when` (a daily window, a network, the power source, the screens) and be entered for you, on a rule that never overrides a state you chose.";
+      blurb = "One quiet switch: Do Not Disturb, an optional status somewhere else, and your own hooks on both edges. `focus 25` puts a fuse on it — quiet now, quiet off again in twenty-five minutes, counting down on the bar — and the named states (`scenes`) around it are the same switch with more members, of which quiet is the built-in one. A scene can carry a `when` (a daily window, a network, the power source, the screens) and be entered for you, on a rule that never overrides a state you chose.";
       agent = {
-        cli = "focus on|off|toggle|status · focus scene <name>|toggle <name>|off|list · focus auto --probe";
+        cli = "focus on|off|toggle|status · focus 25 · focus timer [off] · focus scene <name>|toggle <name>|off|list · focus auto --probe";
         asks = [
           "make my mac quiet"
           "turn on do not disturb"
           "hush"
+          "quiet for 25 minutes"
+          "go quiet until my next meeting"
           "am I in do not disturb"
           "set my mac up for recording"
           "stop the screen sleeping while I present"

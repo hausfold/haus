@@ -29,42 +29,21 @@ trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin" "$TMP/home"
 
 # The engine as the module builds it: the same script, with the substitutions
-# default.nix makes. Anything else would test a copy.
+# default.nix makes. Anything else would test a copy. The table — and the guard
+# that catches it drifting from default.nix — is test/focus-engine.sh, shared
+# with test/focus-timer.sh so there is one mirror rather than two.
 #
 # `@uiSh@` is pointed at a path that does not exist, on purpose: this suite is
 # about the DECISIONS focus makes, and a hermetic run of it must not depend on
 # whether the machine underneath has snug's share/ui.sh. `ui_load` then leaves
 # UI_READY empty, which is the plain-column half of every listing — the budgeted
 # half is wired and asserted in test/phase-painter.bats.
+# shellcheck source=test/focus-engine.sh
+. "$(cd "$(dirname "$0")" && pwd)/focus-engine.sh"
+
 build_engine() { # $1 = path to the scene table
-    sed -e "s|@jq@|/usr/bin/jq|" \
-        -e "s|@keyCode@|105|" \
-        -e "s|@pounceBin@|''|" \
-        -e "s|@slackEnabled@|0|" \
-        -e "s|@slackTokenCommand@|''|" \
-        -e "s|@slackTokenHint@|'run: haus-secret --check'|" \
-        -e "s|@slackStatusText@|'heads down'|" \
-        -e "s|@slackStatusEmoji@|':no_bell:'|" \
-        -e "s|@slackSnooze@|0|" \
-        -e "s|@hooks@||" \
-        -e "s|@scenes@|$1|" \
-        -e "s|@switchAudio@||" \
-        -e "s|@uiSh@|$TMP/no-such-ui.sh|" \
-        "$ROOT/modules/focus/focus.sh" >"$TMP/focus"
-    chmod +x "$TMP/focus"
-    # The sed table above MIRRORS default.nix's --subst-var-by names, and a
-    # hand-copied mirror is the thing this family keeps getting caught by. A new
-    # placeholder there would otherwise reach the engine unsubstituted and this
-    # suite would keep passing, testing a script the module never builds. So the
-    # mirror is checked rather than trusted: anything left in @placeholder@ form
-    # fails here, naming itself.
-    # Comment lines are stripped first: the script's own header explains the
-    # @var@ convention in prose, and every real substitution is on the
-    # right-hand side of an assignment.
-    if /usr/bin/grep -v '^[[:space:]]*#' "$TMP/focus" \
-        | /usr/bin/grep -oE '@[a-zA-Z][a-zA-Z0-9]*@' | sort -u | grep .; then
-        fail "a placeholder above survived — the sed table has drifted from modules/focus/default.nix"
-    fi
+    focus_build_engine "$ROOT/modules/focus/focus.sh" "$1" "$TMP/no-such-ui.sh" "$TMP/focus" \
+        || exit 1
 }
 
 cat >"$TMP/bin/date" <<'EOF'
@@ -121,9 +100,21 @@ done
 printf ']}]}\n'
 EOF
 
+# The one thing this runner must NOT be able to do, stubbed rather than left to
+# the platform. Cases 15 and 17 are about a DND keypress that FAILS, and their
+# stand-in for "no Accessibility grant yet" was the absence of
+# /usr/bin/osascript — true on the Linux runner, false on the Mac of anyone
+# working on this room, where the suite then failed on a machine where nothing
+# was wrong. A press that always refuses gets the same run in both places.
+cat >"$TMP/bin/osascript" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+
 chmod +x "$TMP/bin/"*
 
 export HOME="$TMP/home"
+export FOCUS_OSASCRIPT_BIN="$TMP/bin/osascript"
 export FOCUS_DATE_BIN="$TMP/bin/date"
 export FOCUS_PMSET_BIN="$TMP/bin/pmset"
 export FOCUS_NETWORKSETUP_BIN="$TMP/bin/networksetup"
