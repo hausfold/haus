@@ -323,16 +323,40 @@ let
   extraDuplicates = lib.unique (
     lib.filter (key: lib.count (candidate: candidate == key) extraKeys > 1) extraKeys
   );
+  # What ELSE in launch mode already holds a key. The addresses below say which
+  # line to EDIT; this says what you landed ON, which is the half a reader
+  # cannot work out — that `t` is Ghostty's roster letter is a fact about the
+  # roster, not about the key.
+  claimedBy =
+    key:
+    let
+      app = lib.findFirst (a: a.key == key) null launchers;
+      throws = lib.concatMap (k: [
+        "shift-${k}"
+        "alt-shift-${k}"
+      ]) workspaceKeys;
+    in
+    if app != null then
+      "${if app.label != null then app.label else app.name}'s roster key"
+    else if lib.elem key builtinLaunchKeys then
+      "a built-in launch-mode action"
+    else if lib.elem key throws then
+      "a workspace throw"
+    else
+      null;
+
   # A conflicting key, spelled with everything that claims it:
   # `r (haus.keys.leaderExtras, haus.focus.scenes.recording.key)`. Without the
   # addresses the message names a key and leaves you grepping two rooms for it.
   extraSaid =
     key:
-    "${key} (${
-      lib.concatStringsSep ", " (
+    let
+      claim = claimedBy key;
+      said =
         lib.unique (map (e: e.source) (lib.filter (e: e.key == key) leaderExtras))
-      )
-    })";
+        ++ lib.optional (claim != null) claim;
+    in
+    "${key} (${lib.concatStringsSep ", " said})";
 
   # What a launch-mode key may LOOK like, which nothing checked while the only
   # writer was a host file. AeroSpace names its keys as letters, digits and
@@ -344,6 +368,13 @@ let
   # ~/.config/aerospace, and `haus.focus.scenes.<name>.key` is DESKTOP-safe — a
   # desktop you downloaded can set it. A quote or a `;` there is not a broken
   # binding, it is a shell fragment in a script this room generates.
+  #
+  # Here rather than at the desktop seam, and that is the call
+  # `haus.launcher.items` already made (../lib/desktop.nix's `itemKeyProblem`):
+  # the seam validates the SHAPE of desktop DATA, and what a launch-mode key may
+  # be is a fact about AeroSpace that only the room driving it knows. So `haus
+  # show` calls such a desktop well-formed and the refusal arrives when the
+  # machine is built — loudly, naming the option — rather than never.
   malformedExtraKeys = lib.unique (
     map (e: e.key) (
       lib.filter (e: builtins.match "(shift-|alt-|ctrl-|cmd-)*[A-Za-z0-9]+" e.key == null) leaderExtras

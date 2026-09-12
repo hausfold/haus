@@ -96,10 +96,11 @@ in
 
     # The Focus room's palette surface. Two facts, and the second is why this
     # point carries data rather than only a switch: a scene is generated into
-    # its own palette command and its own cheatsheet row, so the launcher needs
-    # the scenes themselves — but only the one field it renders. `hooks`,
-    # `apps`, `audio` and the rest never cross, which is the difference between
-    # a declared point and reading `config.haus.focus.scenes` whole.
+    # its own palette command, its own cheatsheet row and (with a `key`) the row
+    # that teaches its leader chord, so the launcher needs the scenes
+    # themselves — but only the fields it renders. `hooks`, `apps`, `audio` and
+    # the rest never cross, which is the difference between a declared point and
+    # reading `config.haus.focus.scenes` whole.
     _contrib.launcher.focus = contrib.mkExtensionPoint {
       description = ''
         The Focus room's palette rows: **Toggle Focus**, one **Scene** command

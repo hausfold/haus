@@ -154,13 +154,16 @@
                 An AeroSpace key name, and a POSITION on a US keyboard like
                 every other key in this config (`haus.keys.layout` moves the
                 letters onto the keys that print them). It shares launch mode
-                with the app roster, the numbered workspaces and
-                `haus.keys.leaderExtras`, so a key one of those already claims
-                is refused at eval rather than silently shadowing it.
+                with the app roster, the numbered workspaces and their throws,
+                the fixed actions (`v`, `f`, `z`, `,`, `.`, `` ` ``, `-`, `=`,
+                `/`, esc and the arrows) and `haus.keys.leaderExtras`, so a key
+                one of those already claims is refused at eval rather than
+                silently shadowing it.
 
-                Needs `haus.windows.enable` — launch mode is the tiler's. With
-                the windows room off the scene keeps its palette row and loses
-                only the key.
+                Needs `haus.windows.enable` and `haus.keys.leader != "none"` —
+                launch mode is the tiler's, and a machine that claims no leader
+                has no launch mode to bind into. Without either, the scene keeps
+                its palette row and loses only the key.
               '';
             };
 

@@ -437,7 +437,7 @@ let
     # Scene row and one keystroke has nowhere to put a second half.
     ++ (map (name: {
       key = launchKeyGlyphs.${scenes.${name}.key} or scenes.${name}.key;
-      action = "Scene: ${name} — press again to leave";
+      action = "Scene: ${name} (again to leave)";
     }) (lib.attrNames (lib.filterAttrs (_: s: s.key != "") scenes)))
     # The numbered workspaces: focus, throw-and-follow, throw-and-stay. Nothing
     # to teach when haus.windows.numberedWorkspaces is 0, and a page that names an
