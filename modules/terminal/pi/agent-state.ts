@@ -137,6 +137,7 @@ export default function (pi: any) {
 	const asks = new Set<string>();
 	// The provider fault is once per session — see the header.
 	let faulted = false;
+
 	// Every spawn on this file's paths goes through here, and the `error`
 	// listener is the load-bearing half rather than the try/catch around it.
 	// A failed spawn — no such binary (not a haus machine, or a rebuild is

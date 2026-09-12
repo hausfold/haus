@@ -800,9 +800,9 @@ in
       #
       # There is only one way to earn this, and the message names it because it
       # is not obvious from the entry: the job is behind a condition its entry
-      # did not repeat. Five of haus's own jobs are (`bar-bottom`,
-      # `focus-auto`, `focus-watcher`, `haus-agent-awake`, `haus-lidawake`), so
-      # this is the failure the next room to add one will hit.
+      # did not repeat. Six of haus's own jobs are (`bar-bottom`, `focus-auto`,
+      # `focus-watcher`, `haus-agent-awake`, `haus-factory`, `haus-lidawake`),
+      # so this is the failure the next room to add one will hit.
       assertion = svcOrphans == { };
       message = ''
         haus: these haus._contrib.services entries name a launchd job this
