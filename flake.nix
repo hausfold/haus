@@ -3991,7 +3991,7 @@
           # SOURCE-level and not an eval, deliberately. The obvious check —
           # compare `config.launchd` against the deck on the example host —
           # only sees the jobs the hacker desktop turns ON, which is seven of
-          # the sixteen; the github room's three, meridian, portless, the bottom
+          # the seventeen; the github room's three, portless, the bottom
           # bar and the two conditional awake jobs would all be invisible to it.
           # Reading the declarations out of the source sees a job whatever
           # switches it on.

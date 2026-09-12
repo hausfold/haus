@@ -208,7 +208,7 @@
     "ai": {
       "blurb": "The AI room: whether this machine runs coding agents at all, which clients it installs, which one the agent keybinding spawns, where the palette looks for a repo to spawn one on, the two files haus ships into every one of their homes — your instructions, and the `haus` skill — and what Claude Code's auto-mode classifier is told about this machine. Spelled `haus.agents.*` before 2026-08-13, with the switch under `haus.developer.agents`; both are gone rather than aliased.",
       "kind": "room",
-      "optionCount": 17,
+      "optionCount": 15,
       "options": {
         "haus.ai.autoMode.allow": {
           "desktopSafe": false,
@@ -249,12 +249,6 @@
         "haus.ai.keepAwake": {
           "desktopSafe": false,
           "reason": "this-hardware"
-        },
-        "haus.ai.meridian.enable": {
-          "desktopSafe": true
-        },
-        "haus.ai.meridian.port": {
-          "desktopSafe": true
         },
         "haus.ai.namer": {
           "desktopSafe": true
@@ -1781,7 +1775,7 @@
       "namespaces": [
         "ai"
       ],
-      "optionCount": 17,
+      "optionCount": 15,
       "order": 100,
       "title": "AI"
     },
