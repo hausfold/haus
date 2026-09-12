@@ -5,3 +5,5 @@ result-*
 .cargo-home/
 default.profraw
 *.profraw
+pe.err
+pe.out
