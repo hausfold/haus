@@ -32,7 +32,8 @@ jobs:
   # 34686000184: nix eval 6s, nix flake check 1s, host template 7s, haus show
   # 6s, haus add 36s.
   #
-  # ⚠️ Do not quote docs/ci.md's `nix eval` 55s and `nix flake check` 37s
+  # ⚠️ Do not quote the workshop's docs/ci.md `nix eval` 55s and `nix flake
+  # check` 37s
   # beside those. Those are the COLD figures — the same steps with no store to
   # come back to — and they are not additive with the warm ones. Every
   # re-measure starts by reading the "Restore the Nix store" step: 30s-plus
@@ -73,13 +74,16 @@ jobs:
   # had been costing. `acquire` is the pole and stays there until that nixfmt
   # fetch goes.
   #
-  # One number in that run is expected to FALL and is worth checking once it
-  # has: `checks` restored in 47s where the other two took 34s, because on that
-  # run all three pulled the same pre-split half-gigabyte entry at the same
-  # moment. From the first push to main each restores its own smaller entry
-  # instead. If it has not fallen, the tokened keys are missing and every job
-  # is riding the transitional prefix — which is also what "Restore the Nix
-  # store" logging a key without the job token in it means.
+  # ⚠️ Those restores do NOT get smaller at the next push to main, and the
+  # first draft of this comment said they would. The store is saved WHOLE —
+  # the `gc-max-store-size` note further down is the reason — so each job's
+  # first tokened save carries forward the half-gigabyte union it had just
+  # restored, whoever built it. Three jobs' entries only become three jobs'
+  # SIZES at the next lineage reset, when the ISO week or the nixpkgs rev
+  # moves, all three go cold, and each builds only what it asks for. Until
+  # then expect three entries of roughly the old one's size, and read the job
+  # token out of the key the restore step logs if you want to know whether the
+  # split is keying correctly — the size tells you nothing about that.
 
   eval:
     name: eval the example host
@@ -166,7 +170,11 @@ jobs:
       # and no job can reach another's. Three entries per lineage rather than
       # one: the combined entry was ~0.5 GiB compressed against a 10 GB budget,
       # the three overlap heavily (all of them carry nixpkgs), and the weekly
-      # reset bounds the total exactly as it always did. The pre-split entry
+      # reset bounds the total the same WAY it always did — but the total is
+      # three entries now, four in a transitional week, so the slope it bounds
+      # is steeper. `gh cache list --repo hausfold/haus` is the number that
+      # counts, and it is worth a look the first week after this. The pre-split
+      # entry
       # carries no token, so nothing here purges it — the transitional prefix
       # in the lineage step above reads it once so that the split does not
       # start cold, and stops consulting it the moment the tokened entries
@@ -175,8 +183,12 @@ jobs:
       # days, which is what finally collects it.
       #
       # A new job in this half copies this step, changes the one token, and is
-      # a new entry. Duplicated rather than shared, because two jobs share no
-      # environment — the same call `draw` and `eval` make for snug's fetch.
+      # a new entry. ⚠️ Its token may not be a PREFIX of an existing one: the
+      # purge is a prefix sweep, so a job called `eval-fast` would have every
+      # entry it saves deleted by `eval`'s `nix-<os>-eval-`, silently and on
+      # every push to main. Pick a token no other job's is the start of.
+      # Duplicated rather than shared, because two jobs share no environment —
+      # the same call `draw` and `eval` make for snug's fetch.
       - name: Restore the Nix store
         uses: nix-community/cache-nix-action@v7
         with:
