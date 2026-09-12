@@ -8,10 +8,22 @@ on:
   # having to push to main first.
   workflow_dispatch:
 
+# A second push to a PR branch makes the first run's answer worthless, and the
+# abandoned run still holds a runner — on the macOS ones, a queue slot the next
+# PR then waits behind. Only PR runs cancel: a push to main is a distinct commit
+# whose tick someone may need to read back.
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   eval:
     name: eval the example host
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # cache-nix-action purges its own superseded entries through the API.
+      actions: write
     # A ceiling, not a target: this job runs in ~2 minutes. It exists because
     # GitHub's default is SIX HOURS, and a step that hangs rather than fails
     # sits there burning the whole budget while the PR shows "running" — which
@@ -21,7 +33,28 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: nixbuild/nix-quick-install-action@v35
+      # The eval pulls nixpkgs and `nix flake check` BUILDS twenty-four check
+      # derivations; without a store to come back to, every run paid for both
+      # from scratch. The key is the flake inputs and the nix sources, so a
+      # lock bump or a module edit pays full price and everything else — a
+      # docs change, a shell script, a bats fixture — restores.
+      #
+      # A PR restores what main last saved (GitHub scopes caches to a ref and
+      # lets a branch read its base), so the saving half only happens on main.
+      - name: Restore the Nix store
+        uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock', '**/*.nix') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          # GitHub evicts least-recently-used once a repo passes 10G. Staying
+          # under 4G means we never make that decision for it, and never evict
+          # another workflow's cache to hold ours.
+          gc-max-store-size-linux: 4G
+          purge: true
+          purge-prefixes: nix-${{ runner.os }}-
+          purge-created: 0
+          purge-primary-key: never
       # Pure evaluation of the full darwin system — catches syntax errors, bad
       # option names, and broken module wiring before any consumer does. (Eval
       # is platform-independent; no macOS runner needed until we *build*.)
