@@ -105,6 +105,43 @@ SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
 # or a store path with a space in it is a string here, never re-parsed.
 guest() { ssh "${SSH_OPTS[@]}" "$GUEST_USER@$IP" bash -s; }
 
+# ---- the key a freshly pulled base does not have ---------------------------
+# "The key is in the guest" is true of a base somebody already prepared and
+# false of one straight out of `tart pull`: the cirruslabs image authenticates
+# admin by PASSWORD only. Every clone inherits that, which is also why the tart
+# adapter's key-only ssh wait times out and `scruff runtime up` reports a
+# failure over a perfectly good running VM. Whoever prepared the last base did
+# this by hand and never wrote it down; the bill was a golden rebuild that died
+# on its first ssh, after the old image had already been deleted to make room
+# (2026-09-12).
+#
+# `expect` and not another ssh flag because password auth wants a TTY. `admin`
+# is cirruslabs' published default for this image rather than a secret; both it
+# and the key are overridable for a base that ships something else.
+PUBKEY_FILE="${HAUS_VM_PUBKEY:-$HOME/.ssh/id_ed25519.pub}"
+GUEST_PASS="${HAUS_VM_PASSWORD:-admin}"
+
+install_guest_key() {
+  [ -r "$PUBKEY_FILE" ] || die "no public key at $PUBKEY_FILE — set HAUS_VM_PUBKEY"
+  command -v expect >/dev/null 2>&1 \
+    || die "the base needs a password login and expect isn't on PATH"
+  local key; key=$(cat "$PUBKEY_FILE")
+  expect <<EXP
+set timeout 45
+log_user 0
+spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  -o PubkeyAuthentication=no -o PreferredAuthentications=password \
+  $GUEST_USER@$IP {mkdir -p ~/.ssh && chmod 700 ~/.ssh && printf '%s\n' '$key' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && echo INSTALLED}
+expect {
+  -re {[Pp]assword:} { send "$GUEST_PASS\r"; exp_continue }
+  "INSTALLED"        { }
+  timeout            { exit 1 }
+  eof                { exit 1 }
+}
+expect eof
+EXP
+}
+
 cleanup_on_fail() {
   [ -n "${BUILT:-}" ] && return 0
   warn "build did not finish — $NAME is left in place for inspection"
@@ -143,12 +180,26 @@ IP=$(tart ip "$NAME" --wait 120) || die "$NAME never got an IP"
 say "$NAME is up at $IP"
 
 say "waiting for sshd…"
+# Two conditions, not one. Key auth is what we want; an open port 22 is what
+# tells us the guest is up and the key is simply absent. Waiting only on key
+# auth burns the full five minutes on a base that will never answer one.
+port_seen=0
+key_ok=
 for _ in $(seq 1 60); do
-  ssh "${SSH_OPTS[@]}" -o BatchMode=yes "$GUEST_USER@$IP" true 2>/dev/null && break
+  ssh "${SSH_OPTS[@]}" "$GUEST_USER@$IP" true 2>/dev/null && { key_ok=1; break; }
+  if nc -z -G 3 "$IP" 22 2>/dev/null; then
+    port_seen=$((port_seen + 1))
+    [ "$port_seen" -ge 3 ] && break   # ~15s of grace after sshd starts listening
+  fi
   sleep 5
 done
-ssh "${SSH_OPTS[@]}" -o BatchMode=yes "$GUEST_USER@$IP" true 2>/dev/null \
-  || die "no passwordless SSH to $GUEST_USER@$IP — the base image is meant to carry the key"
+
+if [ -z "$key_ok" ]; then
+  say "the base answers passwords, not keys — installing $(basename "$PUBKEY_FILE")…"
+  install_guest_key || die "could not install a key on $GUEST_USER@$IP"
+  ssh "${SSH_OPTS[@]}" "$GUEST_USER@$IP" true 2>/dev/null \
+    || die "installed the key and $GUEST_USER@$IP still refuses it"
+fi
 
 # ---- 1.5 wait for the disk to be grown -------------------------------------
 # The cirruslabs base runs tart-guest-agent as a daemon (`--run-daemon` implies
@@ -172,6 +223,53 @@ EOS
 for _ in $(seq 1 36); do grown 2>/dev/null && break; sleep 5; done
 grown 2>/dev/null \
   || die "$NAME's APFS container has not grown to ${DISK_GB} GB after 3 min — \`ssh $GUEST_USER@$IP diskutil apfs list\`; the base's tart-guest-agent is meant to do this at boot"
+
+# ---- 1.6 put Gatekeeper back -----------------------------------------------
+# The cirruslabs base ships Gatekeeper in a state no real Mac is ever in, and
+# it is wrong twice over: assessments are off wholesale (`spctl
+# --master-disable`), and underneath that the policy DB has its Developer ID
+# rules switched off too — the "App Store" setting, not the "App Store and
+# identified developers" every Mac ships with. Sensible for a CI worker that
+# runs unsigned binaries; useless for an image we test SHIPPED apps on. With
+# assessments off a Developer ID app opens with no dialog at all; with them
+# back on but the rules still disabled it is refused as "not downloaded from
+# the App Store". Neither is what a user sees, so neither is evidence, and the
+# second one reads as a signing bug in the app under test rather than a fact
+# about the image (cost a perch release a day, 2026-09-11).
+#
+# `spctl --enable --label "Developer ID"` is how this was spelled until macOS
+# 15 removed the subcommand, so the rows go in directly — the same reasoning as
+# the TCC insert in step 3a, and legal for the same reason: SIP is off in this
+# base. `Unnotarized Developer ID` and `Testflight` stay disabled; they are
+# disabled on a stock Mac too, and switching them on would make the image lie
+# in the other direction.
+#
+# Measured 2026-09-12 on a Tahoe 26.6.2 guest: the UPDATE plus `killall
+# syspolicyd` reads back "developer id enabled" with no reboot, and survives
+# one. Before bootstrap rather than after, so a base that has moved on us
+# fails here and not forty minutes deeper.
+say "restoring Gatekeeper (the base ships it off, and App-Store-only underneath)…"
+guest <<'EOS'
+set -euo pipefail
+db=/var/db/SystemPolicyConfiguration/SystemPolicy
+# NOT /var/db/SystemPolicy — that path is empty on macOS 26 and a `sudo cp`
+# onto it silently creates a decoy the real syspolicyd never reads.
+[ -s "$db" ] || { echo "no policy DB at $db — macOS moved it again" >&2; exit 1; }
+
+# --global-enable is the current spelling, --master-enable the one before it;
+# which of the two a given release answers to is not worth branching on, and
+# the verify below is the real check either way.
+sudo -n spctl --global-enable 2>/dev/null || sudo -n spctl --master-enable 2>/dev/null || true
+sudo -n sqlite3 "$db" \
+  "UPDATE authority SET disabled = 0 WHERE label IN ('Developer ID', 'Notarized Developer ID');"
+sudo -n killall syspolicyd 2>/dev/null || true
+sleep 3
+
+status=$(spctl --status --verbose 2>&1)
+printf '%s\n' "$status" | grep -qx 'assessments enabled' \
+  && printf '%s\n' "$status" | grep -qx 'developer id enabled' \
+  || { echo "Gatekeeper not restored — spctl says:" >&2; printf '%s\n' "$status" >&2; exit 1; }
+EOS
 
 # ---- 2. raise the house ----------------------------------------------------
 # The PINNED raw URL, never hausfold.co/hacker.sh: the worker resolves the
@@ -324,6 +422,28 @@ if [ -n "$sw" ]; then
 else
   echo "sleepwatcher not running — its prompt will appear on a later boot" >&2
 fi
+# Two GUI apps ask for Accessibility by BUNDLE ID, not by path, and both were
+# wrong in the first image this script built (2026-09-12, checked on a clone's
+# second boot rather than at build time — which is the only place it shows).
+# AeroSpace had no row at all, so every boot raised "AeroSpace.app would like
+# to control this computer using accessibility features", whose only dismissing
+# button is Deny, in front of whatever the lane was sent to photograph. pounce
+# had a row at auth_value 0 — DENIED, which is worse than missing: ⌘Space is
+# simply dead in the clone and nothing on screen says why.
+#
+# client_type 0 is the bundle-id form (the path form above is 1). Unlike the
+# sleepwatcher row these survive a haus bump, since neither app is addressed
+# by a store path.
+grant_bundle() {
+  sudo -n sqlite3 "$db" "INSERT OR REPLACE INTO access
+    (service, client, client_type, auth_value, auth_reason, auth_version,
+     indirect_object_identifier_type, indirect_object_identifier, boot_uuid)
+    VALUES ('$1', '$2', 0, 2, 0, 1, NULL, 'UNUSED', 'UNUSED');" \
+    || echo "⚠ could not grant $1 to $2" >&2
+}
+grant_bundle kTCCServiceAccessibility bobko.aerospace
+grant_bundle kTCCServiceAccessibility com.hausfold.pounce
+
 sudo -n killall tccd 2>/dev/null || true
 
 # The order of this pass is not cosmetic. A prompt that is ALREADY on screen
