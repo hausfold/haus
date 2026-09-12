@@ -311,11 +311,11 @@ jobs:
   # ── The shell half, and which of its four jobs a new suite joins ─────────
   #
   # It was one job of fifty steps run one after another: 2m28s, which made it
-  # the family's slowest gate. `eval` beside it takes ~2m10s and a PR waits for
-  # the slower of the two, so the shell half is split four ways and its longest
-  # job now comes in under a minute (measured: lint 24s, rooms 41s, draw 52s,
-  # agents 56s) — no longer the pole, and with room to grow before it is one
-  # again.
+  # the family's slowest gate — `eval` beside it is ~1m40s now that it keeps its
+  # Nix store between runs, and a PR waits for the slower of the two. Split four
+  # ways the longest of them is under a minute (measured: lint 23s, rooms 53s,
+  # draw 55s, agents 58s), so the shell half is no longer the pole and has room
+  # to grow before it is one again. The run went 2m30s → 1m43s.
   #
   # The grouping is by what a suite NEEDS, never by count. Fifty jobs would be
   # SLOWER, not faster: the gate is the longest job rather than the total, and
