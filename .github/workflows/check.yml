@@ -8,6 +8,15 @@ on:
   # having to push to main first.
   workflow_dispatch:
 
+# A lane pushes the same branch several times a minute, and the runs those
+# pushes supersede are answering a question nobody is asking any more — nine of
+# the last hundred runs here were still going when their replacement started.
+# main is exempt: `factory shift` reads main's most recent run to decide the
+# base is healthy, so its history of green runs has to stay unbroken.
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   eval:
     name: eval the example host
