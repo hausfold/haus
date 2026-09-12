@@ -1259,11 +1259,32 @@
                 "helix"
                 "zed"
               ];
+              # The Nix language server is the one thing in this table that is
+              # NOT a consequence of the editor choice: every row should read
+              # `nixd=pkg`, because a haus machine's own config is the file its
+              # owner is most likely to open and the editor will go looking.
+              # `lsp` is the other half of that, and only zed's row can answer
+              # it — the binary in the profile and the path zed's settings.json
+              # names have to be the same file, and nothing at eval time
+              # notices when they stop being (you find out from a popup).
+              nixdPkgs = builtins.filter (p: (p.pname or "") == "nixd") home.home.packages;
+              nixdPath = if nixdPkgs == [ ] then "MISSING" else "${builtins.head nixdPkgs}/bin/nixd";
+              zedNixd =
+                let
+                  us = home.programs.zed-editor.userSettings;
+                in
+                if !(us ? lsp) then
+                  "none"
+                else if us.lsp.nixd.binary.path == nixdPath then
+                  "wired"
+                else
+                  "DRIFTED";
               yn = b: if b then "yes" else "no";
               orNone = xs: if xs == [ ] then "none" else builtins.concatStringsSep "," xs;
             in
             "${name} EDITOR=${home.home.sessionVariables.EDITOR} installed=${installed} "
-            + "helix-pkg=${yn helixPkg} zed-cask=${yn zedCask} themes=${orNone themed} ports=${orNone ports}";
+            + "helix-pkg=${yn helixPkg} zed-cask=${yn zedCask} themes=${orNone themed} ports=${orNone ports} "
+            + "nixd=${if nixdPkgs == [ ] then "NOTHING" else "pkg"} lsp=${zedNixd}";
           editorOverrideRow =
             let
               full = editorHome [
@@ -1302,13 +1323,13 @@
               map editorRow (builtins.attrNames table) ++ [ editorOverrideRow ] ++ map editorTwiceRow caskEditors
             );
           expectedEditorTable = ''
-            cursor EDITOR=cursor -w installed=cask helix-pkg=no zed-cask=no themes=none ports=none
-            helix EDITOR=hx installed=hm helix-pkg=yes zed-cask=no themes=helix ports=helix
-            nano EDITOR=nano installed=pkg helix-pkg=no zed-cask=no themes=none ports=none
-            neovim EDITOR=nvim installed=pkg helix-pkg=no zed-cask=no themes=none ports=none
-            vim EDITOR=vim installed=pkg helix-pkg=no zed-cask=no themes=none ports=none
-            vscode EDITOR=code -w installed=cask helix-pkg=no zed-cask=no themes=none ports=none
-            zed EDITOR=zed --wait installed=cask helix-pkg=no zed-cask=yes themes=zed ports=zed
+            cursor EDITOR=cursor -w installed=cask helix-pkg=no zed-cask=no themes=none ports=none nixd=pkg lsp=none
+            helix EDITOR=hx installed=hm helix-pkg=yes zed-cask=no themes=helix ports=helix nixd=pkg lsp=none
+            nano EDITOR=nano installed=pkg helix-pkg=no zed-cask=no themes=none ports=none nixd=pkg lsp=none
+            neovim EDITOR=nvim installed=pkg helix-pkg=no zed-cask=no themes=none ports=none nixd=pkg lsp=none
+            vim EDITOR=vim installed=pkg helix-pkg=no zed-cask=no themes=none ports=none nixd=pkg lsp=none
+            vscode EDITOR=code -w installed=cask helix-pkg=no zed-cask=no themes=none ports=none nixd=pkg lsp=none
+            zed EDITOR=zed --wait installed=cask helix-pkg=no zed-cask=yes themes=zed ports=zed nixd=pkg lsp=wired
             host override EDITOR=subl -w installed=neovim
             cursor twice cask=cursor name=Cursor
             vscode twice cask=visual-studio-code name=Visual Studio Code

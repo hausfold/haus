@@ -930,6 +930,24 @@ in
         '';
       });
 
+      # What nixd should evaluate to answer "what is this option?" — this
+      # machine's own darwinConfiguration, so hovering `haus.roster` in a host
+      # file gives haus's description and jumps to the declaration in haus's
+      # own modules/options.nix. Without it nixd still knows Nix; it does not
+      # know YOU, which is the half worth having.
+      #
+      # `~/.config/nix` is where the config flake lives — the same assumption
+      # `haus.sh` starts from (its CONSUMER, overridable by $HAUS_CONSUMER),
+      # the palette's rebuild command and the agent instructions all make. An
+      # env var can't reach a JSON settings file, so the escape hatch here is
+      # the ordinary one: a host that keeps its flake elsewhere sets
+      # `programs.zed-editor.userSettings.lsp.nixd.settings` itself.
+      #
+      # The host attribute is read the way `haus` reads it (`host_name`): by
+      # name first, then the only one in the flake — `darwinConfigurations.<x>`
+      # matching the hostname is a convention the bootstrap follows, not a
+      # promise a hand-written flake keeps.
+      nixdConsumer = ''(let cfgs = (builtins.getFlake "${config.home.homeDirectory}/.config/nix").darwinConfigurations; in cfgs."${hostname}" or (builtins.head (builtins.attrValues cfgs)))'';
     in
     {
       home.sessionVariables = {
@@ -952,12 +970,24 @@ in
       # host file, not the public desktop.
       home.packages =
         with pkgs;
+        # nixd, on every machine, gated by nothing. Every haus Mac is
+        # configured in Nix and every owner of one opens
+        # `hosts/<name>/default.nix` sooner or later — and every editor worth
+        # opening it in hunts for a Nix language server on PATH, finds none,
+        # and says so in a popup. That is the first thing a new haus user sees
+        # of their own config. It sits ABOVE the developer pack rather than
+        # inside it for the same reason `haus edit` does: editing your host
+        # file is not a developer activity, it is how this Mac is used.
+        # (`nixfmt` below stays gated — a formatter is a preference; a server
+        # that tells you what the option under your cursor means is the
+        # config being legible at all.)
+        [ nixd ]
         # duti is a roster entry (below, at the darwin level) rather than a
         # bare package — the room that installs an app declares it, and the
         # roster is what makes a second copy from a cask a build warning
         # instead of the silent duplicate it was for months (modules/roster
         # tells the story).
-        lib.optionals devCfg.toolbelt.enable [
+        ++ lib.optionals devCfg.toolbelt.enable [
           chafa # fast terminal image previewer / layout engine
           glowThemed # markdown renderer, Nebelung-styled; NOT pkgs.glow — see
           # the `glowThemed` comment in the let. It ships bin/glow and nothing
@@ -1636,10 +1666,11 @@ in
       #
       # What is set, and only this: the theme (the fixed inner name `zedTheme`
       # renders, placed under home.file below), the mono font the terminal
-      # already wears, and the extensions Zed installs on first launch for the
+      # already wears, the extensions Zed installs on first launch for the
       # languages a haus checkout is written in and Zed does not ship —
       # `auto_install_extensions`, so a machine with no network the first time
-      # simply gets them the next. No keymap, no vim mode, no AI settings:
+      # simply gets them the next — and the Nix language server those
+      # extensions go looking for. No keymap, no vim mode, no AI settings:
       # those are the person's.
       programs.zed-editor = lib.mkIf (terminalCfg.editorName == "zed") {
         enable = true;
@@ -1656,6 +1687,30 @@ in
           theme = "Nebelung";
           buffer_font_family = fontsCfg.mono.name;
           terminal.font_family = fontsCfg.mono.name;
+
+          # One Nix language server, named. The extension registers BOTH nil
+          # and nixd and Zed starts every server a language declares, so the
+          # one you didn't install greets you with "not available in your
+          # environment (PATH)" on the first .nix file you open. nixd is the
+          # one that can be pointed at this flake; nil cannot.
+          languages.Nix.language_servers = [
+            "nixd"
+            "!nil"
+          ];
+
+          lsp.nixd = {
+            # The store path, not the name. Zed finds a binary by asking your
+            # login shell for its PATH, which is a step that can fail quietly
+            # (a shell that isn't zsh, a launch before the profile is linked);
+            # activation rewrites settings.json on every rebuild, so this
+            # tracks the nixd that rebuild installed.
+            binary.path = "${pkgs.nixd}/bin/nixd";
+            settings = {
+              nixpkgs.expr = "${nixdConsumer}.pkgs";
+              options.darwin.expr = "${nixdConsumer}.options";
+              options.home-manager.expr = "${nixdConsumer}.options.home-manager.users.type.getSubOptions []";
+            };
+          };
         };
       };
 
