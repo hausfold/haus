@@ -40,41 +40,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: nixbuild/nix-quick-install-action@v35
-        with:
-          # `nix store gc` before the save would otherwise evict the flake
-          # inputs and the intermediate derivations — everything the next run
-          # wants and only the final `result` is rooted — and the restored
-          # cache would be worth nothing. These two make what the build used
-          # reachable, which is what makes it survive.
-          nix_conf: |
-            keep-env-derivations = true
-            keep-outputs = true
       # The eval pulls nixpkgs and `nix flake check` BUILDS twenty-four check
       # derivations; without a store to come back to, every run paid for both
       # from scratch. The key is the flake inputs and the nix sources, so a
       # lock bump or a module edit pays full price and everything else — a
       # docs change, a shell script, a bats fixture — restores.
-      #
-      # A PR restores what main last saved (GitHub scopes caches to a ref and
-      # lets a branch read its base), so the saving half only happens on main.
       - name: Restore the Nix store
         uses: nix-community/cache-nix-action@v7
         with:
           primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock', '**/*.nix') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-
-          # GitHub evicts least-recently-used once a repo passes 10G. Staying
-          # under 4G means we never make that decision for it, and never evict
-          # another workflow's cache to hold ours.
-          gc-max-store-size-linux: 4G
+          # Only a push to main writes a cache, and this line is what makes
+          # that true — GitHub's ref scoping governs READS, not writes. Left on
+          # the default, every PR would upload its own multi-gigabyte copy
+          # scoped to `refs/pull/N/merge`; this repo is MADE of .nix files, so
+          # nearly every PR misses the key, and two open ones would push us past
+          # GitHub's 10 GB budget. Its LRU eviction would then take the main
+          # entry this whole thing exists for.
+          save: ${{ github.event_name != 'pull_request' }}
           purge: true
           purge-prefixes: nix-${{ runner.os }}-
           purge-created: 0
           purge-primary-key: never
-      # Pure evaluation of the full darwin system — catches syntax errors, bad
-      # option names, and broken module wiring before any consumer does. (Eval
-      # is platform-independent; no macOS runner needed until we *build*.)
-      # aarch64 only: nixpkgs 26.11 dropped x86_64-darwin, so there's no Intel
-      # example left to eval (see flake.nix `allSystems`).
+      # No `gc-max-store-size-*` is set, so the action collects no garbage and
+      # saves the store whole. That is not a default worth overriding here:
+      # this job runs `nix eval` and `nix flake check` and never `nix build`,
+      # so it creates NO gcroot at all, and a collector run before the save
+      # would empty almost everything it had just fetched and built. The cost
+      # is that the store carries forward and creeps; the line below is how
+      # that stays readable rather than arriving as a surprise eviction at
+      # GitHub's 10 GB per-repo ceiling.
+      - name: How big a store we are carrying
+        run: du -sh /nix/store
       - run: nix eval .#darwinConfigurations.example.system.drvPath
       # The platform-independent checks are declared for Linux too precisely so
       # they can run HERE — TWENTY-FOUR of them, everything in flake.nix's `checks`
