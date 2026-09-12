@@ -61,11 +61,25 @@ jobs:
   #             than as a fourth job: everything else here is already smaller
   #             than the restore standing in front of it.
   #
-  # Three jobs and not six, for the shell half's reason one line down from
-  # here: the gate is the longest job, not the total, and every job pays
-  # checkout, the Nix install and a cache RESTORE again. The restore is ~35s
-  # of that and is the largest fixed cost in this half, which makes it the
-  # number a new step is measured against. Under it, join an existing job.
+  # Three jobs and not six, for the reason the shell half's banner further down
+  # gives: the gate is the longest job, not the total, and every job pays
+  # checkout, the Nix install and a cache RESTORE again. The restore is ~35s of
+  # that and is the largest fixed cost in this half, which makes it the number
+  # a new step is measured against. Under it, join an existing job.
+  #
+  # Measured on the split's own first run, 34688533513, warm through the
+  # transitional prefix in each lineage step: eval 57s, checks 56s, acquire
+  # 77s, and the whole `check` run 77s wall against the 99–166s the single job
+  # had been costing. `acquire` is the pole and stays there until that nixfmt
+  # fetch goes.
+  #
+  # One number in that run is expected to FALL and is worth checking once it
+  # has: `checks` restored in 47s where the other two took 34s, because on that
+  # run all three pulled the same pre-split half-gigabyte entry at the same
+  # moment. From the first push to main each restores its own smaller entry
+  # instead. If it has not fallen, the tokened keys are missing and every job
+  # is riding the transitional prefix — which is also what "Restore the Nix
+  # store" logging a key without the job token in it means.
 
   eval:
     name: eval the example host
