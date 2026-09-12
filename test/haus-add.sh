@@ -5,9 +5,10 @@
 # and exactly why this one runs the same way: `modules/core/haus.sh` run
 # directly, under the interpreter resolved below (no derivation may shell out to
 # `nix`), from CI's "acquisition, against a real lock" job, where a real nix
-# exists. It has a job to itself because it is the longest step in that half —
-# see the banner over the nix jobs in .github/workflows/check.yml, which also
-# names where its 36 seconds go.
+# exists. It got a job to itself as the longest step in that half, back when
+# two thirds of its 36 seconds were one registry fetch — see the banner over
+# the nix jobs in .github/workflows/check.yml, and the nixfmt block below for
+# what that fetch was and why it is gone.
 #
 # Runs on Linux: none of this is a Mac — it edits a text file and asks Nix to
 # resolve inputs. `haus rebuild` is never called; every write here stops one
@@ -60,9 +61,22 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 # `nixfmt` as a parser — neither is on a bare CI runner's PATH, so both are
 # resolved the same way this suite resolves everything else: built, not
 # assumed.
+#
+# **nixfmt comes from THIS flake's lock, never the flake REGISTRY.** A bare
+# `nixpkgs#nixfmt` resolves the name through the registry, which unpacks
+# channels.nixos.org's nixexprs.tar.xz into ~/.cache/nix — not the /nix store,
+# so cache-nix-action does not hold it and the fetch is paid warm and cold
+# alike: 24 of this suite's 36 seconds, and what made it the pole of the whole
+# nix half. `--inputs-from "$root"` puts the flake's own inputs in front of the
+# registry, so the name resolves out of flake.lock with no fetch at all — the
+# same nixpkgs `nix fmt` formats with (flake.nix's `formatter`), which is the
+# one this repo is actually formatted by. It does not fall BACK to the
+# registry, which is the property worth keeping: with an empty
+# `--flake-registry` the line below still builds, and the same line without
+# `--inputs-from` fails with "cannot find flake 'flake:nixpkgs'".
 show="$(nix build --no-link --print-out-paths "$root#show")/bin/haus-show"
 check="$(nix build --no-link --print-out-paths "$root#desktop-check")/share/haus/desktop-check"
-nixfmt_bin="$(nix build --no-link --print-out-paths nixpkgs#nixfmt)/bin"
+nixfmt_bin="$(nix build --no-link --print-out-paths --inputs-from "$root" nixpkgs#nixfmt)/bin"
 export PATH="$nixfmt_bin:$PATH"
 export HAUS_SHOW="$show"
 export HAUS_DESKTOP_CHECK="$check"

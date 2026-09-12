@@ -53,14 +53,16 @@ jobs:
   #             twenty-nine derivations — and a lock bump makes every run
   #             cold. It is also the step this repo keeps adding to, and the
   #             only one whose store is nobody else's subset.
-  #   acquire   `haus add`/`desktop`/`remove` alone. It is the pole at 36s,
-  #             and 24 of those are `nixpkgs#nixfmt` resolving through the
-  #             flake REGISTRY — it unpacks channels.nixos.org's
-  #             nixexprs.tar.xz into ~/.cache/nix, which the /nix store cache
-  #             does not hold, so that fetch is paid warm and cold alike.
-  #             THAT is the next cut in this half, inside the suite rather
-  #             than as a fourth job: everything else here is already smaller
-  #             than the restore standing in front of it.
+  #   acquire   `haus add`/`desktop`/`remove` alone. It was the pole at 36s,
+  #             24 of which were `nixpkgs#nixfmt` resolving through the flake
+  #             REGISTRY — that unpacks channels.nixos.org's nixexprs.tar.xz
+  #             into ~/.cache/nix, which is not the /nix store, so
+  #             cache-nix-action never held it and the fetch was paid warm and
+  #             cold alike. test/haus-add.sh now takes nixfmt from this
+  #             flake's OWN lock (`--inputs-from`), so the name resolves with
+  #             no fetch at all. Nothing left in this half is bigger than the
+  #             restore standing in front of it, so the next step joins a job
+  #             rather than opening a fourth.
   #
   # Three jobs and not six, for the reason the shell half's banner further down
   # gives: the gate is the longest job, not the total, and every job pays
@@ -71,8 +73,12 @@ jobs:
   # Measured on the split's own first run, 34688533513, warm off the entry
   # the single job had saved, which each lineage step still read then: eval
   # 57s, checks 56s, acquire 77s, and the whole `check` run 77s wall against
-  # the 99–166s the single job had been costing. `acquire` is the pole and stays there until that nixfmt
-  # fetch goes.
+  # the 99–166s the single job had been costing. Taking the nixfmt registry
+  # fetch out of the suite drops `acquire` by those 24s, to about `eval`'s
+  # 57s — which flattens the three and makes the ~35s RESTORE, not any step,
+  # the thing a further split would have to beat. Read a real run before
+  # believing that: `grep 'unpacking' the acquire log — no nixexprs.tar.xz
+  # line is what the cut looks like.
   #
   # ⚠️ Those restores do NOT get smaller at the next push to main, and the
   # first draft of this comment said they would. The store is saved WHOLE —
@@ -524,9 +530,10 @@ jobs:
           echo "prefix=nix-${{ runner.os }}-acquire-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
       # This store is the odd one: `#show`, `#desktop-check` and the nix-darwin
       # a scaffolded consumer locks, none of which the other two jobs fetch.
-      # What it does NOT hold is the reason this job is the pole — see the
-      # `nixpkgs#nixfmt` note in the banner above `eval`. Every input here is
-      # `eval`'s with a different token; read that copy for what each does.
+      # nixfmt is in there too, and is now the flake's own locked one rather
+      # than the registry's — see the `nixpkgs#nixfmt` note in the banner above
+      # `eval` for why that was this job's largest fixed cost. Every input here
+      # is `eval`'s with a different token; read that copy for what each does.
       - name: Restore the Nix store
         uses: nix-community/cache-nix-action@v7
         with:
@@ -556,10 +563,11 @@ jobs:
       # Acquisition step D: `haus add`/`desktop`/`remove` edit a real
       # scaffolded consumer flake.nix and run a real `nix flake lock`, which is
       # exactly why this needs a real nix rather than a flake check — and, at
-      # 36s, why it is a job rather than a step beside `haus show tests`. Both
-      # suites still ask for the same thing, a real `nix eval`; this one just
-      # costs more than the restore in front of it, which is this half's line
-      # for when a step earns a job of its own.
+      # 36s, why it got a job rather than a step beside `haus show tests`. Two
+      # thirds of that was the registry fetch the suite no longer makes, so it
+      # no longer clears this half's bar for a job of its own; it keeps one
+      # because folding it back into `eval` would only move the seconds, and
+      # the two stores are not each other's.
       - name: haus add/desktop/remove tests
         run: bash test/haus-add.sh
 
