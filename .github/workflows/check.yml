@@ -340,7 +340,7 @@ jobs:
   # wrong place cannot break. It still has to be got right when a suite is
   # ADDED, and it still fails the same way if it isn't: a skipped case reads
   # as a pass. Everything else goes with its room — and where that is a
-  # toss-up, the shorter of the two bats jobs.
+  # toss-up, whichever of `agents` and `rooms` is the shorter that week.
   #
   # `bats` is the ONE tool these jobs need that the runner image lacks, and
   # npm is preinstalled, so it comes from npm rather than apt. That is the
