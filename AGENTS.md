@@ -99,7 +99,10 @@ modules/
                           #   floating is a LAYOUT in AeroSpace, not a stacking order). nixd
                           #   ships here and is NOT in the developer pack — every haus Mac is
                           #   configured in Nix, so the server that explains an option is
-                          #   floor, not toolbelt; zed's settings.json names its store path
+                          #   floor, not toolbelt; zed's settings.json and helix's
+                          #   languages.toml both name its store path and both carry the
+                          #   `nixdConsumer` exprs (helix's under a `nixd` key, or nixd
+                          #   reads none of them)
   windows/                # AeroSpace tiling + hausrect (window rects by id, which AeroSpace
                           #   cannot report; scripts/tiling-mode.sh sizes its grid off them)
   bar/                    # SketchyBar + barpop

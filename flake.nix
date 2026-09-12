@@ -1278,18 +1278,33 @@
                 in
                 if !(us ? lsp) then
                   "none"
-                else if us.lsp.nixd.binary.path == nixdPath then
+                else if
+                  us.lsp.nixd.binary.path == nixdPath
+                  && (us.lsp.nixd.settings or { }) ? nixpkgs
+                  &&
+                    us.languages.Nix.language_servers == [
+                      "nixd"
+                      "!nil"
+                    ]
+                then
                   "wired"
                 else
                   "DRIFTED";
-              # helix's half reads one thing zed's cannot: the `nixd` KEY the
-              # exprs sit under. nixd asks the client for section "nixd" over
-              # `workspace/configuration` and ignores initializationOptions, so
-              # exprs written one level up are answered with null — a server
-              # that starts, works, and knows nothing about your machine, with
-              # nothing on any stream to say so. The language entry is read for
-              # the same reason: dropping it puts `nil` back in the list and
-              # helix starts a server this layer never installs.
+              # Both halves read three things, not one, and the extra two are
+              # the same question in each editor's spelling: are the exprs
+              # still there, and is this still the only Nix server named? A
+              # binary path that matches while the settings beside it are gone
+              # is a server that starts, works, and knows nothing about your
+              # machine — the silent half of the drift, and the half a person
+              # would never think to check.
+              #
+              # helix's third read is its `nixd` KEY: nixd asks the client for
+              # section "nixd" over `workspace/configuration` and ignores
+              # initializationOptions entirely, so exprs written one level up
+              # are answered with null, with nothing on any stream to say so.
+              # Its language entry earns its read the same way zed's `"!nil"`
+              # does: drop it and `nil` is back in the list, a server this
+              # layer never installs.
               helixNixd =
                 let
                   ls = home.programs.helix.languages;

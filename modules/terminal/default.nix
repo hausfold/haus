@@ -940,9 +940,11 @@ in
       # `haus.sh` starts from (its CONSUMER, overridable by $HAUS_CONSUMER),
       # the palette's rebuild command and the agent instructions all make. An
       # env var can't reach a settings file, so the escape hatch here is the
-      # ordinary one: a host that keeps its flake elsewhere sets
+      # ordinary one: a host that keeps its flake elsewhere writes
       # `programs.zed-editor.userSettings.lsp.nixd.settings` or
-      # `programs.helix.languages.language-server.nixd.config` itself.
+      # `programs.helix.languages.language-server.nixd.config.nixd` itself —
+      # under `lib.mkForce`, since both are set here at plain priority and a
+      # second definition of the same leaf is a conflict, not an override.
       #
       # The host attribute is read the way `haus` reads it (`host_name`): by
       # name first, then the only one in the flake — `darwinConfigurations.<x>`
@@ -1595,13 +1597,22 @@ in
         enable = true;
 
         # The same nixd wiring zed gets, in helix's spelling —
-        # `~/.config/helix/languages.toml`. Helix already NAMES nixd for .nix
-        # files (its built-in languages.toml lists `[ "nil", "nixd" ]`), so a
-        # haus machine starts the server without this; what it does not have
-        # without this is the two things worth having, and both are silent when
-        # missing: the settings that point nixd at YOUR machine, and nil's
-        # removal from that list — helix starts every server a language names,
-        # and nil is not a package haus installs.
+        # `~/.config/helix/languages.toml`. Not the same OWNERSHIP, and the
+        # difference is worth knowing before you carry zed's sentence over:
+        # zed's settings.json is merged and mutable, this file is a store
+        # symlink, so a helix user who already had a languages.toml gets the
+        # treatment every home-managed file gives a real one — renamed
+        # `.backup` on a machine built by `mkHaus`, a refusal to activate on
+        # one composing `darwinModules.*` by hand — and adds their own
+        # language entry through this option or not at all.
+        #
+        # Helix already NAMES nixd for .nix files (its built-in languages.toml
+        # lists `[ "nil", "nixd" ]`), so a haus machine starts the server
+        # without any of this. What it does not get without this is the two
+        # things worth having, both silent when missing: the settings that
+        # point nixd at YOUR machine, and nil's removal from that list — helix
+        # starts every server a language names, and nil is not a package haus
+        # installs.
         languages = {
           language-server.nixd = {
             # The store path, for the reason zed's `binary.path` carries one:
