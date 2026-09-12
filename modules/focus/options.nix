@@ -134,8 +134,11 @@
         It ends only the quiet it started. A quiet you switch off and on again
         while the timer runs is a different quiet — one you chose — and the
         timer forgets itself rather than ending it; so does entering a scene,
-        which owns the whole state while it runs. `focus timer` says what is
-        left, and `focus timer off` drops the countdown while keeping you quiet.
+        which owns the whole state while it runs. It checks about once a
+        minute, including for Focus turned off from Control Center or a phone,
+        so off-and-straight-back-on inside one of those gaps is the sequence it
+        can miss. `focus timer` says what is left, and `focus timer off` drops
+        the countdown while keeping you quiet.
       '';
     };
 

@@ -34,8 +34,11 @@ mkdir -p "$TMP/bin" "$TMP/home"
 # `focus_state` falls back to that file with no pounce and no Assertions.json —
 # so a stub that exits 0 is a whole working DND switch as far as the engine can
 # tell.
+# It logs, because "did anything press the DND chord?" is the only way to tell
+# a fuse that dropped itself from one that quietly un-quieted the Mac.
 cat >"$TMP/bin/osascript" <<'EOF'
 #!/usr/bin/env bash
+printf 'press\n' >>"${PRESSES:-/dev/null}"
 exit 0
 EOF
 
@@ -49,15 +52,32 @@ printf '%s\n' "$*" >>"${LAUNCHCTL_LOG:-/dev/null}"
 exit 0
 EOF
 
-# Only `-r <epoch>` is ours: it is the clock time in the confirmation line, and
-# GNU date spells it as a file reference. The engine reads the clock through
-# FOCUS_NOW here, never through this.
+# A clock in a file, so the run loop below can be driven wake by wake. Most of
+# the suite pins the time with FOCUS_NOW, which wins over this; the arms that
+# exercise the LOOP leave it unset, because a loop needs a clock that moves.
+# `-r <epoch>` is the clock time in the confirmation line, and GNU date spells
+# that as a file reference, so it is stubbed either way.
 cat >"$TMP/bin/date" <<'EOF'
 #!/usr/bin/env bash
 case "${1:-}" in
+    +%s) /bin/cat "$CLOCK" ;;
     -r) printf '09:41\n' ;;
     *) exec /bin/date "$@" ;;
 esac
+EOF
+
+# The wait, which never waits: it MOVES the clock by exactly what it was asked
+# to sleep, which is what the real one does as far as the engine can tell, and
+# runs a whole twenty-five minutes in a few milliseconds. It also counts its
+# wakes, and can be handed one thing to do on the first of them — that is how
+# a claim is made to go void mid-flight, the way an iPhone does it, with no
+# verb of ours involved.
+cat >"$TMP/bin/sleep" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$(($(/bin/cat "$CLOCK") + ${1:-0}))" >"$CLOCK"
+printf '%s\n' "${1:-0}" >>"$SLEEPS"
+if [ -n "${SLEEP_HOOK:-}" ] && [ "$(/usr/bin/wc -l <"$SLEEPS")" -eq 1 ]; then eval "$SLEEP_HOOK"; fi
+exit 0
 EOF
 
 chmod +x "$TMP/bin/"*
@@ -66,8 +86,13 @@ export HOME="$TMP/home"
 export FOCUS_OSASCRIPT_BIN="$TMP/bin/osascript"
 export FOCUS_LAUNCHCTL_BIN="$TMP/bin/launchctl"
 export FOCUS_DATE_BIN="$TMP/bin/date"
+export FOCUS_SLEEP_BIN="$TMP/bin/sleep"
 export FOCUS_BAR_POKE_BIN="$TMP/bin/no-such-poke"
 export LAUNCHCTL_LOG="$TMP/launchctl.log"
+export CLOCK="$TMP/clock"
+export SLEEPS="$TMP/sleeps"
+export PRESSES="$TMP/presses"
+printf '1000\n' >"$CLOCK"
 
 STATE="$HOME/.local/state/focus"
 TIMER="$STATE/timer.json"
@@ -108,7 +133,12 @@ focus_build_engine "$ROOT/modules/focus/focus.sh" "$TMP/scenes.json" "$TMP/no-su
 f() { "$TMP/focus" "$@" 2>/dev/null; }
 quiet_now() { f status; }
 entry_now() { /bin/cat "$STATE/quiet-entry" 2>/dev/null || echo 0; }
-reset() { rm -rf "$STATE"; }
+reset() {
+    rm -rf "$STATE"
+    rm -f "$SLEEPS" "$PRESSES"
+    printf '1000\n' >"$CLOCK"
+}
+presses() { /usr/bin/wc -l <"$PRESSES" 2>/dev/null | /usr/bin/tr -d ' ' || echo 0; }
 
 # ---------------------------------------------------------------------------
 # 1. The whole feature in five lines: quiet now, quiet off at the end of it.
@@ -265,5 +295,39 @@ refusal=$(FAKE_LAUNCHCTL_FAIL=1 "$TMP/focus" 25 2>&1 || true)
 printf '%s' "$refusal" | grep -q "'focus off' ends it" \
     || fail "the refusal does not say how to undo the quiet it left on"
 ASSERTIONS=$((ASSERTIONS + 1))
+
+# ---------------------------------------------------------------------------
+# 12. THE RUN CHECKS ITS CLAIM ON EVERY WAKE, not only at the end.
+#
+# This is the fuse answering for its own rule rather than borrowing somebody
+# else's poll. DND flipped from Control Center or an iPhone reaches no verb
+# here at all, so a run that slept the whole twenty-five minutes in one go
+# would wake into a Mac it knows nothing about and un-quiet it. The bar's own
+# poll would usually catch it first — and the bar is a different room, off on
+# plenty of Macs, which is exactly the kind of thing this rule may not rest on.
+#
+# No FOCUS_NOW here: the loop needs a clock that moves, and the stubbed sleep
+# is what moves it.
+reset
+f 25
+before=$(presses)
+SLEEP_HOOK="printf 'off\n' >$STATE/state" f _timer
+assert_no_timer "a fuse whose quiet went out under it drops itself mid-flight"
+assert_eq "$(presses)" "$before" "and presses nothing on the way out:"
+# The wait is BOUNDED, which is what makes the check above happen at all: a
+# single `sleep 1500` would reach the claim once, at the end, too late.
+assert_eq "$(/usr/bin/head -1 "$SLEEPS")" 60 "the wait is bounded rather than the whole fuse:"
+
+# The other half: a claim that holds all the way through still fires, after as
+# many wakes as the fuse is long. The loop must not lose a fuse it is holding.
+reset
+f 25
+before=$(presses)
+f _timer
+assert_eq "$(quiet_now)" off "a fuse checked all the way down still ends the quiet:"
+assert_eq "$(presses)" "$((before + 1))" "with exactly one press:"
+assert_eq "$(/usr/bin/wc -l <"$SLEEPS" | /usr/bin/tr -d ' ')" 25 \
+    "after one wake per bounded wait, all the way down:"
+assert_no_timer "and nothing left over"
 
 printf 'ok - focus timer: %s assertions\n' "$ASSERTIONS"

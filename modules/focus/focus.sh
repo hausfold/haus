@@ -106,6 +106,11 @@ PMSET="${FOCUS_PMSET_BIN:-/usr/bin/pmset}"
 # claim rule can be run rather than read. Nothing else sets them.
 LAUNCHCTL="${FOCUS_LAUNCHCTL_BIN:-/bin/launchctl}"
 OSASCRIPT="${FOCUS_OSASCRIPT_BIN:-/usr/bin/osascript}"
+# The timer's wait. Overridable so the suite can move a fake clock instead of
+# waiting on a real one — a whole twenty-five minutes, wake by wake, in a few
+# milliseconds, which is the only way the run loop's claim check is something
+# that gets RUN.
+SLEEP="${FOCUS_SLEEP_BIN:-/bin/sleep}"
 NETWORKSETUP="${FOCUS_NETWORKSETUP_BIN:-/usr/sbin/networksetup}"
 SYSTEM_PROFILER="${FOCUS_SYSTEM_PROFILER_BIN:-/usr/sbin/system_profiler}"
 # The displays room's helper, when this machine has it: one CGGetActiveDisplayList
@@ -203,7 +208,16 @@ quiet_entry_id() {
     case "$n" in "" | *[!0-9]*) echo 0 ;; *) echo "$n" ;; esac
 }
 
-quiet_entry_bump() { printf '%s\n' "$(($(quiet_entry_id) + 1))" >"$QUIET_ENTRY"; }
+# Through a temp file, like the Slack stash above and the timer below, and for
+# the same reason: a redirect truncates the moment the pipeline is set up, and
+# `timer_claim` reads BOTH of these on the bar's every tick and treats anything
+# it cannot parse as a void fuse — which it then deletes. A read that landed in
+# the truncation window would end a live timer and leave the Mac quiet with
+# nothing counting down.
+quiet_entry_bump() {
+    local next="$QUIET_ENTRY.tmp"
+    printf '%s\n' "$(($(quiet_entry_id) + 1))" >"$next" && /bin/mv -f "$next" "$QUIET_ENTRY"
+}
 
 # Press the DND chord. Preferred: `pounce focus toggle` — since pounce 0.4.3
 # the CLI forwards the press to the resident daemon whenever the calling
@@ -846,9 +860,12 @@ timer_arm() { # $1 = seconds
     quiet_entry_bump
     until=$(($(now) + seconds))
     token="$until-$$-${RANDOM:-0}"
+    # Temp file then rename, so the fuse appears whole or not at all — the bar
+    # reads it every tick, and a half-written one reads as void and is deleted.
     if ! "$JQ" -n --arg t "$token" --argjson u "$until" --argjson e "$(quiet_entry_id)" \
-        '{token:$t,until:$u,entry:$e}' >"$TIMER_FILE" 2>/dev/null; then
-        /bin/rm -f "$TIMER_FILE"
+        '{token:$t,until:$u,entry:$e}' >"$TIMER_FILE.tmp" 2>/dev/null \
+        || ! /bin/mv -f "$TIMER_FILE.tmp" "$TIMER_FILE" 2>/dev/null; then
+        /bin/rm -f "$TIMER_FILE.tmp" "$TIMER_FILE"
         note "could not write the timer — quiet is on; 'focus off' ends it"
         exit 1
     fi
@@ -856,7 +873,13 @@ timer_arm() { # $1 = seconds
     # `focus 25` replaces the first rather than racing it.
     if ! "$LAUNCHCTL" kickstart -k "$(timer_domain)" >/dev/null 2>&1; then
         /bin/rm -f "$TIMER_FILE"
-        note "could not start $TIMER_LABEL — rebuild once so its launchd job is loaded."
+        # Two ways to get here and they want different answers: the job is not
+        # loaded (a fresh install before its first rebuild), or there is no GUI
+        # session for `gui/<uid>/…` to resolve in, which is every ssh login and
+        # not a fault at all. Naming both beats sending someone to a rebuild
+        # that changes nothing.
+        note "could not start $TIMER_LABEL — rebuild once if this Mac has never"
+        note "run one, or run this at the machine: a timer needs a logged-in session"
         note "quiet is on and will stay on; 'focus off' ends it"
         exit 1
     fi
@@ -889,15 +912,32 @@ timer_fire() { # $1 = the token this run armed under
     notify "Quiet is off — the timer ran out"
 }
 
+# How long a single sleep inside the run below may be. It is what makes the
+# claim check above something that RUNS rather than something that is merely
+# read: see timer_run.
+TIMER_TICK=60
+
 # The launchd one-shot behind `focus 25`. It sleeps out what is left of the
-# fuse and then fires it.
+# fuse, checking on every wake that there is still a fuse to sleep out, and
+# then fires it.
 #
-# A LOOP rather than one sleep, because the clock and the sleep disagree across
-# a lid close: a Mac that suspends for an hour mid-fuse comes back with the
-# sleep either finished early or not finished at all, and only the timestamp
-# knows which. Re-reading the clock after every wait makes both cases the same
-# case — and a fuse whose moment passed while the Mac was shut fires on the way
-# back up rather than at 3am tomorrow.
+# A LOOP rather than one sleep, for two reasons that want the same shape:
+#
+#   * THE CLOCK AND THE SLEEP DISAGREE ACROSS A LID CLOSE. A Mac that suspends
+#     for an hour mid-fuse comes back with the sleep either finished early or
+#     not finished at all, and only the timestamp knows which. Re-reading the
+#     clock after every wait makes both cases the same case, and a fuse whose
+#     moment passed while the Mac was shut fires on the way back up rather than
+#     at 3am tomorrow.
+#   * THE CLAIM CAN GO VOID WHILE IT SLEEPS, in a way nothing tells us about.
+#     DND flipped from Control Center or an iPhone never reaches a verb here,
+#     so a fuse that only checked at the end would burn through a quiet the
+#     person chose in between — the one thing this feature may not do. Checking
+#     on each wake makes the fuse answer for its own rule instead of borrowing
+#     the bar's poll, which is a different room's and off on a Mac with no bar.
+#
+# One `focus_state` read a minute, and only while a fuse is burning, which is
+# strictly less than the pill's own 30-second poll costs on the same Mac.
 timer_run() {
     local until token current remaining child=0
     [ -f "$TIMER_FILE" ] || exit 0
@@ -909,13 +949,22 @@ timer_run() {
         ;;
     esac
     while :; do
+        # `timer_claim` deletes a fuse it finds void, so this both stops the run
+        # and clears the countdown off the bar in one move.
+        timer_claim || exit 0
+        [ "$(timer_read .token)" = "$token" ] || exit 0
         current=$(now)
         remaining=$((until - current))
         [ "$remaining" -gt 0 ] || break
-        /bin/sleep "$remaining" &
+        [ "$remaining" -gt "$TIMER_TICK" ] && remaining=$TIMER_TICK
+        "$SLEEP" "$remaining" &
         child=$!
-        # A TERM from `timer_cancel` or from a replacing `kickstart -k` means
-        # the fuse is gone: take the sleep down with us and change nothing.
+        # A TERM from `timer_cancel` means the fuse is gone: take the sleep down
+        # with us and change nothing. A replacing `kickstart -k` is the harder
+        # signal — it does not promise a TERM — so the replacement instance is
+        # what makes a re-arm correct, by writing a new token this run checks
+        # for above; an orphaned sleep is all that can survive it, and it ends
+        # at its own deadline.
         trap 'if [ "$child" -gt 0 ]; then /bin/kill "$child" 2>/dev/null || true; fi; exit 0' TERM INT HUP
         wait "$child" || true
         child=0

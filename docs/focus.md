@@ -100,10 +100,14 @@ actually about is **a quiet the fuse never armed** — and unlike the trigger
 daemon, which acts with nothing on screen, the countdown has been on the bar
 since you set it, so nothing the fuse does is a surprise.
 
-One blind spot, the room's existing one: DND toggled from Control Center or
-your phone never reaches the counter, so quiet switched off and on again *that*
-way leaves the fuse burning. It ends the quiet at the minute the pill has been
-counting down to all along.
+The check is the fuse's own, on a bounded wait rather than at the end: the
+launchd job wakes about once a minute and asks the three questions again. That
+is what lets it answer for DND toggled from Control Center or a phone, which
+reaches no verb here at all — the fuse sees the Mac stop being quiet and drops
+itself. The residue is one minute wide: quiet switched off and straight back on
+inside a single gap is the one sequence it can miss. Checking at the end
+instead, and letting the bar's poll be the sweep, would have been a rule that
+holds only on a Mac with a bar — and the bar is a different room.
 
 ## Scenes
 

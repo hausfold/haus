@@ -444,8 +444,8 @@ PR; hardcoded identity. Advisory, never a gate.
     `haus.bar.widgets.<name>.interval` against; `modules/bar/widgets.nix`'s
     `interval` is only that option's DEFAULT and must agree —
     `bar-widget-intervals` refuses a disagreement, `manifest.nix`'s
-    `bar-widget-header` a header the parser can't see. Only battery, wifi,
-    volume, elgato, trill and focus have no header. A `style` writing
+    `bar-widget-header` a header the parser can't see. Every bundled pill
+    carries one. A `style` writing
     `--set update_freq` beside a header interval throws in `frameworkItem`;
     `calendar` is the legal shape (`haus.bar.calendar.refresh` through `style`).
   - **A stranger's widget is the same file**, named in

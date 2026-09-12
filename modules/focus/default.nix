@@ -234,6 +234,11 @@ lib.mkMerge [
         emptyWindow = n: window n != "" && lib.substring 0 5 (window n) == lib.substring 6 5 (window n);
         badWindows = lib.filter badWindow names;
         emptyWindows = lib.filter emptyWindow names;
+        # `focus <minutes>` caps at a day, and the type here cannot: a palette
+        # row for 1500 would install, and then print the usage text at whoever
+        # ran it. The engine's ceiling is the one fact, so eval is where the
+        # second copy of it has to be checked against it.
+        badTimers = lib.filter (m: m > 1440) cfg.timers;
       in
       [
         {
@@ -263,6 +268,16 @@ lib.mkMerge [
             "09:00-17:00" — an end earlier than the start wraps midnight, so
             "22:00-06:00" is one night. The engine can only answer yes or no about
             a window, so anything else would simply never match.
+          '';
+        }
+        {
+          assertion = badTimers == [ ];
+          message = ''
+            haus.focus.timers has ${lib.concatMapStringsSep ", " toString badTimers}
+            in it, and `focus <minutes>` refuses anything over 1440 — a whole day
+            is the ceiling, because past that you want a scene, which has a name
+            and can say what else it changes. The palette row would install and
+            then print the usage text at you, which is a row that cannot work.
           '';
         }
         {
