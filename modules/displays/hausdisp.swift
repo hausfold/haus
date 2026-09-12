@@ -4,6 +4,24 @@
 //   hausdisp list
 //   hausdisp resolve <selector> <intent>    # print the target mode, change nothing
 //   hausdisp apply   <selector> <intent>    # set it, permanently, idempotently
+//   hausdisp arrange <selector> <side> <of> <align> [--dry-run]
+//                                          # move it beside another panel,
+//                                          # permanently, idempotently
+//
+// `arrange` is the write half of arrangement. The READ half (`list`'s `at x,y`)
+// shipped first: arrangement is a RELATION between two panels, not a fact about
+// one, so the option states the relation (side, `of`, align) and the origins
+// are COMPUTED here from each panel's current point size — the same
+// derived-not-tabulated taste as the mode ladder. Because origins are in
+// points, a uiScale change MOVES every origin; the room applies every uiScale
+// entry before any arrange entry, so a profile never computes against a stale
+// point size. `of` names a selector this file already resolves (internal | main
+// | <uuid>), and a display is placed BESIDE `of` — never re-anchored to the
+// origin. One consequence is load-bearing: macOS makes a display MAIN by
+// putting it at (0, 0), and a relation can put one there, so main is part of
+// what an arrangement asserts. `--dry-run` prints the computed origin and
+// touches nothing — a mis-arranged desk is felt instantly and cannot be undone
+// blind, so the dry run is the way a value is chosen, not a garnish.
 //
 // `list` also reports the two facts this room shipped a vocabulary for and could
 // not previously answer: what macOS CALLS each panel, and WHERE each one sits in
@@ -66,6 +84,55 @@ enum Intent: String, CaseIterable {
 func die(_ message: String, code: Int32) -> Never {
     FileHandle.standardError.write(Data("hausdisp: \(message)\n".utf8))
     exit(code)
+}
+
+// sides and the aligns each one accepts, as one table so the validation and
+// the error message cannot disagree. `top`/`bottom`/`left`/`right` pin the
+// shared edges; `center` centres on the other axis.
+let SIDE_ALIGNS: [String: [String]] = [
+    "right-of": ["top", "center", "bottom"],
+    "left-of": ["top", "center", "bottom"],
+    "above": ["left", "center", "right"],
+    "below": ["left", "center", "right"],
+]
+
+/// The origin that puts `moved` beside `target` — by relation, in the global
+/// point space both bounds already share. Points, not modes: this is what a
+/// uiScale applied FIRST buys.
+func arrangeOrigin(moved: CGRect, target: CGRect, side: String, align: String) -> (x: Int, y: Int) {
+    let mw = Int(moved.width.rounded()), mh = Int(moved.height.rounded())
+    let tx = Int(target.origin.x.rounded()), ty = Int(target.origin.y.rounded())
+    let tw = Int(target.width.rounded()), th = Int(target.height.rounded())
+    var x: Int, y: Int
+    switch side {
+    case "right-of":
+        (x, y) = (tx + tw, 0)
+    case "left-of":
+        (x, y) = (tx - mw, 0)
+    case "above":
+        (x, y) = (0, ty - mh)
+    case "below":
+        (x, y) = (0, ty + th)
+    default:
+        fatalError("unvalidated side")
+    }
+    switch (side, align) {
+    case ("right-of", "top"), ("left-of", "top"):
+        y = ty
+    case ("right-of", "center"), ("left-of", "center"):
+        y = ty + (th - mh) / 2
+    case ("right-of", "bottom"), ("left-of", "bottom"):
+        y = ty + th - mh
+    case ("above", "left"), ("below", "left"):
+        x = tx
+    case ("above", "center"), ("below", "center"):
+        x = tx + (tw - mw) / 2
+    case ("above", "right"), ("below", "right"):
+        x = tx + tw - mw
+    default:
+        break
+    }
+    return (x, y)
 }
 
 func activeDisplays() -> [CGDirectDisplayID] {
@@ -247,8 +314,11 @@ func describe(_ id: CGDirectDisplayID) {
 // ---- main -------------------------------------------------------------------
 
 let args = Array(CommandLine.arguments.dropFirst())
+let usage =
+    "usage: hausdisp list | resolve <selector> <intent> | apply <selector> <intent> | "
+    + "arrange <selector> <side> <of> <align> [--dry-run]"
 guard let command = args.first else {
-    die("usage: hausdisp list | resolve <selector> <intent> | apply <selector> <intent>", code: 64)
+    die(usage, code: 64)
 }
 
 if command == "list" {
@@ -258,8 +328,71 @@ if command == "list" {
     exit(0)
 }
 
+if command == "arrange" {
+    let dryRun = args.contains("--dry-run")
+    let positional = args.filter { $0 != "--dry-run" }
+    guard positional.count == 5 else {
+        die(usage, code: 64)
+    }
+    let selector = positional[1], side = positional[2], ofSelector = positional[3], align = positional[4]
+    guard let legal = SIDE_ALIGNS[side] else {
+        die("unknown side '\(side)' (want: \(SIDE_ALIGNS.keys.sorted().joined(separator: " | ")))", code: 64)
+    }
+    guard legal.contains(align) else {
+        die("align '\(align)' does not fit side '\(side)' (want: \(legal.joined(separator: " | ")))", code: 64)
+    }
+
+    // Exit 2 for EITHER display: an arrangement is about a desk, and an
+    // undocked one has no such desk. Callers already treat 2 as a skip.
+    guard let movedId = resolveDisplay(selector) else {
+        die("no attached display matches '\(selector)'", code: 2)
+    }
+    guard let targetId = resolveDisplay(ofSelector) else {
+        die("no attached display matches '\(ofSelector)' — the display '\(selector)' is to sit beside", code: 2)
+    }
+
+    let before = CGDisplayBounds(movedId)
+    let target = CGDisplayBounds(targetId)
+    let origin = arrangeOrigin(moved: before, target: target, side: side, align: align)
+    let becomesMain = origin.x == 0 && origin.y == 0
+    let detail = "\(side) \(ofSelector), aligned \(align)"
+
+    if dryRun {
+        print(
+            "hausdisp: \(selector) → \(origin.x),\(origin.y)pt  (\(detail))"
+            + (becomesMain ? "\nhausdisp: \(origin.x),\(origin.y) is the origin — \(selector) becomes main" : ""))
+        exit(0)
+    }
+
+    // Re-applying an already-current arrangement is a no-op, so a rebuild
+    // doesn't flash the screen — same contract as `apply`.
+    let current = (Int(before.origin.x.rounded()), Int(before.origin.y.rounded()))
+    if current == (origin.x, origin.y) {
+        print("hausdisp: \(selector) already at \(origin.x),\(origin.y) (\(detail))")
+        exit(0)
+    }
+
+    // Same transaction `apply` uses, completed `.permanently` so the
+    // arrangement survives a reboot. CGConfigureDisplayOrigin is the one call
+    // that moves a display — and, put at (0, 0), the one that makes it main.
+    var config: CGDisplayConfigRef?
+    guard CGBeginDisplayConfiguration(&config) == .success, let config else {
+        die("could not begin a display configuration", code: 1)
+    }
+    guard CGConfigureDisplayOrigin(config, movedId, Int32(origin.x), Int32(origin.y)) == .success else {
+        CGCancelDisplayConfiguration(config)
+        die("could not stage \(origin.x),\(origin.y) on '\(selector)'", code: 1)
+    }
+    let result = CGCompleteDisplayConfiguration(config, .permanently)
+    guard result == .success else {
+        die("could not move '\(selector)' to \(origin.x),\(origin.y) (CGError \(result.rawValue))", code: 1)
+    }
+    print("hausdisp: \(selector) → \(origin.x),\(origin.y)  (\(detail))")
+    exit(0)
+}
+
 guard command == "resolve" || command == "apply", args.count == 3 else {
-    die("usage: hausdisp list | resolve <selector> <intent> | apply <selector> <intent>", code: 64)
+    die(usage, code: 64)
 }
 let selector = args[1]
 guard let intent = Intent(rawValue: args[2]) else {

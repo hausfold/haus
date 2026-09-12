@@ -92,6 +92,89 @@
             the next activation you run while logged in.
           '';
         };
+        options.arrangement = lib.mkOption {
+          type = lib.types.nullOr (
+            lib.types.submodule {
+              options = {
+                side = lib.mkOption {
+                  type = lib.types.enum [
+                    "right-of"
+                    "left-of"
+                    "above"
+                    "below"
+                  ];
+                  example = "right-of";
+                  description = ''
+                    Which side of the other display this one sits on.
+                  '';
+                };
+                of = lib.mkOption {
+                  type = lib.types.str;
+                  example = "internal";
+                  description = ''
+                    Which display this one is placed beside — `internal`, `main`,
+                    or a persistent display UUID, the same selectors
+                    `haus.displays` is keyed by. May not name this display itself.
+                  '';
+                };
+                align = lib.mkOption {
+                  type = lib.types.nullOr (
+                    lib.types.enum [
+                      "top"
+                      "center"
+                      "bottom"
+                      "left"
+                      "right"
+                    ]
+                  );
+                  default = null;
+                  example = "top";
+                  description = ''
+                    Along the other axis: `top`/`center`/`bottom` for
+                    `right-of`/`left-of`, `left`/`center`/`right` for
+                    `above`/`below`. null (the default) pins the shared edge —
+                    the top edge for a horizontal side, the left edge for a
+                    vertical one.
+                  '';
+                };
+              };
+            }
+          );
+          default = null;
+          example = {
+            side = "right-of";
+            of = "internal";
+            align = "top";
+          };
+          description = ''
+            Where this display sits relative to another, as a relation rather
+            than a pixel origin — macOS's own arrangement editor, said in a way
+            a desktop can write. The origin is COMPUTED at each activation from
+            both panels' current point sizes, the same derived-not-tabulated
+            taste as `uiScale`, so the same relation follows a scaling change
+            automatically.
+
+            Order is load-bearing: origins are in points, and a `uiScale` change
+            moves every origin, so this room applies every `uiScale` entry
+            before any `arrangement` entry and a profile never computes against
+            a stale point size. Where two displays each carry an `arrangement`,
+            the one named in `of` is placed first, so a desk can be built in
+            relations; a cycle is refused at eval.
+
+            `main` is part of what this asserts, not a separate setting:
+            macOS makes a display main by putting it at the origin (0, 0), and
+            a relation can put one there. When it does, that display becomes
+            main. `hausdisp arrange … --dry-run` prints the origin a relation
+            resolves to before you write it into the host file, and `hausdisp
+            list` prints the `at x,y` to compare it against.
+
+            An arrangement is about a desk, so it applies only while BOTH
+            displays are attached: an absent one is skipped with a note, like
+            an absent `uiScale`, and re-asserted at the next activation after
+            the dock returns. Between activations macOS keeps its own
+            remembered arrangement.
+          '';
+        };
       }
     );
   };

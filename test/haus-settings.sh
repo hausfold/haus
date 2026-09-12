@@ -256,6 +256,9 @@ test "$("${haus[@]}" get displays.internal.uiScale)" = "larger-text"
 grep -q '^  haus\.displays\."37D8832A-2D66-02CA-B9F7-8F30A301B230"\.uiScale = ' \
   "$tmp/hosts/test/settings/displays.37D8832A-2D66-02CA-B9F7-8F30A301B230.uiScale.nix"
 test "$("${haus[@]}" get displays.37D8832A-2D66-02CA-B9F7-8F30A301B230.uiScale)" = "more-space"
+"${haus[@]}" set displays.internal.arrangement.side right-of >/dev/null
+test "$("${haus[@]}" get displays.internal.arrangement.side)" = "right-of"
+"${haus[@]}" reset displays.internal.arrangement.side >/dev/null
 if "${haus[@]}" set displays.internal.noSuchKnob 1 >/dev/null 2>&1; then
   echo "haus set accepted an undeclared option under an attrsOf key" >&2
   exit 1

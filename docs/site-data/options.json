@@ -2530,6 +2530,89 @@
     "readOnly": false,
     "type": "attribute set of (submodule)"
   },
+  "haus.displays.<name>.arrangement": {
+    "declarations": [
+      "modules/displays/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Where this display sits relative to another, as a relation rather\nthan a pixel origin — macOS's own arrangement editor, said in a way\na desktop can write. The origin is COMPUTED at each activation from\nboth panels' current point sizes, the same derived-not-tabulated\ntaste as `uiScale`, so the same relation follows a scaling change\nautomatically.\n\nOrder is load-bearing: origins are in points, and a `uiScale` change\nmoves every origin, so this room applies every `uiScale` entry\nbefore any `arrangement` entry and a profile never computes against\na stale point size. Where two displays each carry an `arrangement`,\nthe one named in `of` is placed first, so a desk can be built in\nrelations; a cycle is refused at eval.\n\n`main` is part of what this asserts, not a separate setting:\nmacOS makes a display main by putting it at the origin (0, 0), and\na relation can put one there. When it does, that display becomes\nmain. `hausdisp arrange … --dry-run` prints the origin a relation\nresolves to before you write it into the host file, and `hausdisp\nlist` prints the `at x,y` to compare it against.\n\nAn arrangement is about a desk, so it applies only while BOTH\ndisplays are attached: an absent one is skipped with a note, like\nan absent `uiScale`, and re-asserted at the next activation after\nthe dock returns. Between activations macOS keeps its own\nremembered arrangement.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "{\n  align = \"top\";\n  of = \"internal\";\n  side = \"right-of\";\n}"
+    },
+    "loc": [
+      "haus",
+      "displays",
+      "<name>",
+      "arrangement"
+    ],
+    "readOnly": false,
+    "type": "null or (submodule)"
+  },
+  "haus.displays.<name>.arrangement.align": {
+    "declarations": [
+      "modules/displays/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Along the other axis: `top`/`center`/`bottom` for\n`right-of`/`left-of`, `left`/`center`/`right` for\n`above`/`below`. null (the default) pins the shared edge —\nthe top edge for a horizontal side, the left edge for a\nvertical one.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"top\""
+    },
+    "loc": [
+      "haus",
+      "displays",
+      "<name>",
+      "arrangement",
+      "align"
+    ],
+    "readOnly": false,
+    "type": "null or one of \"top\", \"center\", \"bottom\", \"left\", \"right\""
+  },
+  "haus.displays.<name>.arrangement.of": {
+    "declarations": [
+      "modules/displays/options.nix"
+    ],
+    "description": "Which display this one is placed beside — `internal`, `main`,\nor a persistent display UUID, the same selectors\n`haus.displays` is keyed by. May not name this display itself.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"internal\""
+    },
+    "loc": [
+      "haus",
+      "displays",
+      "<name>",
+      "arrangement",
+      "of"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.displays.<name>.arrangement.side": {
+    "declarations": [
+      "modules/displays/options.nix"
+    ],
+    "description": "Which side of the other display this one sits on.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"right-of\""
+    },
+    "loc": [
+      "haus",
+      "displays",
+      "<name>",
+      "arrangement",
+      "side"
+    ],
+    "readOnly": false,
+    "type": "one of \"right-of\", \"left-of\", \"above\", \"below\""
+  },
   "haus.displays.<name>.uiScale": {
     "declarations": [
       "modules/displays/options.nix"

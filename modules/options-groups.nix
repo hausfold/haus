@@ -207,6 +207,10 @@ let
     displays = [
       ""
       "<name>.uiScale"
+      "<name>.arrangement"
+      "<name>.arrangement.side"
+      "<name>.arrangement.of"
+      "<name>.arrangement.align"
     ];
     focus = [
       "enable"
