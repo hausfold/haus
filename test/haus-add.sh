@@ -70,7 +70,8 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 # nix half. `--inputs-from "$root"` puts the flake's own inputs in front of the
 # registry, so the name resolves out of flake.lock with no fetch at all — the
 # same nixpkgs `nix fmt` formats with (flake.nix's `formatter`), which is the
-# one this repo is actually formatted by. It does not fall BACK to the
+# one this repo is actually formatted by. Run 34690798332: 38s → 13s, and the
+# job's remaining time is the store restore in front of it. It does not fall BACK to the
 # registry, which is the property worth keeping: with an empty
 # `--flake-registry` the line below still builds, and the same line without
 # `--inputs-from` fails with "cannot find flake 'flake:nixpkgs'".
