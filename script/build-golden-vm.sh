@@ -105,6 +105,43 @@ SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
 # or a store path with a space in it is a string here, never re-parsed.
 guest() { ssh "${SSH_OPTS[@]}" "$GUEST_USER@$IP" bash -s; }
 
+# ---- the key a freshly pulled base does not have ---------------------------
+# "The key is in the guest" is true of a base somebody already prepared and
+# false of one straight out of `tart pull`: the cirruslabs image authenticates
+# admin by PASSWORD only. Every clone inherits that, which is also why the tart
+# adapter's key-only ssh wait times out and `scruff runtime up` reports a
+# failure over a perfectly good running VM. Whoever prepared the last base did
+# this by hand and never wrote it down; the bill was a golden rebuild that died
+# on its first ssh, after the old image had already been deleted to make room
+# (2026-09-12).
+#
+# `expect` and not another ssh flag because password auth wants a TTY. `admin`
+# is cirruslabs' published default for this image rather than a secret; both it
+# and the key are overridable for a base that ships something else.
+PUBKEY_FILE="${HAUS_VM_PUBKEY:-$HOME/.ssh/id_ed25519.pub}"
+GUEST_PASS="${HAUS_VM_PASSWORD:-admin}"
+
+install_guest_key() {
+  [ -r "$PUBKEY_FILE" ] || die "no public key at $PUBKEY_FILE — set HAUS_VM_PUBKEY"
+  command -v expect >/dev/null 2>&1 \
+    || die "the base needs a password login and expect isn't on PATH"
+  local key; key=$(cat "$PUBKEY_FILE")
+  expect <<EXP
+set timeout 45
+log_user 0
+spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  -o PubkeyAuthentication=no -o PreferredAuthentications=password \
+  $GUEST_USER@$IP {mkdir -p ~/.ssh && chmod 700 ~/.ssh && printf '%s\n' '$key' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && echo INSTALLED}
+expect {
+  -re {[Pp]assword:} { send "$GUEST_PASS\r"; exp_continue }
+  "INSTALLED"        { }
+  timeout            { exit 1 }
+  eof                { exit 1 }
+}
+expect eof
+EXP
+}
+
 cleanup_on_fail() {
   [ -n "${BUILT:-}" ] && return 0
   warn "build did not finish — $NAME is left in place for inspection"
@@ -143,12 +180,26 @@ IP=$(tart ip "$NAME" --wait 120) || die "$NAME never got an IP"
 say "$NAME is up at $IP"
 
 say "waiting for sshd…"
+# Two conditions, not one. Key auth is what we want; an open port 22 is what
+# tells us the guest is up and the key is simply absent. Waiting only on key
+# auth burns the full five minutes on a base that will never answer one.
+port_seen=0
+key_ok=
 for _ in $(seq 1 60); do
-  ssh "${SSH_OPTS[@]}" -o BatchMode=yes "$GUEST_USER@$IP" true 2>/dev/null && break
+  ssh "${SSH_OPTS[@]}" "$GUEST_USER@$IP" true 2>/dev/null && { key_ok=1; break; }
+  if nc -z -G 3 "$IP" 22 2>/dev/null; then
+    port_seen=$((port_seen + 1))
+    [ "$port_seen" -ge 3 ] && break   # ~15s of grace after sshd starts listening
+  fi
   sleep 5
 done
-ssh "${SSH_OPTS[@]}" -o BatchMode=yes "$GUEST_USER@$IP" true 2>/dev/null \
-  || die "no passwordless SSH to $GUEST_USER@$IP — the base image is meant to carry the key"
+
+if [ -z "$key_ok" ]; then
+  say "the base answers passwords, not keys — installing $(basename "$PUBKEY_FILE")…"
+  install_guest_key || die "could not install a key on $GUEST_USER@$IP"
+  ssh "${SSH_OPTS[@]}" "$GUEST_USER@$IP" true 2>/dev/null \
+    || die "installed the key and $GUEST_USER@$IP still refuses it"
+fi
 
 # ---- 1.5 wait for the disk to be grown -------------------------------------
 # The cirruslabs base runs tart-guest-agent as a daemon (`--run-daemon` implies
