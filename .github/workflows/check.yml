@@ -597,6 +597,20 @@ jobs:
       - name: a lane with no display
         run: bats test/lane-no-display.bats
 
+      # Where a lane's WINDOW PROCESS stands. A lane spawned by an agent running
+      # `HAUS_LANE_BACKGROUND=1 scruff spawn` from its own shell — the spelling
+      # modules/ai/default.nix hands every agent here — left its Ghostty holding
+      # the SPAWNING lane's checkout as its cwd, because a direct exec inherits
+      # one and a GUI process keeps it for the life of the window. scruff reads
+      # occupancy with `lsof -d cwd`, so `scruff reap` then refused to sweep a
+      # landed lane and named a ghostty pid whose only cure was closing the
+      # window of the lane it had spawned. The launch is lifted out of the
+      # subject and RUN against a stub that records its own cwd, with a control
+      # arm that removes the `cd` and watches the assertion fail. Needs only
+      # bash + bats.
+      - name: where a lane's window is born
+        run: bats test/lane-spawn-cwd.bats
+
       # The launchd wait every GUI agent starts behind — the bar (twice),
       # AeroSpace and pounce. Its second loop used to be an Apple event to
       # System Events, which macOS filed under /bin/bash, so a fresh machine's

@@ -920,6 +920,50 @@ if [ "$backend" = aerospace ]; then
     # PTY and takes a SIGWINCH when the tile lands, so a lane's first frame
     # can be drawn narrow and redrawn. That is a scrollback artifact; the
     # alternative was a full window on the page you were standing on.
+
+    # ── born in /, never in the checkout it was spawned FROM ──────────────
+    # A direct exec inherits this hook's cwd, and this hook inherits its
+    # caller's — and a GUI process keeps the cwd it was born with for the life
+    # of the window.
+    #
+    # Every caller that reaches THIS line sets HAUS_LANE_BACKGROUND (nothing
+    # else fills $ghostty_bin), and there are two. The palette stands in `/`,
+    # because pounce is a launchd agent, so it never leaked one. The other is
+    # an agent running `HAUS_LANE_BACKGROUND=1 scruff spawn` from its own
+    # shell — the spelling modules/ai/default.nix hands every agent on this
+    # machine, and what `/handoff spawn` drives — and that shell is standing
+    # in ANOTHER LANE'S CHECKOUT.
+    #
+    # scruff's occupancy scan is `lsof -d cwd` (internal/occupancy), so that
+    # inherited cwd reads as somebody standing in the SPAWNING lane: `scruff
+    # reap` refuses to sweep it long after its branch landed and its session
+    # is gone, and the refusal names a ghostty pid whose only cure is killing
+    # the window of the lane it spawned. So the one door this desktop tells
+    # agents to use was the one door that pinned the lane behind them.
+    #
+    # MEASURED 2026-09-11, this hook run by hand from a lane checkout:
+    #
+    #   15953 ghostty /Users/julienmartel/.cache/scruff/workshop/spawn-lane-cleanup
+    #
+    # against `/` for all five lanes the palette had spawned on the same
+    # machine — the same script, the same flags, one inherited cwd apart.
+    #
+    # `/` rather than $chat, because `/` is what the `open -na` arm below gets
+    # for free (LaunchServices launches carry no cwd): both paths then leave a
+    # window process standing in no checkout at all, which is the only answer
+    # that cannot pin the wrong one. Nothing inside the window reads it — the
+    # launcher cd's to $chat before `zmx attach`, and Ghostty's own new windows
+    # follow the surface's shell cwd, not the process's.
+    #
+    # `|| true`, not `|| exit 3`: exit 3 is scruff's "no opinion", which hands
+    # the lane back to its built-in and execs the client in the CALLER's pane —
+    # the one thing a background spawn exists to prevent. A cd to `/` has no
+    # real failure mode; this only says which way the impossible case falls,
+    # and a leaked cwd is the smaller of the two.
+    #
+    # Not undone afterwards: everything below is addressed absolutely, and the
+    # watchdog wants the same detachment the spawn does.
+    cd / || true
     nohup "$ghostty_bin" \
       --title="$sess" \
       --initial-command="$launcher" \
