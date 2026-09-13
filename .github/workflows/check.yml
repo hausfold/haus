@@ -228,17 +228,35 @@ jobs:
   # argument for a fourth job either: `acquire`'s note below says why
   # splitting it again only moves the seconds.
   #
-  # The sharpest reading of "the restore is the gate, not the work under it":
-  # `acquire` is currently FASTER with no cache at all — 44s cold against the
-  # 54s warm best of the same eight PR runs above — because 233 MiB from
-  # cache.nixos.org costs less than 909 MiB from GitHub. That was left alone
-  # on the reading that the reset takes the restore to ~10s, which the flat
-  # fit above now doubts: if W38's
-  # first run still restores in ~32s off a ~199 MiB entry, `acquire`'s cache
-  # never pays at any point in the week and dropping it is worth ~15s. Measure
-  # that run before touching it — and if any job in this half carries a store
-  # it does not roughly fill, check the cold number before assuming the cache
-  # pays.
+  # ── The restore against the work, same hour, same runners (2026-09-13) ──
+  #
+  # #735 changes the lineage key, so its PR run built COLD — restore step 0-1s
+  # — while #734's, a comment-only change on the same base minutes earlier,
+  # restored the live entries. Two PR runs, so neither pays a save, which
+  # makes them the one clean A/B this half has had:
+  #
+  #                 cold      warm (restore + work)      the cache
+  #     eval        81s       71s  (44 + 20)              buys 10s
+  #     checks      75s       42s  (34 +  2)              buys 33s
+  #     acquire     45s       71s  (50 + 13)              COSTS 26s
+  #
+  # So `acquire`'s cache is not marginal, it is 26s of pure loss — the 44s
+  # cold against 54s warm this paragraph used to quote was two samples taken a
+  # day apart, and the gap is wider than that made it look. The gate, the
+  # longest job of the run, is 81s cold against 71s warm, which `eval` and
+  # `acquire` tie on; dropping `acquire`'s cache alone would leave the nix
+  # half's gate at `eval`'s 71s and give a runner's worth of upload back.
+  #
+  # ⚠️ And the reset does not rescue it. At the flat ~32s the fit above
+  # measures, a post-reset ~199 MiB entry still puts `acquire` near 48s
+  # against 45s cold: the restore IS the cost and it does not shrink with the
+  # entry. W38's first run is the confirmation, not the decision.
+  #
+  # Two cold figures moved while nobody was looking. `nix flake check` is 67s
+  # cold now against #724's 57s — it is the step this repo keeps adding to and
+  # the one job whose cache plainly pays — and `nix eval` is 55s, unchanged.
+  # The rule stands: if a job in this half carries a store it does not roughly
+  # fill, check the cold number before assuming the cache pays.
 
   eval:
     name: eval the example host
