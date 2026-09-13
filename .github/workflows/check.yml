@@ -571,7 +571,7 @@ jobs:
       #   nix eval --json .#checks.x86_64-linux   --apply builtins.attrNames
       #   nix eval --json .#checks.aarch64-darwin --apply builtins.attrNames
       #
-      # The darwin-only TWENTY-ONE fingerprint a real evaluated system, so they
+      # The darwin-only TWENTY-TWO fingerprint a real evaluated system, so they
       # stay guarded and don't run here — they fire on a Mac, by hand, or not at
       # all: catalogue (every desktop and compat alias raised as a real system),
       # fragment-compat (the retired top-level fragments' old spelling against
@@ -584,8 +584,10 @@ jobs:
       # bar-widget-header, bar-widget-intervals, bar-factory-default (the
       # merge-lease pill, the one pill haus draws unasked), brew-tap-trust
       # (every third-party tap in the example host's Brewfile carrying the
-      # `trusted: true` without which `brew bundle` refuses its casks and takes
-      # activation down before home-manager), scene-leader-key
+      # `trusted: true` without which `brew bundle` refuses its casks),
+      # brew-bundle-guarded (that same bundle sitting inside an `if !` in the
+      # BUILT activate script, so a refused cask is a branch rather than the end
+      # of an activation home-manager is ordered after), scene-leader-key
       # (`haus.focus.scenes.<name>.key` reaching both the room that binds it
       # and the one that teaches it, and the collision that is not a build
       # error but a second [mode.launch.binding] row), and settings-writes (what each
@@ -593,7 +595,7 @@ jobs:
       # groups, and which file supplied it — the layer below the declared
       # `null` every other surface reads).
       #
-      # ⚠️ Two of those twenty-one are the reason `nix flake check` on a Mac is
+      # ⚠️ Two of those twenty-two are the reason `nix flake check` on a Mac is
       # not optional before a PR: the *-reach tables enumerate every generated
       # home file, so ANY new one is a missing row — and CI here can never see
       # it. main has merged red on exactly that at least twice.
@@ -827,7 +829,7 @@ jobs:
           # unsubstituted; and it is an end-user CLI that launchd agents also
           # exec at boot to read a value, where a non-zero is a room starting
           # without its secret and nothing on screen to say so.
-          shellcheck --severity=warning modules/secrets/haus-secret.sh bootstrap.sh modules/ai/fix.sh modules/ai/fix-github.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/haus-bar-poke.sh modules/core/lidawake.sh test/lidawake.sh modules/core/nix-gc.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/terminal/lanes/lane-focus.sh modules/terminal/scripts/raise-session.sh modules/windows/scripts/fullscreen-toggle.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/focus-timer.sh test/focus-engine.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/launcher/commands/lib/menu-commit.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh modules/ai/statusline.sh modules/github/signal.sh modules/terminal/scripts/image-preview.sh modules/terminal/lanes/lane-open.sh modules/bar/sketchybar/barlib.sh
+          shellcheck --severity=warning modules/secrets/haus-secret.sh bootstrap.sh modules/ai/fix.sh modules/ai/fix-github.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/haus-bar-poke.sh modules/core/lidawake.sh test/lidawake.sh modules/core/nix-gc.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/terminal/lanes/lane-focus.sh modules/terminal/scripts/raise-session.sh modules/windows/scripts/fullscreen-toggle.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/focus-timer.sh test/focus-engine.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh test/brew-fault.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/launcher/commands/lib/menu-commit.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh modules/ai/statusline.sh modules/github/signal.sh modules/terminal/scripts/image-preview.sh modules/terminal/lanes/lane-open.sh modules/bar/sketchybar/barlib.sh
 
   draw:
     name: shell suites that draw
@@ -1118,6 +1120,16 @@ jobs:
       # rebuild that changes something — silence, which no lint can catch.
       - name: haus plan parser tests
         run: bash test/haus-plan.sh
+
+      # What `haus` can see about a cask that did NOT install. Activation now
+      # CATCHES a `brew bundle` failure instead of dying on it, so noticing is
+      # the whole job: `missing_casks` names the absent app and `haus rebuild`
+      # fails on the marker. Pure list arithmetic over a fixture Brewfile and a
+      # stubbed `brew`, so no Mac needed — and worth running rather than only
+      # linting for `haus plan`'s reason: the bug it guards against is silence,
+      # which is exactly what shipped before it.
+      - name: brew fault reporting
+        run: bash test/brew-fault.sh
 
       # float-term's `recenter` — the pass that centres a spawned popup on the
       # size it actually is. Pure arithmetic over two rectangles with AX and the

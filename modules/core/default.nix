@@ -308,6 +308,15 @@ let
   # of its own — the line AeroSpace's own README gives — ends up with two
   # elements for one tap, and brew is already covered by the trusted one. Warning
   # about that would be an alarm about a machine that is fine, on every rebuild.
+  # The breadcrumb a caught `brew bundle` failure leaves for `haus doctor` and
+  # `haus rebuild`. Written by ROOT from the activation script, which is why it
+  # is not in `modules/lib/state-files.nix` — that registry is `~/.local/state`
+  # and cross-ROOM, and this pair is core's own on both ends. It sits beside the
+  # three markers activation already writes there (zen-policies.source,
+  # perch.installed-from, trill.installed-from). Spelled ONCE: `haus.sh` takes
+  # it from `HAUS_BREW_FAULT`, set on the wrapper below.
+  brewFault = "/Library/Application Support/haus/brew-fault";
+
   trustedTapNames = map (t: t.name) (builtins.filter (t: t.trusted) config.homebrew.taps);
   untrustedTaps = lib.unique (
     map (t: t.name) (
@@ -1218,6 +1227,7 @@ in
             ]
           } \
             --set-default HAUS_UI_SH ${snug}/share/ui.sh \
+            --set-default HAUS_BREW_FAULT ${lib.escapeShellArg brewFault} \
             --set-default HAUS_SKILL_DIR ${hausSkill} \
             --set-default HAUS_AGENT_SKILL_DIRS ${lib.escapeShellArg agentSkillDirs} \
             --set-default HAUS_VERSION ${lib.escapeShellArg (lib.fileContents ../../VERSION)}
@@ -1636,6 +1646,64 @@ in
     HOMEBREW_API_AUTO_UPDATE_SECS=3600
     HOMEBREW_NO_ENV_HINTS=1
   '';
+
+  # ---- the bundle cannot end the activation ---------------------------------
+  # haus's copy of nix-darwin's `system.activationScripts.homebrew.text`, with
+  # one difference: the `brew bundle` failure is CAUGHT.
+  #
+  # Why that is worth owning an upstream script for. The activation script runs
+  # under `set -e`, and this is where the bundle sits in it:
+  #
+  #     … defaults · launchd agents · mas · homebrew   ← exits 1 here
+  #                                        home-manager (postActivation)
+  #                                        ln -sfn … /run/current-system
+  #
+  # So every user-facing thing haus does — the whole of home-manager, the Zen
+  # plist, the Perch install, the shelf — is ordered AFTER a call into a package
+  # manager nix does not control. Measured on a cold guest whose Brewfile named
+  # one cask Homebrew refused: the system half landed (launchd agents up,
+  # `org.nixos.aerospace` respawning at exit 126 against a binary that was not
+  # there) and the user half did not exist at all — `~/.config` held `nix` and
+  # nothing else, the bar drew `items: 0`. The system profile switches before
+  # activation runs, so the machine looked installed.
+  #
+  # Continuing is the LESS inconsistent of the two, not a relaxation: those
+  # launchd agents already load BEFORE the bundle, so a machine that stops here
+  # is running services for apps it then declines to install. And haus already
+  # says in `haus doctor` that casks live outside Nix generations — a package
+  # manager that is outside the model on the way back should not be able to end
+  # the transaction on the way in.
+  #
+  # It is caught, never swallowed: the failure prints at the point it happens,
+  # `brewFault` holds it for `haus doctor`, and `haus rebuild` reads the same
+  # file and FAILS on it (`modules/core/haus.sh`), so the exit code still says
+  # what happened. The file is removed on every good run, so it can only ever
+  # describe the most recent activation.
+  #
+  # `brewBundleCmd` rather than a copy of the command: it is nix-darwin's own
+  # internal option, so `cleanup`, `upgrade`, `extraEnv` and `extraFlags` keep
+  # reaching brew exactly as upstream builds them, and a change to that shape
+  # arrives here for free. The `else` branch is upstream's, word for word.
+  system.activationScripts.homebrew.text = lib.mkForce (
+    lib.optionalString config.homebrew.enable ''
+      # Homebrew Bundle
+      echo >&2 "Homebrew bundle..."
+      rm -f ${lib.escapeShellArg brewFault}
+      if [ -f "${config.homebrew.prefix}/bin/brew" ]; then
+        if ! ${config.homebrew.onActivation.brewBundleCmd { onlyCheck = false; }}; then
+          mkdir -p ${lib.escapeShellArg (builtins.dirOf brewFault)}
+          printf '%s\n' "$(date '+%Y-%m-%d %H:%M:%S')" >${lib.escapeShellArg brewFault}
+          printf >&2 '\e[1;31merror: `brew bundle` failed — an app this config declares is NOT installed\e[0m\n'
+          printf >&2 'Activation CONTINUES: the rest of your Mac (home-manager, your dotfiles, the\n'
+          printf >&2 'bar, the shell) lands rather than being lost to one package manager. The\n'
+          printf >&2 'error brew printed is above this line.\n'
+          printf >&2 "Then: 'haus doctor' names which cask, and 'haus rebuild' retries it.\n"
+        fi
+      else
+        echo -e "\e[1;31merror: Homebrew is not installed, skipping...\e[0m" >&2
+      fi
+    ''
+  );
 
   # ---- macOS defaults -------------------------------------------------------
   # These are haus's OPINIONS, so every value is lib.mkDefault: a host file

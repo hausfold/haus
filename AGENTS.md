@@ -341,13 +341,25 @@ PR; hardcoded identity. Advisory, never a gate.
   only by its tap. Every third-party tap is therefore written
   `{ name = "owner/tap"; trusted = true; }` (`modules/windows/default.nix`);
   `brew-tap-trust` refuses the bare string in haus's OWN Brewfile and pins
-  core's warning, which is all a host's tap can get from here. **`brew bundle`
-  is the last activation step before home-manager**, under `set -e`, so one
-  refused cask costs a cold install its whole user half while the system profile
-  switches — the same blast radius as the `universalaccess` warning beside it in
-  `modules/core`, measured on a cold guest: `~/.config` holding `nix` alone,
-  `items: 0`, `org.nixos.aerospace` respawning at exit 126. The API-refresh
+  core's warning, which is all a host's tap can get from here. The API-refresh
   window and env-hint silencing still live in `/etc/homebrew/brew.env`.
+- **`brew bundle` cannot end an activation, because core CATCHES it.** It is the
+  last step before home-manager, under `set -e`, so upstream's unguarded call
+  meant one refused cask cost a cold install its whole user half while the system
+  profile switched — measured: `~/.config` holding `nix` alone, `items: 0`,
+  `org.nixos.aerospace` respawning at exit 126. `modules/core/default.nix`
+  `mkForce`s `system.activationScripts.homebrew.text` into the same command
+  (`config.homebrew.onActivation.brewBundleCmd`, so `cleanup`/`upgrade`/
+  `extraEnv`/`extraFlags` keep reaching brew as upstream builds them) wrapped in
+  an `if !`. Continuing is the LESS inconsistent half: those launchd agents
+  already load BEFORE the bundle. **Caught, never swallowed** —
+  `/Library/Application Support/haus/brew-fault` (root-written, beside the three
+  markers activation already keeps there; `HAUS_BREW_FAULT` is its one spelling
+  in `haus.sh`) makes `haus rebuild` exit 1 at the END, after the generation
+  line, and `haus doctor` name the app via `missing_casks`, the arm that answers
+  "declared but NOT installed" — the direction doctor was blind in.
+  `brew-bundle-guarded` reads the BUILT activate script and refuses an override
+  that stopped winning; `test/brew-fault.sh` covers the reporting.
 - **Ghostty's `--title` is INSTANCE-WIDE.** Lanes
   (`modules/terminal/lanes/lane-open.sh`) and float popups
   (`modules/terminal/scripts/float-term.sh`) are own processes launched

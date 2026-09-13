@@ -660,6 +660,43 @@ brew_prefetch() {
   brew fetch --cask $outdated || true
 }
 
+# Where activation leaves word that its `brew bundle` failed. The wrapper in
+# modules/core/default.nix sets this (`--set-default HAUS_BREW_FAULT`), which is
+# the only spelling of the path; the default below is for a hand-run
+# `bash haus.sh` and a generation older than the wrapper, where the answer
+# "there is no fault" is the right one anyway.
+HAUS_BREW_FAULT="${HAUS_BREW_FAULT:-/Library/Application Support/haus/brew-fault}"
+
+# The Brewfile the RUNNING system feeds `brew bundle`, read back out of its own
+# activate script — the one place the path is certain to match what actually
+# ran. Empty (and every caller quiet) on a machine that has never activated.
+declared_brewfile() {
+  grep -oE "brew bundle --file='[^']+'" /run/current-system/activate 2>/dev/null \
+    | sed "s/.*--file='//;s/'\$//" | head -1 || true
+}
+
+# Casks this config DECLARES that are not on the machine, one per line.
+#
+# The blind spot the guarded bundle made reportable. Activation no longer dies
+# on a `brew bundle` failure (modules/core/default.nix says why), so something
+# has to be the thing that notices — and a marker file only says THAT one
+# failed, never WHICH app is missing. This says which, from the two lists the
+# machine can always answer: the Brewfile of the running generation, and
+# `brew list`.
+#
+# Tap prefixes are stripped (`owner/tap/foo` → `foo`) because that is the
+# spelling `brew list --cask` prints; without it a fully-qualified cask reads
+# as missing forever.
+missing_casks() {
+  command -v brew >/dev/null 2>&1 || return 0
+  local brewfile
+  brewfile="$(declared_brewfile)"
+  [ -n "$brewfile" ] && [ -f "$brewfile" ] || return 0
+  comm -23 \
+    <(sed -nE 's/^cask "([^"]+)".*/\1/p' "$brewfile" | sed -E 's#.*/##' | sort -u) \
+    <(brew list --cask 2>/dev/null | sort -u) | grep . || true
+}
+
 usage() {
   cat <<'EOF'
 haus — the everyday CLI for a haus machine.
@@ -2918,6 +2955,28 @@ cmd_rebuild() {
   unmet="$(_perm_unmet 2>/dev/null || echo 0)"
   [ "${unmet:-0}" -eq 0 ] \
     || warn "$unmet permission(s) macOS says you have not granted — walk them with: haus permissions"
+
+  # A caught `brew bundle` failure is still a FAILED rebuild, and this is where
+  # the exit code says so. Activation no longer stops at the bundle
+  # (modules/core/default.nix says why), so without this the swallow would be
+  # complete: darwin-rebuild exits 0, every phase draws green, and the only
+  # trace of an app that did not install is a line in a log nobody reopens.
+  #
+  # LAST, and after the generation and permissions lines rather than in place of
+  # them, because what landed is the point — this rebuild really did change the
+  # machine, and rerunning it is cheap. The names come from the two lists the
+  # machine can answer rather than from the marker, so this says WHICH app.
+  if [ -r "$HAUS_BREW_FAULT" ]; then
+    local absent brewmsg
+    absent="$(missing_casks)"
+    if [ -n "$absent" ]; then
+      brewmsg="brew could not install: $(printf '%s' "$absent" | paste -sd', ' -) — everything else landed. 'haus doctor' has the detail; the reason brew gave is in the 'Homebrew bundle...' step above."
+    else
+      brewmsg="'brew bundle' failed during activation — everything else landed. The reason is in the 'Homebrew bundle...' step above."
+    fi
+    snug_emit fail "$brewmsg" || ui_draw fail "$brewmsg"
+    return 1
+  fi
 }
 
 # Family apps (pounce, perch…) ship as CI-published casks/formulae in
@@ -4570,15 +4629,26 @@ cmd_doctor() {
   if command -v brew >/dev/null 2>&1; then
     echo
     say "Homebrew"
-    local installed brewfile declared undeclared count
+    local installed brewfile declared undeclared missing count
     installed="$(brew list --cask 2>/dev/null || true)"
     count="$(printf '%s\n' "$installed" | grep -c . || true)"
-    brewfile="$(grep -oE "brew bundle --file='[^']+'" /run/current-system/activate 2>/dev/null | sed "s/.*--file='//;s/'\$//" || true)"
+    brewfile="$(declared_brewfile)"
     if [ -n "$brewfile" ] && [ -f "$brewfile" ]; then
       # Declared cask tokens, minus any tap prefix (pear-devs/pear/foo → foo),
       # so they line up with the bare names `brew list --cask` prints.
       declared="$(sed -nE 's/^cask "([^"]+)".*/\1/p' "$brewfile" | sed -E 's#.*/##')"
       undeclared="$(comm -13 <(printf '%s\n' "$declared" | sort -u) <(printf '%s\n' "$installed" | sort -u) | grep . || true)"
+      # The other direction, and the one this section was BLIND to until a cold
+      # install proved it: a cask this config declares that is not on the
+      # machine. `undeclared` is drift you chose; `missing` is the rebuild not
+      # having done what it was asked, and nothing else on the report says so —
+      # the count above is happily correct while an app is simply absent.
+      missing="$(missing_casks)"
+      if [ -n "$missing" ]; then
+        bad "$(printf '%s' "$missing" | grep -c .) declared cask(s) NOT installed: $(printf '%s' "$missing" | paste -sd, - ) — 'haus rebuild' retries; if it keeps failing, the reason is in the 'Homebrew bundle...' step of its log"
+        [ -r "$HAUS_BREW_FAULT" ] \
+          && info "the last activation's 'brew bundle' failed, at $(cat "$HAUS_BREW_FAULT" 2>/dev/null) — everything ordered after it still landed, which is why this Mac otherwise looks fine"
+      fi
       if [ -z "$undeclared" ]; then
         ok "brew on PATH ($count casks, all declared)"
       else
