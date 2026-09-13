@@ -54,11 +54,15 @@ lib.mkIf config.haus.shelf.enable {
   };
 
   # ---- the one dialog a fresh shelf puts on screen ---------------------------
-  # Perch advertises itself over Bonjour from the moment it launches, so macOS
-  # asks about the local network on a machine that has never seen a phone. The
-  # grant is perch's and the sentence explaining it is perch's too (its
-  # NSLocalNetworkUsageDescription, shipped since 2026.09.12); this card is the
-  # deck's half — what to do about a dialog that has already been dismissed.
+  # Perch advertises itself over Bonjour once a phone is in the picture, and
+  # advertising is what makes macOS ask about the local network. Perch gates
+  # that on a non-empty pairing store (perch 2026.09.12,
+  # `MobileReceiver.startForLaunch`), so a Mac that has never seen a phone is
+  # never asked: the dialog arrives at Pair a Device, and again at every launch
+  # once something IS paired. The grant is perch's and the sentence explaining
+  # it is perch's too (its NSLocalNetworkUsageDescription, shipped in the same
+  # release); this card is the deck's half — what to do about a dialog that has
+  # already been dismissed.
   #
   # No `prompt` and no `check`, and for once those are the SAME fact rather than
   # two: Local Network has no API at all. Nothing can ask for it except the
@@ -68,28 +72,30 @@ lib.mkIf config.haus.shelf.enable {
   # file that names the bundle ids involved, stores a UUID per app and no
   # verdict. A `check` here could only be a browse, which is itself the ask.
   #
-  # The remedy the card leads with is a RELAUNCH, not System Settings, and that
-  # is measured rather than tidy (macOS 26.6.2 guest, 2026-09-12): a dismissed
-  # dialog records nothing, so the next launch asks again — Perch asked twice in
-  # a row across two launches there — and after those two unanswered asks
-  # Privacy & Security still carried no Local Network row at all. Send someone
-  # to the pane before anything has been ANSWERED on that Mac and they are
-  # hunting for a row that does not exist yet, which is why the pane is the
-  # second step and not the first.
+  # The remedy the card leads with is ASKING AGAIN, not System Settings, and
+  # that is measured rather than tidy (macOS 26.6.2 guest, 2026-09-12): a
+  # dismissed dialog records nothing, so the next advertise asks again — Perch
+  # asked twice in a row there — and after those two unanswered asks Privacy &
+  # Security still carried no Local Network row at all. Send someone to the
+  # pane before anything has been ANSWERED on that Mac and they are hunting for
+  # a row that does not exist yet, which is why the pane is the second step and
+  # not the first. What the next advertise IS follows the gate above: Pair a
+  # Device on a Mac with nothing paired, the next launch once one is.
   haus._contrib.permissions.shelf-local-network = {
     order = 36;
     title = "Local Network — perch";
     why = ''
       A paired iPhone or iPad finds your Mac over Bonjour, so the shelf
       announces itself on the network you are on and waits. macOS calls that
-      finding devices on local networks, and it asks the first time perch
-      runs — before you have paired anything.
+      finding devices on local networks, and it asks the first time you open
+      Pair a Device. A Mac with nothing paired never advertises, so it is
+      never asked.
     '';
     cost = "the shelf still works on this Mac, but nothing sent from a phone ever arrives — it waits and gives up, with no error on either screen";
     applies = "[ -x /Applications/Perch.app/Contents/MacOS/Perch ]";
     pane = panes.localNetwork;
     steps = [
-      "Quit Perch and open it again — a dismissed dialog is asked again at the next launch, and Allow there is the whole grant"
+      "Open Perch ▸ Settings… ▸ iPhone & iPad ▸ Pair a Device… again — a dismissed dialog is asked again at the next advertise, and Allow there is the whole grant"
       "Only if you answered Don't Allow: scroll this list to Local Network, then turn Perch on"
     ];
   };
