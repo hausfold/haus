@@ -696,6 +696,60 @@ jobs:
   # as a pass. Everything else goes with its room — and where that is a
   # toss-up, whichever of `agents` and `rooms` is the shorter that week.
   #
+  # ── Whether any suite earns a FIFTH job. Measured; the answer is no ──────
+  #
+  # `agents` is this half's pole, and once the nix half's weekly lineage reset
+  # lands the projection at the top of this file it is the whole gate's — so
+  # the question got asked properly. Ten PR runs, 2026-09-12/13, job totals
+  # from the jobs API and everything below job level read off each job's own
+  # timestamped log (run 34741464030):
+  #
+  #              mean  min  max   suites   what is under it
+  #     agents    58s   53   63     8      238 tests, ~50s of suite steps
+  #     rooms     53s   44   59    30      ~44s, no suite over 9s
+  #     draw      53s   50   58     6      ~45s, of which 22s is IDLE — below
+  #     lint      23s   18   27     —      one shellcheck
+  #
+  # `agents` has NO hot spot, and that is the finding rather than a preamble
+  # to one. Its ~50s is 238 bats tests at a MEDIAN of 0.087s and a mean of
+  # 0.19s — process overhead, one fork per test, essentially flat.
+  # Nineteen tests clear a second and the slowest in the whole job is 2.21s.
+  # Three suites clear ten: statusline-refresh 14.5s (72 tests),
+  # vm-runtime 12.6s (11, and its clock IS the assertion — the stub guests
+  # hold fds on purpose), github-signal 11.2s (31). Nothing else is over 4.2s.
+  #
+  # It does not matter which of those three you move out, because the prize is
+  # not bounded by any of them. It is bounded by `rooms`, 5.2s behind. Take
+  # the biggest one and `agents` lands at 43s — at which point the pole is
+  # `rooms` at 52.8s and every further second taken out of `agents` buys the
+  # gate nothing at all. The whole prize is 5.2s, once, whichever suite pays
+  # it.
+  #
+  # Against a floor of ~10s. Checkout plus `npm install -g bats` is the ~4s
+  # the paragraph above quotes and that part holds (measured: 1.7s + 2.7s),
+  # but a JOB costs more than its steps — ~2s from `created_at` to
+  # `started_at`, ~1s before the first step runs, 0.6s of "Set up job", ~2s
+  # from the last step to the job closing. Ten seconds of runner and a fifth
+  # boundary every future suite has to be routed through, to buy five seconds
+  # of gate. No.
+  #
+  # The reason generalises, so read it before measuring this again: when the
+  # pole and the job behind it are within one suite of each other, splitting
+  # the pole buys the GAP and then stops. The number to watch is the gap
+  # between `agents` and `rooms`, never `agents` alone — a 58s pole over a 53s
+  # runner-up is worth nothing to split, and the same 58s over a 30s runner-up
+  # would be worth it twice over.
+  #
+  # ⚠️ `draw`'s 53s is not 53s of work, and a suite compared against it is
+  # being compared to a clock rather than to a cost. All 139 of its tests have
+  # reported ok by 22.7s; the job then spends 22 more seconds with nothing
+  # running. `rebuild fix CTA`'s "haus rebuild does not wait for the answer"
+  # case stubs `trill` as a `sleep 30` and the holder it is testing outlives
+  # the test by design — so the orphan keeps the STEP's stdout open and the
+  # step cannot close until the sleep does. The signature is that the step is
+  # 32s ± 1s across all ten runs while its tests take 10.3s. Fix that and
+  # `draw` is a ~35s job; it does not change the answer above, because `rooms`
+  # is what `agents` is measured against either way.
   # `bats` is the ONE tool these jobs need that the runner image lacks, and
   # npm is preinstalled, so it comes from npm rather than apt. That is the
   # whole reason none of them stalls.
