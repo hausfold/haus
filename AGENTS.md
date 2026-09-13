@@ -330,20 +330,24 @@ PR; hardcoded identity. Advisory, never a gate.
   injection runs one, re-signed. New machine: `pounce --request-accessibility`.
 - **Homebrew tap-trust rides the TAP line, and nix-darwin does not put it
   there.** Brew 6 refuses a third-party tap nothing trusts, and the Brewfile is
-  the only place trust reaches the rebuild (activation runs `brew bundle` under
-  `sudo … env …`, so the per-user store and every exported variable are out of
-  reach — hence no `HOMEBREW_NO_REQUIRE_TAP_TRUST`, which brew odeprecated and
-  warns about on every run). nix-darwin defaults a CASK to `trusted: true` and a
-  TAP to `false`, and brew DISCARDS a cask's stamp unless the cask is named
-  `owner/repo/cask` (`Utils.full_name?`, `bundle/trust.rb`) — so a plainly-named
-  cask is trusted only by its tap. Every third-party tap is therefore written
+  where a rebuild can SAY so — a `brew trust` you type is imperative per-user
+  state no config declares, and a first install has none of it (activation does
+  pass `--set-home`, so that store is READ; it is simply empty). No
+  `HOMEBREW_NO_REQUIRE_TAP_TRUST` either: brew odeprecated it and warns on every
+  run, and activation is `env -i`, so only `brew.env` would have carried it.
+  nix-darwin defaults a CASK to `trusted: true` and a TAP to `false`, and brew
+  DISCARDS a cask's stamp unless the cask is named `owner/repo/cask`
+  (`Utils.full_name?`, `bundle/trust.rb`) — so a plainly-named cask is trusted
+  only by its tap. Every third-party tap is therefore written
   `{ name = "owner/tap"; trusted = true; }` (`modules/windows/default.nix`);
-  `brew-tap-trust` refuses the bare string and pins core's warning for a host's
-  own. **`brew bundle` is the last activation step before home-manager**, under
-  `set -e`, so one refused cask costs a cold install its whole user half while
-  the system profile switches — the same blast radius as the `universalaccess`
-  warning beside it in `modules/core`. The API-refresh window and env-hint
-  silencing still live in `/etc/homebrew/brew.env`.
+  `brew-tap-trust` refuses the bare string in haus's OWN Brewfile and pins
+  core's warning, which is all a host's tap can get from here. **`brew bundle`
+  is the last activation step before home-manager**, under `set -e`, so one
+  refused cask costs a cold install its whole user half while the system profile
+  switches — the same blast radius as the `universalaccess` warning beside it in
+  `modules/core`, measured on a cold guest: `~/.config` holding `nix` alone,
+  `items: 0`, `org.nixos.aerospace` respawning at exit 126. The API-refresh
+  window and env-hint silencing still live in `/etc/homebrew/brew.env`.
 - **Ghostty's `--title` is INSTANCE-WIDE.** Lanes
   (`modules/terminal/lanes/lane-open.sh`) and float popups
   (`modules/terminal/scripts/float-term.sh`) are own processes launched

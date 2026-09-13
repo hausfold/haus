@@ -571,7 +571,7 @@ jobs:
       #   nix eval --json .#checks.x86_64-linux   --apply builtins.attrNames
       #   nix eval --json .#checks.aarch64-darwin --apply builtins.attrNames
       #
-      # The darwin-only TWENTY fingerprint a real evaluated system, so they
+      # The darwin-only TWENTY-ONE fingerprint a real evaluated system, so they
       # stay guarded and don't run here — they fire on a Mac, by hand, or not at
       # all: catalogue (every desktop and compat alias raised as a real system),
       # fragment-compat (the retired top-level fragments' old spelling against
@@ -582,7 +582,10 @@ jobs:
       # app-collections, login-note, desktop-seam, editor-choice,
       # bar-bottom-focus, bar-bottom-groups, bar-third-party-widget,
       # bar-widget-header, bar-widget-intervals, bar-factory-default (the
-      # merge-lease pill, the one pill haus draws unasked), scene-leader-key
+      # merge-lease pill, the one pill haus draws unasked), brew-tap-trust
+      # (every third-party tap in the example host's Brewfile carrying the
+      # `trusted: true` without which `brew bundle` refuses its casks and takes
+      # activation down before home-manager), scene-leader-key
       # (`haus.focus.scenes.<name>.key` reaching both the room that binds it
       # and the one that teaches it, and the collision that is not a build
       # error but a second [mode.launch.binding] row), and settings-writes (what each
@@ -590,7 +593,7 @@ jobs:
       # groups, and which file supplied it — the layer below the declared
       # `null` every other surface reads).
       #
-      # ⚠️ Two of those twenty are the reason `nix flake check` on a Mac is
+      # ⚠️ Two of those twenty-one are the reason `nix flake check` on a Mac is
       # not optional before a PR: the *-reach tables enumerate every generated
       # home file, so ANY new one is a missing row — and CI here can never see
       # it. main has merged red on exactly that at least twice.

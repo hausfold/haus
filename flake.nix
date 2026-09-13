@@ -4823,18 +4823,25 @@
               untrusted = builtins.filter (
                 l: !(lib.hasInfix ", trusted: true" l) && !(lib.hasInfix "\"homebrew/" (lib.toLower l))
               ) tapLines;
+              # A tap name nothing will ever ship, so the canary cannot one day
+              # collide with a real hausfold tap and pass for the wrong reason.
+              canary = "nobody/notatap";
               warned =
                 (self.darwinConfigurations.example.extendModules {
-                  modules = [ { homebrew.taps = [ "hausfold/tap" ]; } ];
+                  modules = [ { homebrew.taps = [ canary ]; } ];
                 }).config.warnings;
-              warnsOnUntrusted = builtins.any (w: lib.hasInfix "declared without trust: hausfold/tap" w) warned;
+              warnsOnUntrusted = builtins.any (w: lib.hasInfix "declared without trust: ${canary}" w) warned;
             in
             pkgs.runCommand "haus-brew-tap-trust-ok" { } ''
+              ${lib.optionalString (tapLines == [ ]) ''
+                echo 'found no `tap "…"` lines in the example host\'s Brewfile — has nix-darwin changed how it renders one? Until this parses again the check is green for every tap, trusted or not.' >&2
+                exit 1
+              ''}
               ${lib.optionalString (untrusted != [ ]) ''
                 cat >&2 <<'UNTRUSTED'
                 haus declares a third-party tap that nothing trusts:
 
-                ${lib.concatStringsSep "\n                " untrusted}
+                ${lib.concatStringsSep "\n" untrusted}
 
                 `brew bundle` will refuse every cask that tap carries and take
                 activation — and with it home-manager — down at that point. Write
