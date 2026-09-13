@@ -39,8 +39,21 @@
 set -euo pipefail
 
 # A bare/sudo/login-item shell may have almost nothing on PATH; make sure the
-# tools we call (nix, darwin-rebuild, jq, git) resolve wherever we're invoked.
-PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/etc/profiles/per-user/$(id -un)/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
+# tools we call (nix, darwin-rebuild, jq, git, brew) resolve wherever we're
+# invoked.
+#
+# Homebrew's prefix is on it because `brew` is one of those tools — five things
+# here call it — and NOTHING else puts it there: it reaches a person's shell
+# from `brew shellenv`, which an ssh command, a launchd job and a sudo shell all
+# skip. The symptom is the quiet kind: `command -v brew` simply fails and the
+# whole Homebrew section of `haus doctor` is never printed, so a report that
+# should have said "a declared cask is NOT installed" ends one section early and
+# reads as a clean run. Measured over ssh on a guest whose bundle had just
+# failed. The prefix is handed in by the wrapper from `homebrew.prefix`, so a
+# host that moved Homebrew is followed rather than guessed at; the default is
+# only for a hand-run `bash haus.sh`.
+HAUS_BREW_PREFIX="${HAUS_BREW_PREFIX:-/opt/homebrew}"
+PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/etc/profiles/per-user/$(id -un)/bin:$HAUS_BREW_PREFIX/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 export PATH
 
 # Your config flake — the thin consumer with your host file, scaffolded by the

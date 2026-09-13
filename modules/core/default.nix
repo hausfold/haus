@@ -1228,6 +1228,7 @@ in
           } \
             --set-default HAUS_UI_SH ${snug}/share/ui.sh \
             --set-default HAUS_BREW_FAULT ${lib.escapeShellArg brewFault} \
+            --set-default HAUS_BREW_PREFIX ${lib.escapeShellArg config.homebrew.prefix} \
             --set-default HAUS_SKILL_DIR ${hausSkill} \
             --set-default HAUS_AGENT_SKILL_DIRS ${lib.escapeShellArg agentSkillDirs} \
             --set-default HAUS_VERSION ${lib.escapeShellArg (lib.fileContents ../../VERSION)}

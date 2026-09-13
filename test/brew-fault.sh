@@ -58,6 +58,12 @@ case "$*" in
 esac
 STUB
 chmod +x "$tmp/bin/brew"
+# haus.sh rebuilds PATH at load and puts `$HAUS_BREW_PREFIX/bin` on it, so a
+# stub merely PREPENDED here would lose to the machine's real Homebrew on a Mac.
+# Pointing the prefix at the fixture is both the fix and a free assertion that
+# the variable is honoured — `$tmp/bin/brew` is exactly the `<prefix>/bin/brew`
+# shape the real one has.
+export HAUS_BREW_PREFIX="$tmp"
 PATH="$tmp/bin:$PATH"; export PATH
 
 mkdir -p "$tmp/consumer"
