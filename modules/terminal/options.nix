@@ -250,8 +250,10 @@ in
         When true, build a small opener app and make it the default handler
         for ~80 text/code extensions (json, md, ts, nix, rs, go, kdl, …), so
         opening or clicking those files opens them in haus.terminal.editor — a
-        GUI editor directly, a terminal editor in a new terminal window. The
-        app declares the types itself (not just `duti`) so
+        GUI editor directly, a terminal editor in a new terminal window. One
+        exception: a file inside an Obsidian vault (any vault the app has
+        registered) opens in Obsidian, so a clicked link to a note lands in
+        the note. The app declares the types itself (not just `duti`) so
         extensions nothing else on the machine declares still bind. Off by
         default: silently rewriting your file associations is a jarring,
         hard-to-undo change, so it's strictly opt-in. (Extensionless executables
