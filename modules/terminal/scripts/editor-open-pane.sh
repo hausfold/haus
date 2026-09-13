@@ -19,22 +19,27 @@ LINE="${3:-}"
 
 # The callers arrive with launchd's PATH (the bar's pill, the palette's
 # command, the file-association app), which has no Homebrew and no Nix in it —
-# a cask's CLI is a Homebrew symlink, and the jq below is Nix's. The terminal
-# branch never had this problem because the login shell inside the new window
-# rebuilt PATH.
+# a cask's CLI is a Homebrew symlink, and on a macOS older than 15 the jq used
+# below is Nix's. The terminal branch never had this problem because the login
+# shell inside the new window rebuilt PATH.
 export PATH="/opt/homebrew/bin:/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:/usr/local/bin:/usr/bin:/bin${PATH:+:$PATH}"
 
-# A file inside an Obsidian vault is a note, and a note's editor is its vault:
-# a `file://` link to one — the line `tracker link` prints in a pane — opens in
-# Obsidian, not in $EDITOR. The vaults are whatever the app has registered, so
-# nothing is configured twice; a directory, or a file in no vault, falls
-# through to the editor as before.
+# A note inside an Obsidian vault opens in the vault, not in $EDITOR, so a
+# `file://` link a CLI prints in a pane lands in the note. Only Obsidian's own
+# file types take this turn — a repo that is also a vault keeps sending its
+# .sh and .json to the editor — and the vaults are whatever the app has
+# registered, so nothing is configured twice. A vault path is realpath'd the
+# way FILE_PATH was, so a symlinked or trailing-slash registration still
+# matches; an Obsidian that is gone (`open` fails) falls through to the
+# editor like everything else.
 OBSIDIAN_JSON="$HOME/Library/Application Support/obsidian/obsidian.json"
-if [ -f "$FILE_PATH" ] && [ -f "$OBSIDIAN_JSON" ] && command -v jq >/dev/null 2>&1; then
+if [ -f "$FILE_PATH" ] && [[ "$FILE_PATH" == *.(md|canvas|base) ]] && [ -f "$OBSIDIAN_JSON" ] && command -v jq >/dev/null 2>&1; then
     for vault in "${(@f)$(jq -r '.vaults[]?.path // empty' "$OBSIDIAN_JSON" 2>/dev/null)}"; do
         [ -n "$vault" ] || continue
         case "$FILE_PATH" in
-            "$vault"/*) exec open "obsidian://open?path=$(jq -rn --arg p "$FILE_PATH" '$p|@uri')" ;;
+            "${${vault%/}:A}"/*)
+                open "obsidian://open?path=$(jq -rn --arg p "$FILE_PATH" '$p|@uri')" 2>/dev/null && exit 0
+                ;;
         esac
     done
 fi
