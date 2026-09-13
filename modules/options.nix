@@ -800,7 +800,7 @@ in
           What opens the command palette. Registered in-process by the
           daemon, so it's near-instant and doesn't go through AeroSpace.
 
-          "cmd-space" — what the hacker and everyday desktops both pick — is the
+          "cmd-space" — what the hacker desktop picks — is the
           one value that also DISABLES Spotlight's own ⌘Space, because the two
           can't share it. Every other value leaves Spotlight alone, including
           "none", the default, which hands the palette's job back to Spotlight
@@ -957,11 +957,10 @@ in
     # Lives here rather than in a room because it cuts across two: core's CLI
     # tools and terminal's shell programs.
     #
-    # Until this existed, "minimal" was a lie — turning off windows, bar and
-    # launcher still installed bun, fnm, nixfmt, opencode, lazygit, delta, gh and
-    # the agent-worktree tooling, because core and terminal are imported
-    # unconditionally. A Mac for someone who doesn't write code could not be
-    # expressed at all.
+    # Until this existed, turning off windows, bar and launcher still installed
+    # bun, fnm, nixfmt, opencode, lazygit, delta, gh and the agent-worktree
+    # tooling, because core and terminal are imported unconditionally. A Mac
+    # for someone who doesn't write code could not be expressed at all.
     developer = {
       enable = lib.mkOption {
         type = lib.types.bool;

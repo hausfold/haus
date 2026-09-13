@@ -3935,7 +3935,7 @@
       "_type": "literalExpression",
       "text": "\"none\""
     },
-    "description": "What opens the command palette. Registered in-process by the\ndaemon, so it's near-instant and doesn't go through AeroSpace.\n\n\"cmd-space\" — what the hacker and everyday desktops both pick — is the\none value that also DISABLES Spotlight's own ⌘Space, because the two\ncan't share it. Every other value leaves Spotlight alone, including\n\"none\", the default, which hands the palette's job back to Spotlight\nentirely. That's a fix as much as an option: haus used to take\nSpotlight's ⌘Space away unconditionally, even where nothing claimed\nit.\n\nOnly meaningful with haus.launcher.enable.\n",
+    "description": "What opens the command palette. Registered in-process by the\ndaemon, so it's near-instant and doesn't go through AeroSpace.\n\n\"cmd-space\" — what the hacker desktop picks — is the\none value that also DISABLES Spotlight's own ⌘Space, because the two\ncan't share it. Every other value leaves Spotlight alone, including\n\"none\", the default, which hands the palette's job back to Spotlight\nentirely. That's a fix as much as an option: haus used to take\nSpotlight's ⌘Space away unconditionally, even where nothing claimed\nit.\n\nOnly meaningful with haus.launcher.enable.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"none\""
@@ -6603,7 +6603,7 @@
       "_type": "literalExpression",
       "text": "null"
     },
-    "description": "A community-authored tour, in order. null keeps the built-in four-move\nhacker tour unchanged; supplying a list replaces it, so a shared desktop\ncan teach its own workflow without shipping scripts or reaching outside the\n`haus.*` option surface.\n\nDetection reuses signals haus already emits. `launch`, `workspace`,\n`navigate` and `resize` need windows; `palette` needs the launcher and\nthe key that opens it. The module warns when a chosen detector's room is\ndisabled.\n\nAuthoring a tour is also the ONLY way to have one without windows: the\nbuilt-in lap is three leader moves plus the palette, so `tour.enable` on a\nmachine with `windows.enable = false` draws nothing at all.\n`desktops/everyday.nix` is the worked example — one step, the launcher.\n",
+    "description": "A community-authored tour, in order. null keeps the built-in four-move\nhacker tour unchanged; supplying a list replaces it, so a shared desktop\ncan teach its own workflow without shipping scripts or reaching outside the\n`haus.*` option surface.\n\nDetection reuses signals haus already emits. `launch`, `workspace`,\n`navigate` and `resize` need windows; `palette` needs the launcher and\nthe key that opens it. The module warns when a chosen detector's room is\ndisabled.\n\nAuthoring a tour is also the ONLY way to have one without windows: the\nbuilt-in lap is three leader moves plus the palette, so `tour.enable` on a\nmachine with `windows.enable = false` draws nothing at all.\nThe smallest authored tour is one step, the launcher:\n`{ hint = \"press {palette}, type tour, hit ↵ — that's how you open anything\"; detect = \"palette\"; }`.\n",
     "example": {
       "_type": "literalExpression",
       "text": "[\n  {\n    detect = \"palette\";\n    hint = \"Press {palette}, type tour, then hit ↵\";\n  }\n]"

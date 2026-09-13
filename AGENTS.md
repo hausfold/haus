@@ -1,8 +1,13 @@
 # AGENTS.md
 
 **`haus`** — composable nix-darwin modules (the **layer**: the `haus.*` options
-and the `haus` CLI) plus the **desktops** built on them: `blank`, `minimal`,
-`everyday` and `hacker`, the `mkHaus` default. A machine consumes it via
+and the `haus` CLI) plus the one **desktop** built on them, `hacker`. A desktop
+is a starter template: the installer selects none (`desktop = null;`, the
+foundation, which changes nothing you can see), and `hacker` stays `mkHaus`'s
+default only for a consumer with no `desktop =` line. `blank`, `everyday` and
+`minimal` are retired: `compat/desktops/` keeps each building for one release
+and `modules/desktop` warns with its replacement (`flake.nix`'s
+`retiredDesktops`; delete all three together). A machine consumes it via
 `mkHaus` and adds only its host (identity, private apps, secrets). **hausfold**
 is the org, never the layer; the repo is `hausfold/haus`. Layer and desktop
 share files, so say in each commit whether a change is what every desktop gets
@@ -124,7 +129,9 @@ modules/
                           #   declares a NEED — names and prose, never a value
   portless/               # haus.portless: .localhost URLs; a ROOT daemon on :443, the npm
                           #   tarball with no lockfile
-desktops/                 # hacker (default), blank, everyday, minimal — data, one per host
+desktops/                 # hacker — data, one per host; the installer selects none
+compat/desktops/          # blank, everyday, minimal — retired aliases that warn; delete with
+                          #   flake.nix's `retiredDesktops` and modules/desktop's warning
 compat/presets.nix        # the retired preset format as warning aliases; never grow it,
                           #   delete it with the `presets` output
 test/desktops/            # one fixture per seam rule, valid and invalid (`desktop-seam`)
@@ -141,9 +148,13 @@ split), as a module function (`{ lib, pkgs, ... }: {...}`) when you need
 ### Desktops
 
 The model is [`docs/model.md`](./docs/model.md). `mkHaus` takes `desktop`
-(default `./desktops/hacker.nix`); `desktop = null` selects the bare foundation
+(default `./desktops/hacker.nix`, for consumers with no line; `bootstrap.sh`
+always writes one); `desktop = null` selects the bare foundation — what the
+installer writes, and what `haus desktop none` and `haus remove` fall back to —
 or makes room for one `lib.desktop` in `extraModules`; a standalone
-`darwinModules.<room>` import selects none. Three rules, all enforced:
+`darwinModules.<room>` import selects none. The `catalogue` check pins that the
+foundation turns no optional room on and claims no key. Three rules, all
+enforced:
 
 - **closed shape** — an attrset whose only top-level key is `haus`: no module
   function, `imports`, `_module`, `system.*` or `home-manager.*`.

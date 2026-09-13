@@ -11,8 +11,8 @@
 # What each one became:
 #
 #   presets.full         →  the hacker desktop (the builder's default)
-#   presets.minimal      →  desktops/minimal.nix
-#   presets.everyday     →  desktops/everyday.nix
+#   presets.minimal      →  the foundation + haus.developer.enable
+#   presets.everyday     →  the foundation + its rooms, one host line each
 #   presets.large-print  →  haus.appearance.largePrint = true
 #
 # So this file is NOT the new spelling and must never grow a value: it is the
@@ -62,46 +62,52 @@ in
     developer.enable = true;
   };
 
-  minimal = deprecated "pass `desktop = haus.desktops.minimal`" {
-    bar.enable = false;
-    windows.enable = false;
-    launcher.enable = false;
-    tour.enable = false;
-
-    # `ai.enable = false` sat here from #388 until 2026-08-19, and it was never
-    # this preset's value: a preset is applied ON TOP of the default desktop, so
-    # hacker's AI room came with it, and terminal asserted that agent lanes
-    # needed the tiler this preset turns off. The assertion is a warning now —
-    # a lane opens as an ordinary macOS window where there is nothing to tile it
-    # onto — so the line is gone and the preset is back to only what it always
-    # set.
-
-    developer.enable = true;
-  };
-
-  everyday = deprecated "pass `desktop = haus.desktops.everyday`" {
-    bar.enable = true;
-    launcher.enable = true;
-    tour.enable = true;
-    tour.steps = [
+  minimal =
+    deprecated
+      "select no desktop (`desktop = null`) and set `haus.developer.enable = true` in your host"
       {
-        hint = "press {palette}, type tour, hit ↵ — that's how you open anything";
-        detect = "palette";
-      }
-    ];
+        bar.enable = false;
+        windows.enable = false;
+        launcher.enable = false;
+        tour.enable = false;
 
-    windows.enable = false;
+        # `ai.enable = false` sat here from #388 until 2026-08-19, and it was never
+        # this preset's value: a preset is applied ON TOP of the default desktop, so
+        # hacker's AI room came with it, and terminal asserted that agent lanes
+        # needed the tiler this preset turns off. The assertion is a warning now —
+        # a lane opens as an ordinary macOS window where there is nothing to tile it
+        # onto — so the line is gone and the preset is back to only what it always
+        # set.
 
-    # `ai.enable = false` sat here from #388 until 2026-08-19, and it was never
-    # this preset's value: a preset is applied ON TOP of the default desktop, so
-    # hacker's AI room came with it, and terminal asserted that agent lanes
-    # needed the tiler this preset turns off. The assertion is a warning now —
-    # a lane opens as an ordinary macOS window where there is nothing to tile it
-    # onto — so the line is gone and the preset is back to only what it always
-    # set.
+        developer.enable = true;
+      };
 
-    developer.enable = false;
-  };
+  everyday =
+    deprecated
+      "select no desktop (`desktop = null`) and turn its rooms on in your host: bar, launcher, shelf, focus, security.touchId"
+      {
+        bar.enable = true;
+        launcher.enable = true;
+        tour.enable = true;
+        tour.steps = [
+          {
+            hint = "press {palette}, type tour, hit ↵ — that's how you open anything";
+            detect = "palette";
+          }
+        ];
+
+        windows.enable = false;
+
+        # `ai.enable = false` sat here from #388 until 2026-08-19, and it was never
+        # this preset's value: a preset is applied ON TOP of the default desktop, so
+        # hacker's AI room came with it, and terminal asserted that agent lanes
+        # needed the tiler this preset turns off. The assertion is a warning now —
+        # a lane opens as an ordinary macOS window where there is nothing to tile it
+        # onto — so the line is gone and the preset is back to only what it always
+        # set.
+
+        developer.enable = false;
+      };
 
   large-print = deprecated "set `haus.appearance.largePrint = true` in your desktop or your host" {
     ui.scale = 1.4;

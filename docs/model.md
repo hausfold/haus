@@ -4,7 +4,8 @@
 
 The reader's half of that sentence is
 [choosing a desktop](https://hausfold.co/docs/haus/desktops/choosing) — the
-stack diagram, "exactly one", and `blank` as the from-scratch choice — and
+stack diagram, "exactly one", and none (`desktop = null`, what the installer
+writes) as the from-scratch choice — and
 [creating one](https://hausfold.co/docs/haus/desktops/creating) is where the
 closed shape, the host-only list and `haus show` are written for the person
 writing a desktop. What is here is the half underneath: who owns what, and the

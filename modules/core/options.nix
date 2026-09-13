@@ -149,7 +149,7 @@ in
     # launcher has nothing to say about pounce's Accessibility grant, and a
     # hardcoded deck would say it anyway — which is the exact failure mode the
     # wizard exists to remove, since a card you cannot act on trains people to
-    # skip the ones they can.     # skip. On `blank` only core's own three are in the deck, each gated so
+    # skip the ones they can. On the foundation only core's own three are in the deck, each gated so
     # that a machine with nothing wrong shows none of them.
     #
     # Scope, decided deliberately: this is EVERY manual click a fresh machine

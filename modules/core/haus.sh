@@ -764,13 +764,15 @@ haus — the everyday CLI for a haus machine.
                       Confirming means typing back part of the revision — a
                       lock evaluates the room's flake.nix, which is the first
                       execution of its code, not the rebuild.
-  haus desktop [name] list the built-in desktops and every one this machine has
-                      pinned, marking the selected one; with a name, switch to
-                      it. Never rebuilds.
+  haus desktop [name] list what this machine can select — none (the foundation),
+                      the built-in desktops, and every one it has pinned —
+                      marking the selected one; with a name, switch to it.
+                      'haus desktop none' drops back to the foundation. Never
+                      rebuilds.
   haus remove <name>  unpin a desktop this machine added, and reselect
-                      explicitly (default: blank) so removing your selected
-                      desktop can't silently fall back to the opinionated one.
-                      Never rebuilds.
+                      explicitly (default: none, the foundation) so removing
+                      your selected desktop can't silently fall back to the
+                      opinionated one. Never rebuilds.
   haus version        the haus release this machine is running, on stdout and
                       nothing else, so $(haus version) is the value. 'haus
                       --version' is the same command. The pinned revision is
@@ -5210,7 +5212,7 @@ cmd_services() {
 # The deck is DATA, written per-generation by modules/core/default.nix out of
 # whatever rooms contributed to `haus._contrib.permissions`. Nothing about any
 # particular grant is known here: this file walks cards. That is what makes the
-# deck correct on `blank`, where no room writes one, and correct after a
+# deck correct on the foundation, where no room writes one, and correct after a
 # rollback, where the card for a room you no longer have goes with it.
 HAUS_PERMISSIONS="${HAUS_PERMISSIONS:-/run/current-system/sw/share/haus/permissions.json}"
 # Cards taken on the user's word, one key per line. Only ever consulted for a
@@ -6172,6 +6174,9 @@ desktop_selected() {
   line="$(grep -E '^        desktop = ' "$FLAKE" 2>/dev/null || true)"
   case "$line" in
     *'haus.desktops.'*) line="${line#*haus.desktops.}"; printf '%s' "${line%;}" ;;
+    # The foundation, written out by the installer. `none` is the name the
+    # listing and `haus desktop none` use for it, so the three agree.
+    *'= null;'*) printf 'none' ;;
     '') printf 'hacker' ;;  # mkHaus's own default when no line is written
     # A pinned input's RHS is `name` (a file-shaped source) or
     # `name + "/file.nix"` (a tree) — either way the input's own name is the
@@ -6203,6 +6208,9 @@ cmd_desktop() {
       ui_col on      1 1 ok      never
       ui_col desktop 8 3 subject right
       ui_col from    7 1 muted   never
+      # `none` first: it is what a fresh install selects, and the row that says
+      # a desktop is a thing you add rather than a thing you are always in.
+      if [ "$current" = none ]; then ui_trow "→" "none" "foundation"; else ui_trow "" "none" "foundation"; fi
       while IFS= read -r n; do
         [ -n "$n" ] || continue
         if [ "$n" = "$current" ]; then ui_trow "→" "$n" "built in"; else ui_trow "" "$n" "built in"; fi
@@ -6214,10 +6222,13 @@ cmd_desktop() {
       ui_table_data 2
       return 0
     fi
-    printf '%s\n' "$builtin_list" | while IFS= read -r n; do
+    # `none` rides the same two rows as the built-ins, so this fallback grows
+    # no fixed-width row of its own (test/phase-painter.bats counts them).
+    printf 'none\n%s\n' "$builtin_list" | while IFS= read -r n; do
       [ -n "$n" ] || continue
-      if [ "$n" = "$current" ]; then printf '  %s→%s %-12s built in\n' "$C_OK" "$C_OFF" "$n"
-      else printf '    %-12s built in\n' "$n"; fi
+      if [ "$n" = none ]; then from=foundation; else from="built in"; fi
+      if [ "$n" = "$current" ]; then printf '  %s→%s %-12s %s\n' "$C_OK" "$C_OFF" "$n" "$from"
+      else printf '    %-12s %s\n' "$n" "$from"; fi
     done
     if [ -n "$pinned" ]; then
       printf '%s\n' "$pinned" | while IFS= read -r n; do
@@ -6229,6 +6240,24 @@ cmd_desktop() {
   fi
 
   if [ "$want" = "$current" ]; then say "already on $want."; return 0; fi
+
+  # Back to the foundation: `desktop = null;`, the line the installer writes.
+  # Written explicitly for the same reason it writes it — an absent line is
+  # mkHaus's hacker default, not none.
+  if [ "$want" = none ]; then
+    flake_stage
+    if ! flake_set_desktop_line "null"; then
+      flake_restore
+      die "flake.nix has moved past the scaffolded shape — set it by hand: desktop = null;"
+    fi
+    if ! flake_verify; then
+      flake_restore
+      die "the edit produced invalid Nix — restored. Set it by hand: desktop = null;"
+    fi
+    flake_commit
+    say "desktop set to none — the foundation. Run 'haus rebuild' to apply it."
+    return 0
+  fi
 
   if printf '%s\n' "$builtin_list" | grep -qx "$want"; then
     flake_stage
@@ -6263,12 +6292,12 @@ cmd_desktop() {
     return 0
   fi
 
-  die "no desktop named '$want' — built in: $(printf '%s' "$builtin_list" | tr '\n' ' ')· pinned: $(printf '%s' "${pinned:-none}" | tr '\n' ' ')(or 'haus add' one)"
+  die "no desktop named '$want' — none (the foundation) · built in: $(printf '%s' "$builtin_list" | tr '\n' ' ')· pinned: $(printf '%s' "${pinned:-none}" | tr '\n' ' ')(or 'haus add' one)"
 }
 
 cmd_remove() {
   local name="${1:-}" replacement="${2:-}"
-  [ -n "$name" ] || die "usage: haus remove <name> [replacement desktop, default blank]"
+  [ -n "$name" ] || die "usage: haus remove <name> [replacement desktop, default none — the foundation]"
   [ "$name" != haus ] || die "haus is the layer itself, not something 'haus remove' can drop."
   grep -qE "^  inputs\.$name\.url = " "$FLAKE" \
     || die "no pinned input named '$name' — 'haus desktop' lists what's pinned."
@@ -6287,9 +6316,10 @@ cmd_remove() {
     # `mkHaus`'s `desktop` argument defaults to the opinionated hacker
     # desktop, so deleting the selection line silently installs it rather
     # than returning the machine to neutral. Write an explicit replacement —
-    # blank unless told otherwise.
-    local repl="${replacement:-blank}"
-    if ! flake_set_desktop_line "haus.desktops.${repl}"; then
+    # none (`desktop = null;`, the foundation) unless told otherwise.
+    local repl="${replacement:-none}" rhs
+    if [ "$repl" = none ]; then rhs=null; else rhs="haus.desktops.${repl}"; fi
+    if ! flake_set_desktop_line "$rhs"; then
       flake_restore
       die "flake.nix has moved past the scaffolded shape — remove 'inputs.$name' and set 'desktop' by hand."
     fi
@@ -6305,7 +6335,7 @@ cmd_remove() {
     warn "flake.nix is edited but 'nix flake lock' failed — run it by hand."
   fi
   if [ -n "$was_selected" ]; then
-    say "'$name' removed. It was your selected desktop — set to '${replacement:-blank}' instead. Run 'haus rebuild' to apply it."
+    say "'$name' removed. It was your selected desktop — set to '${replacement:-none}' instead. Run 'haus rebuild' to apply it."
   elif [ -n "$was_room" ]; then
     say "'$name' removed, and its extraModules entry with it. Run 'haus rebuild' to apply it."
     # This command doesn't know WHICH namespace(s) '$name' claimed — that

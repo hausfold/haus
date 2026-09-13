@@ -1082,7 +1082,7 @@ render_desktop() {
   printf '\n'
 
   if [ "$nsets" -eq 0 ]; then
-    field "sets" "nothing at all — this is the blank desktop's shape"
+    field "sets" "nothing at all — the foundation's own shape, with a name on it"
   else
     field "sets" "$nsets option$(plural "$nsets") across $nrooms room$(plural "$nrooms")"
     printf '\n'

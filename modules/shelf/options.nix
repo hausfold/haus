@@ -20,7 +20,7 @@
     # developer.enable. It reads `true` only where it can DO anything: every
     # line of ../shelf/default.nix sits inside `mkIf shelf.enable`, so with the
     # shelf off this switch was already inert — it just used to say `true`
-    # about it, on `minimal` and `blank` alike, so `haus get`, the `haus set`
+    # about it, on the foundation and every shelf-less desktop alike, so `haus get`, the `haus set`
     # picker and the annotated host file all offered a knob with nothing behind
     # it. The gate is not new; only its honesty is. (Not `haus show`: it reports
     # the leaves a desktop FILE names, and no file names the leaf that argument
