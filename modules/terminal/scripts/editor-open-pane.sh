@@ -17,6 +17,28 @@ FILE_PATH="${1:A}"
 CWD_OVERRIDE="${2:+${2:A}}"
 LINE="${3:-}"
 
+# The callers arrive with launchd's PATH (the bar's pill, the palette's
+# command, the file-association app), which has no Homebrew and no Nix in it —
+# a cask's CLI is a Homebrew symlink, and the jq below is Nix's. The terminal
+# branch never had this problem because the login shell inside the new window
+# rebuilt PATH.
+export PATH="/opt/homebrew/bin:/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:/usr/local/bin:/usr/bin:/bin${PATH:+:$PATH}"
+
+# A file inside an Obsidian vault is a note, and a note's editor is its vault:
+# a `file://` link to one — the line `tracker link` prints in a pane — opens in
+# Obsidian, not in $EDITOR. The vaults are whatever the app has registered, so
+# nothing is configured twice; a directory, or a file in no vault, falls
+# through to the editor as before.
+OBSIDIAN_JSON="$HOME/Library/Application Support/obsidian/obsidian.json"
+if [ -f "$FILE_PATH" ] && [ -f "$OBSIDIAN_JSON" ] && command -v jq >/dev/null 2>&1; then
+    for vault in "${(@f)$(jq -r '.vaults[]?.path // empty' "$OBSIDIAN_JSON" 2>/dev/null)}"; do
+        [ -n "$vault" ] || continue
+        case "$FILE_PATH" in
+            "$vault"/*) exec open "obsidian://open?path=$(jq -rn --arg p "$FILE_PATH" '$p|@uri')" ;;
+        esac
+    done
+fi
+
 # A directory opens as `<editor> .` cwd'd into it; a file opens cwd'd at its
 # nearest git repo root (so the window name and the editor's workspace match the
 # project it lives in), falling back to the file's own parent dir outside a repo.
@@ -62,11 +84,6 @@ if [ -n "$LINE" ] && [ "$TARGET" != "." ]; then
 fi
 
 if [ -n "$GUI" ]; then
-    # The callers arrive with launchd's PATH (the bar's pill, the palette's
-    # command, the file-association app), which has no Homebrew in it — and
-    # a cask's CLI is a Homebrew symlink. The terminal branch never had this
-    # problem because the login shell inside the new window rebuilt PATH.
-    export PATH="/opt/homebrew/bin:/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:/usr/local/bin:/usr/bin:/bin${PATH:+:$PATH}"
     # The project root first, then the file: Zed, VS Code and Sublime open the
     # folder as the workspace and the file inside it, which is what the
     # terminal branch's window cwd was for.
