@@ -92,8 +92,8 @@ bar-bottom --trigger haus.agents.change client=claude state=waiting" ]
   [ "$(log_lines)" = "bar-bottom --trigger focus_change" ]
 }
 
-# A machine with no bar at all — `blank`, or any host that never turned the room
-# on. Three rooms call this on their success paths (focus toggles, `awake 1h`,
+# A machine with no bar at all — the foundation, or any host that never turned the
+# room on. Three rooms call this on their success paths (focus toggles, `awake 1h`,
 # an agent taking a lid hold), and a repaint that could not happen must never be
 # why one of those reports failure.
 @test "no bars anywhere still exits 0 and touches nothing" {

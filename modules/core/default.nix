@@ -1096,7 +1096,7 @@ in
   # Split by the developer pack. What stays unconditional is the PRODUCT — the
   # tools a haus machine needs to be a haus machine even if its owner
   # never opens a terminal by choice. Everything else is gated, because
-  # "minimal" used to install the whole dev toolbelt regardless.
+  # every install used to get the whole dev toolbelt regardless.
   environment.systemPackages =
     with pkgs;
     [

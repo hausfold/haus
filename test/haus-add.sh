@@ -231,11 +231,30 @@ grep -qE '^        desktop = writer \+ "/writer\.nix";$' "$tmp/consumer/flake.ni
 out="$(haus desktop)"
 has $'\xe2\x86\x92' "$out" "desktop listing after switch"
 
+# ---- 2b: none — the foundation, written out as `desktop = null;` ------------
+# What a fresh install selects. Explicit rather than a deleted line, because an
+# absent line is mkHaus's hacker default; the listing names it `none` and marks
+# it selected, and switching back to the pinned input works from there.
+out="$(haus desktop none 2>&1)"
+has "the foundation" "$out" "desktop none"
+grep -qE '^        desktop = null;$' "$tmp/consumer/flake.nix" \
+  || fail "desktop none: line not rewritten to null"
+[ "$(grep -c '        desktop = ' "$tmp/consumer/flake.nix")" = 1 ] \
+  || fail "desktop none: more than one desktop line"
+out="$(haus desktop)"
+has "none" "$out" "desktop listing with none selected"
+has "foundation" "$out" "desktop listing with none selected"
+landed="$(cd "$tmp/consumer" && nix eval .#darwinConfigurations.testbox.config.haus.bar.enable)"
+[ "$landed" = "false" ] || fail "desktop none: the foundation still has a bar on ($landed)"
+haus desktop writer >/dev/null
+grep -qE '^        desktop = writer \+ "/writer\.nix";$' "$tmp/consumer/flake.nix" \
+  || fail "desktop writer (from none): line not rewritten"
+
 # ---- 3: remove — the selected desktop gets an EXPLICIT replacement -----------
 out="$(haus remove writer 2>&1)"
-has "set to 'blank' instead" "$out" "remove"
-grep -qE '^        desktop = haus\.desktops\.blank;$' "$tmp/consumer/flake.nix" \
-  || fail "remove: desktop line not set to blank"
+has "set to 'none' instead" "$out" "remove"
+grep -qE '^        desktop = null;$' "$tmp/consumer/flake.nix" \
+  || fail "remove: desktop line not set to null (the foundation)"
 lacks "inputs.writer" "$(cat "$tmp/consumer/flake.nix")" "remove: input line still present"
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(1 if "writer" in d["nodes"] else 0)' \
   "$tmp/consumer/flake.lock" || fail "remove: lock still carries the pruned node"

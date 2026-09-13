@@ -154,12 +154,15 @@
           host ? ./hosts/example,
           system ? "aarch64-darwin",
           extraModules ? [ ],
-          # Which desktop this machine runs — exactly one, and `hacker` unless
-          # you say otherwise, which is what keeps every existing consumer
-          # building unchanged: this default has always meant "the opinionated
-          # developer machine", and only its name changed. `null` selects none:
+          # Which desktop this machine runs — exactly one. `null` selects none:
           # the bare haus foundation plus whatever your host turns on, which is
-          # what the built-in blank desktop names.
+          # what the installer writes for every new machine. The DEFAULT is
+          # still `hacker`, for one reason only: every consumer scaffolded
+          # before desktops existed has no `desktop =` line, and that omission
+          # has always meant "the opinionated developer machine". Flipping the
+          # default to `null` would turn those machines blank on their next
+          # `haus update`; the condition for moving it is that every such
+          # flake has had the explicit line written into it first.
           desktop ? ./desktops/hacker.nix,
         }:
         let
@@ -363,6 +366,25 @@
       # which `haus desktop`'s listing stages from the same source so the two
       # cannot drift apart.
       desktopFiles = nixpkgs.lib.genAttrs (import ./modules/desktop-names.nix) (n: ./desktops/${n}.nix);
+      # The desktops this flake no longer ships, kept as ALIASES for one release
+      # so a machine that selected one keeps building: compat/desktops/ holds
+      # each file exactly as it last shipped, modules/desktop warns on every
+      # rebuild with the host lines that replace it, and the `catalogue` check
+      # below still proves each raises a machine. Not in desktop-names.nix, so
+      # `haus desktop` does not list them; not in the docs except under
+      # "retired names". A throw was the first draft, and it was wrong for the
+      # same reason compat/presets.nix warns rather than throws: `haus update`
+      # moves the lock BEFORE it rebuilds, so a consumer scaffolded from
+      # hausfold.co/everyday.sh would have been unable to rebuild at all until
+      # a hand edit — on exactly the machine least able to make one.
+      #
+      # `blank` was a name for `desktop = null`; `everyday` and `minimal` were
+      # room sets, which is one host line per room now. Delete the directory,
+      # this binding and the warning together, in one commit, once the
+      # migration window closes.
+      retiredDesktops = nixpkgs.lib.genAttrs [ "blank" "everyday" "minimal" ] (
+        n: ./compat/desktops/${n}.nix
+      );
       desktopLib = import ./modules/lib/desktop.nix {
         lib = nixpkgs.lib;
         registry = import ./modules/options-groups.nix;
@@ -475,9 +497,12 @@
       # stop the build with nothing able to arbitrate them.
       #
       #   presets.full         →  the hacker desktop (the builder's default)
-      #   presets.minimal      →  desktops.minimal
-      #   presets.everyday     →  desktops.everyday
+      #   presets.minimal      →  the foundation + haus.developer.enable
+      #   presets.everyday     →  the foundation + its rooms, one host line each
       #   presets.large-print  →  haus.appearance.largePrint = true
+      #
+      # (`desktops.minimal` and `desktops.everyday` were the first replacement
+      # named here, and are retired in turn — `retiredDesktops` above.)
       #
       # The data-only TRUST boundary these dogfooded did not retire with them:
       # it is a desktop's now, enforced leaf by leaf against the room registry
@@ -495,7 +520,11 @@
       # wrapper is what applies the priority that makes a host win — a
       # pre-wrapped module would look importable anywhere and quietly bypass the
       # one-desktop assertion when it wasn't.
-      desktops = desktopFiles;
+      #
+      # The retired names ride along as aliases (compat/desktops/), so an old
+      # spelling still builds and warns rather than failing on a missing
+      # attribute.
+      desktops = desktopFiles // retiredDesktops;
 
       lib = riceLib;
 
@@ -561,6 +590,12 @@
             ) collectionNames
             ++ map (n: "preset ${n} ${exampleDrv { extraModules = [ presetModules.${n} ]; }}") (
               builtins.attrNames presetModules
+            )
+            # The retired desktops, selected the way the machines that still
+            # carry them select them. An alias that stops raising a machine
+            # is a broken update wearing a warning.
+            ++ map (n: "retired ${n} ${exampleDrv { desktop = retiredDesktops.${n}; }}") (
+              builtins.attrNames retiredDesktops
             );
 
           # ---- data-only-surface ----------------------------------------------
@@ -3057,9 +3092,6 @@
             + " editor=${cfg.haus.terminal.editorName}/${cfg.haus.terminal.editor}"
             + " desktop=${desktopSelection cfg}";
           desktopRows = {
-            # The built-in from-scratch choice. It selects a desktop like every
-            # finished host does, but that desktop asks for no optional room.
-            blank = desktopConfig { desktop = desktopFiles.blank; };
             # No `desktop` argument at all: every existing consumer's call, which
             # has always meant "the hacker machine" and now says so.
             builder-default = desktopConfig { };
@@ -3091,16 +3123,16 @@
               desktop = null;
               extraModules = [ (riceLib.desktop (desktopFixture "valid-other.nix")) ];
             };
-            # No desktop at all. The values fall back to what the rooms
-            # themselves default to, which is what proves the rows above were the
-            # desktop's doing.
+            # No desktop at all — `desktop = null;`, the foundation, which is
+            # what the installer writes for every new machine. The values fall
+            # back to what the rooms themselves default to, which is what
+            # proves the rows above were the desktop's doing.
             no-desktop = desktopConfig { desktop = null; };
           };
           desktopTable = builtins.concatStringsSep "\n" (
             map (name: "${name} ${desktopReadback desktopRows.${name}}") (builtins.attrNames desktopRows)
           );
           expectedDesktopTable = ''
-            blank scale=1.000000 bar=no internal=(unset) list=(unset) editor=zed/zed --wait desktop=desktops/blank.nix
             builder-default scale=1.000000 bar=yes internal=(unset) list=(unset) editor=zed/zed --wait desktop=desktops/hacker.nix
             by-hand scale=1.100000 bar=no internal=(unset) list=(unset) editor=zed/zed --wait desktop=test/desktops/valid-other.nix
             host-override scale=1.500000 bar=yes internal=larger-text list=from-desktop-a+from-desktop-b editor=neovim/nvim desktop=test/desktops/valid-sample.nix
@@ -3109,28 +3141,36 @@
             one-desktop scale=1.350000 bar=yes internal=larger-text list=from-desktop-a+from-desktop-b editor=neovim/nvim desktop=test/desktops/valid-sample.nix
           '';
 
-          blankConfig = desktopRows.blank;
-          blankSelections =
+          # The foundation's promise, pinned: with no desktop selected, no
+          # optional room is on and nothing reaches outside haus — no hotkey
+          # claimed, no wallpaper set, no theme written into other apps. This is
+          # what `curl … | bash` installs now, so a room that defaults itself on
+          # breaks the install page's first sentence, and this is where it
+          # breaks first.
+          foundationConfig = desktopRows.no-desktop;
+          foundationSelections =
             builtins.filter
               (
                 name:
                 {
-                  ai = blankConfig.haus.ai.enable || blankConfig.haus.ai.clients != [ ];
+                  ai = foundationConfig.haus.ai.enable || foundationConfig.haus.ai.clients != [ ];
                   apps =
-                    blankConfig.haus.apps.vscode.enable
-                    || blankConfig.haus.apps.cursor.enable
-                    || blankConfig.haus.apps.zed.enable
-                    || blankConfig.haus.apps.packs.writing.enable;
-                  security = blankConfig.haus.security.touchId.enable;
-                  development = blankConfig.haus.developer.enable;
-                  focus = blankConfig.haus.focus.enable;
-                  launcher = blankConfig.haus.launcher.enable;
-                  shelf = blankConfig.haus.shelf.enable;
-                  bar = blankConfig.haus.bar.enable;
-                  themePorts = blankConfig.haus.theme.ports.enable;
-                  tour = blankConfig.haus.tour.enable;
-                  wallpaper = blankConfig.haus.wallpaper.style != "none";
-                  windows = blankConfig.haus.windows.enable;
+                    foundationConfig.haus.apps.vscode.enable
+                    || foundationConfig.haus.apps.cursor.enable
+                    || foundationConfig.haus.apps.zed.enable
+                    || foundationConfig.haus.apps.packs.writing.enable;
+                  security = foundationConfig.haus.security.touchId.enable;
+                  development = foundationConfig.haus.developer.enable;
+                  focus = foundationConfig.haus.focus.enable;
+                  launcher = foundationConfig.haus.launcher.enable;
+                  shelf = foundationConfig.haus.shelf.enable;
+                  bar = foundationConfig.haus.bar.enable;
+                  themePorts = foundationConfig.haus.theme.ports.enable;
+                  tour = foundationConfig.haus.tour.enable;
+                  wallpaper = foundationConfig.haus.wallpaper.style != "none";
+                  windows = foundationConfig.haus.windows.enable;
+                  leader = foundationConfig.haus.keys.leader != "none";
+                  palette = foundationConfig.haus.keys.palette != "none";
                 }
                 .${name}
               )
@@ -3147,6 +3187,8 @@
                 "tour"
                 "wallpaper"
                 "windows"
+                "leader"
+                "palette"
               ];
 
           # ---- bar-third-party-widget ------------------------------------------
@@ -3384,8 +3426,8 @@
           # The two that exist: `haus.shelf.watchScreenshots` (haus#461, on by
           # default) sets `haus.screenshots.thumbnail = mkDefault false`,
           # because a capture macOS is still holding for its five-second
-          # floating thumbnail cannot reach the shelf. `hacker` and `everyday`
-          # run the shelf; `blank` and `minimal` do not. Argued and accepted:
+          # floating thumbnail cannot reach the shelf. `hacker` runs the shelf;
+          # the foundation does not. Argued and accepted:
           # the write is scoped to a room the user switched on, the option's
           # own description says the shelf does it, and naming the leaf in a
           # host outranks the `mkDefault` and puts the thumbnail back.
@@ -3394,7 +3436,6 @@
           # room has started writing a macOS key on machines that asked it
           # nothing, and going back will not restore what it overwrote.
           expectedSettingsWriteTable = ''
-            everyday haus.screenshots.thumbnail = false room:modules/shelf
             hacker haus.screenshots.thumbnail = false room:modules/shelf
           '';
 
@@ -4988,8 +5029,8 @@
             ${nixpkgs.lib.optionalString (desktopWronglyRefused != [ ]) ''
               echo 'checkDesktop refused a valid desktop: ${builtins.concatStringsSep ", " desktopWronglyRefused}' >&2
               exit 1''}
-            ${nixpkgs.lib.optionalString (blankSelections != [ ]) ''
-              echo 'Blank selected optional rooms: ${builtins.concatStringsSep ", " blankSelections}' >&2
+            ${nixpkgs.lib.optionalString (foundationSelections != [ ]) ''
+              echo 'The foundation (desktop = null) selected optional rooms or claims: ${builtins.concatStringsSep ", " foundationSelections}' >&2
               exit 1''}
             touch $out
           '';

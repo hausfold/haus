@@ -1275,7 +1275,8 @@ in
         Authoring a tour is also the ONLY way to have one without windows: the
         built-in lap is three leader moves plus the palette, so `tour.enable` on a
         machine with `windows.enable = false` draws nothing at all.
-        `desktops/everyday.nix` is the worked example — one step, the launcher.
+        The smallest authored tour is one step, the launcher:
+        `{ hint = "press {palette}, type tour, hit ↵ — that's how you open anything"; detect = "palette"; }`.
       '';
     };
 

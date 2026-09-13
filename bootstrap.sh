@@ -1,30 +1,39 @@
 #!/usr/bin/env bash
 # haus bootstrap — raise the house on a fresh Mac.
 #
-#   curl -fsSL https://hausfold.co/hacker.sh | bash        (or the github raw URL)
+#   curl -fsSL https://hausfold.co/haus.sh | bash          (or the github raw URL)
 #   nix run github:hausfold/haus#bootstrap             (once nix exists)
 #
 # It installs the prerequisites (Xcode CLT, Determinate Nix), runs a short
 # interview, and scaffolds a THIN PERSONAL CONFIG at ~/.config/nix — a tiny flake
 # of your own that consumes haus as an input. You never edit (or even clone)
 # haus itself: your machine's identity, apps and secrets live in your config;
-# haus stays upstream, where `nix flake update haus` pulls it.
+# haus stays upstream, where `haus update` pulls it.
 #
 # Flags / env:
 #   --defaults, HAUS_NONINTERACTIVE=1   skip the interview, take smart defaults —
 #                                       including Determinate's own confirmation
 #                                       of the Nix install, which an unattended
 #                                       run has no terminal to answer
-#   --desktop <name>, HAUS_DESKTOP=<name>    pick the desktop up front — one of
-#                                            hacker, everyday, minimal, blank
-#                                            — and SKIP that question, in an
-#                                            interactive run too. This is what
-#                                            hausfold.co/<name>.sh sets for you:
-#                                            typing the URL is answering the
-#                                            question, so being asked it again
-#                                            reads as the installer not
-#                                            listening. Every other answer is
-#                                            still asked for.
+#   --desktop <name>, HAUS_DESKTOP=<name>    select a desktop — `hacker` is the
+#                                            one that ships — instead of the
+#                                            foundation, which is what installs
+#                                            when nothing is named: no bar, no
+#                                            tiling, no palette, no wallpaper.
+#                                            `none` says so explicitly. Never a
+#                                            question: this is what
+#                                            hausfold.co/hacker.sh sets for you,
+#                                            and typing the URL is the choice.
+#                                            `blank`, `everyday`, `minimal` and
+#                                            `full` are retired spellings, still
+#                                            read (DESKTOP_NAME below says what
+#                                            each becomes).
+#   HAUS_ROOMS=<a,b,…>                       rooms to turn on in the host file at
+#                                            install, one `haus.<room>.enable =
+#                                            true;` each: bar, windows, launcher,
+#                                            shelf, focus, ai, development,
+#                                            security. Ignored when a desktop is
+#                                            selected — that desktop decides.
 #   --from <url>, HAUS_FROM=<url>       RESTORE a config you already have in
 #                                            git (a new/wiped Mac) instead of
 #                                            scaffolding a fresh one — clones it,
@@ -162,18 +171,17 @@ DRY_RUN="${HAUS_DRY_RUN:-}"
 # --from <url> / HAUS_FROM restores an existing config instead of scaffolding
 # (see Phase 1b). Parse args here so --defaults still gates INTERACTIVE below.
 FROM_URL="${HAUS_FROM:-}"
-# --desktop <name> picks the desktop up front. Parsed here rather than beside
-# DESKTOP_NAME below because the flag has to be seen before the interview is
-# assembled, and because "was it given at all?" is the thing we need to know —
-# DESKTOP_NAME defaults to `hacker`, so its value alone can't distinguish a
-# choice from a default.
+# --desktop <name> selects a desktop up front; nothing selects the foundation.
+# Parsed here rather than beside DESKTOP_NAME below because the flag has to be
+# seen before the interview is assembled. HAUS_PRESET is the pre-desktops name
+# for the same thing, still read.
 DESKTOP_ARG="${HAUS_DESKTOP:-${HAUS_PRESET:-}}"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --defaults)  NONINTERACTIVE=1 ;;
     --from)      shift; FROM_URL="${1:-}"; [ -n "$FROM_URL" ] || die "--from needs a git URL (e.g. --from https://github.com/you/nix-config)" ;;
     --from=*)    FROM_URL="${1#--from=}" ;;
-    --desktop)   shift; DESKTOP_ARG="${1:-}"; [ -n "$DESKTOP_ARG" ] || die "--desktop needs a name (hacker, everyday, minimal or blank)" ;;
+    --desktop)   shift; DESKTOP_ARG="${1:-}"; [ -n "$DESKTOP_ARG" ] || die "--desktop needs a name (hacker); leave the flag out for the foundation" ;;
     --desktop=*) DESKTOP_ARG="${1#--desktop=}" ;;
     *)           : ;;
   esac
@@ -479,33 +487,65 @@ case "$EDITOR_CHOICE" in
   zed|vscode|cursor|helix|neovim|vim|nano) ;;
   *) die "HAUS_EDITOR=$EDITOR_CHOICE is not an editor haus installs (zed, vscode, cursor, helix, neovim, vim, nano) — for a command of your own, use HAUS_GUI_EDITOR" ;;
 esac
-# Wallpaper: the generated `minimal` haus look (default, matching the desktop's own
-# haus.wallpaper.style), one of the inherited Nebelung ones, or `none` to leave
-# whatever you already have exactly where it is.
-WALLPAPER="${HAUS_WALLPAPER:-minimal}"
+# Wallpaper: left as yours unless HAUS_WALLPAPER names one of the generated haus
+# looks. The interview used to ask; the foundation puts nothing on screen, and
+# the desktop picture is the first thing you would see, so the question went
+# with the desktop question. `haus set wallpaper.style minimal` turns it
+# on later, and a desktop that wants one says so itself. WALLPAPER_EXPLICIT
+# remembers that the variable was set at all, for the one case where `none`
+# has to be written out (against a desktop that sets a look).
+WALLPAPER="${HAUS_WALLPAPER:-none}"
+WALLPAPER_EXPLICIT="${HAUS_WALLPAPER+1}"
 ADOPT_CASKS=""
-# Rooms: a comma list of the ones ON (default all three); omit one to disable it.
-ROOMS="${HAUS_ROOMS:-bar,windows,launcher}"
-# Which DESKTOP the generated config selects — the one complete answer to "what
-# should this Mac feel like?", chosen exactly once and overridable line by line
-# from your host. The same mechanism a published desktop uses, which is the
-# point: the installer isn't a privileged path. Empty selects none explicitly,
-# which is what "Custom" picks (a hand-chosen room set isn't a named thing) and
-# leaves the builder's own default, the hacker desktop, in place.
+# Rooms to turn ON in the host file at install — a comma list, empty by
+# default. Every entry becomes one `haus.<room>.enable = true;` line (the
+# Development room's switch is `haus.developer.enable`, Security's is Touch ID
+# for sudo). It is the scripted way to leave the foundation with a room or two
+# already on; the interview does not ask, because the rooms are what you go
+# and choose afterwards, one line each.
+ROOMS="${HAUS_ROOMS:-}"
+# Which DESKTOP the generated config selects — exactly one, or NONE, which is
+# the default: `desktop = null;` is written out, the foundation is what stands,
+# and no bar, tiling, palette or wallpaper arrives until you add a room (the
+# macOS defaults below still do, unless HAUS_KEEP pins yours). A desktop is a starter
+# template, chosen by URL (hausfold.co/hacker.sh) or by flag, never by a
+# question here. It sits between the rooms and you in the priority ladder, and
+# your host file overrides it line by line.
 #
-# `HAUS_PRESET` is the pre-rooms name for the same thing and still read: `full`
-# names the hacker desktop now, and `everyday`/`minimal` are desktops of their
-# own.
+# The retired spellings are still read, so an old URL or a saved command still
+# lands a working machine: `full` (HAUS_PRESET's name for hacker) selects
+# hacker; `blank` was a name for the foundation and selects that; `everyday`
+# and `minimal` were room sets, and become the foundation plus the rooms they
+# turned on, written into the host exactly as HAUS_ROOMS writes them.
 # All of those spellings, plus `--desktop`, land in DESKTOP_ARG up in the flag
-# block; DESKTOP_EXPLICIT is the bit that matters here, because it is what lets
-# the interview below skip a question it already has the answer to.
-DESKTOP_EXPLICIT=""
-DESKTOP_NAME="${DESKTOP_ARG:-hacker}"
-# `full` is the pre-rooms spelling of this same desktop. It resolves here rather
-# than in the case below, so the name stays out of the desktop list.
-if [ "$DESKTOP_NAME" = "full" ]; then DESKTOP_NAME=hacker; fi
-if [ -n "$DESKTOP_ARG" ]; then
-  DESKTOP_EXPLICIT=1
+# block; DESKTOP_LEGACY keeps the retired name so the report can say so, and
+# `none` is the CLI's own name for the foundation (`haus desktop none`), read
+# here too so the two vocabularies agree. EXTRA_LINES carries the two lines
+# `everyday` set that are not a room's switch — the palette key, without which
+# a launcher is a daemon nobody can open, and the wallpaper look — so that URL
+# still lands a Mac whose ⌘Space does what it did.
+DESKTOP_NAME="${DESKTOP_ARG:-}"
+DESKTOP_LEGACY=""
+EXTRA_LINES=""
+case "$DESKTOP_NAME" in
+  full)     DESKTOP_NAME=hacker ;;
+  none)     DESKTOP_NAME="" ;;
+  blank)    DESKTOP_LEGACY=blank;    DESKTOP_NAME="" ;;
+  everyday)
+    DESKTOP_LEGACY=everyday; DESKTOP_NAME=""
+    ROOMS="${ROOMS:+$ROOMS,}bar,launcher,shelf,focus,security"
+    EXTRA_LINES='  haus.keys.palette = "cmd-space";'$'\n'
+    WALLPAPER="${HAUS_WALLPAPER:-minimal}"
+    ;;
+  minimal)  DESKTOP_LEGACY=minimal;  DESKTOP_NAME=""; ROOMS="${ROOMS:+$ROOMS,}development,security" ;;
+esac
+# A look haus can render, or `none`. Checked here rather than left to the
+# first build, where it would surface as an enum error after the download.
+case "$WALLPAPER" in
+  none | minimal | orbits | constellation | flow | bold) : ;;
+  *) die "HAUS_WALLPAPER=$WALLPAPER is not a look haus generates — none, minimal, orbits, constellation, flow or bold" ;;
+esac
+if [ -n "$DESKTOP_NAME" ]; then
   # Checked against a list rather than against the repo, because nothing is
   # cloned yet at this point. A typo has to fail HERE, loudly: an unknown name
   # would otherwise reach the generated flake as
@@ -513,23 +553,39 @@ if [ -n "$DESKTOP_ARG" ]; then
   # after the download, which is a long way to walk to be told you misspelled
   # a word.
   case "$DESKTOP_NAME" in
-    hacker|everyday|minimal|blank) : ;;
-    *) die "unknown desktop '$DESKTOP_NAME' — pick one of: hacker, everyday, minimal, blank" ;;
+    hacker) : ;;
+    *) die "unknown desktop '$DESKTOP_NAME' — hacker is the one that ships; leave it out for the foundation, or 'haus add' one you found once haus is installed" ;;
   esac
 fi
-# Every token has to BE a room. The case tests below only ever look for a name
-# they know, so an unrecognised one reads as "that room is off" — which is how
-# a stale `HAUS_ROOMS=sill,prowl,pounce` would quietly build a machine with no
-# bar and no tiling rather than say the names had moved.
+# Every token has to BE a room this script knows the switch for. An
+# unrecognised one dies rather than being skipped — which is how a stale
+# `HAUS_ROOMS=sill,prowl,pounce` would otherwise quietly build a machine with
+# nothing on rather than say the names had moved. ROOM_LINES is what reaches
+# the host file; ROOM_BAR is kept apart because the Bar is the one room whose
+# neutral default makes a claim the preflight report has to name.
+ROOM_LINES=""
+ROOM_BAR=""
 for _room in $(printf '%s' "$ROOMS" | tr ',' ' '); do
   case "$_room" in
-    bar | windows | launcher) : ;;
-    *) die "unknown room '$_room' in HAUS_ROOMS — pick from: bar, windows, launcher" ;;
+    bar)         ROOM_BAR=1; _line="haus.bar.enable = true;" ;;
+    windows)     _line="haus.windows.enable = true;" ;;
+    launcher)    _line="haus.launcher.enable = true;" ;;
+    shelf)       _line="haus.shelf.enable = true;" ;;
+    focus)       _line="haus.focus.enable = true;" ;;
+    ai)          _line="haus.ai.enable = true;" ;;
+    development) _line="haus.developer.enable = true;" ;;
+    security)    _line="haus.security.touchId.enable = true;" ;;
+    *) die "unknown room '$_room' in HAUS_ROOMS — pick from: bar, windows, launcher, shelf, focus, ai, development, security" ;;
   esac
+  case "$ROOM_LINES" in *"$_line"*) ;; *) ROOM_LINES+="  $_line"$'\n' ;; esac
 done
-case ",$ROOMS," in *,bar,*)      ROOM_BAR=1      ;; *) ROOM_BAR=      ;; esac
-case ",$ROOMS," in *,windows,*)  ROOM_WINDOWS=1  ;; *) ROOM_WINDOWS=  ;; esac
-case ",$ROOMS," in *,launcher,*) ROOM_LAUNCHER=1 ;; *) ROOM_LAUNCHER= ;; esac
+# With a desktop selected, the rooms are ITS answer. A host line above it would
+# freeze this machine's answer to a question the desktop should keep owning,
+# so the request is declined out loud rather than written.
+if [ -n "$DESKTOP_NAME" ] && [ -n "$ROOM_LINES" ]; then
+  warn "HAUS_ROOMS is ignored when a desktop is selected — $DESKTOP_NAME decides its rooms; add or remove one in your host file after the install."
+  ROOM_LINES=""; ROOM_BAR=""
+fi
 
 # macOS settings to KEEP as your own instead of letting haus restyle them —
 # a comma list of dock,keyboard,finder. Empty (the default) means haus sets
@@ -554,66 +610,20 @@ if [ -n "$INTERACTIVE" ]; then
     GIT_NAME="$("$GUM"  input --prompt "Git name › "  --value "$GIT_NAME"  --placeholder "Ada Lovelace" <&3)"
     GIT_EMAIL="$("$GUM" input --prompt "Git email › " --value "$GIT_EMAIL" --placeholder "ada@example.com" <&3)"
 
-    # Already answered — by `--desktop`, by HAUS_DESKTOP, or by the URL the
-    # person typed, which is how hausfold.co/minimal.sh works. Say what was
-    # chosen and how to change it, then move on. Asking anyway would read as
-    # the installer not listening, and it is the one question here whose
-    # answer arrives before the interview starts.
-    #
-    # The rooms are deliberately NOT seeded on this path, unlike the branches
-    # below. ROOM_* only ever writes `haus.<room>.enable = false;` into the
-    # HOST file, which sits above the desktop in the priority ladder — so
-    # seeding them here would hard-code a subtraction the desktop already
-    # makes, and freeze this machine's answer to a question the desktop should
-    # keep owning. Leaving them alone lets `desktops/<name>.nix` decide, which
-    # is the whole point of selecting one.
-    if [ -n "$DESKTOP_EXPLICIT" ]; then
-      say "Desktop: $DESKTOP_NAME (you asked for this one — change it any time in your host file)"
+    # The desktop is never a question here. The foundation is what installs —
+    # no bar, tiling, palette or wallpaper until you add a room — and a desktop is a
+    # starter template you choose by URL (hausfold.co/hacker.sh) or by flag,
+    # which is how that answer arrives before the interview starts. Say what
+    # will stand and move on; the preflight report below repeats it beside
+    # everything else that changes.
+    if [ -n "$DESKTOP_NAME" ]; then
+      say "Desktop: $DESKTOP_NAME (you asked for it by URL or flag; 'haus desktop' switches or drops it later)"
     else
-    # A desktop seeds the optional rooms; only "Custom" opens the per-room
-    # picker. It's pure sugar over the same ROOM_* toggles the HAUS_ROOMS
-    # env var drives, so a scripted install stays a one-liner.
-    DESKTOP="$(printf '%s\n%s\n%s\n%s' \
-      'Hacker — the full desktop: menu bar, tiling, and the ⌘Space palette' \
-      'Everyday — the same Mac without the developer tooling' \
-      'Minimal — just the themed shell (add rooms later)' \
-      'Custom — choose each room yourself' \
-      | "$GUM" choose --header 'Which desktop do you want?')"
-    case "${DESKTOP:-Hacker}" in
-      Everyday*)
-        DESKTOP_NAME=everyday
-        ROOM_WINDOWS=
-        ;;
-      Minimal*)
-        DESKTOP_NAME=minimal
-        ROOM_BAR=; ROOM_WINDOWS=; ROOM_LAUNCHER=
-        ;;
-      Custom*)
-        DESKTOP_NAME=
-        SELECTED="$(printf 'bar\nwindows\nlauncher' | "$GUM" choose --no-limit \
-          --selected bar,windows,launcher \
-          --header 'Optional rooms (space toggles) — bar=menu bar · windows=tiling · launcher=⌘Space palette:')"
-        echo "$SELECTED" | grep -qx bar      || ROOM_BAR=
-        echo "$SELECTED" | grep -qx windows  || ROOM_WINDOWS=
-        echo "$SELECTED" | grep -qx launcher || ROOM_LAUNCHER=
-        ;;
-      *)  # The hacker desktop — every optional room on.
-        DESKTOP_NAME=hacker
-        ROOM_BAR=1; ROOM_WINDOWS=1; ROOM_LAUNCHER=1
-        ;;
-    esac
+      say "Desktop: none. You get the foundation; rooms and desktops are yours to add afterwards."
     fi
 
     ACCENT="$(printf 'mauve\nblue\nsapphire\nsky\nteal\ngreen\nyellow\npeach\nmaroon\nred\npink\nflamingo\nrosewater\nlavender' \
       | "$GUM" choose --header 'Accent colour:')"; ACCENT="${ACCENT:-mauve}"
-
-    # Enter and Esc/skip both take the shown default (minimal), like every other
-    # question here; `none` is the explicit choice that keeps your wallpaper, and
-    # the preflight audit below names whichever one you land on before anything
-    # is written.
-    WALLPAPER="$(printf 'minimal\norbits\nconstellation\nflow\nbold\nnone' \
-      | "$GUM" choose --header 'Desktop wallpaper — minimal is the haus mark on your palette · bold follows your accent · none keeps yours:')"
-    WALLPAPER="${WALLPAPER:-minimal}"
 
     # The editors haus can INSTALL, spelled the way `haus.terminal.editorName`
     # takes them (modules/lib/editors.nix) — the apps and the terminal editors
@@ -763,16 +773,36 @@ preflight_audit() {
   else
     printf '              Show file extensions: %s -> true\n'          "$(dflt -g AppleShowAllExtensions)"
   fi
-  [ -n "$ROOM_BAR" ]   && printf '              Hide native menu bar: %s -> true (Bar draws its own)\n' "$(dflt -g _HIHideMenuBar)"
-  [ -n "$ROOM_WINDOWS" ]  && printf '              Caps Lock -> a leader key for tiling + the app launcher\n'
-  [ -n "$ROOM_LAUNCHER" ] && printf '              ⌘Space   -> the pounce palette (disabled for Spotlight)\n'
-  # Both branches print. Now that `minimal` is the default, "keep mine" is the
-  # answer that needs echoing back — silence there would read as "nothing will
-  # touch my desktop" whichever way you answered.
-  if [ "$WALLPAPER" = "none" ]; then
-    printf '              Desktop wallpaper:    left as yours (haus.wallpaper.style = "none")\n'
+  # The desktop, and the machine-wide claims it makes. The foundation makes
+  # none: no hotkey, no hidden menu bar, no wallpaper. hacker makes all three.
+  # A room turned on by HAUS_ROOMS comes up at its neutral default, which
+  # claims no key (that is a desktop's decision), but the Bar does hide the
+  # native menu bar to draw its own, so that one is named either way.
+  if [ "$DESKTOP_NAME" = hacker ]; then
+    printf '  desktop   hacker: every optional room on, and these claims:\n'
+    printf '              Hide native menu bar: %s -> true (Bar draws its own)\n' "$(dflt -g _HIHideMenuBar)"
+    printf '              Caps Lock -> a leader key for tiling + the app launcher\n'
+    printf '              ⌘Space   -> the pounce palette (disabled for Spotlight)\n'
   else
+    printf '  desktop   none: the foundation. No bar, no tiling, no palette, no wallpaper until you add a room; only the macOS settings below change.\n'
+    if [ -n "$DESKTOP_LEGACY" ] && [ -n "$ROOM_LINES" ]; then
+      printf "              ('%s' is retired; the rooms it turned on are written to your host file instead)\n" "$DESKTOP_LEGACY"
+    elif [ -n "$DESKTOP_LEGACY" ]; then
+      printf "              ('%s' is retired; it was a name for the foundation, which is what this is)\n" "$DESKTOP_LEGACY"
+    fi
+    if [ -n "$ROOM_LINES" ]; then
+      printf '              rooms on from the start (HAUS_ROOMS), one line each in your host file:\n'
+      printf '%s' "$ROOM_LINES$EXTRA_LINES" | sed 's/^  /                /'
+      [ -n "$ROOM_BAR" ] && printf '              Hide native menu bar: %s -> true (Bar draws its own)\n' "$(dflt -g _HIHideMenuBar)"
+      case "$EXTRA_LINES" in *cmd-space*) printf '              ⌘Space   -> the pounce palette (disabled for Spotlight)\n' ;; esac
+    fi
+  fi
+  if [ "$WALLPAPER" != "none" ]; then
     printf '              Desktop wallpaper:    set to the "%s" look (your current one is not deleted, but macOS keeps no record of it — re-pick it by hand if you go back)\n' "$WALLPAPER"
+  elif [ "$DESKTOP_NAME" = hacker ] && [ -z "$WALLPAPER_EXPLICIT" ]; then
+    printf '              Desktop wallpaper:    the "minimal" look, which hacker sets (HAUS_WALLPAPER=none keeps yours)\n'
+  else
+    printf '              Desktop wallpaper:    left as yours\n'
   fi
 
   printf '  undo      nothing is switched until you run the build below. After that:\n'
@@ -794,13 +824,23 @@ run mkdir -p "$DEST/hosts/$HOSTNAME"
 mkdir -p "$DEST/hosts/$HOSTNAME"   # for real even in dry-run, so we can write into it
 
 # A named desktop is SELECTED, not imported — exactly how someone would select a
-# desktop they found online. Exactly one per host, and it sits between the rooms
-# and you in the priority ladder: an option the desktop sets, your host file
-# overrides with a plain assignment, no `lib.mkForce` anywhere.
-DESKTOP_LINE=""
+# desktop they found online. Exactly one per host, or none, and it sits between
+# the rooms and you in the priority ladder: an option the desktop sets, your
+# host file overrides with a plain assignment, no `lib.mkForce` anywhere.
+#
+# `none` is written out as `desktop = null;` rather than left off: mkHaus's own
+# default is still hacker (flake.nix says why), so an absent line would select
+# the one desktop this install promised not to. `haus desktop` reads this line
+# to say what is selected, and rewrites it to switch. The comment above it
+# stays true whichever way the line reads, so a switch never strands it.
 if [ -n "$DESKTOP_NAME" ]; then
   DESKTOP_LINE="
+        # exactly one desktop, or null for the foundation — 'haus desktop' switches it
         desktop = haus.desktops.$DESKTOP_NAME;"
+else
+  DESKTOP_LINE="
+        # exactly one desktop, or null for the foundation — 'haus desktop' switches it
+        desktop = null;"
 fi
 
 cat >"$DEST/flake.nix" <<EOF
@@ -809,7 +849,7 @@ cat >"$DEST/flake.nix" <<EOF
 
   # The whole of haus (system + shell + pounce + nebelung) comes from the public
   # haus flake. This config holds only what's personal: the host.
-  # Update everything with:  nix flake update haus
+  # Update everything with:  haus update
   inputs.haus.url = "github:hausfold/haus";
 
   outputs =
@@ -824,16 +864,21 @@ cat >"$DEST/flake.nix" <<EOF
 }
 EOF
 
-# Assemble the optional host lines (omit anything left at the desktop default).
+# Assemble the optional host lines (omit anything left at its default).
 opt_lines=""
-[ -z "$ROOM_BAR" ]   && opt_lines+="  haus.bar.enable = false;"$'\n'
-[ -z "$ROOM_WINDOWS" ]  && opt_lines+="  haus.windows.enable = false;"$'\n'
-[ -z "$ROOM_LAUNCHER" ] && opt_lines+="  haus.launcher.enable = false;"$'\n'
+# Rooms asked for at install (HAUS_ROOMS, or a retired desktop's set): one
+# `enable = true;` each, in the host, where a plain line is what turns a room
+# on for good. Nothing is ever written as `false` — the foundation has every
+# optional room off already, and a desktop decides its own.
+[ -n "$ROOM_LINES" ] && opt_lines+="$ROOM_LINES"
+[ -n "$EXTRA_LINES" ] && opt_lines+="$EXTRA_LINES"
 [ "$ACCENT" != "mauve" ] && opt_lines+="  haus.theme.accent = \"$ACCENT\";"$'\n'
-# `minimal` is the desktop default now, so it's `none` that has to be written out —
-# omitting the line on a "keep mine" answer would hand that machine the generated
-# desktop, which is the opposite of what was asked for.
-[ "$WALLPAPER" != "minimal" ] && opt_lines+="  haus.wallpaper.style = \"$WALLPAPER\";"$'\n'
+# The option's own default is `none`, so a named look is what has to be written
+# out. The one other case is HAUS_WALLPAPER=none said explicitly against a
+# desktop that sets a look: then `none` is written, and the host wins.
+if [ "$WALLPAPER" != "none" ] || { [ -n "$WALLPAPER_EXPLICIT" ] && [ -n "$DESKTOP_NAME" ]; }; then
+  opt_lines+="  haus.wallpaper.style = \"$WALLPAPER\";"$'\n'
+fi
 # `editorName`, not `editor`: the first names an editor the room then installs,
 # the second is a command it merely points at. A generated host must always
 # write the installing one.
@@ -998,7 +1043,11 @@ if [ -n "$RAISE" ]; then
     if (cd "$DEST" && sudo ./result/sw/bin/darwin-rebuild switch --flake ".#$HOSTNAME"); then
       printf '\n'; say "The house stands. A quick health check:"
       /run/current-system/sw/bin/haus doctor || true
-      printf '\n'; say "From here: haus edit · haus rebuild · haus doctor — the haus tour is waiting in the bar (or type: haus tour), and ⇪ then / opens the cheatsheet."
+      if [ "$DESKTOP_NAME" = hacker ]; then
+        printf '\n'; say "From here: haus edit · haus rebuild · haus doctor — the haus tour is waiting in the bar (or type: haus tour), and ⇪ then / opens the cheatsheet."
+      else
+        printf '\n'; say "From here: haus edit · haus rebuild · haus doctor. No desktop is selected: turn a room on (haus set bar.enable true) or select one (haus desktop hacker), then haus rebuild."
+      fi
     else
       warn "Switch failed — the build is intact; re-run the switch command above once you've fixed the error."
     fi

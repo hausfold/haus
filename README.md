@@ -22,9 +22,10 @@ repo is `hausfold/haus`.
 curl -fsSL https://hausfold.co/haus.sh | bash
 ```
 
-That asks which desktop you want, puts the prerequisites in place, and
-scaffolds a thin config of your own at `~/.config/nix`. You never edit this repo
-to use it.
+That puts the prerequisites in place and scaffolds a thin config of your own at
+`~/.config/nix`. It selects no desktop, so nothing you can see changes until you
+turn a room on; `hausfold.co/hacker.sh` selects **hacker** instead. You never
+edit this repo to use it.
 
 ## the manual
 
