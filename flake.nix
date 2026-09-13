@@ -4834,6 +4834,143 @@
             fi
             touch $out
           '';
+
+          # ---- installer-add-parity -------------------------------------------
+          # `bootstrap.sh --desktop <flakeref>` and `haus add <flakeref>` pin the
+          # same stranger's desktop into the same flake, one at scaffold time and
+          # one after, and the two halves have to agree about it in two ways
+          # neither file can see on its own.
+          #
+          # The LANDMARKS first. `haus add` finds the three places it edits by
+          # matching whole lines (`flake_add_input` in modules/core/haus.sh,
+          # which says why it is line-based); `bootstrap.sh` writes those same
+          # lines fresh. Re-indent either side and nothing errors anywhere: the
+          # installer still writes a perfectly good flake, and `haus desktop`,
+          # `haus remove` and a later `haus add` simply stop finding their
+          # landmarks in it and degrade to printing lines for the user to paste.
+          # A silent loss of every acquisition verb, on exactly the machines
+          # that used the new flag.
+          #
+          # Then the two COPIED FUNCTIONS. `nix_string` escapes the URL into the
+          # flake and `derive_input_name` picks the input name; bootstrap.sh
+          # holds a verbatim copy of each, because on a fresh Mac there is no
+          # haus.sh to source. Drift there is worse than quiet — the same source
+          # would get two different input names depending on which half pinned
+          # it, so `haus desktop <name>` would name something the installer
+          # never wrote. haus.sh is the original; edit there and re-copy.
+          #
+          # Both halves are byte matches, and the printf formats are pinned WITH
+          # THEIR QUOTES for a reason the first draft of this check got wrong: a
+          # bare `grep -F '  inputs.%s.flake = false;'` still matches a line that
+          # has grown a leading space, because that is a substring of the drifted
+          # line — the check went green on the exact edit it exists to catch.
+          # The opening quote is what anchors the left edge, which is why
+          # bootstrap.sh builds these four lines through printf rather than
+          # writing them out as text that happens to look the same.
+          #
+          # Every system, not darwin: it is grep and diff over two shell scripts,
+          # nothing evaluated and no Mac anywhere in it — and the installer is
+          # the surface whose regressions reach people fastest, so it belongs in
+          # the half CI's Linux runner actually runs.
+          installer-add-parity = pkgs.runCommand "haus-installer-add-parity-ok" { } ''
+            boot=${./bootstrap.sh}
+            cli=${./modules/core/haus.sh}
+            status=0
+
+            # The haus.sh side is scoped to `flake_add_input` — the one function
+            # that edits a pinned DESKTOP — rather than the whole file, and that
+            # is load-bearing rather than tidy. Two of these landmarks are also
+            # spelled by `flake_add_room_input` and `flake_set_desktop_line`
+            # beside it, so a file-wide grep stays green while the desktop half
+            # drifts alone: a second copy answering for the one that moved.
+            sed -n '/^flake_add_input() {/,/^}/p' "$cli" > add_input
+            test -s add_input || {
+              echo "✗ flake_add_input has been renamed or reshaped in modules/core/haus.sh —" >&2
+              echo "  repoint this check at whatever edits a pinned desktop's three landmarks now." >&2
+              exit 1
+            }
+
+            # The printf formats both files hold. Read from a file rather than
+            # spelled inline, so every byte — quotes, percent signs, the literal
+            # backslash-n — survives Nix's string escaping on its way here.
+            while IFS= read -r lit; do
+              [ -n "$lit" ] || continue
+              grep -qF -- "$lit" "$boot" \
+                || { echo "✗ bootstrap.sh no longer builds [$lit]" >&2; status=1; }
+              grep -qF -- "$lit" add_input \
+                || { echo "✗ flake_add_input no longer builds [$lit]" >&2; status=1; }
+            done < ${
+              pkgs.writeText "installer-shared-formats" (
+                builtins.concatStringsSep "\n" [
+                  "'  inputs.%s.url = \"%s\";\\n'"
+                  "'  inputs.%s.flake = false;\\n'"
+                  "'    { haus, %s, ... }:\\n'"
+                  "'    { haus, ... }:'"
+                  "'        desktop = %s;\\n'"
+                ]
+                + "\n"
+              )
+            }
+
+            # The two ANCHORS: lines bootstrap.sh writes into the scaffolded
+            # flake and haus.sh only ever searches for. Anchored at column one
+            # on the bootstrap side because that is where they land in the
+            # generated file; quoted on the haus.sh side because there they are
+            # a `case` pattern.
+            anchor() { # anchor <bootstrap ERE, anchored> <flake_add_input literal>
+              grep -qE -- "$1" "$boot" \
+                || { echo "✗ bootstrap.sh no longer scaffolds a line matching /$1/" >&2; status=1; }
+              grep -qF -- "$2" add_input \
+                || { echo "✗ flake_add_input no longer matches [$2]" >&2; status=1; }
+            }
+            anchor '^  inputs\.haus\.url = '  "'  inputs.haus.url = '"
+            anchor '^        host = '         "'        host = '"
+
+            # `flake_add_input` spells the `desktop = ` landmark THREE times —
+            # the counting grep that refuses a hand-reorganised flake, the case
+            # pattern that replaces an existing line, and the printf that writes
+            # one after `host = ` when there is none. `host = ` twice. A
+            # per-spelling grep above is satisfied by any ONE of them, so it
+            # stays green when a single copy drifts and the other answers for
+            # it: the function then agrees with itself nowhere and with
+            # bootstrap.sh only by accident. Sweep every line that mentions
+            # either landmark and insist it is one of the spellings pinned here.
+            grep -n 'desktop = \|host = ' add_input > candidates || true
+            while IFS= read -r hit; do
+              known=""
+              while IFS= read -r lit; do
+                [ -n "$lit" ] || continue
+                case "$hit" in *"$lit"*) known=1 ;; esac
+              done < ${
+                pkgs.writeText "installer-selection-spellings" (
+                  builtins.concatStringsSep "\n" [
+                    "'        desktop = %s;\\n'"
+                    "'        desktop = '"
+                    "'^        desktop = .*;$'"
+                    "'        host = '"
+                    "'^        host = .*;$'"
+                  ]
+                  + "\n"
+                )
+              }
+              [ -n "$known" ] || {
+                echo "✗ flake_add_input spells the selection landmark some other way: $hit" >&2
+                status=1
+              }
+            done < candidates
+
+            copied() { # copied <function> <sed range>
+              if ! diff -u <(sed -n "$2" "$cli") <(sed -n "$2" "$boot"); then
+                echo "✗ bootstrap.sh's copy of $1 has drifted from modules/core/haus.sh's — edit it THERE and re-copy" >&2
+                status=1
+              fi
+            }
+            copied nix_string        '/^nix_string() {/p'
+            copied derive_input_name '/^derive_input_name() {/,/^}/p'
+
+            [ "$status" -eq 0 ] || exit 1
+            touch $out
+          '';
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-darwin" system) {
           # ---- bar-third-party-widget ------------------------------------------

@@ -15,8 +15,8 @@
 #                                       including Determinate's own confirmation
 #                                       of the Nix install, which an unattended
 #                                       run has no terminal to answer
-#   --desktop <name>, HAUS_DESKTOP=<name>    select a desktop — `hacker` is the
-#                                            one that ships — instead of the
+#   --desktop <name|source>,                 select a desktop — `hacker` is the
+#   HAUS_DESKTOP=<name|source>               one that ships — instead of the
 #                                            foundation, which is what installs
 #                                            when nothing is named: no bar, no
 #                                            tiling, no palette, no wallpaper.
@@ -28,6 +28,15 @@
 #                                            `full` are retired spellings, still
 #                                            read (DESKTOP_NAME below says what
 #                                            each becomes).
+#                                            Anything with a `:` or a `/` in it
+#                                            is a SOURCE instead — a stranger's
+#                                            desktop, fetched and checked with
+#                                            `haus show` before a line of it is
+#                                            written, then pinned as an input
+#                                            and selected:
+#                                              --desktop=github:hausfold/producer-desktop
+#                                              --desktop=git+https://git.example.org/ada/desktop
+#                                              --desktop=file+https://example.org/writer.nix
 #   HAUS_ROOMS=<a,b,…>                       rooms to turn on in the host file at
 #                                            install, one `haus.<room>.enable =
 #                                            true;` each: bar, windows, launcher,
@@ -149,6 +158,38 @@ die()  { printf '%s✗  %s%s\n' "$E_ERR" "$*" "$E_OFF" >&2; exit 1; }
 # run — do a MUTATING thing, or just show it under dry-run.
 run() { if [ -n "$DRY_RUN" ]; then printf '%s   [dry-run] %s%s\n' "$C_MUT" "$*" "$C_OFF"; else "$@"; fi; }
 
+# ---- pinning a desktop by source: two helpers, both copied ----------------
+# `--desktop <flakeref>` does at scaffold time what `haus add` does afterwards,
+# so it has to spell things the same way `haus add` spells them or the two
+# halves disagree about one source. Both of these are `modules/core/haus.sh`'s,
+# byte for byte; `installer-add-parity` in flake.nix diffs them, so edit there
+# and re-copy rather than fixing one side.
+nix_string() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/\$/\\$/g'; }
+
+# `github:ada/writer-desktop` -> writer ; `git+https://…/ada/desktop` -> desktop
+# ; a `file+https` source names itself by its filename. No second registry to
+# keep in step — `nix flake update <name>` already addresses this namespace,
+# so the name only has to be legal and free.
+derive_input_name() { # typed shape
+  local typed="$1" shape="$2" n
+  if [ "$shape" = file ]; then
+    n="$(basename "$typed")"; n="${n%.nix}"
+  else
+    n="${typed%%\?*}"; n="${n%%\#*}"; n="${n%.git}"; n="${n%/}"
+    n="${n##*/}"
+  fi
+  n="${n%-desktop}"; n="${n%-haus}"
+  n="$(printf '%s' "$n" | LC_ALL=C tr -c 'A-Za-z0-9_-' '-')"
+  case "$n" in [0-9]*) n="d$n" ;; esac
+  [ -n "$n" ] || n="desktop"
+  printf '%s' "$n"
+}
+
+# A value out of `haus show --json`'s `sets` comes rendered as Nix writes it,
+# so a string option arrives with its quotes on. The preflight says these out
+# loud to a person, who wants the accent, not the literal.
+unquote() { local v="$1"; v="${v#\"}"; printf '%s' "${v%\"}"; }
+
 # ---- config + flags -------------------------------------------------------
 USERNAME="$(id -un)"
 HOSTNAME="$(scutil --get LocalHostName 2>/dev/null || hostname -s)"
@@ -171,17 +212,17 @@ DRY_RUN="${HAUS_DRY_RUN:-}"
 # --from <url> / HAUS_FROM restores an existing config instead of scaffolding
 # (see Phase 1b). Parse args here so --defaults still gates INTERACTIVE below.
 FROM_URL="${HAUS_FROM:-}"
-# --desktop <name> selects a desktop up front; nothing selects the foundation.
-# Parsed here rather than beside DESKTOP_NAME below because the flag has to be
-# seen before the interview is assembled. HAUS_PRESET is the pre-desktops name
-# for the same thing, still read.
+# --desktop <name|source> selects a desktop up front; nothing selects the
+# foundation. Parsed here rather than beside DESKTOP_NAME below because the flag
+# has to be seen before the interview is assembled. HAUS_PRESET is the
+# pre-desktops name for the same thing, still read.
 DESKTOP_ARG="${HAUS_DESKTOP:-${HAUS_PRESET:-}}"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --defaults)  NONINTERACTIVE=1 ;;
     --from)      shift; FROM_URL="${1:-}"; [ -n "$FROM_URL" ] || die "--from needs a git URL (e.g. --from https://github.com/you/nix-config)" ;;
     --from=*)    FROM_URL="${1#--from=}" ;;
-    --desktop)   shift; DESKTOP_ARG="${1:-}"; [ -n "$DESKTOP_ARG" ] || die "--desktop needs a name (hacker); leave the flag out for the foundation" ;;
+    --desktop)   shift; DESKTOP_ARG="${1:-}"; [ -n "$DESKTOP_ARG" ] || die "--desktop needs a name (hacker) or a source (github:ada/writer-desktop); leave the flag out for the foundation" ;;
     --desktop=*) DESKTOP_ARG="${1#--desktop=}" ;;
     *)           : ;;
   esac
@@ -524,10 +565,25 @@ ROOMS="${HAUS_ROOMS:-}"
 # `everyday` set that are not a room's switch — the palette key, without which
 # a launcher is a daemon nobody can open, and the wallpaper look — so that URL
 # still lands a Mac whose ⌘Space does what it did.
+#
+# A SOURCE is the other arm, and it is a new one rather than a replacement:
+# every bare name above keeps exactly the meaning it had. What tells them apart
+# is that no desktop NAME has ever contained a `:` or a `/` and every flakeref
+# `haus show` accepts has one (`github:ada/x`, `git+https://…`,
+# `file+https://…/x.nix`, `path:…`) — so the punctuation is the discriminator,
+# and a bare `*.nix` joins it so a local file gets the right refusal instead of
+# "unknown desktop 'writer.nix'". DESKTOP_SOURCE is what was typed;
+# everything derived from it is filled in by the gate below.
 DESKTOP_NAME="${DESKTOP_ARG:-}"
 DESKTOP_LEGACY=""
 EXTRA_LINES=""
+DESKTOP_SOURCE=""
+DESKTOP_INPUT=""
+DESKTOP_RHS=""
+D_SHAPE=""; D_FILE=""; D_REV=""; D_ROOMS=""
+D_WALL=""; D_PALETTE=""; D_LEADER=""; D_BAR=""
 case "$DESKTOP_NAME" in
+  *:* | */* | *.nix) DESKTOP_SOURCE="$DESKTOP_NAME"; DESKTOP_NAME="" ;;
   full)     DESKTOP_NAME=hacker ;;
   none)     DESKTOP_NAME="" ;;
   blank)    DESKTOP_LEGACY=blank;    DESKTOP_NAME="" ;;
@@ -554,9 +610,116 @@ if [ -n "$DESKTOP_NAME" ]; then
   # a word.
   case "$DESKTOP_NAME" in
     hacker) : ;;
-    *) die "unknown desktop '$DESKTOP_NAME' — hacker is the one that ships; leave it out for the foundation, or 'haus add' one you found once haus is installed" ;;
+    *) die "unknown desktop '$DESKTOP_NAME' — hacker is the one that ships; leave it out for the foundation, a source (github:ada/writer-desktop) for someone else's, or 'haus add' one once haus is installed" ;;
   esac
 fi
+
+# ---- a desktop from outside haus ------------------------------------------
+# The other half of the check above, and it cannot be a list: nobody can
+# enumerate the desktops strangers publish. What stands in for the list is
+# `haus show` — it fetches the source, PROVES it is data rather than code, and
+# prints every option it sets — which is the same gate `haus add` puts in front
+# of the same decision one step later. Run from the public flake, because on a
+# fresh Mac there is no haus yet; HAUS_FLAKE aims both this and the option
+# catalogue below at a checkout instead.
+#
+# TWICE, and both runs are wanted. The human render IS the disclosure — the
+# last read-only moment before this installer pins somebody else's config into
+# yours — and it renders a failure far better than anything here could. The
+# --json read afterwards carries the three values the scaffold needs and the
+# four claims the preflight has to be able to say out loud. The second fetch is
+# a cache hit on the first.
+#
+# A failure is fatal, never a warning: a desktop that could not be checked is
+# not a desktop this installer will write a line about.
+if [ -n "$DESKTOP_SOURCE" ]; then
+  command -v nix >/dev/null 2>&1 \
+    || die "--desktop $DESKTOP_SOURCE needs nix to fetch and check the source, and there is none on PATH yet. Re-run this installer, or install the foundation and 'haus add $DESKTOP_SOURCE' after the first rebuild."
+  HAUS_FLAKE_REF="${HAUS_FLAKE:-github:hausfold/haus}"
+  say "Checking $DESKTOP_SOURCE — the same 'haus show' that 'haus add' runs, and the same gate."
+  printf '\n'
+  # HAUS_CONSUMER points at the config being scaffolded, which does not exist
+  # yet — so show skips its "what your machine becomes" diff rather than
+  # evaluating some OTHER flake this Mac happens to have (which, under
+  # HAUS_DRY_RUN on a machine that already runs haus, is exactly what the
+  # default would find).
+  show_status=0
+  HAUS_CONSUMER="$DEST" nix run "$HAUS_FLAKE_REF#show" -- "$DESKTOP_SOURCE" || show_status=$?
+  printf '\n'
+  case "$show_status" in
+    0) ;;
+    3) die "$DESKTOP_SOURCE is a ROOM — code, which haus cannot vet — not a desktop. This installer pins desktops only: install the foundation, then 'haus add --room --namespace <name> $DESKTOP_SOURCE' once you have read it." ;;
+    *) die "$DESKTOP_SOURCE did not pass 'haus show' — see the report above. Nothing has been written." ;;
+  esac
+
+  _report="$(mktemp)"
+  HAUS_CONSUMER="$DEST" nix run "$HAUS_FLAKE_REF#show" -- --json "$DESKTOP_SOURCE" >"$_report" \
+    || die "$DESKTOP_SOURCE stopped passing between the two reads above — try again."
+  # Nix is the JSON parser here. A fresh Mac has no jq and this script has never
+  # needed one; nix is a prerequisite Phase 0 has already installed, and one
+  # eval reads the whole report. Eight fields: three the scaffold needs, and
+  # five the preflight says out loud.
+  #
+  # ONE PER LINE, and one `read` each, because half of them are legitimately
+  # empty — a desktop that claims no leader key, no palette key, no wallpaper.
+  # A tab-separated line read with `IFS=$'\t' read -r …` looks like it handles
+  # that and does not: tab is IFS WHITESPACE, so a run of them collapses into
+  # one delimiter, the empty field vanishes and every field after it shifts up
+  # one. That is not a parse error anywhere — it reads as the desktop claiming
+  # a leader key it never mentions.
+  _fields="$(NIX_PATH='' nix eval --impure --raw --expr "
+    let
+      r = builtins.fromJSON (builtins.readFile \"$_report\");
+      o = if r.origin == null then { shape = null; file = null; rev = null; } else r.origin;
+      n = v: if v == null then \"\" else v;
+      leaf =
+        p:
+        let
+          m = builtins.filter (x: x.path == p) r.sets;
+        in
+        if m == [ ] then \"\" else (builtins.head m).value;
+    in
+    builtins.concatStringsSep \"\n\" [
+      (n o.shape)
+      (n o.file)
+      (n o.rev)
+      (builtins.concatStringsSep \", \" (map (x: x.title) r.rooms))
+      (leaf \"haus.wallpaper.style\")
+      (leaf \"haus.keys.palette\")
+      (leaf \"haus.keys.leader\")
+      (leaf \"haus.bar.enable\")
+    ]")" || die "couldn't read 'haus show --json $DESKTOP_SOURCE' — refusing rather than guessing at what it sets."
+  rm -f "$_report"
+  {
+    read -r D_SHAPE; read -r D_FILE; read -r D_REV; read -r D_ROOMS
+    read -r D_WALL;  read -r D_PALETTE; read -r D_LEADER; read -r D_BAR
+  } <<<"$_fields"
+
+  # An empty shape means `origin` was null, which `haus show` says only about a
+  # path already on this machine. There is nothing to pin: a flake input is a
+  # thing you fetch.
+  [ -n "$D_SHAPE" ] \
+    || die "--desktop takes a source haus can fetch and PIN — github:ada/writer-desktop, git+https://…, file+https://…/writer.nix — not a path already on this machine. Install the foundation, then 'haus add --vendor $DESKTOP_SOURCE', which copies the file into your config instead."
+  DESKTOP_INPUT="$(derive_input_name "$DESKTOP_SOURCE" "$D_SHAPE")"
+  [ "$DESKTOP_INPUT" != haus ] \
+    || die "that source would be pinned as the input 'haus', which is the layer itself. Install the foundation, then 'haus add --as <name> $DESKTOP_SOURCE'."
+  if [ "$D_SHAPE" = file ]; then
+    DESKTOP_RHS="$DESKTOP_INPUT"
+  else
+    [ -n "$D_FILE" ] \
+      || die "couldn't tell which .nix in $DESKTOP_SOURCE is the desktop. Install the foundation, then 'haus add --file <path> $DESKTOP_SOURCE' — the installer has no --file of its own."
+    DESKTOP_RHS="$DESKTOP_INPUT + \"/$D_FILE\""
+  fi
+  say "It passed. Pinning it as the input '$DESKTOP_INPUT', and selecting it."
+fi
+
+# A desktop is SELECTED — by name or by source. The two arms share exactly
+# three consequences, and this is what those three ask: with one selected
+# HAUS_ROOMS is ignored, an explicit HAUS_WALLPAPER=none has to be written out
+# to beat it, and the closing card says something different.
+DESKTOP_SELECTED=""
+if [ -n "$DESKTOP_NAME" ] || [ -n "$DESKTOP_SOURCE" ]; then DESKTOP_SELECTED=1; fi
+
 # Every token has to BE a room this script knows the switch for. An
 # unrecognised one dies rather than being skipped — which is how a stale
 # `HAUS_ROOMS=sill,prowl,pounce` would otherwise quietly build a machine with
@@ -582,8 +745,8 @@ done
 # With a desktop selected, the rooms are ITS answer. A host line above it would
 # freeze this machine's answer to a question the desktop should keep owning,
 # so the request is declined out loud rather than written.
-if [ -n "$DESKTOP_NAME" ] && [ -n "$ROOM_LINES" ]; then
-  warn "HAUS_ROOMS is ignored when a desktop is selected — $DESKTOP_NAME decides its rooms; add or remove one in your host file after the install."
+if [ -n "$DESKTOP_SELECTED" ] && [ -n "$ROOM_LINES" ]; then
+  warn "HAUS_ROOMS is ignored when a desktop is selected — ${DESKTOP_NAME:-$DESKTOP_INPUT} decides its rooms; add or remove one in your host file after the install."
   ROOM_LINES=""; ROOM_BAR=""
 fi
 
@@ -778,7 +941,36 @@ preflight_audit() {
   # A room turned on by HAUS_ROOMS comes up at its neutral default, which
   # claims no key (that is a desktop's decision), but the Bar does hide the
   # native menu bar to draw its own, so that one is named either way.
-  if [ "$DESKTOP_NAME" = hacker ]; then
+  #
+  # A desktop from a SOURCE names the same three claims, READ off the thing
+  # itself rather than hardcoded — `haus show --json` above already told us
+  # which of them it sets, and a stranger's desktop is the one case where
+  # guessing would be worst. Its provenance is named too: what was typed, what
+  # revision that resolved to, and which file in the tree is being read. This
+  # block is a re-statement, not a second gate — the report it summarises was
+  # printed in full back in Phase 1, and it passed.
+  if [ -n "$DESKTOP_SOURCE" ]; then
+    printf '  desktop   %s — someone else'"'"'s, checked with '"'"'haus show'"'"' and pinned as an input:\n' "$DESKTOP_SOURCE"
+    printf '              input name:  %s (in your flake.nix — '"'"'haus desktop none'"'"' drops back to the foundation)\n' "$DESKTOP_INPUT"
+    if [ -n "$D_REV" ]; then
+      printf '              revision:    %s\n' "$D_REV"
+    else
+      printf '              revision:    none — this shape of source carries no revision of any kind\n'
+    fi
+    [ -n "$D_FILE" ] && printf '              reads:       %s, out of the fetched tree\n' "$D_FILE"
+    printf '              sets:        %s\n' "${D_ROOMS:-nothing at all}"
+    if [ "$D_BAR" = true ]; then
+      printf '              Hide native menu bar: %s -> true (Bar draws its own)\n' "$(dflt -g _HIHideMenuBar)"
+    fi
+    if [ -n "$D_LEADER" ]; then
+      printf '              %s -> a leader key for tiling + the app launcher\n' "$(unquote "$D_LEADER")"
+    fi
+    if [ -n "$D_PALETTE" ]; then
+      printf '              %s -> the pounce palette (taken from Spotlight)\n' "$(unquote "$D_PALETTE")"
+    fi
+    printf '              Nothing vouches for it beyond that check: it is data, every leaf is an\n'
+    printf '              option a shared desktop may set, and your host file outranks any of them.\n'
+  elif [ "$DESKTOP_NAME" = hacker ]; then
     printf '  desktop   hacker: every optional room on, and these claims:\n'
     printf '              Hide native menu bar: %s -> true (Bar draws its own)\n' "$(dflt -g _HIHideMenuBar)"
     printf '              Caps Lock -> a leader key for tiling + the app launcher\n'
@@ -801,6 +993,8 @@ preflight_audit() {
     printf '              Desktop wallpaper:    set to the "%s" look (your current one is not deleted, but macOS keeps no record of it — re-pick it by hand if you go back)\n' "$WALLPAPER"
   elif [ "$DESKTOP_NAME" = hacker ] && [ -z "$WALLPAPER_EXPLICIT" ]; then
     printf '              Desktop wallpaper:    the "minimal" look, which hacker sets (HAUS_WALLPAPER=none keeps yours)\n'
+  elif [ -n "$DESKTOP_SOURCE" ] && [ -z "$WALLPAPER_EXPLICIT" ] && [ -n "$D_WALL" ] && [ "$D_WALL" != '"none"' ]; then
+    printf '              Desktop wallpaper:    the "%s" look, which %s sets (HAUS_WALLPAPER=none keeps yours)\n' "$(unquote "$D_WALL")" "$DESKTOP_INPUT"
   else
     printf '              Desktop wallpaper:    left as yours\n'
   fi
@@ -833,14 +1027,42 @@ mkdir -p "$DEST/hosts/$HOSTNAME"   # for real even in dry-run, so we can write i
 # the one desktop this install promised not to. `haus desktop` reads this line
 # to say what is selected, and rewrites it to switch. The comment above it
 # stays true whichever way the line reads, so a switch never strands it.
-if [ -n "$DESKTOP_NAME" ]; then
-  DESKTOP_LINE="
+#
+# A desktop from a SOURCE needs two more landmarks beside it — the input, and
+# the outputs BINDING PATTERN, which `...` matches syntactically without
+# binding. `haus add` writes those same three into a flake that already exists,
+# one careful line at a time (`flake_add_input` in modules/core/haus.sh); here
+# there is nothing to be surgical about, so all three go in at once.
+#
+# All four lines are built with the printf FORMATS that function builds them
+# with, character for character, rather than written out as text that happens to
+# look the same. Two reasons, and the second is why it is worth the awkwardness:
+# a line `haus add` cannot match afterwards costs this machine `haus desktop`,
+# `haus remove` and every later `haus add` — silently, since the flake is
+# otherwise perfectly good — and a shared FORMAT is a literal
+# `installer-add-parity` can pin with its quotes on, which a line of prose in a
+# heredoc is not.
+#
+# `flake = false` because a desktop is DATA: a `{ haus = { … }; }` attrset in a
+# .nix file, with no outputs of its own. And ONE of them, which is the same
+# limit `haus add` has for the same reason — a flake this arm wrote already has
+# a name in its outputs pattern, so a second `haus add` finds the landmark gone
+# and degrades to printing the lines for you.
+DESKTOP_RHS_LINE="null"
+[ -n "$DESKTOP_NAME" ] && DESKTOP_RHS_LINE="haus.desktops.$DESKTOP_NAME"
+[ -n "$DESKTOP_SOURCE" ] && DESKTOP_RHS_LINE="$DESKTOP_RHS"
+DESKTOP_LINE="
         # exactly one desktop, or null for the foundation — 'haus desktop' switches it
-        desktop = haus.desktops.$DESKTOP_NAME;"
-else
-  DESKTOP_LINE="
-        # exactly one desktop, or null for the foundation — 'haus desktop' switches it
-        desktop = null;"
+$(printf '        desktop = %s;\n' "$DESKTOP_RHS_LINE")"
+DESKTOP_INPUT_LINES=""
+OUTPUTS_PATTERN='    { haus, ... }:'
+if [ -n "$DESKTOP_SOURCE" ]; then
+  DESKTOP_INPUT_LINES="$(
+    printf '\n'
+    printf '  inputs.%s.url = "%s";\n' "$DESKTOP_INPUT" "$(nix_string "$DESKTOP_SOURCE")"
+    printf '  inputs.%s.flake = false;\n' "$DESKTOP_INPUT"
+  )"
+  OUTPUTS_PATTERN="$(printf '    { haus, %s, ... }:\n' "$DESKTOP_INPUT")"
 fi
 
 cat >"$DEST/flake.nix" <<EOF
@@ -850,10 +1072,10 @@ cat >"$DEST/flake.nix" <<EOF
   # The whole of haus (system + shell + pounce + nebelung) comes from the public
   # haus flake. This config holds only what's personal: the host.
   # Update everything with:  haus update
-  inputs.haus.url = "github:hausfold/haus";
+  inputs.haus.url = "github:hausfold/haus";$DESKTOP_INPUT_LINES
 
   outputs =
-    { haus, ... }:
+$OUTPUTS_PATTERN
     {
       darwinConfigurations.$HOSTNAME = haus.mkHaus {
         username = "$USERNAME";
@@ -876,7 +1098,7 @@ opt_lines=""
 # The option's own default is `none`, so a named look is what has to be written
 # out. The one other case is HAUS_WALLPAPER=none said explicitly against a
 # desktop that sets a look: then `none` is written, and the host wins.
-if [ "$WALLPAPER" != "none" ] || { [ -n "$WALLPAPER_EXPLICIT" ] && [ -n "$DESKTOP_NAME" ]; }; then
+if [ "$WALLPAPER" != "none" ] || { [ -n "$WALLPAPER_EXPLICIT" ] && [ -n "$DESKTOP_SELECTED" ]; }; then
   opt_lines+="  haus.wallpaper.style = \"$WALLPAPER\";"$'\n'
 fi
 # `editorName`, not `editor`: the first names an editor the room then installs,
@@ -1045,6 +1267,8 @@ if [ -n "$RAISE" ]; then
       /run/current-system/sw/bin/haus doctor || true
       if [ "$DESKTOP_NAME" = hacker ]; then
         printf '\n'; say "From here: haus edit · haus rebuild · haus doctor — the haus tour is waiting in the bar (or type: haus tour), and ⇪ then / opens the cheatsheet."
+      elif [ -n "$DESKTOP_SOURCE" ]; then
+        printf '\n'; say "From here: haus edit · haus rebuild · haus doctor. '$DESKTOP_INPUT' is what you are looking at — 'haus desktop' lists what this Mac can select and 'haus desktop none' drops back to the foundation; every line of it is overridable in your host file, and 'nix flake update $DESKTOP_INPUT' is how it moves."
       else
         printf '\n'; say "From here: haus edit · haus rebuild · haus doctor. No desktop is selected: turn a room on (haus set bar.enable true) or select one (haus desktop hacker), then haus rebuild."
       fi
