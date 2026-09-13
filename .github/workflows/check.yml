@@ -107,7 +107,9 @@ jobs:
   # moves, all three go cold, and each builds only what it asks for. Until
   # then expect three entries of roughly the old one's size, and read the job
   # token out of the key the restore step logs if you want to know whether the
-  # split is keying correctly — the size tells you nothing about that.
+  # split is keying correctly — the size tells you nothing about that. (The
+  # reset came on 2026-09-13 and it played out exactly so; the measured table
+  # is below, and `acquire` has since stopped keeping an entry.)
   #
   # ✅ Both halves of that held. Run 34689237922, the split's first push to
   # MAIN — 34688533513 above is its PR run, which restores but never saves —
@@ -137,14 +139,23 @@ jobs:
   # creep the block above describes — the same `-source` unpacked at a dozen
   # revs, plus 175 `.drv`s — because a restore unions and nothing collects.
   #
-  # So the reset clears both, but only the first stays cleared. A COLD store
-  # of this shape compresses at ~3.4:1 — measured, not inferred: run
-  # 34685699373, the first save this repo ever made, put 1623.0 MiB of nar out
-  # as a 472.1 MiB entry — which puts the first run of a lineage at ~320 /
-  # ~328 / ~199 MiB against 915 / 721 / 909 today. ⚠️ Those are
-  # FIRST-RUN-OF-THE-WEEK numbers. The creep resumes immediately and the next
-  # reset is what collects it, so the honest shape of this half's cost is a
-  # sawtooth, not a floor.
+  # So the reset clears both, but only the first stays cleared — and both
+  # halves of that are now measured rather than projected. #735's merge moved
+  # the nixpkgs half of the lineage key for the first time, all three jobs
+  # went cold, and each saved only what it built:
+  #
+  #                  projected    saved cold      before
+  #     eval           ~320        330.2 MiB      1037 MiB
+  #     checks         ~328        340.4 MiB       721 MiB
+  #     acquire        ~199        202.3 MiB       909 MiB
+  #
+  # Within 4%, off a ~3.4:1 cold compression taken from run 34685699373, the
+  # first save this repo ever made (1623.0 MiB of nar out as a 472.1 MiB
+  # entry). So "a cold job saves only what it built" holds, the repo went from
+  # 3.1 GB of entries to 1.5, and #724's ~373 / ~368 / ~233 was ~12% high.
+  # ⚠️ These are FIRST-RUN-OF-A-LINEAGE numbers. The creep resumes
+  # immediately and the next reset is what collects it, so the honest shape of
+  # this half's cost is a sawtooth, not a floor.
   #
   # ── The slope, reconstructed over W37's whole lineage (2026-09-13) ──
   #
@@ -171,28 +182,31 @@ jobs:
   # not TRIPLE the slope — `checks` creeps at under half what the other two
   # do — it doubled it.
   #
-  # ⚠️ Against GitHub's 10 GB, that no longer fits in a WEEK. ~847 MiB cold
-  # plus 74.4 a save, plus the 45 MiB `determinatesystem-nix-installer` entry
-  # that counts too, clears 10 GiB at 126 saves — and the five full weeks
-  # before this one ran 145 / 106 / 128 / 126 / 116: the median is 126, dead
-  # on the line, and three of the five are over it — a W32-shaped week ends at
-  # ~11.4 GB. W37, the week this slope was measured in, is the quiet outlier
-  # at 67 saves so far, which is why a glance at the entries right now reads
-  # as comfortable.
+  # ⚠️ Against GitHub's 10 GB, three entries at that slope did not fit in a
+  # WEEK. 872.9 MiB cold (measured, above) plus 74.4 a save, plus the 45.7 MiB
+  # `determinatesystem-nix-installer` entry that counts too, clears 10 GiB at
+  # 125 saves — and the five full weeks before this one ran 145 / 106 / 128 /
+  # 126 / 116: the median is 126, past the line, and three of the five are
+  # well over it — a W32-shaped week ends near 11.4 GB. W37, the week this
+  # slope was measured in, is the quiet outlier at 67 saves, which is why a
+  # glance at the entries mid-week read as comfortable.
   #
-  # That verdict is robust to the one term still projected. At #724's more
-  # pessimistic ~974 MiB cold the median week is ~10.2 GB; at an optimistic
-  # 600 it is ~9.8. The cold start moves it by a tenth of a gigabyte and the
-  # slope decides it.
+  # TWO things answer it, and the prefix below carries both.
   #
-  # So the reset has to be more frequent, and the cheapest form is a HALF-week
-  # token in the prefix below — the ISO week plus a first/second half off
-  # `date -u +%u`, resetting Monday and Thursday — which puts a W32-shaped
-  # lineage at ~6.2 GB and a median one at ~5.5. It costs one more cold run a
-  # week, plus the PRs opened in the gap ahead of it, and the purge stays a
-  # sweep of `nix-<os>-<job>-`, so it still reaches across lineages. ⚠️ Not
-  # yet: W38's first run is the only direct measurement of that ~847 MiB cold
-  # start, and moving the prefix now forces a reset that conflates the two.
+  # `acquire` keeps no cache at all — the A/B further down is why, and it is
+  # about seconds rather than bytes, but it takes 30.2 MiB a save and a cold
+  # 202.3 MiB out of this arithmetic as a side effect. What is left is two
+  # entries at 44.2 a save off 670.6 MiB cold, which clears 10 GiB at 215
+  # saves against a median week's 126.
+  #
+  # The week is HALVED anyway — the prefix carries the ISO week plus a
+  # first/second half off `date -u +%u`, resetting Monday and Thursday — which
+  # puts a median lineage (63 saves) at ~3.4 GB and a W32-shaped one (73) at
+  # ~3.9. Belt and braces on purpose: 215 saves of headroom against a 73-save
+  # busy half is the margin this arrangement lacked, and the reset is the half
+  # that keeps working if a job is added back. It costs one more cold run a
+  # week plus the PRs opened in the gap ahead of it, and the purge stays a
+  # sweep of `nix-<os>-<job>-`, so it still reaches across lineages.
   #
   # ⚠️ What the history does NOT support is the restore scaling with the
   # entry. Over 63 restores spanning 472-885 MiB — the whole life of this
@@ -223,22 +237,42 @@ jobs:
   # The ~35s restore the banner above measures a new step against is a W37
   # number; read the restore step of the run in front of you rather than
   # quoting it. ⚠️ But do not expect it to FALL with the entry — the
-  # 48-restore fit above says it does not — so the bar is ~35-50s on the first
-  # run of a week too, and every step in this half is under it. That is not an
-  # argument for a fourth job either: `acquire`'s note below says why
+  # 63-restore fit above says it does not — so the bar is ~35-50s on the first
+  # run of a half-week too, and every step in this half is under it. ⚠️ And
+  # the bar only exists where a restore does: a step joining `acquire` is
+  # measured against nothing, because that job pays no restore at all. That is
+  # not an argument for a fourth job either — `acquire`'s own note says why
   # splitting it again only moves the seconds.
   #
-  # The sharpest reading of "the restore is the gate, not the work under it":
-  # `acquire` is currently FASTER with no cache at all — 44s cold against the
-  # 54s warm best of the same eight PR runs above — because 233 MiB from
-  # cache.nixos.org costs less than 909 MiB from GitHub. That was left alone
-  # on the reading that the reset takes the restore to ~10s, which the flat
-  # fit above now doubts: if W38's
-  # first run still restores in ~32s off a ~199 MiB entry, `acquire`'s cache
-  # never pays at any point in the week and dropping it is worth ~15s. Measure
-  # that run before touching it — and if any job in this half carries a store
-  # it does not roughly fill, check the cold number before assuming the cache
-  # pays.
+  # ── The restore against the work, same hour, same runners (2026-09-13) ──
+  #
+  # #735 changes the lineage key, so its PR run built COLD — restore step 0-1s
+  # — while #734's, a comment-only change on the same base minutes earlier,
+  # restored the live entries. Two PR runs, so neither pays a save, which
+  # makes them the one clean A/B this half has had:
+  #
+  #                 cold      warm (restore + work)      the cache
+  #     eval        81s       71s  (44 + 20)              buys 10s
+  #     checks      75s       42s  (34 +  2)              buys 33s
+  #     acquire     45s       71s  (50 + 13)              COSTS 26s
+  #
+  # `acquire`'s cache was not marginal, it was 26s of pure loss — the 44s
+  # cold against 54s warm this paragraph used to quote was two samples taken a
+  # day apart, and the gap is wider than that made it look. ✅ So it is GONE;
+  # the job's own steps carry the note. The gate, the longest job of the run,
+  # was 81s cold against 71s warm with `eval` and `acquire` tied on it, and is
+  # now `eval`'s 71s alone, one gigabyte-class upload a push lighter.
+  #
+  # ⚠️ A reset would not have rescued it, which is why this did not wait for
+  # one. At the flat ~32s the fit above measures, even the 202.3 MiB `acquire`
+  # actually saved cold puts it near 48s against 45s: the restore IS the cost
+  # and it does not shrink with the entry.
+  #
+  # Two cold figures moved while nobody was looking. `nix flake check` is 67s
+  # cold now against #724's 57s — it is the step this repo keeps adding to and
+  # the one job whose cache plainly pays — and `nix eval` is 55s, unchanged.
+  # The rule stands: if a job in this half carries a store it does not roughly
+  # fill, check the cold number before assuming the cache pays.
 
   eval:
     name: eval the example host
@@ -313,7 +347,11 @@ jobs:
         id: lineage
         run: |
           rev="$(jq -r '.nodes[.nodes.root.inputs.nixpkgs].locked.rev // "norev"' flake.lock)"
-          week="$(date -u +%G-W%V)"
+          # `a` Mon-Wed, `b` Thu-Sun. An `if` rather than `[ ] && half=b`:
+          # the default shell here is `bash -e`, so a false test as a line's
+          # last command would fail the step.
+          if [ "$(date -u +%u)" -ge 4 ]; then half=b; else half=a; fi
+          week="$(date -u +%G-W%V)$half"
           echo "prefix=nix-${{ runner.os }}-eval-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
       # The eval pulls nixpkgs; without a store to come back to, every run paid
       # for that from scratch. Within a lineage the key is the flake inputs and
@@ -344,8 +382,11 @@ jobs:
       # is close to a SUBSET: `#show` and `#desktop-check` are `eval`'s too
       # (test/haus-show.sh builds both), the scaffolded consumer pins
       # `path:$root` so its lock is haus's own inputs, and since the nixfmt cut
-      # even nixfmt is shared — `.#host-template` realizes it in `eval`. Three
-      # entries are for the write refusal and the purge sweep above, not for
+      # even nixfmt is shared — `.#host-template` realizes it in `eval`. ⚠️
+      # `acquire` keeps no entry at all now, for reasons of SECONDS rather
+      # than overlap — its own steps carry that — so what is left is two.
+      # Separate entries are for the write refusal and the purge sweep above,
+      # not for
       # unshared content, and collapsing them back to one loses both.
       #
       # So the job token sits between the OS and the week, and each job purges
@@ -399,7 +440,7 @@ jobs:
           # keeps the pass that DOES run first off the entry being reused when
           # the key already hits. Both are scoped to the run's own ref, so a PR
           # can only ever reach its own — and now to this job's own prefix, so
-          # it cannot reach `checks` or `acquire` either.
+          # it cannot reach `checks` either (`acquire` no longer has one).
           purge: true
           purge-prefixes: nix-${{ runner.os }}-eval-
           purge-created: 0
@@ -483,7 +524,11 @@ jobs:
         id: lineage
         run: |
           rev="$(jq -r '.nodes[.nodes.root.inputs.nixpkgs].locked.rev // "norev"' flake.lock)"
-          week="$(date -u +%G-W%V)"
+          # `a` Mon-Wed, `b` Thu-Sun. An `if` rather than `[ ] && half=b`:
+          # the default shell here is `bash -e`, so a false test as a line's
+          # last command would fail the step.
+          if [ "$(date -u +%u)" -ge 4 ]; then half=b; else half=a; fi
+          week="$(date -u +%G-W%V)$half"
           echo "prefix=nix-${{ runner.os }}-checks-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
       # This job's store is the big one and the one nobody else's is a superset
       # of: `nix flake check` BUILDS thirty derivations. Every input here
@@ -713,39 +758,32 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # cache-nix-action purges its own superseded entries through the API.
-      actions: write
+      # No `actions: write`. That was for cache-nix-action's purge, and this
+      # job keeps no cache — the block below says why.
     # The ceiling the other two carry, for the account above `eval`.
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: nixbuild/nix-quick-install-action@v35
-      # The lineage prefix, with this job's own token — the account is above
-      # `eval`'s copy of this step, and so is the reason the token is there.
-      - name: Which store lineage this run belongs to
-        id: lineage
-        run: |
-          rev="$(jq -r '.nodes[.nodes.root.inputs.nixpkgs].locked.rev // "norev"' flake.lock)"
-          week="$(date -u +%G-W%V)"
-          echo "prefix=nix-${{ runner.os }}-acquire-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
-      # This store holds `#show`, `#desktop-check`, nixfmt and what a
-      # scaffolded consumer locks — all of which `eval` realizes too, so the
-      # entry is near enough a subset of that one. It is separate for the write
-      # refusal and the purge, both in the banner above `eval`; what made this
-      # job the POLE was never its store but the registry fetch, and that is in
-      # the same banner. Every input here is `eval`'s with a different token;
-      # read that copy for what each does.
-      - name: Restore the Nix store
-        uses: nix-community/cache-nix-action@v7
-        with:
-          primary-key: ${{ steps.lineage.outputs.prefix }}${{ hashFiles('flake.lock', '**/*.nix') }}
-          restore-prefixes-first-match: |
-            ${{ steps.lineage.outputs.prefix }}
-          save: ${{ github.ref == 'refs/heads/main' }}
-          purge: true
-          purge-prefixes: nix-${{ runner.os }}-acquire-
-          purge-created: 0
-          purge-primary-key: never
+      # ⚠️ NO STORE CACHE HERE, AND THAT IS A MEASUREMENT, NOT AN OVERSIGHT.
+      # This job is 45s cold and was 71s warm — 50s of restore in front of a
+      # 13s step — so the cache cost the run 26s every time it worked. The
+      # cold/warm A/B is in the banner above `eval`, and so is the reason a
+      # lineage reset does not fix it: the restore is ~32s whatever the entry
+      # weighs, and this job's whole cold store is 202.3 MiB, nearly all of
+      # which `eval` realizes anyway. 233 MiB from cache.nixos.org is simply
+      # cheaper than 200-900 MiB from GitHub.
+      #
+      # So do NOT re-add one because the other two have it. The test is the
+      # cold number against the warm one, PER JOB, and for `checks` it comes
+      # out the other way by 33s. What would change this: a step here that
+      # BUILDS rather than fetches, or a fetch that grows past the flat ~32s
+      # a restore costs.
+      #
+      # The `nix-Linux-acquire-` entries this job used to write are now
+      # unreachable — nothing saves them and nothing purges them — so GitHub's
+      # seven-day no-read eviction collects the last one, exactly as it did
+      # the untokened pre-split entry.
       # `haus add` renders through snug's painter the same way `haus show`
       # does, so it gets the same file at the same pinned rev. Nothing in the
       # suite SKIPS without it — the assertions are on words, not on colour —
