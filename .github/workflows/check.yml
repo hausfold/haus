@@ -109,7 +109,8 @@ jobs:
   # token out of the key the restore step logs if you want to know whether the
   # split is keying correctly — the size tells you nothing about that.
   #
-  # ✅ Both halves of that held. Run 34689237922, the split's own first run,
+  # ✅ Both halves of that held. Run 34689237922, the split's first push to
+  # MAIN — 34688533513 above is its PR run, which restores but never saves —
   # restored the one untokened 577.0 MiB entry into all three jobs and saved
   # 606.6 / 586.7 / 607.0 off it, and every restore since has logged a key
   # under its OWN token. The sizes below are inheritance plus creep — no job
@@ -148,8 +149,9 @@ jobs:
   # ── The slope, reconstructed over W37's whole lineage (2026-09-13) ──
   #
   # Every saving run logs the entry it uploaded, so the lineage rebuilds
-  # exactly from the run history. Ten saves, 2026-09-12T10:44 to
-  # 2026-09-13T06:19, as compressed MiB:
+  # exactly from the run history. Eleven saves, 2026-09-12T10:44 to
+  # 2026-09-13T06:19 — the first of them the split's own, so ten intervals —
+  # as compressed MiB:
   #
   #     eval     606.6 → 915   +30.8 a save
   #     checks   586.7 → 721   +13.4 a save
@@ -170,7 +172,8 @@ jobs:
   # do — it doubled it.
   #
   # ⚠️ Against GitHub's 10 GB, that no longer fits in a WEEK. ~847 MiB cold
-  # plus 74.4 a save clears the ceiling at 126 saves, and the five full weeks
+  # plus 74.4 a save, plus the 45 MiB `determinatesystem-nix-installer` entry
+  # that counts too, clears 10 GiB at 126 saves — and the five full weeks
   # before this one ran 145 / 106 / 128 / 126 / 116: the median is 126, dead
   # on the line, and three of the five are over it — a W32-shaped week ends at
   # ~11.4 GB. W37, the week this slope was measured in, is the quiet outlier
@@ -204,7 +207,8 @@ jobs:
   # behind it, and the reset's prize is the ~950 MiB of other jobs' work the
   # three entries shed, not seconds. ⚠️ 472 MiB is as low as the evidence
   # goes and the post-reset entries are projected below it, so W38's first run
-  # is still the one to read: `script/probes/ci-cache-value.sh haus`.
+  # is still the one to read: the workshop's
+  # `script/probes/ci-cache-value.sh haus`.
   #
   # ⚠️ Which is exactly why not to narrow them by hand on top of that. The gate
   # is the longest job of the RUN, and measured over eight PR runs that is
@@ -225,10 +229,11 @@ jobs:
   # splitting it again only moves the seconds.
   #
   # The sharpest reading of "the restore is the gate, not the work under it":
-  # `acquire` is currently FASTER with no cache at all — 44s cold against 59s
-  # warm at its best — because 233 MiB from cache.nixos.org costs less than
-  # 909 MiB from GitHub. That was left alone on the reading that the reset
-  # takes the restore to ~10s, which the flat fit above now doubts: if W38's
+  # `acquire` is currently FASTER with no cache at all — 44s cold against the
+  # 54s warm best of the same eight PR runs above — because 233 MiB from
+  # cache.nixos.org costs less than 909 MiB from GitHub. That was left alone
+  # on the reading that the reset takes the restore to ~10s, which the flat
+  # fit above now doubts: if W38's
   # first run still restores in ~32s off a ~199 MiB entry, `acquire`'s cache
   # never pays at any point in the week and dropping it is worth ~15s. Measure
   # that run before touching it — and if any job in this half carries a store
@@ -269,7 +274,21 @@ jobs:
       # the lineage it replaces. One cold run a week is the whole cost of it,
       # and PRs opened in the gap before that push pay full price too. ⚠️ A
       # week is measured to be too long for three entries — the banner above
-      # has the slope and the half-week token that answers it. A
+      # has the slope and the half-week token that answers it.
+      #
+      # ⚠️⚠️ THE NIXPKGS HALF OF THAT HAS NEVER FIRED, and the `jq` path below
+      # is why. `.nodes.nixpkgs` is not this flake's nixpkgs — `root.inputs`
+      # names it `nixpkgs_2` — it is CATPPUCCIN's pinned tarball, which has not
+      # moved in six months, so every key since the lineage landed carries
+      # `89570f24e97e` while the real input went 07-28, 08-13 and 09-03 and
+      # reset nothing. The second stdenv this paragraph exists to prevent is
+      # therefore part of the creep the banner measures. The fix is one line,
+      # `.nodes[.nodes.root.inputs.nixpkgs].locked.rev`, in all three jobs, and
+      # it is deliberately NOT in this change: it forces a cold run the moment
+      # it lands, and the banner's "126 saves in one lineage" holds only
+      # because this half is dead. Fixing it adds a reset every 2-3 weeks —
+      # nowhere near enough to bound a 145-save week, so the verdict above
+      # survives it. A
       # `gc-max-store-size` cap instead of any of this would take exactly the
       # paths the next run wants — see the comment on that input below.
       #
@@ -321,14 +340,18 @@ jobs:
       # `nix-<os>-<job>-` alone. The weekly reset still works — a new week
       # lands a new key under the same job prefix and the old one is swept —
       # and no job can reach another's. Three entries per lineage rather than
-      # one: the combined entry was ~0.5 GiB compressed against a 10 GB budget,
-      # the three overlap heavily (all of them carry nixpkgs), and the weekly
-      # reset bounds the total the same WAY it always did — but the total is
-      # three entries now, so the slope it bounds is steeper. `gh cache list
-      # --repo hausfold/haus` is the number that counts, and it is worth a
-      # look the first week after this. The pre-split entry carries no token,
-      # so nothing here purges it — and with the transitional prefix that
-      # warmed the split off it now gone, nothing reads it either. GitHub
+      # one: the three overlap heavily (all of them carry nixpkgs), and the
+      # weekly reset bounds the total the same WAY it always did — but the
+      # total is three entries now, so the slope it bounds is steeper. ⚠️ That
+      # look the first week after this has been taken, and the answer is in the
+      # banner above: steeper by 2x, and steep enough that a WEEK no longer
+      # bounds it. The ~0.5 GiB the combined entry cost is not the scale any
+      # more either — the three ran 2.5 GiB by day two. `gh cache list --repo
+      # hausfold/haus` is still the number that counts.
+      #
+      # The pre-split entry carries no token, so nothing here purges it — and
+      # with the transitional prefix that warmed the split off it now gone,
+      # nothing reads it either. GitHub
       # evicts a cache nothing has read in seven days, which is what finally
       # collects it.
       #
