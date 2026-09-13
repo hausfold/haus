@@ -58,7 +58,7 @@ jobs:
   #   checks    `nix flake check` alone. Warm it is 1s and this split buys
   #             nothing; COLD it is the whole reason there are three jobs and
   #             not two, because it is the one step that BUILDS — all
-  #             twenty-nine derivations — and a lock bump makes every run
+  #             thirty derivations — and a lock bump makes every run
   #             cold. It is also the step this repo keeps adding to, and the
   #             only one whose store is nobody else's subset.
   #   acquire   `haus add`/`desktop`/`remove` alone. It was the pole at 36s,
@@ -224,7 +224,7 @@ jobs:
       #
       #   the SAVE — whichever job reached its post phase first would write the
       #   entry and the other two would be refused it as already present.
-      #   `checks` is the one whose store is nobody's subset: twenty-nine
+      #   `checks` is the one whose store is nobody's subset: thirty
       #   derivations `eval` never asks for. A shared key means the first
       #   writer decides what the other two come back to, and whichever of them
       #   needed more rebuilds it on every run — which reads not as a race but
@@ -379,7 +379,7 @@ jobs:
           week="$(date -u +%G-W%V)"
           echo "prefix=nix-${{ runner.os }}-checks-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
       # This job's store is the big one and the one nobody else's is a superset
-      # of: `nix flake check` BUILDS twenty-nine derivations. Every input here
+      # of: `nix flake check` BUILDS thirty derivations. Every input here
       # is `eval`'s with a different token — read that copy for what each does.
       - name: Restore the Nix store
         uses: nix-community/cache-nix-action@v7
@@ -393,12 +393,16 @@ jobs:
           purge-created: 0
           purge-primary-key: never
       # The platform-independent checks are declared for Linux too precisely so
-      # they can run HERE — TWENTY-NINE of them, everything in flake.nix's `checks`
+      # they can run HERE — THIRTY of them, everything in flake.nix's `checks`
       # before the `optionalAttrs (hasSuffix "-darwin" system)` line, which is
       # the only thing that decides the split and the only place to re-derive
       # this list from:
       #
       #   room-registry            registry vs the evaluated option tree
+      #   display-activations      a uiScale with no arrangement still gets its
+      #                            `hausdisp apply`, an arrangement with no uiScale
+      #                            does NOT (that call is an unknown intent, exit 64),
+      #                            and no ordering edge names an entry nothing defines
       #   data-only-surface        a package-typed option a data-only file can't set
       #   agent-skill              the shipped skill's file inventory — and, by
       #                            building it, the A4 shape guards that live in
