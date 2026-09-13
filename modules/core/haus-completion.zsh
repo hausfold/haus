@@ -81,6 +81,7 @@ _haus() {
     'add:pin a desktop and select it, or a room with --room --namespace'
     'desktop:list every desktop this machine can select, or switch to one'
     'remove:unpin a desktop or room this machine added, and reselect'
+    'uninstall:take haus off this Mac - settings, nix-darwin, its agents, then Nix'
     'version:the haus release this machine is running (--version too)'
     'help:list every command'
   )
@@ -184,6 +185,15 @@ _haus() {
               '*:desktop or room - a .nix file, or a source:_files -g "*.nix"'
           else
             _message 'one source at a time'
+          fi
+          ;;
+        uninstall)
+          # One flag, and the reason it is worth completing at all: typing it
+          # is how you say you have already read the plan the verb prints.
+          if (( typed == 0 )); then
+            _arguments '(-y --yes)'{-y,--yes}'[skip the confirmation - you have read the plan]'
+          else
+            _message 'no arguments'
           fi
           ;;
       esac

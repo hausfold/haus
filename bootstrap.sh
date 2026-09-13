@@ -348,6 +348,38 @@ else
   warn "Couldn't take a local snapshot (Time Machine not configured?). Continuing."
 fi
 
+# The settings snapshot `haus revert-settings` restores from — the same shape
+# `haus capture` writes, taken here because here is the last moment these
+# domains still hold the user's own values. Without it the verb has nothing to
+# put back on a machine that only ever ran the installer, which is every machine
+# that has just run the installer; the uninstall path then had to send people to
+# the APFS snapshot above, and that is a whole-volume restore in Recovery, not a
+# settings undo. Three domains, matching `haus capture`'s own default set.
+#
+# Written by hand rather than by calling `haus`: this runs before the first
+# switch, when `haus` is not on PATH yet — the same reason settings_overrides
+# above keeps its own copy of the capture logic.
+SNAPDIR="${XDG_STATE_HOME:-$HOME/.local/state}/haus/settings-snapshots/$(date -u '+%Y%m%dT%H%M%SZ')"
+if [ -n "$DRY_RUN" ]; then
+  run "defaults export {com.apple.dock,com.apple.finder,NSGlobalDomain} -> $SNAPDIR"
+else
+  mkdir -p "$SNAPDIR"
+  : >"$SNAPDIR/manifest.tsv"
+  for _d in com.apple.dock com.apple.finder NSGlobalDomain; do
+    if defaults export "$_d" "$SNAPDIR/$_d.plist" 2>/dev/null; then
+      printf '%s\t%s\n' "$_d" "$SNAPDIR/$_d.plist" >>"$SNAPDIR/manifest.tsv"
+    fi
+  done
+  if [ -s "$SNAPDIR/manifest.tsv" ]; then
+    ln -sfn "$(basename "$SNAPDIR")" "$(dirname "$SNAPDIR")/latest"
+    say "Snapshotted your Dock, Finder and keyboard settings — 'haus revert-settings' puts them back."
+  else
+    rmdir "$SNAPDIR" 2>/dev/null || true
+    warn "Couldn't snapshot your macOS settings — 'haus revert-settings' will have nothing to restore."
+  fi
+fi
+unset _d
+
 # Xcode Command Line Tools (pounce compiles against system Swift; git lives here).
 # Its installer is a GUI dialog — the one unavoidable two-step.
 if ! /usr/bin/xcode-select -p >/dev/null 2>&1; then
@@ -743,8 +775,9 @@ preflight_audit() {
     printf '              Desktop wallpaper:    set to the "%s" look (your current one is not deleted, but macOS keeps no record of it — re-pick it by hand if you go back)\n' "$WALLPAPER"
   fi
 
-  printf '  undo      nothing is switched until you run the build below; the snapshot\n'
-  printf '            taken above + `darwin-rebuild --rollback` revert it.\n'
+  printf '  undo      nothing is switched until you run the build below. After that:\n'
+  printf '            `haus revert-settings` puts these back from the snapshot taken\n'
+  printf '            above, and `haus uninstall` takes the whole thing off.\n'
 }
 preflight_audit
 
@@ -904,18 +937,32 @@ EOF
 
 cat <<EOF
 
-$(say "Before you switch — what haus can and can't undo:")
+$(say "Before you switch — how you get back out:")
 
-  CAN undo     everything Nix manages (packages, agents, shell config, PATH):
-                 sudo darwin-rebuild --rollback        instant, atomic
-               Nix itself, entirely (daemon, /nix volume):
-                 sudo /nix/nix-installer uninstall      Determinate, clean
-               a dotfile it replaced:  restore the .backup it saved (once)
+  ALL OF IT    haus uninstall        one verb, and the only order that works:
+                                     macOS settings back from the snapshot taken
+                                     above, then nix-darwin, then every launchd
+                                     agent haus wrote, then Nix itself. It says
+                                     what it is leaving and how to take that too.
+                                     (--yes skips the confirmation.)
 
-  CANNOT undo  macOS system settings it changed (Dock, keyboard) — these persist
-               after a rollback; use the local snapshot taken above, or revert by
-               hand in System Settings.
-               Homebrew casks/brews — left in place; remove with brew uninstall --zap.
+  ONE REBUILD  haus rollback         back a generation: packages, agents, shell
+                                     config, PATH. Not settings — that is
+                                     haus revert-settings, and not the FIRST
+                                     generation, which has nothing behind it.
+
+  BY HAND      if haus is already gone, the same order without it:
+                 sudo darwin-uninstaller                nix-darwin first, always
+                 launchctl bootout gui/\$UID/<label>     for each plist left in
+                 rm ~/Library/LaunchAgents/<label>.plist   ~/Library/LaunchAgents
+                 sudo /nix/nix-installer uninstall --no-confirm
+               In that order or not at all: nix-installer refuses while
+               nix-darwin is installed, and the agents outlive the store they
+               point at — they respawn every ten seconds after it is gone.
+
+  LEFT BEHIND  ~/.config/nix on purpose — your machine in text, keep it.
+               Homebrew and its casks: brew uninstall --zap <cask>.
+               TCC grants: System Settings > Privacy & Security, by hand.
 
 $(say "Later: push $DEST to a private repo of your own — it's your machine in text.")
 EOF
