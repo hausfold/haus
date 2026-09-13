@@ -238,7 +238,7 @@ in
               fi
             ''
           )
-        ) arranged)
+        ) configured)
         // (lib.mapAttrs' (
           selector: display:
           lib.nameValuePair (arrangementActivationName selector) (

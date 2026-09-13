@@ -3734,6 +3734,67 @@
             touch $out
           '';
 
+          # `uiScale` and `arrangement` are independent asks about one display,
+          # and the activation set has to say so: a display with only a scale
+          # still gets its `hausdisp apply`, and one with only an arrangement
+          # must NOT — `apply <selector> ""` is a usage error, exit 64, which
+          # fails the whole rebuild rather than being skipped like an absent
+          # panel. The two activation families therefore iterate two different
+          # attrsets (`configured` and `arranged`), which is a one-word
+          # difference that reads correct either way and that nothing else here
+          # can see: the room evaluates, the options are all still declared, and
+          # the person whose desktop lost its scale finds out by looking at it.
+          display-activations =
+            let
+              hm =
+                (mkHaus {
+                  inherit system;
+                  username = "you";
+                  hostname = "example";
+                  extraModules = [
+                    {
+                      haus.displays = {
+                        # scale, no arrangement
+                        main.uiScale = "default";
+                        # arrangement, no scale
+                        internal.arrangement = {
+                          side = "right-of";
+                          of = "main";
+                          align = "top";
+                        };
+                      };
+                    }
+                  ];
+                }).config.home-manager.users.you;
+              has = name: hm.home.activation ? ${name};
+              # The regression's third symptom: `hausDisplayArrangement-internal`
+              # was ordered after a `hausDisplay-main` that no longer existed, and
+              # home-manager's DAG swallows an edge naming nothing. An ordering
+              # guarantee whose edges dangle is not one.
+              dangling = nixpkgs.lib.concatMap (
+                name:
+                map (dep: "${name} is ordered after ${dep}, which no activation defines") (
+                  builtins.filter (dep: !(hm.home.activation ? ${dep})) hm.home.activation.${name}.after
+                )
+              ) (builtins.filter (nixpkgs.lib.hasPrefix "hausDisplay") (builtins.attrNames hm.home.activation));
+              noScaleActivation = "haus.displays.main.uiScale produced no activation: a display with a scale and no arrangement is never applied.";
+              strayApply = "haus.displays.internal has an arrangement and no uiScale, but got an apply activation: that runs `hausdisp apply internal \"\"`, an unknown intent, which exits 64 and fails the rebuild.";
+              noArrangement = "haus.displays.internal.arrangement produced no activation.";
+              failures =
+                nixpkgs.lib.optional (!has "hausDisplay-main") noScaleActivation
+                ++ nixpkgs.lib.optional (has "hausDisplay-internal") strayApply
+                ++ nixpkgs.lib.optional (!has "hausDisplayArrangement-internal") noArrangement
+                ++ dangling;
+            in
+            pkgs.runCommand "haus-display-activations-ok" { } ''
+              ${nixpkgs.lib.optionalString (failures != [ ]) ''
+                cat >&2 <<'FAILURES'
+                ${builtins.concatStringsSep "\n" failures}
+                FAILURES
+                exit 1''}
+              touch $out
+            '';
+
           data-only-surface = pkgs.runCommand "haus-data-only-surface-ok" { } ''
             ${nixpkgs.lib.optionalString (unnamedPackageOptions != [ ]) ''
               cat >&2 <<'OFFENDERS'
