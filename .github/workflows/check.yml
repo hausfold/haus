@@ -267,6 +267,18 @@ jobs:
       # fits just means every run pays full price again, which is the
       # surprise the cache exists to prevent.
       #
+      # ⚠️ `.nodes.nixpkgs` is NOT this flake's nixpkgs, and reading it there is
+      # how the second half of this key stayed dead from the day it landed.
+      # `root.inputs` names ours `nixpkgs_2`; the node spelled `nixpkgs` is
+      # CATPPUCCIN's pinned tarball, which had not moved in six months. Every
+      # key from the lineage landing until this commit carried `89570f24e97e`
+      # while the real input went 2026-07-28, 08-13 and 09-03 and reset
+      # nothing — so the second stdenv the next paragraph exists to prevent was
+      # being unioned in, and is part of the per-save creep the banner above
+      # measures. Go through `root.inputs`, and never name a lock node
+      # directly: the `_2` suffixes are assigned by lock ORDER, so the bare
+      # name belongs to whichever input reached it first and moves under you.
+      #
       # So the prefix carries an ISO week and the nixpkgs rev, and the lineage
       # restarts on either. The first main push of a week (or of a nixpkgs
       # bump, which would otherwise union a second stdenv onto the first)
@@ -300,7 +312,7 @@ jobs:
       - name: Which store lineage this run belongs to
         id: lineage
         run: |
-          rev="$(jq -r '.nodes.nixpkgs.locked.rev // "norev"' flake.lock)"
+          rev="$(jq -r '.nodes[.nodes.root.inputs.nixpkgs].locked.rev // "norev"' flake.lock)"
           week="$(date -u +%G-W%V)"
           echo "prefix=nix-${{ runner.os }}-eval-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
       # The eval pulls nixpkgs; without a store to come back to, every run paid
@@ -470,7 +482,7 @@ jobs:
       - name: Which store lineage this run belongs to
         id: lineage
         run: |
-          rev="$(jq -r '.nodes.nixpkgs.locked.rev // "norev"' flake.lock)"
+          rev="$(jq -r '.nodes[.nodes.root.inputs.nixpkgs].locked.rev // "norev"' flake.lock)"
           week="$(date -u +%G-W%V)"
           echo "prefix=nix-${{ runner.os }}-checks-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
       # This job's store is the big one and the one nobody else's is a superset
@@ -713,7 +725,7 @@ jobs:
       - name: Which store lineage this run belongs to
         id: lineage
         run: |
-          rev="$(jq -r '.nodes.nixpkgs.locked.rev // "norev"' flake.lock)"
+          rev="$(jq -r '.nodes[.nodes.root.inputs.nixpkgs].locked.rev // "norev"' flake.lock)"
           week="$(date -u +%G-W%V)"
           echo "prefix=nix-${{ runner.os }}-acquire-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
       # This store holds `#show`, `#desktop-check`, nixfmt and what a
