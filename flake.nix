@@ -113,10 +113,23 @@
     # machine-local `~/.config/factory/config.json` and a lease file — so
     # nothing here decides what may merge, and no `haus.*` option gates it.
     #
-    # ⚠️ Third repo on trill's and snug's footing: a flake input and a lock
-    # source WITHOUT being one of the workshop `bench`'s `FAMILY` repos. Adding
-    # an input is not the same act as putting a repo on the ship chain — the 🚨
-    # by that array is the argument.
+    # ⚠️ NOT on trill's and snug's footing, though it looks like it should be:
+    # factory IS one of the workshop `bench`'s `FAMILY` repos, and the reason is
+    # the one thing this input can't show you. factory HOLDS a lock of its own,
+    # `factory → snug`, where trill and snug are only ever pinned. A repo that is
+    # only pinned can land its work through its own PRs and lose nothing; a pin
+    # nobody walks just rots, and that one moved by hand for weeks. So `bench
+    # ship` walks, bumps and pushes factory like any other family repo — the 🚨
+    # by that array is the argument, and it changed its mind.
+    #
+    # What that buys HERE: `bench ship snug` moves this lock's `factory/snug`
+    # node in the same run as its own `snug` node, so the layer can't carry two
+    # `share/ui.sh` — `haus` and `factory` painting from different palettes on
+    # the same screen. It is not a `follows` and does not pretend to be: factory
+    # still resolves its own snug, which is what a standalone
+    # `nix run github:hausfold/factory` gets. Whether to add
+    # `inputs.snug.follows = "snug"` here and settle it structurally is an open
+    # question, recorded beside the edge in bench's `EDGES`.
     factory = {
       url = "github:hausfold/factory";
       inputs.nixpkgs.follows = "nixpkgs";
