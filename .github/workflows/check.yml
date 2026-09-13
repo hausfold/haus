@@ -109,6 +109,12 @@ jobs:
   # token out of the key the restore step logs if you want to know whether the
   # split is keying correctly — the size tells you nothing about that.
   #
+  # ✅ Both halves of that held. Run 34689237922, the split's own first run,
+  # restored the one untokened 577.0 MiB entry into all three jobs and saved
+  # 606.6 / 586.7 / 607.0 off it, and every restore since has logged a key
+  # under its OWN token. The sizes below are inheritance plus creep — no job
+  # is reading another's entry.
+  #
   # ── Whether to save a NARROWER store per job. Measured; the answer is no ──
   #
   # Run 34693030435 ran each of these three jobs' steps twice off this
@@ -128,18 +134,77 @@ jobs:
   # through the transitional prefix #722 removed; the other ~496 MiB, 300
   # paths, is in no job's cold store at all. That is the within-lineage save
   # creep the block above describes — the same `-source` unpacked at a dozen
-  # revs, plus 175 `.drv`s — arriving at ~24 MiB a save because a restore
-  # unions and nothing collects.
+  # revs, plus 175 `.drv`s — because a restore unions and nothing collects.
   #
-  # So the reset clears both, but only the first stays cleared. At the ~3:1
-  # these entries compress at (1826 MiB of nar went out as a 597 MiB entry)
-  # the first run of a lineage saves ~373 / ~368 / ~233 MiB against 637 / 597 /
-  # 637 today, and restores scale with the entry — nebelung's 332 MiB comes
-  # back in 17s, these 600-odd MiB ones in 34-48s, so 0.05-0.06s per
-  # compressed MiB — putting them at ~20 / ~20 / ~10s and the jobs at
-  # ~39 / ~26 / ~29s. ⚠️ Those are FIRST-RUN-OF-THE-WEEK numbers. The creep
-  # resumes immediately and the next reset is what collects it, so the honest
-  # shape of this half's cost is a sawtooth, not a floor.
+  # So the reset clears both, but only the first stays cleared. A COLD store
+  # of this shape compresses at ~3.4:1 — measured, not inferred: run
+  # 34685699373, the first save this repo ever made, put 1623.0 MiB of nar out
+  # as a 472.1 MiB entry — which puts the first run of a lineage at ~320 /
+  # ~328 / ~199 MiB against 915 / 721 / 909 today. ⚠️ Those are
+  # FIRST-RUN-OF-THE-WEEK numbers. The creep resumes immediately and the next
+  # reset is what collects it, so the honest shape of this half's cost is a
+  # sawtooth, not a floor.
+  #
+  # ── The slope, reconstructed over W37's whole lineage (2026-09-13) ──
+  #
+  # Every saving run logs the entry it uploaded, so the lineage rebuilds
+  # exactly from the run history. Ten saves, 2026-09-12T10:44 to
+  # 2026-09-13T06:19, as compressed MiB:
+  #
+  #     eval     606.6 → 915   +30.8 a save
+  #     checks   586.7 → 721   +13.4 a save
+  #     acquire  607.0 → 909   +30.2 a save
+  #                            ────────────
+  #                            +74.4 a push that saves
+  #
+  # Linear to ±1 MiB, with no sign of saturation. ⚠️ The unit is the SAVE,
+  # not the day: a push whose `flake.lock` and `*.nix` are untouched hits the
+  # primary key and saves nothing. 793 of the last 1048 main pushes touched
+  # one, 76%, and the five full weeks before this one ran 145 / 106 / 128 /
+  # 126 / 116 saves.
+  #
+  # ⚠️ The ~24 MiB a save this banner and the workshop's docs/ci.md both
+  # quoted was low. The same reconstruction over the single pre-split entry
+  # (472.1 → 687.6 in six) reads 30-43 MiB a save, mean ~36, so the split did
+  # not TRIPLE the slope — `checks` creeps at under half what the other two
+  # do — it doubled it.
+  #
+  # ⚠️ Against GitHub's 10 GB, that no longer fits in a WEEK. ~847 MiB cold
+  # plus 74.4 a save clears the ceiling at 126 saves, and the five full weeks
+  # before this one ran 145 / 106 / 128 / 126 / 116: the median is 126, dead
+  # on the line, and three of the five are over it — a W32-shaped week ends at
+  # ~11.4 GB. W37, the week this slope was measured in, is the quiet outlier
+  # at 67 saves so far, which is why a glance at the entries right now reads
+  # as comfortable.
+  #
+  # That verdict is robust to the one term still projected. At #724's more
+  # pessimistic ~974 MiB cold the median week is ~10.2 GB; at an optimistic
+  # 600 it is ~9.8. The cold start moves it by a tenth of a gigabyte and the
+  # slope decides it.
+  #
+  # So the reset has to be more frequent, and the cheapest form is a HALF-week
+  # token in the prefix below — the ISO week plus a first/second half off
+  # `date -u +%u`, resetting Monday and Thursday — which puts a W32-shaped
+  # lineage at ~6.2 GB and a median one at ~5.5. It costs one more cold run a
+  # week, plus the PRs opened in the gap ahead of it, and the purge stays a
+  # sweep of `nix-<os>-<job>-`, so it still reaches across lineages. ⚠️ Not
+  # yet: W38's first run is the only direct measurement of that ~847 MiB cold
+  # start, and moving the prefix now forces a reset that conflates the two.
+  #
+  # ⚠️ What the history does NOT support is the restore scaling with the
+  # entry. Over 63 restores spanning 472-885 MiB — the whole life of this
+  # cache, both pre-split lineages included, and a 1.9x range because the
+  # lineage prefix landing on run 34687260007 reset one entry from 687.6 to
+  # 471.9 — the download-and-extract phase is 32.4s flat. Pearson r = -0.075:
+  # entries under 520 MiB averaged 33.5s against 32.3s for those over 800, so
+  # if anything the small ones were slower. The step around it is 34-50s with
+  # no trend either. Path COUNT and GitHub bound it, not bytes, which is why
+  # nebelung's 332 MiB in 17s does not extrapolate onto a store made of
+  # `.drv`s. So the ~20 / ~20 / ~10s this block used to project has nothing
+  # behind it, and the reset's prize is the ~950 MiB of other jobs' work the
+  # three entries shed, not seconds. ⚠️ 472 MiB is as low as the evidence
+  # goes and the post-reset entries are projected below it, so W38's first run
+  # is still the one to read: `script/probes/ci-cache-value.sh haus`.
   #
   # ⚠️ Which is exactly why not to narrow them by hand on top of that. The gate
   # is the longest job of the RUN, and measured over eight PR runs that is
@@ -152,20 +217,23 @@ jobs:
   # under 40s, not when `lint` does.
   #
   # The ~35s restore the banner above measures a new step against is a W37
-  # number and moves with all of this. Read the restore step of the run in
-  # front of you rather than quoting either figure — and note that the bar is
-  # per JOB and lowest where the store is smallest, so the first run of a week
-  # puts `acquire`'s at ~10s, which its own 13s step would clear. That is not
-  # an argument for a fourth job: `acquire`'s note below says why splitting it
-  # again only moves the seconds, and by mid-week the bar is back over it.
+  # number; read the restore step of the run in front of you rather than
+  # quoting it. ⚠️ But do not expect it to FALL with the entry — the
+  # 48-restore fit above says it does not — so the bar is ~35-50s on the first
+  # run of a week too, and every step in this half is under it. That is not an
+  # argument for a fourth job either: `acquire`'s note below says why
+  # splitting it again only moves the seconds.
   #
   # The sharpest reading of "the restore is the gate, not the work under it":
-  # `acquire` is currently FASTER with no cache at all — 44s cold against 54s
+  # `acquire` is currently FASTER with no cache at all — 44s cold against 59s
   # warm at its best — because 233 MiB from cache.nixos.org costs less than
-  # 637 MiB from GitHub. Dropping its cache is still the wrong move, since the
-  # reset takes that same restore to ~10s; but if a job in this half ever
-  # carries a store it does not roughly fill, check the cold number before
-  # assuming the cache pays.
+  # 909 MiB from GitHub. That was left alone on the reading that the reset
+  # takes the restore to ~10s, which the flat fit above now doubts: if W38's
+  # first run still restores in ~32s off a ~199 MiB entry, `acquire`'s cache
+  # never pays at any point in the week and dropping it is worth ~15s. Measure
+  # that run before touching it — and if any job in this half carries a store
+  # it does not roughly fill, check the cold number before assuming the cache
+  # pays.
 
   eval:
     name: eval the example host
@@ -185,19 +253,23 @@ jobs:
       - uses: actions/checkout@v4
       - uses: nixbuild/nix-quick-install-action@v35
       # Which store the restore below is allowed to come back to. A restore
-      # UNIONS and nothing collects it, so one lineage grows forever: this
-      # entry put on ~24 MiB per save over its first six, on a key that moves
-      # with nearly every push to main, and at a dozen pushes a day 10 GB is
-      # weeks away rather than years. Arriving there is not a warning — a save
-      # that no longer fits just means every run pays full price again, which
-      # is the surprise the cache exists to prevent.
+      # UNIONS and nothing collects it, so one lineage grows forever: the
+      # three entries together put on 74.4 MiB per push that SAVES — measured
+      # over W37's whole lineage, banner above — on a key three pushes in four
+      # move, and at this repo's rate 10 GB is ONE WEEK away, not years —
+      # which is the banner's finding above, and why a week is no longer
+      # short enough. Arriving there is not a warning: a save that no longer
+      # fits just means every run pays full price again, which is the
+      # surprise the cache exists to prevent.
       #
       # So the prefix carries an ISO week and the nixpkgs rev, and the lineage
       # restarts on either. The first main push of a week (or of a nixpkgs
       # bump, which would otherwise union a second stdenv onto the first)
       # builds cold and saves a fresh entry, and that save is also what deletes
       # the lineage it replaces. One cold run a week is the whole cost of it,
-      # and PRs opened in the gap before that push pay full price too. A
+      # and PRs opened in the gap before that push pay full price too. ⚠️ A
+      # week is measured to be too long for three entries — the banner above
+      # has the slope and the half-week token that answers it. A
       # `gc-max-store-size` cap instead of any of this would take exactly the
       # paths the next run wants — see the comment on that input below.
       #
