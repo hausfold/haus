@@ -35,6 +35,7 @@
 #   haus desktop [name]  list what this machine has, or switch to one — no rebuild
 #   haus remove <name>   unpin a desktop and reselect explicitly — no rebuild
 #   haus version         the release this haus was built from ('--version' too)
+#   haus uninstall       take haus off this Mac, in the one order that works (--yes)
 set -euo pipefail
 
 # A bare/sudo/login-item shell may have almost nothing on PATH; make sure the
@@ -711,6 +712,11 @@ haus — the everyday CLI for a haus machine.
   haus revert-settings [snapshot|list]
                       put back a 'haus capture' snapshot — Nix rollback rewinds
                       packages and agents, never macOS's own preferences
+  haus uninstall      take haus off this Mac. Settings back from the install
+                      snapshot, then nix-darwin, then every launchd agent it
+                      wrote, then Nix itself — that order, because no other one
+                      works. Says what it leaves (~/.config/nix, Homebrew, TCC)
+                      and the command for each. --yes skips the confirmation
   haus doctor         check the machine's health (Nix, CLT, the GUI agents)
   haus report         file a bug: opens haus's issue form with this Mac's
                       details and its 'haus doctor' report already in the
@@ -1976,6 +1982,293 @@ cmd_revert_settings() {
   return "$rc"
 }
 
+# ---- haus uninstall ----------------------------------------------------------
+# The way out, as one verb, because the way out could not be followed. The block
+# bootstrap.sh printed at the end of an install offered two commands that
+# deadlocked on each other: `sudo darwin-rebuild --rollback` fails on a cold
+# install — generation 1 IS haus, there is no earlier one to go back to — and
+# `nix-installer uninstall` then refuses while nix-darwin is still installed,
+# handing you a link to another project's README. Rollback could never have
+# cleared that check anyway: every generation it can activate is still a
+# nix-darwin system. The command that does it, `darwin-uninstaller`, was on the
+# machine the whole time and nothing named it. Driven end to end in a VM
+# 2026-09-12; both halves are S1s in the workshop's launch register.
+#
+# Two things make this a verb rather than a better paragraph.
+#
+# The first is ORDER, and it is not guessable. Settings come back FIRST,
+# because `haus revert-settings` is what puts them back and it is about to be
+# deleted along with everything else. The launchd agents go after
+# `darwin-uninstaller` and before `nix-installer`, because nix-darwin leaves
+# the USER agents alone — it removes the two system daemons it names out loud
+# and nothing else — and a user agent that outlives the store it points at is
+# not inert. Measured on the uninstalled guest: pounce, sketchybar and
+# aerospace come back at every login and respawn on a ten-second cadence,
+# forever, with no `haus` left on PATH to remove them with.
+#
+# The second is that this script is IN the store it deletes. bash reads a
+# script incrementally, and /nix is an APFS volume that gets unmounted, so
+# reading the rest of this file past that point is not something to rely on.
+# So everything that has to be read out of /nix is read up front, the teardown
+# is written to a standalone script in $TMPDIR, and this process execs it. That
+# script depends on nothing under /nix, which is the only way the last step can
+# survive deleting itself.
+#
+# What it deliberately does NOT take: ~/.config/nix (the machine in text, git
+# history and all — the thing you would rebuild from), Homebrew and its casks,
+# TCC grants, and macOS settings for which no snapshot was taken. Each is named
+# on the way out with the command that removes it, because an unmentioned
+# leftover is the thing this verb exists to stop.
+
+# Where home-manager writes links into the store. The generation itself is the
+# manifest — a hand-kept list of roots went stale the first time a room wrote
+# somewhere new, and it did: a first pass at this missed ~/.local/bin,
+# ~/.cache, ~/.pi, ~/Applications and two directories under ~/Library, which is
+# ten files it would have left dangling. So find one link, read the store path
+# out of it, and walk THAT: every path the generation declares, mapped back
+# into $HOME and confirmed link-by-link.
+#
+# $HOME itself is still scanned one level deep, as the seed and as the backstop
+# for a generation directory that has already gone.
+_hm_base() {
+  local l t
+  for l in "$HOME"/.zshrc "$HOME"/.zshenv "$HOME"/.zprofile "$HOME"/.profile \
+    "$HOME"/.config/starship.toml; do
+    t="$(readlink "$l" 2>/dev/null)" || continue
+    case "$t" in
+      *-home-manager-files/*)
+        printf '%s-home-manager-files\n' "${t%%-home-manager-files/*}"
+        return 0
+        ;;
+    esac
+  done
+  return 1
+}
+
+# Every symlink that points into a home-manager generation. OWNERSHIP only —
+# the target pattern is what proves haus wrote it. Whether the link still
+# resolves is deliberately NOT asked here: this list is built while the store
+# is still mounted, when every one of them resolves, so a dangling test at this
+# point would return nothing at all and the cleanup would silently do nothing.
+# The runner asks that question later, after Nix is gone, which is the only
+# moment the answer means anything.
+_hm_links() {
+  local base rel l
+  base="$(_hm_base || true)"
+  if [ -n "$base" ] && [ -d "$base" ]; then
+    # -mindepth 1 and every type: home-manager writes directory links too
+    # (~/.config/sketchybar/plugins, ~/Applications/Home Manager Apps), and
+    # those are one link in $HOME against a real directory in the store.
+    (cd "$base" && find . -mindepth 1 2>/dev/null) | sed 's|^\./||' | while IFS= read -r rel; do
+      [ -L "$HOME/$rel" ] || continue
+      case "$(readlink "$HOME/$rel" 2>/dev/null)" in
+        *-home-manager-files/*) printf '%s\n' "$HOME/$rel" ;;
+      esac
+    done
+  fi
+  find "$HOME" -maxdepth 1 -type l 2>/dev/null | while IFS= read -r l; do
+    case "$(readlink "$l" 2>/dev/null)" in
+      *-home-manager-files/*) printf '%s\n' "$l" ;;
+    esac
+  done
+}
+
+# The launchd jobs to take out, as "<domain><TAB><label>". Two sources on
+# purpose, unioned: the per-generation deck, authoritative for the labels THIS
+# generation declares, and a scan of the plists actually on disk for a store
+# path — which catches a job left behind by a generation that is no longer
+# current, something the deck cannot know about by construction.
+_uninstall_jobs() {
+  local key domain label rest f lbl
+  if [ -r "$HAUS_SERVICES" ]; then
+    _svc_deck | while IFS=$'\x1f' read -r key domain label rest; do
+      [ -n "${label:-}" ] || continue
+      printf '%s\t%s\n' "$domain" "$label"
+    done
+  fi
+  for f in "$HOME/Library/LaunchAgents"/*.plist; do
+    [ -f "$f" ] || continue
+    grep -q -e '/nix/store/' -e '/run/current-system' "$f" 2>/dev/null || continue
+    lbl="$(basename "$f" .plist)"
+    printf 'user\t%s\n' "$lbl"
+  done
+  for f in /Library/LaunchDaemons/*.plist; do
+    [ -f "$f" ] || continue
+    grep -q -e '/nix/store/' -e '/run/current-system' "$f" 2>/dev/null || continue
+    lbl="$(basename "$f" .plist)"
+    printf 'system\t%s\n' "$lbl"
+  done
+}
+
+cmd_uninstall() {
+  local yes="" arg
+  for arg in "$@"; do
+    case "$arg" in
+      -y | --yes) yes=1 ;;
+      *) die "haus uninstall takes only --yes (got '$arg')." ;;
+    esac
+  done
+
+  [ -d /nix ] || die "no /nix on this Mac — there is nothing here for this verb to take apart."
+  [ -x /nix/nix-installer ] && : || warn "no /nix/nix-installer — Nix itself will be left in place; everything above it still comes off."
+
+  # ---- read everything that lives in /nix, before any of it goes -------------
+  local jobs uid snap_latest casks perch="" njobs
+  uid="$(id -u)"
+  jobs="$(_uninstall_jobs | sort -u)"
+  njobs="$(printf '%s' "$jobs" | grep -c . || true)"
+  snap_latest="$(readlink "$SNAP_BASE/latest" 2>/dev/null || true)"
+  casks="$(brew list --cask 2>/dev/null | tr '\n' ' ' | sed 's/ *$//')"
+  [ -e /Applications/Perch.app ] && perch=1
+
+  # ---- say what is about to happen, in the order it happens ------------------
+  say "haus uninstall — what comes off, in order:"
+  echo
+  if [ -n "$snap_latest" ]; then
+    info "1. macOS settings, from the snapshot taken at install ($snap_latest)"
+  else
+    info "1. macOS settings: SKIPPED — this Mac has no 'haus capture' snapshot to put back"
+  fi
+  info "2. nix-darwin, via darwin-uninstaller: /etc off its backups, the system daemons, /run"
+  info "3. $njobs launchd job(s) haus installed — every agent in ~/Library/LaunchAgents included"
+  info "4. home-manager's dotfiles: a .backup restored where there is one, the dead link removed where there is not"
+  [ -n "$perch" ] && info "5. /Applications/Perch.app — haus copied it there, it is not a cask, nothing else removes it"
+  info "6. Nix itself: the daemon, the build users, the /nix volume"
+  echo
+  say "what it leaves, and how to take it yourself:"
+  # shellcheck disable=SC2088 # prose, not a path to expand — the reader types it, not this shell
+  info "~/.config/nix — your machine in text, git history and all. Keep it; it is what you would rebuild from"
+  [ -n "$casks" ] && info "Homebrew casks — brew uninstall --zap $casks"
+  info "Homebrew itself — github.com/Homebrew/install#uninstall-homebrew"
+  info "TCC grants — System Settings › Privacy & Security; haus's rows do not remove themselves"
+  [ -z "$snap_latest" ] && info "macOS settings — no snapshot, so by hand: 'haus diff' lists them while this still runs"
+  echo
+
+  if [ -z "$yes" ]; then
+    local answer=""
+    printf '  %s%s%s uninstall haus from this Mac? [y/N] ' "$C_FOG" "$G_INFO" "$C_OFF"
+    read -r answer </dev/tty || answer=""
+    case "$answer" in
+      y | Y | yes | YES) : ;;
+      *)
+        say "nothing done."
+        return 0
+        ;;
+    esac
+  fi
+
+  # ---- settings first: revert-settings is about to be deleted ----------------
+  if [ -n "$snap_latest" ]; then
+    cmd_revert_settings latest || warn "settings restore had failures — continuing; the snapshot stays at $SNAP_BASE/$snap_latest"
+  fi
+
+  # ---- hand the rest to a script that does not live in the store -------------
+  local runner link hm_links
+  hm_links="$(_hm_links | sort -u)"
+  runner="${TMPDIR:-/tmp}/haus-uninstall-$(date -u '+%Y%m%dT%H%M%SZ').sh"
+  {
+    printf '#!/bin/bash\n'
+    printf '# Written by `haus uninstall`. Standalone on purpose: the steps below delete\n'
+    printf '# the store that the haus which wrote it was running from.\n'
+    printf 'set -uo pipefail\n'
+    printf 'PATH=/usr/bin:/bin:/usr/sbin:/sbin\n'
+    printf 'uid=%q\n' "$uid"
+    # The runner paints with the values snug already resolved for THIS
+    # terminal, baked in as strings: NO_COLOR and CLICOLOR_FORCE are therefore
+    # already honoured, the glyphs are the ones the rest of haus just used, and
+    # there is no literal escape in this file to drift out of snug's tables.
+    printf 'C_FOG=%q C_OK=%q C_ERR=%q C_MUT=%q C_OFF=%q\n' \
+      "$C_FOG" "$C_OK" "$C_ERR" "$C_MUT" "$C_OFF"
+    printf 'G_SAY=%q G_OK=%q G_BAD=%q G_INFO=%q\n' "$G_SAY" "$G_OK" "$G_BAD" "$G_INFO"
+    printf 'say() { printf "\\n%%s%%s%%s  %%s\\n" "$C_FOG" "$G_SAY" "$C_OFF" "$*"; }\n'
+    printf 'ok()  { printf "  %%s%%s%%s %%s\\n" "$C_OK" "$G_OK" "$C_OFF" "$*"; }\n'
+    printf 'bad() { printf "  %%s%%s%%s %%s\\n" "$C_ERR" "$G_BAD" "$C_OFF" "$*"; }\n'
+    printf 'inf() { printf "  %%s%%s%%s %%s\\n" "$C_MUT" "$G_INFO" "$C_OFF" "$*"; }\n'
+
+    printf '\nsay "nix-darwin …"\n'
+    printf 'if [ -x /run/current-system/sw/bin/darwin-uninstaller ]; then\n'
+    printf '  if sudo /run/current-system/sw/bin/darwin-uninstaller; then ok "nix-darwin removed"; else bad "darwin-uninstaller failed — nix-installer will refuse below, and that is the right refusal"; fi\n'
+    printf 'else\n'
+    printf '  bad "no darwin-uninstaller here — nix-installer refuses while nix-darwin is installed, so expect it to stop"\n'
+    printf 'fi\n'
+
+    printf '\nsay "launchd jobs haus installed …"\n'
+    if [ -n "$jobs" ]; then
+      printf '%s\n' "$jobs" | while IFS=$'\t' read -r domain label; do
+        [ -n "${label:-}" ] || continue
+        if [ "$domain" = system ]; then
+          printf 'sudo launchctl bootout system/%q 2>/dev/null; if [ -f /Library/LaunchDaemons/%q.plist ]; then sudo rm -f /Library/LaunchDaemons/%q.plist && ok %q; else inf %q; fi\n' \
+            "$label" "$label" "$label" "$label (daemon)" "$label — already gone"
+        else
+          printf 'launchctl bootout gui/"$uid"/%q 2>/dev/null; if [ -f "$HOME"/Library/LaunchAgents/%q.plist ]; then rm -f "$HOME"/Library/LaunchAgents/%q.plist && ok %q; else inf %q; fi\n' \
+            "$label" "$label" "$label" "$label" "$label — already gone"
+        fi
+      done
+    else
+      printf 'inf "none found"\n'
+    fi
+
+    if [ -n "$perch" ]; then
+      printf '\nsay "/Applications/Perch.app …"\n'
+      printf 'if sudo rm -rf /Applications/Perch.app; then ok "removed"; else bad "could not remove /Applications/Perch.app"; fi\n'
+    fi
+
+    printf '\nsay "Nix itself …"\n'
+    printf 'if [ -x /nix/nix-installer ]; then\n'
+    printf '  if sudo /nix/nix-installer uninstall --no-confirm; then ok "Nix removed"; else bad "nix-installer uninstall failed — /nix is still here"; fi\n'
+    printf 'else\n'
+    printf '  bad "no /nix/nix-installer — /nix has to come off by hand"\n'
+    printf 'fi\n'
+
+    # Dotfiles LAST, and this is the whole reason the step moved down here: a
+    # home-manager link only becomes dangling once the store is gone, so every
+    # one of these resolves until the line above runs. The runner re-tests each
+    # link at the moment it acts — one that still resolves is somebody else's
+    # and is left exactly where it is.
+    printf '\nsay "home-manager dotfiles …"\n'
+    # `_hm_links | grep -q .` is what this used to be, and it was a silent
+    # no-op on any machine with more than a handful of links: `grep -q` exits
+    # at the FIRST match, the writer takes SIGPIPE, and `set -o pipefail` hands
+    # the `if` a 141. It passed the small fixture and skipped the whole cleanup
+    # on a real install — a race, so it would not even have failed the same way
+    # twice. Collect once into a variable instead, which also halves the work:
+    # _hm_links walks the generation, and it used to be walked twice.
+    if [ -n "$hm_links" ]; then
+      while IFS= read -r link; do
+        [ -n "$link" ] || continue
+        printf 'if [ -e %q ]; then inf %q\n' "$link" "${link/#$HOME/\~} still resolves — left alone"
+        printf 'elif [ -e %q.backup ]; then rm -f %q && mv -f %q.backup %q && ok %q\n' \
+          "$link" "$link" "$link" "$link" "restored ${link/#$HOME/\~} from its .backup"
+        printf 'else rm -f %q && ok %q; fi\n' "$link" "removed dead link ${link/#$HOME/\~}"
+      done <<<"$hm_links"
+      printf 'inf "anything still named .backup was left where it is — yours to keep or move back"\n'
+    else
+      printf 'inf "no haus dotfiles on this Mac"\n'
+    fi
+
+    # Two empty shells nothing else clears: `darwin-uninstaller` announces it
+    # removes /Applications/Nix Apps but on this build that path is a directory
+    # rather than the symlink it looks for, so the removal is a no-op; and
+    # `result` is the build-output link in the config flake we are keeping, now
+    # pointing at a store that is gone.
+    printf '\nrmdir "/Applications/Nix Apps" 2>/dev/null && ok "removed the empty /Applications/Nix Apps" || true\n'
+    printf 'if [ -L "$HOME/.config/nix/result" ] && [ ! -e "$HOME/.config/nix/result" ]; then rm -f "$HOME/.config/nix/result" && ok "removed ~/.config/nix/result (a build link, not your config)"; fi\n'
+
+    printf '\nsay "done. What is still here, on purpose:"\n'
+    printf 'inf "~/.config/nix — your machine in text. Keep it; it is what you would rebuild from"\n'
+    [ -n "$casks" ] && printf 'inf %q\n' "Homebrew casks — brew uninstall --zap $casks"
+    printf 'inf "Homebrew itself, and everything you installed with it"\n'
+    printf 'inf "Nix'"'"'s own per-user leftovers: ~/.nix-profile, ~/.nix-defexpr, ~/.local/state/nix, ~/.cache/nix — the Determinate uninstaller leaves these"\n'
+    printf 'inf "TCC grants — System Settings › Privacy & Security. haus'"'"'s rows name paths that are gone now"\n'
+    printf 'inf "/nix and /run are emptied but only disappear at the next reboot. That is macOS, not a failure"\n'
+    printf 'printf "\\n"\n'
+  } >"$runner"
+  chmod +x "$runner"
+
+  say "handing over to $runner — it runs outside the store, so it survives deleting it."
+  exec /bin/bash "$runner"
+}
+
 # ---- one card for the whole rebuild -----------------------------------------
 # On a Mac running trill, `haus rebuild` draws a single banner that fills up as
 # the build goes — the answer to "is it done yet" once you have looked away.
@@ -2740,15 +3033,28 @@ cmd_update() {
 }
 
 cmd_rollback() {
+  # `darwin-rebuild --rollback` prints `error: …` and still exits 0 — measured
+  # on a generation-1 guest, where there is nothing to roll back TO and the
+  # whole command is a no-op. haus used to pass that through and then announce
+  # "rolled back", so neither a person nor a script could tell the two apart.
+  # The generation number is the only honest witness, so compare it.
+  local before after
+  before="$(current_gen || echo '')"
   if [ -n "${1:-}" ]; then
     say "switching to generation $1 …"
-    sudo darwin-rebuild --switch-generation "$1"
+    sudo darwin-rebuild --switch-generation "$1" || true
   else
     say "rolling back to the previous generation …"
-    sudo darwin-rebuild --rollback
+    sudo darwin-rebuild --rollback || true
   fi
-  say "rolled back. (Nix reverts everything IT manages; macOS system settings and"
-  warn "Homebrew apps are not rewound — see haus status / your notes.)"
+  after="$(current_gen || echo '')"
+  if [ -n "$before" ] && [ "$before" = "$after" ]; then
+    [ -n "${1:-}" ] &&
+      die "still on generation $before — nothing switched. 'haus generations' lists the ones you have."
+    die "still on generation $before — there is no earlier generation to roll back to. This is the first one; to remove haus entirely, that is 'haus uninstall'."
+  fi
+  say "rolled back${after:+ to generation $after}. (Nix reverts everything IT manages; macOS system settings and"
+  warn "Homebrew apps are not rewound — 'haus revert-settings' is the other half.)"
 }
 
 cmd_generations() {
@@ -6386,6 +6692,7 @@ case "${1:-status}" in
   diff)        cmd_diff ;;
   capture)     shift; cmd_capture "$@" ;;
   revert-settings) cmd_revert_settings "${2:-latest}" ;;
+  uninstall)   shift; cmd_uninstall "$@" ;;
   doctor)      cmd_doctor ;;
   report)      shift; cmd_report "$@" ;;
   skill)       shift; cmd_skill "$@" ;;
@@ -6399,5 +6706,5 @@ case "${1:-status}" in
   remove)      cmd_remove "${2:-}" "${3:-}" ;;
   version|--version) cmd_version ;;
   -h|--help|help) usage ;;
-  *)           die "unknown command '$1' — try: rebuild fix update rollback generations status edit options set get unset reset plan diff capture revert-settings doctor report skill permissions services btm tour show add desktop remove version" ;;
+  *)           die "unknown command '$1' — try: rebuild fix update rollback generations status edit options set get unset reset plan diff capture revert-settings doctor report skill permissions services btm tour show add desktop remove uninstall version" ;;
 esac
