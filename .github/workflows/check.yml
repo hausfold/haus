@@ -750,7 +750,7 @@ jobs:
   #              mean  min  max   suites   what is under it
   #     agents    58s   53   63     8      238 tests, ~50s of suite steps
   #     rooms     53s   44   59    30      ~44s, no suite over 9s
-  #     draw      53s   50   58     6      ~45s, of which 22s is IDLE — below
+  #     draw      53s   50   58     6      ~45s, 22s of it IDLE — since fixed
   #     lint      23s   18   27     —      one shellcheck
   #
   # `agents` has no separable chunk, and that is the finding. The largest
@@ -788,19 +788,25 @@ jobs:
   #
   # ⚠️ It also retires a trigger. The nix half's banner says to re-open the
   # narrower-store question "when the POLE shell job gets under 40s" — which no
-  # split can deliver, because `rooms` floors this half at ~53s. The only
-  # routes under 40s are `draw`'s idle 22s and the per-test overhead, and
-  # neither is a job boundary.
+  # split can deliver, because `rooms` floors this half at ~53s. `draw`'s idle
+  # 22s has since been taken out (below), and that is the shape of the point
+  # rather than a counter-example to it: it put `draw` under 40s and moved the
+  # POLE not at all. The only other route is the per-test overhead, which is
+  # not a job boundary either.
   #
-  # ⚠️ `draw`'s 53s is not 53s of work, and a suite compared against it is
+  # ⚠️ `draw`'s 53s was never 53s of work, and a suite compared against it was
   # being compared to a clock rather than to a cost. Its `rebuild fix CTA` step
-  # reports all 38 of its tests ok at 10.3s and then closes at 32.3s: the
+  # reported all 38 of its tests ok at 10.3s and then closed at 32.3s: the
   # "haus rebuild does not wait for the answer" case stubs `trill` as a
-  # `sleep 30`, the detached holder under test outlives the test by design, and
-  # the orphan keeps the STEP's stdout open until the sleep ends. The signature
-  # is 32s ± 1s across all ten runs while the work inside it varies. Without it
-  # `draw` is a ~31s job — which changes nothing above, because `rooms` is what
-  # `agents` is measured against either way.
+  # `sleep 30`, the detached holder under test outlives the test BY DESIGN —
+  # that is the case — and the orphan inherited bats' fd 3, which is a dup of
+  # this STEP's stdout, so the step could not close until the sleep ended. The
+  # signature was 32s ± 1s across all ten runs while the work inside them
+  # varied. `test/rebuild-fix-cta.bats` now closes fd 3 in the shell it
+  # detaches from, which costs the case nothing — the holder still outlives its
+  # caller — and `draw` is a ~31s job. That changes NOTHING above: `rooms` is
+  # what `agents` is measured against either way. Headroom, not a win, and the
+  # table row stays as it was measured.
 
   lint:
     name: shell lint

@@ -73,9 +73,24 @@ STUB
 # Load haus.sh as a library in a FRESH shell, with the CTA's own state wired to
 # the tmpdir, and run a snippet. The two shadowing functions are defined before
 # it so `command -v` sees them; `fault_hold`'s detached subshell inherits both.
+#
+# ⚠️ `exec 3>&-` is the first line of that shell, and it is not hygiene. bats
+# prints on fd 3, which is a dup of the RUNNER's stdout, and `fault_hold`
+# detaches with 0/1/2 on /dev/null but inherits everything above them — so a
+# holder that outlives its caller, which is exactly what two cases below put
+# under test, went on holding the CI STEP's stdout after bats itself had
+# exited. Measured on run 34741464030: `rebuild fix CTA` reported all 38 tests
+# ok at 10.3s and closed at 32.3s, the `sleep 30` stub of "haus rebuild does
+# not wait for the answer" to the second. Closed HERE rather than in that stub
+# because the detached subshell, the stub and the sleep under it all hold the
+# same descriptor, and this is the one process above all three. (bats' other
+# inherited fd, 4, is the per-test `.out` — a regular file, which holds no
+# pipe open.) The subject is untouched: the holder still detaches and still
+# outlives the caller, which is the whole thing those cases measure.
 haus_sh() { # haus_sh <VAR=val…> <snippet>
   local snippet="${!#}"
   run env "${@:1:$#-1}" HAUS_CONSUMER="$HAUS_CONSUMER" HAUS_LIB=1 "$BASH" -c "
+    exec 3>&-
     set -uo pipefail
     haus-fix() { date >>\"\$FIXED\"; }
     source '$SUBJECT'
@@ -519,6 +534,10 @@ FAULT_HOST=mbp
 fault_cta resolve
 DRIVE
   # BASH is a shell variable, not an exported one — perl needs it handed over.
+  # No `exec 3>&-` here, unlike `haus_sh`: this case waits on $FIXED, which only
+  # appears once the stub has exited and the holder has run the fix, so the tree
+  # is always down before the test returns. Lengthen that stub past the wait and
+  # it needs the close too.
   run env HAUS_CONSUMER="$HAUS_CONSUMER" HAUS_LIB=1 HAUS_TRILL="$HAUS_TRILL" \
     ASKED="$ASKED" FIXED="$FIXED" BASH="$BASH" perl -e '
       use POSIX; setsid(); print "PGID=", getpgrp(), "\n";
