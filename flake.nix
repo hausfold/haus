@@ -4849,6 +4849,136 @@
           '';
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-darwin" system) {
+          # ---- brew-tap-trust ---------------------------------------------------
+          # The Brewfile is read, not the option, because the Brewfile is what
+          # `brew bundle` obeys and the mapping from one to the other is
+          # nix-darwin's to change: `trusted` defaults to TRUE on a cask and
+          # FALSE on a tap, and Homebrew throws away a cask's stamp unless the
+          # cask is named `owner/repo/cask` (`Utils.full_name?`, bundle/trust.rb).
+          # So the only line that can trust a plainly-named cask is its tap's,
+          # and a tap written as the bare string nix-darwin coerces is silently
+          # untrusted.
+          #
+          # Worth a check and not just core's warning because of where the
+          # failure lands: `brew bundle` exits 1, activation runs under `set -e`,
+          # and the bundle is the last step before home-manager — so one word
+          # missing here costs a cold install its entire user half (no
+          # ~/.config, a bar with no items, an agent respawning at 126) while
+          # the system profile switches and looks fine. Reproduced on a cold
+          # tahoe guest, 2026-09-13, against AeroSpace's tap.
+          #
+          # Second half: the WARNING has to keep firing, or the guard covering a
+          # consumer's own tap rots without anything going red.
+          # ---- brew-bundle-guarded ----------------------------------------------
+          # The structural half of the same story, read off the ACTIVATE SCRIPT
+          # the example host actually builds, because that file is the only
+          # place the ordering is real.
+          #
+          # Two facts, and neither is safe to assume. The bundle is the last
+          # step before home-manager, so everything user-facing haus does is
+          # ordered after a call into a package manager nix does not control;
+          # and the script runs under `set -e`, so upstream's unguarded
+          # invocation ENDS the activation. Together that is a machine which
+          # keeps its launchd agents and loses its whole home directory's worth
+          # of config to one refused cask — measured, not theorised.
+          #
+          # `modules/core` overrides the step to catch it. This refuses a build
+          # where that override stopped taking: an upstream rename of the
+          # activation-script attribute, a `mkForce` lost in a merge, a future
+          # room setting the same text. All three are silent — the rebuild is
+          # green until the day a cask fails.
+          brew-bundle-guarded =
+            let
+              inherit (nixpkgs) lib;
+              activate = builtins.readFile "${self.darwinConfigurations.example.system}/activate";
+              lines = lib.splitString "\n" activate;
+              indexOf =
+                pred:
+                let
+                  hits = builtins.filter (i: pred (builtins.elemAt lines i)) (
+                    lib.range 0 (builtins.length lines - 1)
+                  );
+                in
+                if hits == [ ] then null else builtins.head hits;
+              bundleAt = indexOf (l: lib.hasInfix "brew bundle --file=" l);
+              hmAt = indexOf (l: lib.hasInfix "Activating home-manager configuration" l);
+              bundleLine = if bundleAt == null then "" else builtins.elemAt lines bundleAt;
+              # The guard haus writes: the invocation is the condition of an
+              # `if !`, so its non-zero exit is a branch rather than the end of
+              # the script.
+              guarded = lib.hasPrefix "if ! " (lib.removePrefix "  " bundleLine);
+            in
+            pkgs.runCommand "haus-brew-bundle-guarded-ok" { } ''
+              ${lib.optionalString (bundleAt == null) ''
+                echo 'no `brew bundle --file=` line in the example host\'s activate script — has the Homebrew step moved? Until this parses again the guard is unchecked.' >&2
+                exit 1
+              ''}
+              ${lib.optionalString (hmAt == null) ''
+                echo 'no home-manager activation line in the example host\'s activate script — the ordering this check is about cannot be read.' >&2
+                exit 1
+              ''}
+              ${lib.optionalString (bundleAt != null && hmAt != null && bundleAt > hmAt) ''
+                echo 'the Homebrew step now runs AFTER home-manager. Good news, and this check plus the comments in modules/core/default.nix are now wrong — rewrite both rather than deleting them.' >&2
+                exit 1
+              ''}
+              ${lib.optionalString (!guarded) ''
+                cat >&2 <<'UNGUARDED'
+                `brew bundle` is not inside an `if !` in the built activate script:
+
+                ${bundleLine}
+
+                Unguarded, its non-zero exit ends activation under `set -e` — and
+                home-manager is ordered after it, so one refused cask costs the
+                machine its entire user half. modules/core/default.nix mkForces
+                this step to catch the failure; something has stopped that
+                override from winning.
+                UNGUARDED
+                exit 1
+              ''}
+              touch $out
+            '';
+
+          brew-tap-trust =
+            let
+              inherit (nixpkgs) lib;
+              brewfile = self.darwinConfigurations.example.config.homebrew.brewfile;
+              tapLines = builtins.filter (l: lib.hasPrefix "tap \"" l) (lib.splitString "\n" brewfile);
+              untrusted = builtins.filter (
+                l: !(lib.hasInfix ", trusted: true" l) && !(lib.hasInfix "\"homebrew/" (lib.toLower l))
+              ) tapLines;
+              # A tap name nothing will ever ship, so the canary cannot one day
+              # collide with a real hausfold tap and pass for the wrong reason.
+              canary = "nobody/notatap";
+              warned =
+                (self.darwinConfigurations.example.extendModules {
+                  modules = [ { homebrew.taps = [ canary ]; } ];
+                }).config.warnings;
+              warnsOnUntrusted = builtins.any (w: lib.hasInfix "declared without trust: ${canary}" w) warned;
+            in
+            pkgs.runCommand "haus-brew-tap-trust-ok" { } ''
+              ${lib.optionalString (tapLines == [ ]) ''
+                echo 'found no `tap "…"` lines in the example host\'s Brewfile — has nix-darwin changed how it renders one? Until this parses again the check is green for every tap, trusted or not.' >&2
+                exit 1
+              ''}
+              ${lib.optionalString (untrusted != [ ]) ''
+                cat >&2 <<'UNTRUSTED'
+                haus declares a third-party tap that nothing trusts:
+
+                ${lib.concatStringsSep "\n" untrusted}
+
+                `brew bundle` will refuse every cask that tap carries and take
+                activation — and with it home-manager — down at that point. Write
+                the tap as { name = "owner/tap"; trusted = true; }.
+                UNTRUSTED
+                exit 1
+              ''}
+              ${lib.optionalString (!warnsOnUntrusted) ''
+                echo 'core stopped warning about an untrusted tap; a consumer would get no notice at all' >&2
+                exit 1
+              ''}
+              touch $out
+            '';
+
           # ---- bar-third-party-widget ------------------------------------------
           # The open form's end of `bar-plugins-executable`'s fact, and then
           # some. See `thirdPartyWidgetBlocks` in the `let` above for what the

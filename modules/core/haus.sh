@@ -39,8 +39,21 @@
 set -euo pipefail
 
 # A bare/sudo/login-item shell may have almost nothing on PATH; make sure the
-# tools we call (nix, darwin-rebuild, jq, git) resolve wherever we're invoked.
-PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/etc/profiles/per-user/$(id -un)/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
+# tools we call (nix, darwin-rebuild, jq, git, brew) resolve wherever we're
+# invoked.
+#
+# Homebrew's prefix is on it because `brew` is one of those tools — five things
+# here call it — and NOTHING else puts it there: it reaches a person's shell
+# from `brew shellenv`, which an ssh command, a launchd job and a sudo shell all
+# skip. The symptom is the quiet kind: `command -v brew` simply fails and the
+# whole Homebrew section of `haus doctor` is never printed, so a report that
+# should have said "a declared cask is NOT installed" ends one section early and
+# reads as a clean run. Measured over ssh on a guest whose bundle had just
+# failed. The prefix is handed in by the wrapper from `homebrew.prefix`, so a
+# host that moved Homebrew is followed rather than guessed at; the default is
+# only for a hand-run `bash haus.sh`.
+HAUS_BREW_PREFIX="${HAUS_BREW_PREFIX:-/opt/homebrew}"
+PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/etc/profiles/per-user/$(id -un)/bin:$HAUS_BREW_PREFIX/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 export PATH
 
 # Your config flake — the thin consumer with your host file, scaffolded by the
@@ -658,6 +671,43 @@ brew_prefetch() {
   [ -n "$outdated" ] || return 0
   # shellcheck disable=SC2086
   brew fetch --cask $outdated || true
+}
+
+# Where activation leaves word that its `brew bundle` failed. The wrapper in
+# modules/core/default.nix sets this (`--set-default HAUS_BREW_FAULT`), which is
+# the only spelling of the path; the default below is for a hand-run
+# `bash haus.sh` and a generation older than the wrapper, where the answer
+# "there is no fault" is the right one anyway.
+HAUS_BREW_FAULT="${HAUS_BREW_FAULT:-/Library/Application Support/haus/brew-fault}"
+
+# The Brewfile the RUNNING system feeds `brew bundle`, read back out of its own
+# activate script — the one place the path is certain to match what actually
+# ran. Empty (and every caller quiet) on a machine that has never activated.
+declared_brewfile() {
+  grep -oE "brew bundle --file='[^']+'" /run/current-system/activate 2>/dev/null \
+    | sed "s/.*--file='//;s/'\$//" | head -1 || true
+}
+
+# Casks this config DECLARES that are not on the machine, one per line.
+#
+# The blind spot the guarded bundle made reportable. Activation no longer dies
+# on a `brew bundle` failure (modules/core/default.nix says why), so something
+# has to be the thing that notices — and a marker file only says THAT one
+# failed, never WHICH app is missing. This says which, from the two lists the
+# machine can always answer: the Brewfile of the running generation, and
+# `brew list`.
+#
+# Tap prefixes are stripped (`owner/tap/foo` → `foo`) because that is the
+# spelling `brew list --cask` prints; without it a fully-qualified cask reads
+# as missing forever.
+missing_casks() {
+  command -v brew >/dev/null 2>&1 || return 0
+  local brewfile
+  brewfile="$(declared_brewfile)"
+  [ -n "$brewfile" ] && [ -f "$brewfile" ] || return 0
+  comm -23 \
+    <(sed -nE 's/^cask "([^"]+)".*/\1/p' "$brewfile" | sed -E 's#.*/##' | sort -u) \
+    <(brew list --cask 2>/dev/null | sort -u) | grep . || true
 }
 
 usage() {
@@ -2920,6 +2970,28 @@ cmd_rebuild() {
   unmet="$(_perm_unmet 2>/dev/null || echo 0)"
   [ "${unmet:-0}" -eq 0 ] \
     || warn "$unmet permission(s) macOS says you have not granted — walk them with: haus permissions"
+
+  # A caught `brew bundle` failure is still a FAILED rebuild, and this is where
+  # the exit code says so. Activation no longer stops at the bundle
+  # (modules/core/default.nix says why), so without this the swallow would be
+  # complete: darwin-rebuild exits 0, every phase draws green, and the only
+  # trace of an app that did not install is a line in a log nobody reopens.
+  #
+  # LAST, and after the generation and permissions lines rather than in place of
+  # them, because what landed is the point — this rebuild really did change the
+  # machine, and rerunning it is cheap. The names come from the two lists the
+  # machine can answer rather than from the marker, so this says WHICH app.
+  if [ -r "$HAUS_BREW_FAULT" ]; then
+    local absent brewmsg
+    absent="$(missing_casks)"
+    if [ -n "$absent" ]; then
+      brewmsg="brew could not install: $(printf '%s' "$absent" | paste -sd', ' -) — everything else landed. 'haus doctor' has the detail; the reason brew gave is in the 'Homebrew bundle...' step above."
+    else
+      brewmsg="'brew bundle' failed during activation — everything else landed. The reason is in the 'Homebrew bundle...' step above."
+    fi
+    snug_emit fail "$brewmsg" || ui_draw fail "$brewmsg"
+    return 1
+  fi
 }
 
 # Family apps (pounce, perch…) ship as CI-published casks/formulae in
@@ -4572,15 +4644,26 @@ cmd_doctor() {
   if command -v brew >/dev/null 2>&1; then
     echo
     say "Homebrew"
-    local installed brewfile declared undeclared count
+    local installed brewfile declared undeclared missing count
     installed="$(brew list --cask 2>/dev/null || true)"
     count="$(printf '%s\n' "$installed" | grep -c . || true)"
-    brewfile="$(grep -oE "brew bundle --file='[^']+'" /run/current-system/activate 2>/dev/null | sed "s/.*--file='//;s/'\$//" || true)"
+    brewfile="$(declared_brewfile)"
     if [ -n "$brewfile" ] && [ -f "$brewfile" ]; then
       # Declared cask tokens, minus any tap prefix (pear-devs/pear/foo → foo),
       # so they line up with the bare names `brew list --cask` prints.
       declared="$(sed -nE 's/^cask "([^"]+)".*/\1/p' "$brewfile" | sed -E 's#.*/##')"
       undeclared="$(comm -13 <(printf '%s\n' "$declared" | sort -u) <(printf '%s\n' "$installed" | sort -u) | grep . || true)"
+      # The other direction, and the one this section was BLIND to until a cold
+      # install proved it: a cask this config declares that is not on the
+      # machine. `undeclared` is drift you chose; `missing` is the rebuild not
+      # having done what it was asked, and nothing else on the report says so —
+      # the count above is happily correct while an app is simply absent.
+      missing="$(missing_casks)"
+      if [ -n "$missing" ]; then
+        bad "$(printf '%s' "$missing" | grep -c .) declared cask(s) NOT installed: $(printf '%s' "$missing" | paste -sd, - ) — 'haus rebuild' retries; if it keeps failing, the reason is in the 'Homebrew bundle...' step of its log"
+        [ -r "$HAUS_BREW_FAULT" ] \
+          && info "the last activation's 'brew bundle' failed, at $(cat "$HAUS_BREW_FAULT" 2>/dev/null) — everything ordered after it still landed, which is why this Mac otherwise looks fine"
+      fi
       if [ -z "$undeclared" ]; then
         ok "brew on PATH ($count casks, all declared)"
       else
@@ -4671,7 +4754,15 @@ cmd_doctor() {
   say "Secrets"
   if command -v secretspec >/dev/null 2>&1; then
     local provider
-    provider="$(sed -n 's/^provider *= *"\(.*\)"/\1/p' "$HOME/.config/secretspec/config.toml" 2>/dev/null | head -1)"
+    # `|| true` is load-bearing, not tidiness: with no config.toml `sed` exits 2,
+    # `pipefail` carries that out of the pipeline, and a failed command
+    # substitution in an assignment is fatal under `set -e`. So on a machine
+    # that has not written one yet, doctor printed the "Secrets" header and
+    # DIED there — every section after it, Homebrew included, never ran, and the
+    # report read as a clean run that simply ended. Measured on a cold guest
+    # whose first activation aborted in `brew bundle`: 25 lines, no ⚠, no ✗,
+    # exit 1, and not one word about the cask that had just failed to install.
+    provider="$(sed -n 's/^provider *= *"\(.*\)"/\1/p' "$HOME/.config/secretspec/config.toml" 2>/dev/null | head -1 || true)"
     if [ -n "$provider" ]; then ok "secretspec on PATH (default provider: $provider)"
     else warn "no default provider — set haus.secrets.provider, or run: secretspec config init"; fi
     # What the ROOMS on this machine declared (haus._contrib.secrets, rendered

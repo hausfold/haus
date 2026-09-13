@@ -297,6 +297,38 @@ let
   domainsWritten = lib.unique (typedDomainsWritten ++ customPrefDomainsWritten);
   undeclaredDomains = builtins.filter (d: !(restartMap ? ${d})) domainsWritten;
 
+  # Third-party taps nobody trusted. `homebrew.taps` is a list of submodules
+  # coerced from strings, and a bare string lands on nix-darwin's `trusted =
+  # false` default — which is how AeroSpace's tap spent its whole life as one
+  # word and took cold installs down with it. Homebrew's own taps are trusted
+  # unconditionally by brew itself, so only `owner/tap` names count.
+  #
+  # Subtracting the trusted NAMES, not just filtering the list, because list
+  # options concatenate: a host that writes `homebrew.taps = [ "nikitabobko/tap" ]`
+  # of its own — the line AeroSpace's own README gives — ends up with two
+  # elements for one tap, and brew is already covered by the trusted one. Warning
+  # about that would be an alarm about a machine that is fine, on every rebuild.
+  # The breadcrumb a caught `brew bundle` failure leaves for `haus doctor` and
+  # `haus rebuild`. Written by ROOT from the activation script, which is why it
+  # is not in `modules/lib/state-files.nix` — that registry is `~/.local/state`
+  # and cross-ROOM, and this pair is core's own on both ends. It sits beside the
+  # three markers activation already writes there (zen-policies.source,
+  # perch.installed-from, trill.installed-from). Spelled ONCE: `haus.sh` takes
+  # it from `HAUS_BREW_FAULT`, set on the wrapper below.
+  brewFault = "/Library/Application Support/haus/brew-fault";
+
+  trustedTapNames = map (t: t.name) (builtins.filter (t: t.trusted) config.homebrew.taps);
+  untrustedTaps = lib.unique (
+    map (t: t.name) (
+      builtins.filter (
+        t:
+        !t.trusted
+        && !(builtins.elem t.name trustedTapNames)
+        && !(lib.hasPrefix "homebrew/" (lib.toLower t.name))
+      ) config.homebrew.taps
+    )
+  );
+
   # Every restart action that names an actual process, deduplicated. A restart
   # map value is EITHER a process name or one of these four sentinels, so
   # subtracting the sentinels is what's left — a denylist, not an allowlist of
@@ -752,6 +784,27 @@ in
       host file, this is just a heads-up: that domain isn't a plist haus ships
       a restart for, so if it doesn't take effect right away, log out once and
       it will.
+    ''
+    ++ lib.optional (config.homebrew.enable && untrustedTaps != [ ]) ''
+      haus: these Homebrew taps are declared without trust: ${lib.concatStringsSep ", " untrustedTaps}.
+
+      Homebrew 6 refuses to load a formula or cask from a third-party tap that
+      nothing has trusted, and the Brewfile is where a rebuild can SAY so: a
+      `brew trust` you type is imperative per-user state no config declares, and
+      a machine being installed for the first time has none of it. nix-darwin
+      defaults casks to `trusted: true` and taps to false, and Homebrew ignores
+      a cask's stamp unless the cask is named `owner/repo/cask`, so a plain
+      `cask "foo"` from an untrusted tap is refused.
+
+      The failure is the universalaccess one above wearing another hat:
+      `brew bundle` exits 1, activation runs under `set -e`, and the bundle is
+      the LAST thing before home-manager — so a cold install keeps the system
+      half and loses the entire user half, silently, leaving a Mac that looks
+      untouched. Say it where the tap is declared:
+
+          homebrew.taps = [ { name = "owner/tap"; trusted = true; } ];
+
+      Leave it off only for a tap nothing is installed from.
     '';
 
   # Two ways to say the same thing, and no way to rank them: `package` is a
@@ -1174,6 +1227,8 @@ in
             ]
           } \
             --set-default HAUS_UI_SH ${snug}/share/ui.sh \
+            --set-default HAUS_BREW_FAULT ${lib.escapeShellArg brewFault} \
+            --set-default HAUS_BREW_PREFIX ${lib.escapeShellArg config.homebrew.prefix} \
             --set-default HAUS_SKILL_DIR ${hausSkill} \
             --set-default HAUS_AGENT_SKILL_DIRS ${lib.escapeShellArg agentSkillDirs} \
             --set-default HAUS_VERSION ${lib.escapeShellArg (lib.fileContents ../../VERSION)}
@@ -1555,13 +1610,21 @@ in
   # package for it.
   fonts.packages = [ monoPackage ] ++ lib.optional (sansPackage != null) sansPackage;
 
-  # (nix-darwin's Brewfile now stamps `trusted: true` on every entry, which
-  # replaces HOMEBREW_NO_REQUIRE_TAP_TRUST — brew odeprecated the variable and
-  # warns on every bundle run while it's set — and covers the same flaky
-  # sudo-activation case that once made us disable the tap-trust check
-  # globally: the per-user trust store gets bypassed under sudo, but the
-  # Brewfile's trust declarations are read as data, not looked up in it. Any
-  # haus tap a host adds through homebrew.taps gets the same stamp.)
+  # (Tap trust is NOT in this file, and the stamp is not automatic. Homebrew 6
+  # refuses to load anything from an untrusted third-party tap, and the Brewfile
+  # is where a rebuild can SAY so — a `brew trust` you type is imperative
+  # per-user state no config declares, and the machine that needs this most is
+  # the one being installed for the first time, which has none of it. The old
+  # HOMEBREW_NO_REQUIRE_TAP_TRUST escape hatch is no answer either: brew
+  # odeprecated it and warns on every bundle run while it's set, and activation
+  # runs under `env -i`, so only brew.env below would have survived to carry it.
+  # nix-darwin DEFAULTS a cask to `trusted: true` and a tap to false, and
+  # Homebrew ignores a cask's stamp unless the cask is named `owner/repo/cask`
+  # — so a plain `cask "aerospace"` is trusted by nothing unless the tap that
+  # carries it says so. A haus tap therefore declares its own trust where it is
+  # declared (`modules/windows/default.nix`), and `brew-tap-trust` fails the
+  # flake on a haus one left bare. A HOST's own tap has the same trap and no
+  # check can reach it from here, so it gets the warning above instead.)
   #
   # HOMEBREW_API_AUTO_UPDATE_SECS only bites hosts that set
   # `haus.homebrew.autoUpdate = true` (the haus default is false, which
@@ -1584,6 +1647,64 @@ in
     HOMEBREW_API_AUTO_UPDATE_SECS=3600
     HOMEBREW_NO_ENV_HINTS=1
   '';
+
+  # ---- the bundle cannot end the activation ---------------------------------
+  # haus's copy of nix-darwin's `system.activationScripts.homebrew.text`, with
+  # one difference: the `brew bundle` failure is CAUGHT.
+  #
+  # Why that is worth owning an upstream script for. The activation script runs
+  # under `set -e`, and this is where the bundle sits in it:
+  #
+  #     … defaults · launchd agents · mas · homebrew   ← exits 1 here
+  #                                        home-manager (postActivation)
+  #                                        ln -sfn … /run/current-system
+  #
+  # So every user-facing thing haus does — the whole of home-manager, the Zen
+  # plist, the Perch install, the shelf — is ordered AFTER a call into a package
+  # manager nix does not control. Measured on a cold guest whose Brewfile named
+  # one cask Homebrew refused: the system half landed (launchd agents up,
+  # `org.nixos.aerospace` respawning at exit 126 against a binary that was not
+  # there) and the user half did not exist at all — `~/.config` held `nix` and
+  # nothing else, the bar drew `items: 0`. The system profile switches before
+  # activation runs, so the machine looked installed.
+  #
+  # Continuing is the LESS inconsistent of the two, not a relaxation: those
+  # launchd agents already load BEFORE the bundle, so a machine that stops here
+  # is running services for apps it then declines to install. And haus already
+  # says in `haus doctor` that casks live outside Nix generations — a package
+  # manager that is outside the model on the way back should not be able to end
+  # the transaction on the way in.
+  #
+  # It is caught, never swallowed: the failure prints at the point it happens,
+  # `brewFault` holds it for `haus doctor`, and `haus rebuild` reads the same
+  # file and FAILS on it (`modules/core/haus.sh`), so the exit code still says
+  # what happened. The file is removed on every good run, so it can only ever
+  # describe the most recent activation.
+  #
+  # `brewBundleCmd` rather than a copy of the command: it is nix-darwin's own
+  # internal option, so `cleanup`, `upgrade`, `extraEnv` and `extraFlags` keep
+  # reaching brew exactly as upstream builds them, and a change to that shape
+  # arrives here for free. The `else` branch is upstream's, word for word.
+  system.activationScripts.homebrew.text = lib.mkForce (
+    lib.optionalString config.homebrew.enable ''
+      # Homebrew Bundle
+      echo >&2 "Homebrew bundle..."
+      rm -f ${lib.escapeShellArg brewFault}
+      if [ -f "${config.homebrew.prefix}/bin/brew" ]; then
+        if ! ${config.homebrew.onActivation.brewBundleCmd { onlyCheck = false; }}; then
+          mkdir -p ${lib.escapeShellArg (builtins.dirOf brewFault)}
+          printf '%s\n' "$(date '+%Y-%m-%d %H:%M:%S')" >${lib.escapeShellArg brewFault}
+          printf >&2 '\e[1;31merror: `brew bundle` failed — an app this config declares is NOT installed\e[0m\n'
+          printf >&2 'Activation CONTINUES: the rest of your Mac (home-manager, your dotfiles, the\n'
+          printf >&2 'bar, the shell) lands rather than being lost to one package manager. The\n'
+          printf >&2 'error brew printed is above this line.\n'
+          printf >&2 "Then: 'haus doctor' names which cask, and 'haus rebuild' retries it.\n"
+        fi
+      else
+        echo -e "\e[1;31merror: Homebrew is not installed, skipping...\e[0m" >&2
+      fi
+    ''
+  );
 
   # ---- macOS defaults -------------------------------------------------------
   # These are haus's OPINIONS, so every value is lib.mkDefault: a host file

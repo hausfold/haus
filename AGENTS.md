@@ -339,13 +339,38 @@ PR; hardcoded identity. Advisory, never a gate.
   (`pkgs.pounce-app`, pinned by pounce's `nix/release.nix`); a source build is
   adhoc-signed and loses the grant every rebuild — only `bench try`'s dev-app
   injection runs one, re-signed. New machine: `pounce --request-accessibility`.
-- **Homebrew tap-trust** (`modules/core`): nix-darwin's Brewfile stamps
-  `trusted: true` on every entry — the old `HOMEBREW_NO_REQUIRE_TAP_TRUST=1`
-  workaround is gone (brew odeprecated the variable and warns on every bundle
-  run while it's set). The trust declarations ride the Brewfile, the only
-  place trust reaches the rebuild's `brew bundle` (activation runs it under
-  `sudo … env …`); the API-refresh window and env-hint silencing still live
-  in `/etc/homebrew/brew.env`.
+- **Homebrew tap-trust rides the TAP line, and nix-darwin does not put it
+  there.** Brew 6 refuses a third-party tap nothing trusts, and the Brewfile is
+  where a rebuild can SAY so — a `brew trust` you type is imperative per-user
+  state no config declares, and a first install has none of it (activation does
+  pass `--set-home`, so that store is READ; it is simply empty). No
+  `HOMEBREW_NO_REQUIRE_TAP_TRUST` either: brew odeprecated it and warns on every
+  run, and activation is `env -i`, so only `brew.env` would have carried it.
+  nix-darwin defaults a CASK to `trusted: true` and a TAP to `false`, and brew
+  DISCARDS a cask's stamp unless the cask is named `owner/repo/cask`
+  (`Utils.full_name?`, `bundle/trust.rb`) — so a plainly-named cask is trusted
+  only by its tap. Every third-party tap is therefore written
+  `{ name = "owner/tap"; trusted = true; }` (`modules/windows/default.nix`);
+  `brew-tap-trust` refuses the bare string in haus's OWN Brewfile and pins
+  core's warning, which is all a host's tap can get from here. The API-refresh
+  window and env-hint silencing still live in `/etc/homebrew/brew.env`.
+- **`brew bundle` cannot end an activation, because core CATCHES it.** It is the
+  last step before home-manager, under `set -e`, so upstream's unguarded call
+  meant one refused cask cost a cold install its whole user half while the system
+  profile switched — measured: `~/.config` holding `nix` alone, `items: 0`,
+  `org.nixos.aerospace` respawning at exit 126. `modules/core/default.nix`
+  `mkForce`s `system.activationScripts.homebrew.text` into the same command
+  (`config.homebrew.onActivation.brewBundleCmd`, so `cleanup`/`upgrade`/
+  `extraEnv`/`extraFlags` keep reaching brew as upstream builds them) wrapped in
+  an `if !`. Continuing is the LESS inconsistent half: those launchd agents
+  already load BEFORE the bundle. **Caught, never swallowed** —
+  `/Library/Application Support/haus/brew-fault` (root-written, beside the three
+  markers activation already keeps there; `HAUS_BREW_FAULT` is its one spelling
+  in `haus.sh`) makes `haus rebuild` exit 1 at the END, after the generation
+  line, and `haus doctor` name the app via `missing_casks`, the arm that answers
+  "declared but NOT installed" — the direction doctor was blind in.
+  `brew-bundle-guarded` reads the BUILT activate script and refuses an override
+  that stopped winning; `test/brew-fault.sh` covers the reporting.
 - **Ghostty's `--title` is INSTANCE-WIDE.** Lanes
   (`modules/terminal/lanes/lane-open.sh`) and float popups
   (`modules/terminal/scripts/float-term.sh`) are own processes launched
