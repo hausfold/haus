@@ -4795,6 +4795,60 @@
           '';
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-darwin" system) {
+          # ---- brew-tap-trust ---------------------------------------------------
+          # The Brewfile is read, not the option, because the Brewfile is what
+          # `brew bundle` obeys and the mapping from one to the other is
+          # nix-darwin's to change: `trusted` defaults to TRUE on a cask and
+          # FALSE on a tap, and Homebrew throws away a cask's stamp unless the
+          # cask is named `owner/repo/cask` (`Utils.full_name?`, bundle/trust.rb).
+          # So the only line that can trust a plainly-named cask is its tap's,
+          # and a tap written as the bare string nix-darwin coerces is silently
+          # untrusted.
+          #
+          # Worth a check and not just core's warning because of where the
+          # failure lands: `brew bundle` exits 1, activation runs under `set -e`,
+          # and the bundle is the last step before home-manager — so one word
+          # missing here costs a cold install its entire user half (no
+          # ~/.config, a bar with no items, an agent respawning at 126) while
+          # the system profile switches and looks fine. Reproduced on a cold
+          # tahoe guest, 2026-09-13, against AeroSpace's tap.
+          #
+          # Second half: the WARNING has to keep firing, or the guard covering a
+          # consumer's own tap rots without anything going red.
+          brew-tap-trust =
+            let
+              inherit (nixpkgs) lib;
+              brewfile = self.darwinConfigurations.example.config.homebrew.brewfile;
+              tapLines = builtins.filter (l: lib.hasPrefix "tap \"" l) (lib.splitString "\n" brewfile);
+              untrusted = builtins.filter (
+                l: !(lib.hasInfix ", trusted: true" l) && !(lib.hasInfix "\"homebrew/" (lib.toLower l))
+              ) tapLines;
+              warned =
+                (self.darwinConfigurations.example.extendModules {
+                  modules = [ { homebrew.taps = [ "hausfold/tap" ]; } ];
+                }).config.warnings;
+              warnsOnUntrusted = builtins.any (w: lib.hasInfix "declared without trust: hausfold/tap" w) warned;
+            in
+            pkgs.runCommand "haus-brew-tap-trust-ok" { } ''
+              ${lib.optionalString (untrusted != [ ]) ''
+                cat >&2 <<'UNTRUSTED'
+                haus declares a third-party tap that nothing trusts:
+
+                ${lib.concatStringsSep "\n                " untrusted}
+
+                `brew bundle` will refuse every cask that tap carries and take
+                activation — and with it home-manager — down at that point. Write
+                the tap as { name = "owner/tap"; trusted = true; }.
+                UNTRUSTED
+                exit 1
+              ''}
+              ${lib.optionalString (!warnsOnUntrusted) ''
+                echo 'core stopped warning about an untrusted tap; a consumer would get no notice at all' >&2
+                exit 1
+              ''}
+              touch $out
+            '';
+
           # ---- bar-third-party-widget ------------------------------------------
           # The open form's end of `bar-plugins-executable`'s fact, and then
           # some. See `thirdPartyWidgetBlocks` in the `let` above for what the

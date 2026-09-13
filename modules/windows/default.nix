@@ -991,7 +991,26 @@ lib.mkMerge [
     # because you don't launch your window manager, it's just running. Its tap
     # stays a raw homebrew.taps line: a tap isn't an app, and the roster models
     # what a machine HAS, not where Homebrew looks for it.
-    homebrew.taps = [ "nikitabobko/tap" ];
+    #
+    # `trusted` is the whole reason this is an attrset rather than the bare
+    # string it used to be. Homebrew 6 refuses to load anything from a
+    # third-party tap that nothing has trusted, and `brew bundle` reads that
+    # trust out of the Brewfile — but only from the line that can be resolved to
+    # a tap. nix-darwin defaults a CASK to `trusted: true` and a TAP to `false`,
+    # and Homebrew drops the cask's stamp on the floor unless the cask is named
+    # `owner/repo/cask` (`Utils.full_name?` in `bundle/trust.rb`). haus names the
+    # roster cask `aerospace`, so the stamp on `cask "aerospace", trusted: true`
+    # meant nothing and the tap's silence decided it: a cold install got three
+    # casks in, refused the fourth, and took activation — and with it
+    # home-manager, which runs AFTER the bundle — down with it. Trusting the tap
+    # is the grant that covers a plain cask name; see modules/core/default.nix's
+    # brew.env block for the rest of the Homebrew policy.
+    homebrew.taps = [
+      {
+        name = "nikitabobko/tap";
+        trusted = true;
+      }
+    ];
 
     # In the SYSTEM profile, so the path tiling-mode.sh spells out
     # (/run/current-system/sw/bin/hausrect) is stable across rebuilds — the same

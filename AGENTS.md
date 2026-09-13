@@ -328,13 +328,22 @@ PR; hardcoded identity. Advisory, never a gate.
   (`pkgs.pounce-app`, pinned by pounce's `nix/release.nix`); a source build is
   adhoc-signed and loses the grant every rebuild — only `bench try`'s dev-app
   injection runs one, re-signed. New machine: `pounce --request-accessibility`.
-- **Homebrew tap-trust** (`modules/core`): nix-darwin's Brewfile stamps
-  `trusted: true` on every entry — the old `HOMEBREW_NO_REQUIRE_TAP_TRUST=1`
-  workaround is gone (brew odeprecated the variable and warns on every bundle
-  run while it's set). The trust declarations ride the Brewfile, the only
-  place trust reaches the rebuild's `brew bundle` (activation runs it under
-  `sudo … env …`); the API-refresh window and env-hint silencing still live
-  in `/etc/homebrew/brew.env`.
+- **Homebrew tap-trust rides the TAP line, and nix-darwin does not put it
+  there.** Brew 6 refuses a third-party tap nothing trusts, and the Brewfile is
+  the only place trust reaches the rebuild (activation runs `brew bundle` under
+  `sudo … env …`, so the per-user store and every exported variable are out of
+  reach — hence no `HOMEBREW_NO_REQUIRE_TAP_TRUST`, which brew odeprecated and
+  warns about on every run). nix-darwin defaults a CASK to `trusted: true` and a
+  TAP to `false`, and brew DISCARDS a cask's stamp unless the cask is named
+  `owner/repo/cask` (`Utils.full_name?`, `bundle/trust.rb`) — so a plainly-named
+  cask is trusted only by its tap. Every third-party tap is therefore written
+  `{ name = "owner/tap"; trusted = true; }` (`modules/windows/default.nix`);
+  `brew-tap-trust` refuses the bare string and pins core's warning for a host's
+  own. **`brew bundle` is the last activation step before home-manager**, under
+  `set -e`, so one refused cask costs a cold install its whole user half while
+  the system profile switches — the same blast radius as the `universalaccess`
+  warning beside it in `modules/core`. The API-refresh window and env-hint
+  silencing still live in `/etc/homebrew/brew.env`.
 - **Ghostty's `--title` is INSTANCE-WIDE.** Lanes
   (`modules/terminal/lanes/lane-open.sh`) and float popups
   (`modules/terminal/scripts/float-term.sh`) are own processes launched

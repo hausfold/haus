@@ -297,6 +297,17 @@ let
   domainsWritten = lib.unique (typedDomainsWritten ++ customPrefDomainsWritten);
   undeclaredDomains = builtins.filter (d: !(restartMap ? ${d})) domainsWritten;
 
+  # Third-party taps nobody trusted. `homebrew.taps` is a list of submodules
+  # coerced from strings, and a bare string lands on nix-darwin's `trusted =
+  # false` default — which is how AeroSpace's tap spent its whole life as one
+  # word and took cold installs down with it. Homebrew's own taps are trusted
+  # unconditionally by brew itself, so only `owner/tap` names count.
+  untrustedTaps = map (t: t.name) (
+    builtins.filter (
+      t: !t.trusted && !(lib.hasPrefix "homebrew/" (lib.toLower t.name))
+    ) config.homebrew.taps
+  );
+
   # Every restart action that names an actual process, deduplicated. A restart
   # map value is EITHER a process name or one of these four sentinels, so
   # subtracting the sentinels is what's left — a denylist, not an allowlist of
@@ -752,6 +763,27 @@ in
       host file, this is just a heads-up: that domain isn't a plist haus ships
       a restart for, so if it doesn't take effect right away, log out once and
       it will.
+    ''
+    ++ lib.optional (untrustedTaps != [ ]) ''
+      haus: these Homebrew taps are declared without trust: ${lib.concatStringsSep ", " untrustedTaps}.
+
+      Homebrew 6 refuses to load a formula or cask from a third-party tap that
+      nothing has trusted, and the Brewfile is the only place that trust reaches
+      a rebuild — activation runs `brew bundle` under `sudo … env …`, so the
+      per-user store your own `brew trust` writes is out of reach. nix-darwin
+      stamps `trusted: true` on casks and NOT on taps, and Homebrew ignores a
+      cask's stamp unless the cask is named `owner/repo/cask`, so a plain
+      `cask "foo"` from an untrusted tap is refused.
+
+      The failure is the universalaccess one above wearing another hat:
+      `brew bundle` exits 1, activation runs under `set -e`, and the bundle is
+      the LAST thing before home-manager — so a cold install keeps the system
+      half and loses the entire user half, silently, leaving a Mac that looks
+      untouched. Say it where the tap is declared:
+
+          homebrew.taps = [ { name = "owner/tap"; trusted = true; } ];
+
+      Leave it off only for a tap nothing is installed from.
     '';
 
   # Two ways to say the same thing, and no way to rank them: `package` is a
@@ -1555,13 +1587,19 @@ in
   # package for it.
   fonts.packages = [ monoPackage ] ++ lib.optional (sansPackage != null) sansPackage;
 
-  # (nix-darwin's Brewfile now stamps `trusted: true` on every entry, which
-  # replaces HOMEBREW_NO_REQUIRE_TAP_TRUST — brew odeprecated the variable and
-  # warns on every bundle run while it's set — and covers the same flaky
-  # sudo-activation case that once made us disable the tap-trust check
-  # globally: the per-user trust store gets bypassed under sudo, but the
-  # Brewfile's trust declarations are read as data, not looked up in it. Any
-  # haus tap a host adds through homebrew.taps gets the same stamp.)
+  # (Tap trust is NOT in this file, and the stamp is not automatic. Homebrew 6
+  # refuses to load anything from an untrusted third-party tap, and the Brewfile
+  # is where that trust reaches a rebuild — activation runs `brew bundle` under
+  # `sudo … env …`, so the per-user trust store and every exported variable are
+  # out of reach, which is why the old HOMEBREW_NO_REQUIRE_TAP_TRUST escape
+  # hatch is gone (brew odeprecated it and warns on every bundle run while it's
+  # set). nix-darwin stamps `trusted: true` on every CASK but on no TAP, and
+  # Homebrew ignores a cask's stamp unless the cask is named `owner/repo/cask`
+  # — so a plain `cask "aerospace"` is trusted by nothing unless the tap that
+  # carries it says so. A haus tap therefore declares its own trust where it is
+  # declared (`modules/windows/default.nix`), and so must a host's: a bare
+  # `homebrew.taps = [ "owner/tap" ]` plus a cask from it is a bundle that dies
+  # mid-activation. `brew-tap-trust` fails the flake on one.)
   #
   # HOMEBREW_API_AUTO_UPDATE_SECS only bites hosts that set
   # `haus.homebrew.autoUpdate = true` (the haus default is false, which
