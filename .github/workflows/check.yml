@@ -666,10 +666,11 @@ jobs:
   # It was one job of fifty steps run one after another: 2m28s, which made it
   # the family's slowest gate — the nix half beside it was ~1m40s in one job,
   # and a PR waits for the slowest job of all of them. Split four ways the
-  # longest of these is under a minute (measured: lint 23s, rooms 53s, draw
-  # 55s, agents 58s), so the shell half is not the pole and has room to grow
-  # before it is one again. The run went 2m30s → 1m43s; the nix half's own
-  # split, the banner at the top of this file, took it down from there.
+  # longest of these is under a minute (measured over ten PR runs: lint 23s,
+  # rooms 53s, draw 53s, agents 58s), so the shell half is not the pole and has
+  # room to grow before it is one again. The run went 2m30s → 1m43s; the nix
+  # half's own split, the banner at the top of this file, took it down from
+  # there.
   #
   # The grouping is by what a suite NEEDS, never by count. Fifty jobs would be
   # SLOWER, not faster: the gate is the longest job rather than the total, and
@@ -696,60 +697,6 @@ jobs:
   # as a pass. Everything else goes with its room — and where that is a
   # toss-up, whichever of `agents` and `rooms` is the shorter that week.
   #
-  # ── Whether any suite earns a FIFTH job. Measured; the answer is no ──────
-  #
-  # `agents` is this half's pole, and once the nix half's weekly lineage reset
-  # lands the projection at the top of this file it is the whole gate's — so
-  # the question got asked properly. Ten PR runs, 2026-09-12/13, job totals
-  # from the jobs API and everything below job level read off each job's own
-  # timestamped log (run 34741464030):
-  #
-  #              mean  min  max   suites   what is under it
-  #     agents    58s   53   63     8      238 tests, ~50s of suite steps
-  #     rooms     53s   44   59    30      ~44s, no suite over 9s
-  #     draw      53s   50   58     6      ~45s, of which 22s is IDLE — below
-  #     lint      23s   18   27     —      one shellcheck
-  #
-  # `agents` has NO hot spot, and that is the finding rather than a preamble
-  # to one. Its ~50s is 238 bats tests at a MEDIAN of 0.087s and a mean of
-  # 0.19s — process overhead, one fork per test, essentially flat.
-  # Nineteen tests clear a second and the slowest in the whole job is 2.21s.
-  # Three suites clear ten: statusline-refresh 14.5s (72 tests),
-  # vm-runtime 12.6s (11, and its clock IS the assertion — the stub guests
-  # hold fds on purpose), github-signal 11.2s (31). Nothing else is over 4.2s.
-  #
-  # It does not matter which of those three you move out, because the prize is
-  # not bounded by any of them. It is bounded by `rooms`, 5.2s behind. Take
-  # the biggest one and `agents` lands at 43s — at which point the pole is
-  # `rooms` at 52.8s and every further second taken out of `agents` buys the
-  # gate nothing at all. The whole prize is 5.2s, once, whichever suite pays
-  # it.
-  #
-  # Against a floor of ~10s. Checkout plus `npm install -g bats` is the ~4s
-  # the paragraph above quotes and that part holds (measured: 1.7s + 2.7s),
-  # but a JOB costs more than its steps — ~2s from `created_at` to
-  # `started_at`, ~1s before the first step runs, 0.6s of "Set up job", ~2s
-  # from the last step to the job closing. Ten seconds of runner and a fifth
-  # boundary every future suite has to be routed through, to buy five seconds
-  # of gate. No.
-  #
-  # The reason generalises, so read it before measuring this again: when the
-  # pole and the job behind it are within one suite of each other, splitting
-  # the pole buys the GAP and then stops. The number to watch is the gap
-  # between `agents` and `rooms`, never `agents` alone — a 58s pole over a 53s
-  # runner-up is worth nothing to split, and the same 58s over a 30s runner-up
-  # would be worth it twice over.
-  #
-  # ⚠️ `draw`'s 53s is not 53s of work, and a suite compared against it is
-  # being compared to a clock rather than to a cost. All 139 of its tests have
-  # reported ok by 22.7s; the job then spends 22 more seconds with nothing
-  # running. `rebuild fix CTA`'s "haus rebuild does not wait for the answer"
-  # case stubs `trill` as a `sleep 30` and the holder it is testing outlives
-  # the test by design — so the orphan keeps the STEP's stdout open and the
-  # step cannot close until the sleep does. The signature is that the step is
-  # 32s ± 1s across all ten runs while its tests take 10.3s. Fix that and
-  # `draw` is a ~35s job; it does not change the answer above, because `rooms`
-  # is what `agents` is measured against either way.
   # `bats` is the ONE tool these jobs need that the runner image lacks, and
   # npm is preinstalled, so it comes from npm rather than apt. That is the
   # whole reason none of them stalls.
@@ -782,6 +729,73 @@ jobs:
   # for the same reason: GitHub's default is SIX HOURS, and the afternoon above
   # is what a step that hangs rather than fails costs. Nothing here speaks to
   # apt any more, so it is a ceiling none of them is expected to approach.
+  #
+  # ── Whether any suite earns a FIFTH job. Measured; the answer is no ──────
+  #
+  # `agents` is this half's pole, and on the first run of a lineage — when the
+  # nix half drops to the ~39 / ~26 / ~29s the "Whether to save a NARROWER
+  # store per job" block at the top of this file projects — it is the whole
+  # gate's. ⚠️ Only on that run: that block's own warning is that those are
+  # FIRST-RUN-OF-THE-WEEK numbers and the half's shape is a sawtooth, so by
+  # mid-week `eval` and `acquire` climb back over 58s and `agents` is not the
+  # gate at all. It only weakens the case below, so the question got asked at
+  # its most favourable. Ten PR runs, job totals from the jobs API, everything
+  # below job level off each job's own timestamped log (run 34741464030):
+  #
+  #              mean  min  max   suites   what is under it
+  #     agents    58s   53   63     8      238 tests, ~50s of suite steps
+  #     rooms     53s   44   59    30      ~44s, no suite over 9s
+  #     draw      53s   50   58     6      ~45s, of which 22s is IDLE — below
+  #     lint      23s   18   27     —      one shellcheck
+  #
+  # `agents` has no separable chunk, and that is the finding. The largest
+  # SUITE in it is statusline-refresh at 14.5s of a ~50s job; the other seven
+  # are 12.6s and down. Three clear ten seconds — statusline-refresh 14.5s (72
+  # tests), vm-runtime 12.6s (11, and its clock IS the assertion: the stub
+  # guests hold fds on purpose), github-signal 11.2s (31) — and nothing else
+  # is over 4.2s.
+  #
+  # ⚠️ "No separable chunk" is a claim about the SUITES and not about the
+  # tests, which are not flat: of 238 tests (median 0.087s, mean 0.190s) the
+  # 19 that reach a second carry 21.7s, just under half the 45.2s of test
+  # time, and the other 219 carry 23.5s between them. That tail is deliberate
+  # and it is spread across three suites, so it is not a thing to lift out —
+  # and lifting ALL of it would still leave `rooms` as the gate.
+  #
+  # Which is the whole argument, and it does not depend on which suite you
+  # pick. `rooms` is 5.2s behind. Move the biggest one out and `agents` lands
+  # at ~43s, at which point the pole is `rooms` at 52.8s and every further
+  # second taken out of `agents` buys the gate nothing. The prize is 5.2s,
+  # once, whoever pays it.
+  #
+  # Against a floor of ~10s. Checkout plus `npm install -g bats` is the ~4s the
+  # banner above quotes and that part holds (measured: 1.7s + 2.7s), but a JOB
+  # costs more than its steps — ~2s from `created_at` to `started_at`, ~1s
+  # before the first step runs, 0.6s of "Set up job", ~2s from the last step to
+  # the job closing. Ten seconds of runner and a fifth boundary every future
+  # suite has to be routed through, to buy five seconds of gate. No.
+  #
+  # The rule that generalises out of this — measure the GAP between the pole
+  # and the job behind it, never the pole alone — is rule 5 of the family's CI
+  # rules, the workshop's docs/ci.md, and the stamped figures are in its
+  # script/probes/README.md. Kept there rather than restated here: what this
+  # comment owes a reader is the arithmetic for THIS repo.
+  #
+  # ⚠️ It also retires a trigger. The nix half's banner says to re-open the
+  # narrower-store question "when the POLE shell job gets under 40s" — which no
+  # split can deliver, because `rooms` floors this half at ~53s. The only
+  # routes under 40s are `draw`'s idle 22s and the per-test overhead, and
+  # neither is a job boundary.
+  #
+  # ⚠️ `draw`'s 53s is not 53s of work, and a suite compared against it is
+  # being compared to a clock rather than to a cost. Its `rebuild fix CTA` step
+  # reports all 38 of its tests ok at 10.3s and then closes at 32.3s: the
+  # "haus rebuild does not wait for the answer" case stubs `trill` as a
+  # `sleep 30`, the detached holder under test outlives the test by design, and
+  # the orphan keeps the STEP's stdout open until the sleep ends. The signature
+  # is 32s ± 1s across all ten runs while the work inside it varies. Without it
+  # `draw` is a ~31s job — which changes nothing above, because `rooms` is what
+  # `agents` is measured against either way.
 
   lint:
     name: shell lint
