@@ -4669,7 +4669,15 @@ cmd_doctor() {
   say "Secrets"
   if command -v secretspec >/dev/null 2>&1; then
     local provider
-    provider="$(sed -n 's/^provider *= *"\(.*\)"/\1/p' "$HOME/.config/secretspec/config.toml" 2>/dev/null | head -1)"
+    # `|| true` is load-bearing, not tidiness: with no config.toml `sed` exits 2,
+    # `pipefail` carries that out of the pipeline, and a failed command
+    # substitution in an assignment is fatal under `set -e`. So on a machine
+    # that has not written one yet, doctor printed the "Secrets" header and
+    # DIED there — every section after it, Homebrew included, never ran, and the
+    # report read as a clean run that simply ended. Measured on a cold guest
+    # whose first activation aborted in `brew bundle`: 25 lines, no ⚠, no ✗,
+    # exit 1, and not one word about the cask that had just failed to install.
+    provider="$(sed -n 's/^provider *= *"\(.*\)"/\1/p' "$HOME/.config/secretspec/config.toml" 2>/dev/null | head -1 || true)"
     if [ -n "$provider" ]; then ok "secretspec on PATH (default provider: $provider)"
     else warn "no default provider — set haus.secrets.provider, or run: secretspec config init"; fi
     # What the ROOMS on this machine declared (haus._contrib.secrets, rendered
