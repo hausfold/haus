@@ -262,11 +262,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1789276005,
-        "narHash": "sha256-haA8CLbybUeHlzLRjIR8QhWkUPqGqQ+qQKRYDQc7pxo=",
+        "lastModified": 1789276537,
+        "narHash": "sha256-oa0l9FmIaO5RRNpdYqmnenmJAojQpQr+q08SQkTJjb8=",
         "owner": "hausfold",
         "repo": "scruff",
-        "rev": "2cf43b5e410a6c816f695def06f53756fa13a26a",
+        "rev": "989c09a363849e1a6762880c9b8a9bea5791e10e",
         "type": "github"
       },
       "original": {
