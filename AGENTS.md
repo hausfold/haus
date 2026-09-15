@@ -408,8 +408,9 @@ PR; hardcoded identity. Advisory, never a gate.
 - **Every Swift helper goes through `modules/lib/swift-bin.nix`** —
   `swiftBin = pkgs.callPackage ../lib/swift-bin.nix { };` then `swiftBin { name;
   src; description; }` in the room's `default.nix` (`grep -rln swift-bin.nix
-  modules` finds them all). It shells out to `/usr/bin/xcrun swiftc` (Xcode CLT
-  + Determinate's relaxed sandbox). `swift-bin` fails on any `xcrun swiftc`
+  modules` finds them all). It shells out to `/usr/bin/xcrun swiftc` (Xcode CLT,
+  plus nix's own macOS default of no sandbox — not an installer's doing, and
+  `sandbox = relaxed` would break it). `swift-bin` fails on any `xcrun swiftc`
   under `modules/` outside the builder, no allowlist — a helper needing a flag
   or `-framework` grows `swift-bin.nix`. `src` is the ONE `.swift` file, never
   its directory. Two keep a package file: `modules/core/package-hausax.nix`
