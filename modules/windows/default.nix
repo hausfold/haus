@@ -751,13 +751,21 @@ lib.mkMerge [
         Moving, resizing and focusing other apps' windows is the entire job, and
         macOS only lets an app touch another app's windows with Accessibility.
       '';
-      cost = "AeroSpace runs and answers, and no window ever moves";
+      cost = "AeroSpace starts and then refuses every connection: no window moves, and the CLI answers that the server is not responding";
       applies = "command -v aerospace >/dev/null 2>&1 && pgrep -qx AeroSpace";
       # Functional, not declarative: macOS exposes no way to ask about another
-      # app's grant, but an AeroSpace that cannot see windows enumerates none.
-      # It reads the whole session, so an empty answer means the grant, never an
-      # empty desktop — the bar and the palette are windowless, but Finder,
-      # the terminal you are typing this in and every running app are not.
+      # app's grant, so this asks AeroSpace instead, and an empty answer means
+      # the grant rather than an empty desktop — the bar and the palette are
+      # windowless, but Finder, the terminal you are typing this in and every
+      # running app are not.
+      #
+      # Empty covers BOTH shapes of ungranted, which is why it is the test
+      # rather than a parse of the output. Measured on a guest with nothing but
+      # this room on it (0.21.3): an AeroSpace whose grant is missing does not
+      # come up degraded and enumerate nothing — it never opens its socket at
+      # all, so the process is alive with PPID 1 while every `aerospace` verb
+      # dies on `Connection refused`. `2>/dev/null` turns that into the same
+      # empty string a degraded one would give, so the check holds either way.
       check = ''[ -n "$(aerospace list-windows --all 2>/dev/null)" ]'';
       pane = panes.accessibility;
       steps = [
