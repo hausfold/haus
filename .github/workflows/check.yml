@@ -1494,6 +1494,20 @@ jobs:
       - name: the services deck's probe, verdicts and record encoding
         run: bats test/services-deck.bats
 
+      # The permissions deck's other half, one card down: whether the palette's
+      # Accessibility card can tell a granted DAEMON from a granted terminal.
+      # `pounce --check-accessibility` cannot — AXIsProcessTrusted() is answered
+      # for the process responsible for the shell that ran the CLI — so the card
+      # drew a green tick on every Mac whose terminal held the grant while
+      # pounce held nothing and every chord was dead. A false green nobody looks
+      # behind, found on a fresh VM and invisible to `nix flake check`, which
+      # type-checks the card and never reads what the snippet means. The stub
+      # answers the CLI flag and the daemon's report separately, so the case
+      # that matters is the one where they disagree. Needs bash + bats + awk
+      # + jq — the snippets under test pipe into it; no painter.
+      - name: the palette's Accessibility card reads the daemon
+        run: bats test/launcher-accessibility.bats
+
       # `haus-bar-poke` — the both-bars trigger, and the one place that rule
       # lives now that four producers call it instead of writing the pair out.
       # SketchyBar keys its lock file and its mach service on

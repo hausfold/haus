@@ -1118,8 +1118,43 @@ lib.mkIf config.haus.launcher.enable {
       event tap. macOS calls all of that Accessibility.
     '';
     cost = "⌘Space still opens the palette, but pasting and the app chords do nothing at all";
-    applies = "command -v pounce >/dev/null 2>&1";
-    check = ''[ "$(pounce --check-accessibility 2>/dev/null)" = "true" ]'';
+    # Both halves ask the DAEMON, over its own socket, because the grant is the
+    # daemon's and nothing else on this Mac can answer for it. The obvious flag
+    # cannot: `pounce --check-accessibility` prints AXIsProcessTrusted() from the
+    # short-lived CLI, and macOS resolves that against whatever is RESPONSIBLE
+    # for the shell that ran it — so run from a terminal holding Accessibility it
+    # answered `true` for a daemon holding nothing: this card drew a green tick
+    # on a fresh VM whose TCC row read `kTCCServiceAccessibility|
+    # com.hausfold.pounce|0` and whose chords were all dead. `pounce doctor
+    # --json` publishes what the running daemon itself sees, as
+    # `daemon.accessibility` — which is how `pounce doctor`'s own line gets it
+    # right while the flag does not.
+    #
+    # That field is null when NO daemon answered, and null is not a denial — an
+    # absent grant and an absent daemon are different faults, and a card with a
+    # `check` has only the two verdicts. So liveness is the `applies` gate
+    # instead: with the daemon down this card is not drawn at all and the
+    # services deck reports the job that stopped, rather than a red grant card
+    # nobody can act on. Same shape as the AeroSpace card in ../windows, drawn
+    # only while AeroSpace is running.
+    #
+    # Both wrap the doctor call in a group that swallows its status, because
+    # `pounce doctor` exits 1 on ANY unhealthy verdict — another tool shadowing
+    # ⌘Space is enough — and haus.sh runs under `pipefail`, which would hand that
+    # exit to the pipeline and read a properly granted Mac as unmet. `jq` is
+    # there by construction: core's wrapper puts it on PATH for the deck itself.
+    #
+    # No restart step, unlike the AeroSpace card: pounce's daemon polls the trust
+    # state every two seconds and arms the chords on the flip itself (pounce's
+    # Entry.swift, `watchAccessibility`), so the grant takes hold while the
+    # wizard is still waiting for it.
+    applies = ''
+      command -v pounce >/dev/null 2>&1 &&
+        { pounce doctor --json 2>/dev/null || true; } | jq -e '.daemon.running == true' >/dev/null
+    '';
+    check = ''
+      { pounce doctor --json 2>/dev/null || true; } | jq -e '.daemon.accessibility == true' >/dev/null
+    '';
     # Accessibility is one of the few services with a real prompt API, so this
     # card never needs System Settings at all — the pane is the fallback for a
     # stale entry that has to be removed and re-added.
