@@ -2795,6 +2795,20 @@ rebuild_failed() { # rebuild_failed <resolve|build|activate>
       msg="activation failed partway — generation $gen is still on disk (haus rollback), and the log above says where it stopped."
       ;;
   esac
+  # …unless a `haus set` or `haus reset` is standing behind this rebuild, in
+  # which case the overlay HAS changed and the next rebuild inherits it. The
+  # activate class is left alone: its message never claimed otherwise, and by
+  # then the evaluation that would have caught this has already passed.
+  if [ -n "${SETTINGS_TX_PATHS:-}" ] && [ "$1" != activate ]; then
+    case "${SETTINGS_TX_VERB:-}" in
+      set)
+        msg="$fault — and what you set is written ($SETTINGS_TX_PATHS): every haus rebuild fails here until it changes."
+        ;;
+      reset)
+        msg="$fault — and what you reset is already withdrawn ($SETTINGS_TX_PATHS): every haus rebuild fails here until it is set again."
+        ;;
+    esac
+  fi
   card_stop
   card - "fault" "$fault"
   fault_crumb "$1"
@@ -2805,6 +2819,7 @@ rebuild_failed() { # rebuild_failed <resolve|build|activate>
   # puts the line below AFTER what nix said instead of on snug's own schedule.
   snug_close
   snug_emit fail "$msg" || ui_draw fail "$msg"
+  settings_tx_undo_hint
   fault_cta "$1"
   exit 1
 }
@@ -3760,6 +3775,38 @@ settings_restore() {
   settings_stage "$target"
 }
 
+# What a settings transaction has ALREADY written by the time its rebuild runs.
+# cmd_set and cmd_reset disarm their rollback before phase 4 on purpose: an
+# assertion is whole-config, so no per-path eval can see one coming, and the
+# rebuild that does is the one that dies — with the override already on disk.
+# "nothing was changed" there is not just wrong once. It sends the reader away
+# from the only file that will fail their NEXT rebuild too, and a plain `haus
+# rebuild` days later then reports an assertion about a setting they were told
+# was never written. Filled in just before settings_apply; read by
+# rebuild_failed, which is the only place that can tell the truth about them.
+SETTINGS_TX_VERB=""
+SETTINGS_TX_PATHS=""
+
+settings_tx_note() { # settings_tx_note <set|reset> <path…>
+  local p
+  SETTINGS_TX_VERB="$1"; SETTINGS_TX_PATHS=""; shift
+  for p in "$@"; do
+    SETTINGS_TX_PATHS="${SETTINGS_TX_PATHS:+$SETTINGS_TX_PATHS, }${p#haus.}"
+  done
+}
+
+# The undo line under such a failure. Separate from the message because it is a
+# command the reader can run, and `hint` is where those go — the same row the
+# fixer's offer lands on a beat later.
+settings_tx_undo_hint() {
+  [ -n "${SETTINGS_TX_PATHS:-}" ] || return 0
+  case "${SETTINGS_TX_VERB:-}" in
+    set)   hint "undo it: haus reset $SETTINGS_TX_PATHS" ;;
+    reset) hint "put it back: haus set <path> <value>, one pair per path" ;;
+  esac
+  return 0
+}
+
 settings_apply() {
   if [ -n "${HAUS_NO_REBUILD:-}" ]; then
     info "not rebuilding (HAUS_NO_REBUILD is set)"
@@ -4317,6 +4364,7 @@ reset one of them first (haus reset ${clash#haus.})"
     say "set ${paths[$i]#haus.} = $(printf '%s' "${results[$i]}" | settings_print_json)"
     info "${TX_TARGETS[$i]} (staged as ordinary Nix)"
   done
+  settings_tx_note set "${paths[@]}"
   settings_apply
 }
 
@@ -4515,6 +4563,7 @@ cmd_reset() {
       say "reset ${paths[$i]#haus.}; nothing defines it now"
     fi
   done
+  settings_tx_note reset "${paths[@]}"
   settings_apply
 }
 

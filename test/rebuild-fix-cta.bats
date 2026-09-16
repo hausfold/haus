@@ -171,6 +171,49 @@ wait_gone() { # wait_gone <pid> [tries] — polled, because the holder exits onl
   [ "$(crumb class)" = activate ]
 }
 
+@test "rebuild_failed: a set standing behind the rebuild never says nothing changed" {
+  # The half of the S1 that made this suite the right place: cmd_set disarms its
+  # rollback BEFORE phase 4's rebuild, because an assertion is whole-config and
+  # no per-path eval can see one coming. So a resolve that dies here dies with
+  # the override on disk, and the reader has to leave with the path and the verb
+  # that undoes it — otherwise their next plain `haus rebuild` fails on a
+  # setting they were told was never written.
+  haus_sh 'SETTINGS_TX_VERB=set SETTINGS_TX_PATHS="windows.workspaceMonitors.9" rebuild_failed resolve'
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"evaluation failed"* ]]
+  [[ "$output" != *"nothing was changed"* ]]
+  [[ "$output" == *"windows.workspaceMonitors.9"* ]]
+  [[ "$output" == *"haus reset windows.workspaceMonitors.9"* ]]
+
+  # The build class dies with the same files on disk and takes the same wording.
+  haus_sh 'SETTINGS_TX_VERB=set SETTINGS_TX_PATHS="theme.accent, ui.scale" rebuild_failed build'
+  [ "$status" -eq 1 ]
+  [[ "$output" != *"nothing was changed"* ]]
+  [[ "$output" == *"haus reset theme.accent, ui.scale"* ]]
+
+  # reset's undo is a value the overlay no longer holds, so the line offers the
+  # shape rather than a command that would set it to nothing.
+  haus_sh 'SETTINGS_TX_VERB=reset SETTINGS_TX_PATHS="theme.flavor" rebuild_failed resolve'
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"already withdrawn"* ]]
+  [[ "$output" == *"haus set <path> <value>"* ]]
+
+  # activate is untouched: it never claimed nothing changed, and by then the
+  # evaluation this is about has already passed.
+  haus_sh 'SETTINGS_TX_VERB=set SETTINGS_TX_PATHS="theme.accent" rebuild_failed activate'
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"haus rollback"* ]]
+}
+
+@test "rebuild_failed: a plain rebuild still says nothing was changed" {
+  # The other half. With no transaction behind it the claim is TRUE, and the
+  # reader of a failed `haus rebuild` needs to know their machine is untouched.
+  haus_sh 'rebuild_failed resolve'
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"nothing was changed"* ]]
+  [[ "$output" != *"haus reset"* ]]
+}
+
 # ---- which surface ----------------------------------------------------------
 
 @test "fault_surface: banner when trill answers and no terminal is watching" {
