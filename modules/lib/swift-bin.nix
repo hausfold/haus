@@ -11,8 +11,14 @@
 # `/usr/bin/xcrun`, never a nixpkgs toolchain. The Xcode CLT is already a
 # prerequisite of haus — the pounce build shells out the same way — and
 # building a Swift toolchain from source to compile a few hundred lines against
-# AppKit, CoreGraphics, Vision or CryptoKit would cost hours. It wants the
-# macOS build sandbox relaxed, which is Determinate's default.
+# AppKit, CoreGraphics, Vision or CryptoKit would cost hours. It runs
+# unsandboxed, which is nix's own macOS default and not something an installer
+# grants: `sandbox` is `true` on Linux and `false` on every other platform, and
+# neither Determinate nor nix-quick-install writes the line at all. `relaxed` is
+# not the knob either — it exempts fixed-output and `__noChroot` derivations
+# only, and this is neither, so setting it BREAKS the build rather than
+# permitting it (`/usr/bin/xcrun: Operation not permitted`, exit 126, measured
+# on pounce's identical build — hausfold/pounce#142).
 #
 # `src` is the ONE .swift file, never the directory it sits in. A path literal
 # becomes its own store entry, so an edit anywhere else in the tree leaves the
