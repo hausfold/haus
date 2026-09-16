@@ -290,6 +290,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      # Bare, and measured: `max-jobs` stays at upstream's 1. The account is
+      # above `checks`'s copy of this step, and this job has even less for the
+      # knob to reach — five derivations cold, the longest of them 5.2s
+      # (`haus-host-template`), and `haus-options-json` waiting on
+      # `options.json` in front of it. The 49s in this step is EVALUATION,
+      # which no job count touches.
       - uses: nixbuild/nix-quick-install-action@v35
       # Which store the restore below is allowed to come back to. A restore
       # UNIONS and nothing collects it, so one lineage grows forever: the
@@ -517,6 +523,44 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      # ⚠️ BARE ON PURPOSE, AND THAT IS A MEASUREMENT. Upstream nix defaults
+      # `max-jobs` to 1 where Determinate's nix.conf writes `auto`, so this job
+      # realises its derivations ONE AT A TIME. `with: { nix_conf: max-jobs =
+      # auto }` is one line away, and it buys this gate nothing — for two
+      # reasons that hold independently of each other:
+      #
+      #   1. THIS JOB IS NOT THE POLE. Over the last ten pushes to main it
+      #      averages 47s against `eval`'s 72s
+      #      (`script/probes/ci-cache-value.sh haus`, in the workshop).
+      #      docs/ci.md rule 5: shaving a job that is not the critical path
+      #      moves the gate by zero. On the three cold runs below it led `eval`
+      #      once, by ONE second, and trailed it by 16s and 13s.
+      #   2. THERE IS ALMOST NOTHING TO PARALLELISE. Cold, this step builds
+      #      ninety-one derivations, and ONE of them is the build phase: the
+      #      generated wallpaper PNG (resvg + ImageMagick,
+      #      modules/wallpaper/package.nix) and the `wallpaper` check that
+      #      reads it are a SERIAL chain of 23.1-27.9s out of a 26.3-33.5s
+      #      build phase. The other eighty-nine cost 3.2-5.7s together.
+      #      max-jobs cannot split one derivation, so that chain is the floor
+      #      whatever the knob says, and 3-6s is the ceiling on the whole
+      #      change — the same order as the runner noise that would have to
+      #      separate it.
+      #
+      # Measured off three cold runs on main — 34743613963 and 34744344070
+      # (2026-09-13), 34948292425 (2026-09-15) — by reading the timestamp on
+      # every `building '…drv'` line in the job log. That is also where the
+      # max-jobs=1 default is visible without asking nix: the 25s wallpaper
+      # build starts, and for 25s NOTHING else starts beside it.
+      #
+      # And cold is the rare shape. Across those same twenty-five pushes the
+      # `nix flake check` step ran 1-4s on twenty-two of them — the restore
+      # below handed back every check output, nothing was built at all, and
+      # max-jobs had nothing to govern. 3-6s on one run in eight, on a job 25s
+      # off the pole, is not worth the line.
+      #
+      # What would change this: a second derivation as expensive as the
+      # wallpaper, which could then run beside it, or this job becoming the
+      # pole. Re-read it the same way — the BUILD row, never the step total.
       - uses: nixbuild/nix-quick-install-action@v35
       # The lineage prefix, with this job's own token — the account is above
       # `eval`'s copy of this step, and so is the reason the token is there.
@@ -531,8 +575,10 @@ jobs:
           week="$(date -u +%G-W%V)$half"
           echo "prefix=nix-${{ runner.os }}-checks-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
       # This job's store is the big one and the one nobody else's is a superset
-      # of: `nix flake check` BUILDS thirty derivations. Every input here
-      # is `eval`'s with a different token — read that copy for what each does.
+      # of: on a cold runner `nix flake check` BUILDS ninety-one derivations —
+      # the thirty-one checks below plus the intermediates they read. Every
+      # input here is `eval`'s with a different token — read that copy for what
+      # each does.
       - name: Restore the Nix store
         uses: nix-community/cache-nix-action@v7
         with:
@@ -545,7 +591,7 @@ jobs:
           purge-created: 0
           purge-primary-key: never
       # The platform-independent checks are declared for Linux too precisely so
-      # they can run HERE — THIRTY of them, everything in flake.nix's `checks`
+      # they can run HERE — THIRTY-ONE of them, everything in flake.nix's `checks`
       # before the `optionalAttrs (hasSuffix "-darwin" system)` line, which is
       # the only thing that decides the split and the only place to re-derive
       # this list from:
@@ -643,6 +689,14 @@ jobs:
       #                            put a card in the deck
       #   swift-bin                no room builds Swift by hand — every one-file
       #                            helper goes through modules/lib/swift-bin.nix
+      #   installer-add-parity     bootstrap.sh and `haus add`'s `flake_add_input`
+      #                            build the same landmarks into a consumer's
+      #                            flake.nix — two writers of one file format,
+      #                            the same family as `ui-load-sync` beside it.
+      #                            Scoped to that ONE function on the haus.sh
+      #                            side, because its siblings spell two of the
+      #                            three landmarks and a file-wide grep stays
+      #                            green while the desktop half drifts alone
       #   ui-load-sync             every carrier of snug's painter bootstrap against
       #                            the one copy in modules/lib/ui-load.nix
       #   yazi-opener-args         every yazi opener names its files with yazi's own
@@ -702,6 +756,15 @@ jobs:
       # it said eighteen and named eighteen, and the eval said twenty
       # (`bar-factory-default`, `scene-leader-key`). Count neither sentence
       # against its own list. Run both evals.
+      #
+      # ⚠️ A fifth time on 2026-09-16, and this one was found by a reading that
+      # was not looking for it — the max-jobs measurement above had to know how
+      # many derivations this step builds. The sentence said thirty, the
+      # bullets under it named thirty, and the eval said thirty-one.
+      # `installer-add-parity` was the one running unlisted; it is listed now.
+      # The darwin sentence below held at twenty-two. A sentence agreeing with
+      # its own list is not the test, and this is the second rot to prove it —
+      # the eval is the test.
       #
       # All but the last two mirror a rule that lives in another repo, in a
       # generated dotfile, in a shell script, or in a README — where drift is
@@ -764,6 +827,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      # Bare like the other two, and for the same reading — the account is
+      # above `checks`'s copy. This job builds TWO derivations cold
+      # (`haus-desktop-check`, `haus-show`), both sub-second: there is nothing
+      # here a second build slot could have run beside anything.
       - uses: nixbuild/nix-quick-install-action@v35
       # ⚠️ NO STORE CACHE HERE, AND THAT IS A MEASUREMENT, NOT AN OVERSIGHT.
       # This job is 45s cold and was 71s warm — 50s of restore in front of a
