@@ -171,6 +171,68 @@ wait_gone() { # wait_gone <pid> [tries] — polled, because the holder exits onl
   [ "$(crumb class)" = activate ]
 }
 
+@test "rebuild_failed: a set standing behind the rebuild never says nothing changed" {
+  # The half of the S1 that made this suite the right place: cmd_set disarms its
+  # rollback BEFORE phase 4's rebuild, because an assertion is whole-config and
+  # no per-path eval can see one coming. So a resolve that dies here dies with
+  # the override on disk, and the reader has to leave with the path and the verb
+  # that undoes it — otherwise their next plain `haus rebuild` fails on a
+  # setting they were told was never written.
+  haus_sh 'SETTINGS_TX_VERB=set SETTINGS_TX_PATHS="windows.workspaceMonitors.9" SETTINGS_TX_ARGS="windows.workspaceMonitors.9" rebuild_failed resolve'
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"evaluation failed"* ]]
+  [[ "$output" != *"nothing was changed"* ]]
+  [[ "$output" == *"windows.workspaceMonitors.9"* ]]
+  [[ "$output" == *"haus reset windows.workspaceMonitors.9"* ]]
+
+  # The build class dies with the same files on disk and takes the same wording.
+  haus_sh 'SETTINGS_TX_VERB=set SETTINGS_TX_PATHS="theme.accent, ui.scale" SETTINGS_TX_ARGS="theme.accent ui.scale" rebuild_failed build'
+  [ "$status" -eq 1 ]
+  [[ "$output" != *"nothing was changed"* ]]
+  # ⚠️ The prose takes commas and the COMMAND must not: `haus reset a, b` dies on
+  # the trailing comma in `settings_path`, so an undo line nobody can paste is
+  # worse than none. That is the whole reason there are two joins.
+  [[ "$output" == *"theme.accent, ui.scale"* ]]
+  [[ "$output" == *"haus reset theme.accent ui.scale"* ]]
+
+  # reset's undo is a value the overlay no longer holds, so the line offers the
+  # shape rather than a command that would set it to nothing.
+  haus_sh 'SETTINGS_TX_VERB=reset SETTINGS_TX_PATHS="theme.flavor" SETTINGS_TX_ARGS="theme.flavor" rebuild_failed resolve'
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"already withdrawn"* ]]
+  [[ "$output" == *"haus set theme.flavor <value>"* ]]
+
+  # activate is untouched: it never claimed nothing changed, and by then the
+  # evaluation this is about has already passed.
+  haus_sh 'SETTINGS_TX_VERB=set SETTINGS_TX_PATHS="theme.accent" SETTINGS_TX_ARGS="theme.accent" rebuild_failed activate'
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"haus rollback"* ]]
+  # …and only that one. Two undos on adjacent rows read as a choice, and by the
+  # activate class the setting is built: what failed is the switch.
+  [[ "$output" != *"haus reset"* ]]
+}
+
+@test "the two writers still TELL rebuild_failed what they wrote" {
+  # Every case above sets SETTINGS_TX_* by hand, so all four stay green if the
+  # call that fills them in goes missing — a dead feature with a passing suite,
+  # which is the failure mode this file's header is written against. So pin the
+  # wiring at the source: each writer notes its paths after its rollback is
+  # disarmed and before the rebuild it is about to run.
+  run bash -c "grep -c '^  settings_tx_note \(set\|reset\) ' '$SUBJECT'"
+  [ "$output" = 2 ]
+  run bash -c "grep -A1 '^  settings_tx_note ' '$SUBJECT' | grep -c '^  settings_apply$'"
+  [ "$output" = 2 ]
+}
+
+@test "rebuild_failed: a plain rebuild still says nothing was changed" {
+  # The other half. With no transaction behind it the claim is TRUE, and the
+  # reader of a failed `haus rebuild` needs to know their machine is untouched.
+  haus_sh 'rebuild_failed resolve'
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"nothing was changed"* ]]
+  [[ "$output" != *"haus reset"* ]]
+}
+
 # ---- which surface ----------------------------------------------------------
 
 @test "fault_surface: banner when trill answers and no terminal is watching" {
