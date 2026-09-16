@@ -35,7 +35,16 @@ jobs:
             exit 1
           fi
 
-      - uses: DeterminateSystems/nix-installer-action@main
+      # The workshop's docs/ci.md scopes release workflows out of its speed
+      # rules and says rule 4 is not one of them: a tag publishes something that
+      # cannot be withdrawn, so a third-party action floating on `@main` is
+      # worse here than on a gate, not excused. Pinned by swapping to what every
+      # other nix job in the family runs — check.yml's `eval` job is this same
+      # action at this same version, on this same runner, running the exact
+      # command below. Nothing the daemon installer set up was reachable from
+      # here anyway: this job builds nothing, so the multi-user store and the
+      # daemon went unused, and a pure eval asks a substituter for nothing.
+      - uses: nixbuild/nix-quick-install-action@v35
       # Same pure eval as check.yml — never cut a release that doesn't evaluate.
       - run: nix eval .#darwinConfigurations.example.system.drvPath
 
