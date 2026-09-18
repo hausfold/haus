@@ -25,10 +25,10 @@
 #   on_unhover — optional; mouse events route here and never touch fetch or
 #   the cache. The button outranks the modifier (⌘-right-click is a right
 #   click); an unhandled chord falls back to on_click.
-#   popup_rows() optional — the dropdown's contents, in popup_heading /
-#             popup_row / popup_action / popup_note / popup_slider /
-#             popup_image calls. Never called on a tick: popup_open runs it,
-#             which a click handler asks for.
+#   popup_rows() optional — the dropdown's contents, in popup_* calls; THE ROW
+#             KINDS below is the list, and it is the only one, because a
+#             second copy up here is a copy that falls behind. Never called on
+#             a tick: popup_open runs it, which a click handler asks for.
 #
 # ⚠️ A WIDGET THAT DETACHES A COPY OF ITSELF must strip $SENDER (and $BUTTON /
 # $MODIFIER) from the child's environment, and must not let that child reach
@@ -584,6 +584,7 @@ graph() {
 #
 #   popup_heading   a section title, in the widget's own hue.  Bold, label size, 34pt
 #   popup_row       a thing you can act on.                 Regular, small,   26pt
+#   popup_item      one thing in a list, over two lines.    Bold small + tiny, 40pt
 #   popup_action    a verb — Refresh, a command to copy.    Bold, small,      26pt
 #   popup_button    a filled control, centred — the CTA.    Bold, small,      28pt
 #   popup_bar       a name, a filled track and a value.     Regular, small,   26pt
@@ -1087,7 +1088,7 @@ _barlib_name_cap() {
 # popup_heading --label <text> [--icon <glyph>] [--icon-font <font>]
 #               [--tone <tone>] [--mark <mark>] [--label-tone <tone>]
 #               [--count <n>] [--badge <text>] [--badge-tone <tone>]
-#               [--value <text>] [--run <command>]
+#               [--hint <text>] [--value <text>] [--run <command>]
 #               [--max-chars <n>] [--marquee]
 # The section title. Glyph in a tinted WELL on the glyph column, title beside
 # it, both in ONE hue — and that hue is, in order: --tone or --mark if the
