@@ -197,9 +197,8 @@ let
   # the WHOLE collection the first time macOS refuses to chmod an app bundle
   # the user has launched, and it dies on the same bundle at the same point
   # every week after: three of the eight runs on record here ended that way, on
-  # a different app each time, each losing the rest of that week's garbage. Same shape as lidawake — a daemon's
-  # script, no end-user CLI, nothing to run by hand. Why it pins the path
-  # rather than retrying it is nix-gc.sh's own header.
+  # a different app each time, each losing the rest of that week's garbage. Why
+  # it pins the path rather than retrying it is nix-gc.sh's own header.
   nixGc = pkgs.writeShellScriptBin "haus-nix-gc" (builtins.readFile ./nix-gc.sh);
 
   # `trill` on PATH. A wrapper, not a symlink into the bundle, because nix has
@@ -297,6 +296,15 @@ let
   domainsWritten = lib.unique (typedDomainsWritten ++ customPrefDomainsWritten);
   undeclaredDomains = builtins.filter (d: !(restartMap ? ${d})) domainsWritten;
 
+  # The breadcrumb a caught `brew bundle` failure leaves for `haus doctor` and
+  # `haus rebuild`. Written by ROOT from the activation script, which is why it
+  # is not in `modules/lib/state-files.nix` — that registry is `~/.local/state`
+  # and cross-ROOM, and this pair is core's own on both ends. It sits beside the
+  # three markers activation already writes there (zen-policies.source,
+  # perch.installed-from, trill.installed-from). Spelled ONCE: `haus.sh` takes
+  # it from `HAUS_BREW_FAULT`, set on the wrapper below.
+  brewFault = "/Library/Application Support/haus/brew-fault";
+
   # Third-party taps nobody trusted. `homebrew.taps` is a list of submodules
   # coerced from strings, and a bare string lands on nix-darwin's `trusted =
   # false` default — which is how AeroSpace's tap spent its whole life as one
@@ -308,15 +316,6 @@ let
   # of its own — the line AeroSpace's own README gives — ends up with two
   # elements for one tap, and brew is already covered by the trusted one. Warning
   # about that would be an alarm about a machine that is fine, on every rebuild.
-  # The breadcrumb a caught `brew bundle` failure leaves for `haus doctor` and
-  # `haus rebuild`. Written by ROOT from the activation script, which is why it
-  # is not in `modules/lib/state-files.nix` — that registry is `~/.local/state`
-  # and cross-ROOM, and this pair is core's own on both ends. It sits beside the
-  # three markers activation already writes there (zen-policies.source,
-  # perch.installed-from, trill.installed-from). Spelled ONCE: `haus.sh` takes
-  # it from `HAUS_BREW_FAULT`, set on the wrapper below.
-  brewFault = "/Library/Application Support/haus/brew-fault";
-
   trustedTapNames = map (t: t.name) (builtins.filter (t: t.trusted) config.homebrew.taps);
   untrustedTaps = lib.unique (
     map (t: t.name) (
@@ -1527,13 +1526,13 @@ in
   # The job is intentionally always present, even when the opt-in Bar pill is
   # hidden: `awake` is a haus-level capability usable from any shell. RunAtLoad
   # resumes an unexpired timed assertion (with only its remaining duration), or
-  # an explicit indefinite one, after login/rebuild. With no saved state it
-  # exits immediately and launchd does not restart it.
+  # an explicit indefinite one, after login/rebuild.
+  #
   # A one-shot, and the deck reads that off the plist itself: no KeepAlive and
-  # no interval, so `haus services` calls it idle and doctor stays quiet about
-  # it. That is the correct reading — with no saved assertion this exits 0
-  # immediately, and a machine where it IS running is one that is deliberately
-  # being kept awake.
+  # no interval, so launchd never restarts it, `haus services` calls it idle and
+  # doctor stays quiet about it. That is the correct reading — with no saved
+  # assertion this exits 0 immediately, and a machine where it IS running is one
+  # that is deliberately being kept awake.
   haus._contrib.services.awake = {
     order = 40;
     title = "Stay-awake assertions — awake";
