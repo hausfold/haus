@@ -4014,6 +4014,179 @@
               touch $out
             '';
 
+          # The class #714 sat in, for every other room: a `home.activation`
+          # entry a room emits only under some option. Every check watches the
+          # option surface; this one watches what the room WRITES for it, since
+          # an entry that stops arriving is green everywhere — the option is
+          # still declared, still set, still shown — and is found at activation
+          # or, for the quiet ones (a desktop that stays put, a vault that stays
+          # unthemed, a screenshot folder that never appears), not at all. Only
+          # entries whose gate is a VALUE — a style, a chord, a list, a path —
+          # are here: a room that emits its entry whenever it is on cannot lose
+          # it this way, and shelf, focus and snippets are that shape.
+          # `display-activations` above is the displays room's own, kept apart
+          # because its two families iterate two attrsets and the fixture is
+          # one host.
+          #
+          # Two scratch hosts with the SAME options set the other way, and the
+          # rooms on in both — an absence alone is satisfied by a room that is
+          # simply off, so the launcher's bounce and the AI room's Claude
+          # settings are asserted PRESENT on both hosts as the witnesses that
+          # the hosts are real.
+          room-activations =
+            let
+              activationsWith =
+                haus:
+                (mkHaus {
+                  inherit system;
+                  username = "you";
+                  hostname = "example";
+                  extraModules = [
+                    { inherit haus; }
+                    # One entry's SCRIPT is read below, and a script names store
+                    # paths: the theme's holds hausax, a Swift helper that
+                    # declares itself darwin-only, and nixpkgs refuses to so much
+                    # as name a package for a platform it lists none of — which
+                    # on this repo's Linux runner is every mkHaus fixture.
+                    # Nothing here is built; this only lets the path be spelled.
+                    { nixpkgs.config.allowUnsupportedSystem = true; }
+                  ];
+                }).config.home-manager.users.you.home.activation;
+              # Every conditional entry asked for. The two rooms the witnesses
+              # come from are turned on here, on both hosts, rather than taken
+              # from whichever desktop `mkHaus` defaults to.
+              claimed = activationsWith {
+                launcher.enable = true;
+                ai.enable = true;
+                # Not the desktop's `minimal`: the gate is `!= "none"`, and a
+                # gate that had become `== "minimal"` would still pass on it.
+                wallpaper.style = "bold";
+                # The one arm the room RESOLVES. The built system must carry the
+                # answer (latte → light), not the rule.
+                theme.flavor = "latte";
+                theme.systemAppearance = "flavor";
+                # The one palette chord Spotlight has to give up.
+                keys.palette = "cmd-space";
+                terminal.obsidianVaults = [ "notes" ];
+                terminal.hijackFileAssociations = true;
+                # codex and not pi, so the membership test has a member to miss.
+                ai.clients = [
+                  "claude"
+                  "codex"
+                ];
+                screenshots.location = "~/Pictures/Screenshots";
+              };
+              # The same options the other way, with the rooms still ON: the
+              # launcher keeps its daemon bounce and the AI room its Claude
+              # settings, which is what makes each absence beside them mean
+              # something.
+              declined = activationsWith {
+                launcher.enable = true;
+                ai.enable = true;
+                wallpaper.style = "none";
+                theme.systemAppearance = "unmanaged";
+                # A palette, on a chord that is nobody else's.
+                keys.palette = "alt-space";
+                terminal.obsidianVaults = [ ];
+                terminal.hijackFileAssociations = false;
+                ai.clients = [
+                  "claude"
+                  "pi"
+                ];
+                screenshots.location = null;
+              };
+              expect =
+                host: name: present: reason:
+                nixpkgs.lib.optional ((host ? ${name}) != present) reason;
+              # The third symptom, over the whole tree this time: home-manager's
+              # DAG swallows an edge naming nothing, so an entry ordered after
+              # one that went conditional is silently unordered. Every room
+              # orders after `writeBoundary` today; this is what says so.
+              dangling =
+                host:
+                nixpkgs.lib.concatMap (
+                  name:
+                  map (dep: "${name} is ordered after ${dep}, which no activation defines") (
+                    builtins.filter (dep: !(host ? ${dep})) host.${name}.after
+                  )
+                ) (builtins.attrNames host);
+              failures =
+                expect claimed "hausWallpaper" true
+                  "haus.wallpaper.style = \"bold\" produced no activation: a desktop other than `minimal` is never hung."
+                ++
+                  expect declined "hausWallpaper" false
+                    "haus.wallpaper.style = \"none\" got a wallpaper activation: a desktop that asked to be left alone is overwritten."
+                ++
+                  expect claimed "hausSystemAppearance" true
+                    "haus.theme.systemAppearance = \"flavor\" produced no activation: macOS's Light/Dark is never set."
+                ++
+                  nixpkgs.lib.optional
+                    (
+                      claimed ? hausSystemAppearance
+                      && !(nixpkgs.lib.hasInfix "set dark mode to false" claimed.hausSystemAppearance.data)
+                    )
+                    "haus.theme.systemAppearance = \"flavor\" under latte did not resolve to light: the activation carries the rule, not the answer."
+                ++
+                  expect declined "hausSystemAppearance" false
+                    "haus.theme.systemAppearance = \"unmanaged\" got an appearance activation: Light/Dark is driven on a machine that opted out."
+                ++
+                  expect claimed "disableSpotlightCmdSpace" true
+                    "haus.keys.palette = \"cmd-space\" produced no Spotlight activation: ⌘Space stays Spotlight's and races the daemon's registration."
+                ++
+                  expect declined "disableSpotlightCmdSpace" false
+                    "haus.keys.palette = \"alt-space\" got the Spotlight activation: ⌘Space is taken from Spotlight for a palette that never asked for it."
+                ++
+                  expect claimed "kickstartPounce" true
+                    "haus.launcher.enable produced no daemon bounce: a rebuild leaves the old pounce running."
+                ++
+                  expect declined "kickstartPounce" true
+                    "haus.launcher.enable with keys.palette = \"alt-space\" produced no daemon bounce: the palette's chord has no business gating the bounce."
+                ++
+                  expect claimed "obsidianNebelung" true
+                    "haus.terminal.obsidianVaults = [ \"notes\" ] produced no activation: the vault never gets the theme."
+                ++ expect declined "obsidianNebelung" false "haus.terminal.obsidianVaults = [ ] got an activation."
+                ++
+                  expect claimed "editorOpenApp" true
+                    "haus.terminal.hijackFileAssociations = true produced no activation: EditorOpen.app never claims a type."
+                ++
+                  expect declined "editorOpenApp" false
+                    "haus.terminal.hijackFileAssociations = false got an activation: EditorOpen.app claims a dozen extensions on a machine that never opted in."
+                ++
+                  expect claimed "claudeCodeSettings" true
+                    "haus.ai.enable produced no Claude settings activation: ~/.claude/settings.json is never seeded."
+                ++
+                  expect declined "claudeCodeSettings" true
+                    "haus.ai.enable produced no Claude settings activation on the host whose other client is pi."
+                ++
+                  expect claimed "codexAgentHooks" true
+                    "haus.ai.clients holds codex and got no hooks activation: codex runs with no agent-state hooks."
+                ++
+                  expect declined "codexAgentHooks" false
+                    "haus.ai.clients holds no codex, but got a codex hooks activation: ~/.codex is written on a machine that never installed it."
+                ++
+                  expect claimed "piSettings" false
+                    "haus.ai.clients holds no pi, but got a pi settings activation: ~/.pi is written on a machine that never installed it."
+                ++
+                  expect declined "piSettings" true
+                    "haus.ai.clients holds pi and got no settings activation: pi runs with no agent-state extension."
+                ++
+                  expect claimed "hausScreenshotDir" true
+                    "haus.screenshots.location produced no activation: the folder is never created, and screencapture quietly falls back to the Desktop."
+                ++
+                  expect declined "hausScreenshotDir" false
+                    "haus.screenshots.location = null got an activation: a directory is created for a setting left alone."
+                ++ dangling claimed
+                ++ dangling declined;
+            in
+            pkgs.runCommand "haus-room-activations-ok" { } ''
+              ${nixpkgs.lib.optionalString (failures != [ ]) ''
+                cat >&2 <<'FAILURES'
+                ${builtins.concatStringsSep "\n" failures}
+                FAILURES
+                exit 1''}
+              touch $out
+            '';
+
           data-only-surface = pkgs.runCommand "haus-data-only-surface-ok" { } ''
             ${nixpkgs.lib.optionalString (unnamedPackageOptions != [ ]) ''
               cat >&2 <<'OFFENDERS'
