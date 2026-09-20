@@ -1876,6 +1876,75 @@
             75 -> 0.778801
             100 -> 1.000000
           '';
+          # ---- firewall-posture ------------------------------------------------
+          # `haus.security.firewall`'s four posture leaves promise "no effect
+          # while `enable` is null or false", and the mapping in core used to
+          # pass them straight through to nix-darwin, which emits every non-null
+          # leaf as its own `socketfilterfw` call. Apple's tool turns the
+          # firewall ON as a side effect of any posture write — `--setblockall
+          # off` ends at `State = 1` — so `enable = false; blockAllIncoming =
+          # false;` switched a firewall off and back on in two consecutive
+          # lines, and `enable = null` with the same leaf enabled one haus was
+          # told not to touch (the VM lane's Security pass, 2026-09-16).
+          # The table pins what reaches nix-darwin: nothing but `enable` unless
+          # `enable` is true, and everything declared when it is.
+          firewallPosture =
+            fw:
+            let
+              c =
+                (mkHaus {
+                  inherit system;
+                  username = "you";
+                  hostname = "example";
+                  extraModules = [ { haus.security.firewall = fw; } ];
+                }).config.networking.applicationFirewall;
+            in
+            builtins.concatStringsSep " " [
+              "enable=${builtins.toJSON c.enable}"
+              "blockAll=${builtins.toJSON c.blockAllIncoming}"
+              "allowSigned=${builtins.toJSON c.allowSigned}"
+              "allowSignedApp=${builtins.toJSON c.allowSignedApp}"
+              "stealth=${builtins.toJSON c.enableStealthMode}"
+            ];
+          firewallPostureTable = builtins.concatStringsSep "\n" [
+            (
+              "off, posture declared: "
+              + firewallPosture {
+                enable = false;
+                blockAllIncoming = false;
+                allowSigned = true;
+                allowSignedApp = true;
+                stealthMode = true;
+              }
+            )
+            (
+              "unmanaged, posture declared: "
+              + firewallPosture {
+                enable = null;
+                blockAllIncoming = false;
+                allowSigned = false;
+                allowSignedApp = false;
+                stealthMode = true;
+              }
+            )
+            (
+              "on, posture declared: "
+              + firewallPosture {
+                enable = true;
+                blockAllIncoming = false;
+                allowSigned = true;
+                allowSignedApp = false;
+                stealthMode = true;
+              }
+            )
+            ("on, nothing else: " + firewallPosture { enable = true; })
+          ];
+          expectedFirewallPostureTable = ''
+            off, posture declared: enable=false blockAll=null allowSigned=null allowSignedApp=null stealth=null
+            unmanaged, posture declared: enable=null blockAll=null allowSigned=null allowSignedApp=null stealth=null
+            on, posture declared: enable=true blockAll=false allowSigned=true allowSignedApp=false stealth=true
+            on, nothing else: enable=true blockAll=null allowSigned=null allowSignedApp=null stealth=null
+          '';
 
           # ---- roster-bin-paths ------------------------------------------------
           # `haus.roster.<name>.binPath` is where a roster entry's executable
@@ -4365,6 +4434,12 @@
           alert-volume = pkgs.runCommand "haus-alert-volume-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedAlertVolumeTable} \
                     ${pkgs.writeText "actual" (alertVolumeTable + "\n")}
+            touch $out
+          '';
+
+          firewall-posture = pkgs.runCommand "haus-firewall-posture-ok" { } ''
+            diff -u ${pkgs.writeText "expected" expectedFirewallPostureTable} \
+                    ${pkgs.writeText "actual" (firewallPostureTable + "\n")}
             touch $out
           '';
 
