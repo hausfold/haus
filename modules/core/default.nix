@@ -2038,13 +2038,26 @@ in
   # something in modules/lib/restart-map.nix to reread it. No restart, no
   # logout, no Full Disk Access. Same pass-through as screensaver/menuBar
   # above: null stays null, upstream's own type already means "leave alone".
-  networking.applicationFirewall = {
-    enable = firewallCfg.enable;
-    blockAllIncoming = firewallCfg.blockAllIncoming;
-    allowSigned = firewallCfg.allowSigned;
-    allowSignedApp = firewallCfg.allowSignedApp;
-    enableStealthMode = firewallCfg.stealthMode;
-  };
+  #
+  # The four posture leaves pass through ONLY while `enable = true`. Apple's
+  # tool turns the firewall on as a side effect of setting any posture —
+  # `socketfilterfw --setblockall off` leaves it at `State = 1` — and
+  # nix-darwin emits each non-null leaf unconditionally, `setglobalstate`
+  # first, so a declared `false` under `enable = false` re-enabled what the
+  # line before it had just turned off, and under `enable = null` it enabled
+  # a firewall haus was told not to manage. The blurbs promise "no effect
+  # while `enable` is null or false"; nulling the leaves is what makes it so.
+  networking.applicationFirewall =
+    let
+      whenOn = v: if firewallCfg.enable == true then v else null;
+    in
+    {
+      enable = firewallCfg.enable;
+      blockAllIncoming = whenOn firewallCfg.blockAllIncoming;
+      allowSigned = whenOn firewallCfg.allowSigned;
+      allowSignedApp = whenOn firewallCfg.allowSignedApp;
+      enableStealthMode = whenOn firewallCfg.stealthMode;
+    };
 
   # ---- Nix housekeeping -----------------------------------------------------
   # Determinate owns the daemon + settings (/etc/nix/nix.custom.conf), so
