@@ -180,21 +180,15 @@ esc = [@LAUNCH_LEAVE@'mode main']
 # . = advance the focused workspace's tiling mode one stop (columns -> grid ->
 # accordion -> columns, one-shot each press — see tiling-mode.sh); ` = re-sort
 # every window to its workspace.
-# (Palette is on cmd+space now, so the old space->palette leader is gone.)
 #
 # Not here: / (this cheatsheet), v (clipboard history) and f (Find Files,
 # pounce's Spotlight-style file/folder search). Those three are pounce's, so
 # the launcher room binds them — through _contrib.windows.leaderActions, the
 # same seam a Focus scene's key comes in by — and they land in the letters
 # block below, as `leader-extra-<key>.sh` scripts like any other contributed
-# key. A
-# machine without the launcher has no pounce and no row that execs it.
-#
-# The emoji grid used to sit on `e` here. It doesn't any more: haus binds a bare
-# Fn/Globe tap to mode:emoji (modules/launcher — haus.launcher.items."mode:emoji"),
-# which is one key instead of two and is where a Mac user already reaches for it.
-# Two bindings for one picker only cost a leader letter, so the leader gave it up
-# rather than the Fn key; `f` is what took the slot.
+# key. A machine without the launcher has no pounce and no row that execs it.
+# The emoji grid is not a leader key either: a bare Fn/Globe tap opens it
+# (modules/launcher — haus.launcher.items."mode:emoji").
 z = [@LAUNCH_LEAVE@'exec-and-forget @HOME@/.config/aerospace/reopen-last-app.sh', 'mode main']
 comma = [@LAUNCH_LEAVE@'exec-and-forget open -b com.apple.systempreferences', 'mode main']
 period = [@LAUNCH_LEAVE@'exec-and-forget @HOME@/.config/aerospace/tiling-mode.sh', 'mode main']

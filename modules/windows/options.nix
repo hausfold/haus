@@ -271,8 +271,7 @@ in
           default = "";
           description = ''
             The command run on the way in, as one `exec-and-forget` argument.
-            An absolute path: AeroSpace's exec does not expand `~` or `$HOME`.
-            No single quote — it is spelled into a single-quoted TOML literal
+            An absolute path, like every other generated exec. No single quote — it is spelled into a single-quoted TOML literal
             with no escape, and one would end the string early.
           '';
         };

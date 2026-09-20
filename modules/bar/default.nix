@@ -1781,8 +1781,8 @@ lib.mkIf config.haus.bar.enable {
   # through its seams (`_contrib.windows.modeHooks` / `.workspaceChanged`,
   # modules/windows/options.nix) rather than spelled into its template: the
   # scripts are this room's, so the rows that exec them exist exactly when this
-  # room does. Absolute paths, because AeroSpace's exec-and-forget does not
-  # expand `~`; the same ~/.config/sketchybar the home.file block below installs.
+  # room does. Absolute paths, like every other generated exec — the same
+  # ~/.config/sketchybar the home.file block below installs.
   haus._contrib.windows.modeHooks =
     let
       plugin = name: "/Users/${username}/.config/sketchybar/plugins/${name}";

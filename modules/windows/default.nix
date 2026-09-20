@@ -289,9 +289,8 @@ let
   );
 
   # The FIXED half of launch mode: the actions a host does not choose (arrows,
-  # resize, clipboard, Find Files, reopen, settings, tiling cycle, resort,
-  # cheatsheet, exit)
-  # plus the numbered workspaces' three chords each. Split out of
+  # resize, reopen, settings, tiling cycle, resort, exit) plus the numbered
+  # workspaces' three chords each. Split out of
   # reservedLaunchKeys because TWO different things can collide with it and only
   # one of them was ever checked; split into ./launch-keys.nix because the docs repo's
   # keybinding tripwire renders the same list from the same file (see its
