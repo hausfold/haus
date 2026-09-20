@@ -2036,8 +2036,9 @@ in
   # `socketfilterfw` directly in its own activation script, unconditionally,
   # every rebuild — a live imperative command, not a plist write waiting on
   # something in modules/lib/restart-map.nix to reread it. No restart, no
-  # logout, no Full Disk Access. Same pass-through as screensaver/menuBar
-  # above: null stays null, upstream's own type already means "leave alone".
+  # logout, no Full Disk Access. `enable` is the same pass-through as
+  # screensaver/menuBar above: null stays null, upstream's own type already
+  # means "leave alone".
   #
   # The four posture leaves pass through ONLY while `enable = true`. Apple's
   # tool turns the firewall on as a side effect of setting any posture —

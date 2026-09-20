@@ -576,7 +576,7 @@ jobs:
           echo "prefix=nix-${{ runner.os }}-checks-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
       # This job's store is the big one and the one nobody else's is a superset
       # of: on a cold runner `nix flake check` BUILDS ninety-one derivations —
-      # the thirty-one checks below plus the intermediates they read. Every
+      # the thirty-two checks below plus the intermediates they read. Every
       # input here is `eval`'s with a different token — read that copy for what
       # each does.
       - name: Restore the Nix store
@@ -591,7 +591,7 @@ jobs:
           purge-created: 0
           purge-primary-key: never
       # The platform-independent checks are declared for Linux too precisely so
-      # they can run HERE — THIRTY-ONE of them, everything in flake.nix's `checks`
+      # they can run HERE — THIRTY-TWO of them, everything in flake.nix's `checks`
       # before the `optionalAttrs (hasSuffix "-darwin" system)` line, which is
       # the only thing that decides the split and the only place to re-derive
       # this list from:
@@ -623,6 +623,10 @@ jobs:
       #                            there alone ships a feature that never runs
       #   keymap                   keys.* → chord/glyph tables
       #   alert-volume             the beep-volume ladder
+      #   firewall-posture         security.firewall's four posture leaves reach
+      #                            nix-darwin only under `enable = true` — Apple's
+      #                            `socketfilterfw` turns the firewall ON as a side
+      #                            effect of any posture write
       #   accessibility-surface    classify_key's `effective` arm, sed'd out of
       #                            modules/core/haus.sh, vs modules/lib/reachability.nix
       #                            — the one copy of those key names a shell script

@@ -1885,7 +1885,7 @@
           # off` ends at `State = 1` — so `enable = false; blockAllIncoming =
           # false;` switched a firewall off and back on in two consecutive
           # lines, and `enable = null` with the same leaf enabled one haus was
-          # told not to touch (launch-phase-1's Security room, 2026-09-16).
+          # told not to touch (the VM lane's Security pass, 2026-09-16).
           # The table pins what reaches nix-darwin: nothing but `enable` unless
           # `enable` is true, and everything declared when it is.
           firewallPosture =
@@ -1913,6 +1913,8 @@
                 enable = false;
                 blockAllIncoming = false;
                 allowSigned = true;
+                allowSignedApp = true;
+                stealthMode = true;
               }
             )
             (
@@ -1920,6 +1922,8 @@
               + firewallPosture {
                 enable = null;
                 blockAllIncoming = false;
+                allowSigned = false;
+                allowSignedApp = false;
                 stealthMode = true;
               }
             )
