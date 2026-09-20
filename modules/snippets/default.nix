@@ -66,6 +66,80 @@ lib.mkIf cfg.enable {
     cask = lib.mkDefault "espanso";
   };
 
+  # The card for the job below, in core's services deck — `haus services` and
+  # `haus doctor` read it, and `nix flake check`'s services-deck refuses a
+  # launchd job that has none. Everything mechanical (label, log, liveness) is
+  # read off the plist; this is the half only the room knows.
+  haus._contrib.services.espanso = {
+    order = 58;
+    title = "Text expansion — espanso";
+    why = ''
+      Watches what you type and types the replacement back, which is the whole
+      of what `haus.snippets` does. It is the app bundle rather than a nix-store
+      binary so the Accessibility grant survives a rebuild (see the header).
+    '';
+    cost = "no snippet ever fires — every trigger stays the two characters you typed";
+  };
+
+  # The launchd service is declared here, the way every other GUI agent haus
+  # ships is — NOT registered by `espanso service register` at activation.
+  # That verb writes ~/Library/LaunchAgents/com.federicoterzi.espanso.plist and
+  # then drives legacy `launchctl load`, which fails from home-manager's
+  # activation context (it runs under `sudo --user`, outside the GUI session's
+  # bootstrap): the file landed, the service never did, and the `launchctl
+  # kickstart -k` that followed answered "Could not find service" into the
+  # 2>/dev/null it was given. Measured 2026-09-20 on a haus-golden guest, two
+  # rebuilds in a row — `espanso status` said "espanso is not running" after
+  # each, with nothing on screen to say so, and the same register from a plain
+  # shell loads fine, which is what made it look like it worked.
+  #
+  # nix-darwin's own user-agent step bootstraps into gui/<uid> correctly, so it
+  # carries this one. The plist is named after its Label, which is the exact
+  # path espanso's own register writes, so a machine that ran the old
+  # activation (or registered by hand) is replaced in place, `espanso status`
+  # keeps finding the service under the name it expects, and the app's own
+  # `service register` sees a file and leaves it alone. The program is the app
+  # bundle's binary with the `launcher` argument, verbatim from the plist
+  # espanso writes for itself, so the signed identity the Accessibility grant
+  # is keyed to (see the header) is unchanged.
+  #
+  # Two orderings this has to survive. On the very first switch the cask lands
+  # in nix-darwin's Homebrew step, AFTER the agent is bootstrapped, so the first
+  # launch finds no binary and exits non-zero; KeepAlive on failure has launchd
+  # try again every ThrottleInterval until it is there, and a launcher that
+  # exits cleanly is not relaunched into a second instance. And a config change
+  # needs no restart: espanso watches ~/.config/espanso and reloads a changed
+  # match file itself, which is why no activation hook is left here.
+  launchd.user.agents.espanso = {
+    serviceConfig = {
+      Label = "com.federicoterzi.espanso";
+      # The binary itself, not ../lib/gui-wait.nix's bash wrapper: espanso's own
+      # plist starts it bare and it copes with an early login, and a wrapper
+      # would make macOS's Login Items notice read "'bash' can run in the
+      # background" (measured) — the cold-install register's least explicable
+      # modal, back for a room that had escaped it.
+      ProgramArguments = [
+        espanso
+        "launcher"
+      ];
+      RunAtLoad = true;
+      KeepAlive = {
+        SuccessfulExit = false;
+      };
+      ThrottleInterval = 30;
+      ProcessType = "Interactive";
+      StandardOutPath = "/tmp/espanso.out.log";
+      StandardErrorPath = "/tmp/espanso.err.log";
+      EnvironmentVariables = {
+        LANG = "en_US.UTF-8";
+        # A launchd GUI agent's PATH is bare, and espanso's shell extension runs
+        # whatever a match names by that PATH — the same search path pounce
+        # hands its commands.
+        PATH = "/run/current-system/sw/bin:/etc/profiles/per-user/${username}/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin";
+      };
+    };
+  };
+
   # A module function so the inner `lib` is home-manager's (carries `lib.hm`);
   # the outer `lib` above is plain nixpkgs lib and has no `.hm`.
   home-manager.users.${username} =
@@ -82,26 +156,27 @@ lib.mkIf cfg.enable {
         ".config/espanso/match/default.yml".text = matchesYaml;
       };
 
-      # Register the app-bundle binary as the launchd service (stable identity)
-      # and reload after a config change. Best-effort + idempotent: the cask is
-      # installed by nix-darwin's Homebrew step, which can land after this on the
-      # very first switch — if the app isn't there yet this no-ops, and the next
-      # rebuild registers it. `service register` is safe to re-run. The one-time
-      # Accessibility grant still has to be clicked by hand the first time
-      # espanso starts (macOS won't let Nix self-grant it) — but only once,
-      # thanks to the stable identity above.
-      #
-      # Restart via `launchctl kickstart -k`, not `espanso restart`/`start`:
-      # espanso's own commands drive legacy `launchctl load`, which fails with
-      # "launchctl failed to run" from the activation context — the stop half
-      # would land but the start half wouldn't, leaving espanso dead until the
-      # next login. kickstart addresses the registered gui-domain service
-      # directly and works from anywhere.
-      home.activation.espansoService = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-        if [ -x "${espanso}" ]; then
-          $DRY_RUN_CMD "${espanso}" service register 2>/dev/null || true
-          $DRY_RUN_CMD /bin/launchctl kickstart -k \
-            "gui/$(/usr/bin/id -u)/com.federicoterzi.espanso" 2>/dev/null || true
+      # espanso's first run opens its own wizard — welcome, then "Launch on
+      # System startup — Yes (recommended)", then "Add espanso to PATH" (a
+      # symlink into /usr/local/bin, behind an admin-password prompt — the app's
+      # own question, left to it), then the Accessibility grant. The startup
+      # page is gated on a flag in espanso's own key-value store, not on
+      # whether a service exists, and its recommended answer runs the same
+      # `service register` this module stopped calling: against a service
+      # launchd already holds, the `launchctl load -w` inside it fails and the
+      # wizard puts up "Operation failed — an error occurred while registering
+      # Espanso as a service" (measured 2026-09-20, three times in a row on the
+      # golden guest). Answer that question for the machine — haus IS the
+      # launch-on-startup — by seeding the flag before the wizard ever asks. A
+      # plain file rather than a home.file link, so espanso stays free to
+      # rewrite its own store; written only when absent, so a machine that has
+      # already answered is left alone. The welcome and Accessibility pages are
+      # the user's and stay.
+      home.activation.espansoWizardAutoStart = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        kvs="$HOME/Library/Caches/espanso/kvs"
+        if [ ! -e "$kvs/has_selected_auto_start_option" ]; then
+          $DRY_RUN_CMD /bin/mkdir -p "$kvs"
+          $DRY_RUN_CMD /bin/sh -c "/usr/bin/printf 'true' > '$kvs/has_selected_auto_start_option'"
         fi
       '';
     };
