@@ -94,6 +94,7 @@ let
       "pi.packages"
       "repoRoots"
       "skill"
+      "skillExclude"
     ];
     animations = [ "" ];
     appearance = [

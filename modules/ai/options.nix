@@ -714,7 +714,34 @@ in
         `ai.clients` empty — a machine haus installs no client on, which
         can still have one from npm or Homebrew — every known client's directory
         gets a copy rather than none. Set false to leave every client's skills
-        directory alone.
+        directory alone; `ai.skillExclude` leaves out only the tool skills it
+        names.
+      '';
+    };
+
+    ai.skillExclude = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [
+        "factory"
+        "pounce"
+      ];
+      description = ''
+        Tool skills to leave out of what `ai.skill` installs, by skill name:
+        `scruff`, `handoff`, `factory`, `nebelung`, `trill`, `pounce` or
+        `perch`. Every installed skill is a line in each agent's context on
+        every turn, so a machine whose agent never invokes one is paying for
+        it (Claude Code's `/skill-doctor` shows which ones went unused). Name
+        it here and every client in `ai.clients` stops getting that
+        directory; the rest arrive exactly as before, and `ai.skill = false`
+        stays the switch for all of them at once.
+
+        A name that is not one of the seven is an eval error, since a typo
+        would otherwise change nothing in silence. A name whose room is
+        already off (`trill` with `haus.notifications.compositor` off) is
+        accepted and changes nothing. `haus` and `hausfold` cannot be named:
+        they are haus's own, the first is what `ai.skill` exists for, and the
+        second is the route `ai.instructions` sends a complaint down.
       '';
     };
   };

@@ -2911,6 +2911,23 @@
                 haus.bar.items.agents = true;
               }
             ];
+            # Two skills the host asked to leave out, on a machine whose rooms
+            # would otherwise install both. Only `skills=` moves, and the
+            # column is read off the FILES, so this is the exclude reaching the
+            # client's directory rather than the list that feeds it.
+            "skill-exclude" = [
+              {
+                haus.ai.skillExclude = [
+                  "factory"
+                  "pounce"
+                ];
+              }
+            ];
+            # A name nothing ships. Its row is `hacker`'s, unchanged — what the
+            # fixture is for is the assertion read off it below, because a
+            # typo that changed nothing in silence is the failure the option
+            # cannot afford.
+            "skill-exclude-unknown" = [ { haus.ai.skillExclude = [ "hand-off" ]; } ];
           };
           aiRoomTable = builtins.concatStringsSep "\n" (
             map (
@@ -2935,7 +2952,8 @@
           # `nebelung` are on every row instead: the first two describe a CLI
           # every haus machine has, and a palette has no binary to miss. `perch`
           # and `pounce` follow their own rooms, which is why the four room-off
-          # rows still carry them.
+          # rows still carry them. `skill-exclude` is `hacker` minus the two
+          # names its host struck, and nothing else on the row moves.
           expectedAiRoomTable = ''
             ai-alone scruff=yes client=yes alias=claude pill=no cards=no skills=factory,handoff,haus,hausfold,nebelung,perch,scruff
             ai-off scruff=no client=no alias=(none) pill=no cards=no skills=haus,hausfold,nebelung,perch,pounce
@@ -2945,7 +2963,23 @@
             hacker scruff=yes client=yes alias=claude pill=no cards=yes skills=factory,handoff,haus,hausfold,nebelung,perch,pounce,scruff
             no-rice-clients scruff=yes client=no alias=(none) pill=yes cards=no skills=factory,handoff,haus,hausfold,nebelung,perch,pounce,scruff
             pill-without-ai scruff=no client=no alias=(none) pill=no cards=no skills=haus,hausfold,nebelung,perch,pounce
+            skill-exclude scruff=yes client=yes alias=claude pill=no cards=yes skills=handoff,haus,hausfold,nebelung,perch,scruff
+            skill-exclude-unknown scruff=yes client=yes alias=claude pill=no cards=yes skills=factory,handoff,haus,hausfold,nebelung,perch,pounce,scruff
           '';
+
+          # The unknown-name refusal, read off its fixture the way the pill
+          # warnings are: every failing assertion on that machine, whole, so
+          # the one expected can't hide a second.
+          aiSkillExcludeFailures = map (a: a.message) (
+            builtins.filter (a: !a.assertion) (aiRoomAt aiRoomFixtures."skill-exclude-unknown").cfg.assertions
+          );
+          expectedAiSkillExcludeFailures = [
+            (
+              "haus.ai.skillExclude names hand-off, which haus installs no skill by. It can leave out "
+              + "scruff, handoff, factory, nebelung, trill, pounce, perch; `haus` and `hausfold` are "
+              + "haus's own and follow haus.ai.skill."
+            )
+          ];
 
           # There is no old-address fixture, on purpose: `haus.agents.*` and
           # `haus.developer.agents.enable` were removed rather than aliased (see
@@ -5527,6 +5561,11 @@
               pkgs.writeText "expected" (builtins.concatStringsSep "\n" expectedAiBottomPillWarnings + "\n")
             } \
                     ${pkgs.writeText "actual" (builtins.concatStringsSep "\n" aiBottomPillWarnings + "\n")}
+
+            diff -u ${
+              pkgs.writeText "expected" (builtins.concatStringsSep "\n" expectedAiSkillExcludeFailures + "\n")
+            } \
+                    ${pkgs.writeText "actual" (builtins.concatStringsSep "\n" aiSkillExcludeFailures + "\n")}
             touch $out
           '';
 
