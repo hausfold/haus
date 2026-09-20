@@ -422,7 +422,49 @@ let
     enter = "↵";
     space = "␣";
     tab = "⇥";
+    slash = "/";
   };
+
+  # The three leader rows that are pounce's: this cheatsheet, clipboard history
+  # and Find Files. The windows room BINDS them through
+  # `_contrib.windows.leaderActions` (modules/windows/options.nix — the seam a
+  # Focus scene's key comes in by) and this page TEACHES them, both off this
+  # one table, so a row and its binding cannot drift; and a machine without
+  # this room has neither, rather than a leader key that execs a binary nobody
+  # installed. Keyed the way the registry asks, `<room>-<thing>`.
+  #
+  # `pounce run mode:<name>` is pounce's one dispatch grammar — the same string
+  # that keys haus.launcher.items and the same closure a pounce hotkey fires —
+  # so a leader row and an item binding are literally one address. The profile
+  # path rather than the store path, like every other exec of pounce on the
+  # machine; absolute, because the row is exec'd with no shell of ours.
+  pounceBin = "/etc/profiles/per-user/${username}/bin/pounce";
+  leaderRows = {
+    launcher-cheatsheet = {
+      key = "slash";
+      command = "${pounceBin} --cheatsheet /Users/${username}/.config/pounce/cheatsheet.json";
+      caption = "This cheatsheet";
+    };
+    launcher-clipboard = {
+      key = "v";
+      command = "${pounceBin} run mode:clipboard";
+      caption = "Clipboard";
+    };
+    launcher-filesearch = {
+      key = "f";
+      command = "${pounceBin} run mode:filesearch";
+      caption = "Find Files";
+    };
+  };
+  pounceRow =
+    name:
+    let
+      r = leaderRows.${name};
+    in
+    {
+      key = launchKeyGlyphs.${r.key} or r.key;
+      action = r.caption;
+    };
 
   # The numbered workspaces, as a cheatsheet caption. One row per workspace
   # would be a wall of near-identical lines, so the three digit rows below name
@@ -512,10 +554,8 @@ let
         key = "- / =";
         action = "Resize active tile — enters resize, repeats (⎋ exits)";
       }
-      {
-        key = "v / f";
-        action = "Clipboard / Find Files";
-      }
+      (pounceRow "launcher-clipboard")
+      (pounceRow "launcher-filesearch")
       {
         key = "z";
         action = "Reopen last closed app";
@@ -532,10 +572,7 @@ let
         key = "`";
         action = "Resort windows";
       }
-      {
-        key = "/";
-        action = "This cheatsheet";
-      }
+      (pounceRow "launcher-cheatsheet")
       {
         key = "⎋";
         action = "Exit launch mode";
@@ -1106,6 +1143,14 @@ let
   ];
 in
 lib.mkIf config.haus.launcher.enable {
+  # pounce's three leader keys, handed to the windows room to bind (see
+  # leaderRows above). `source` is what a collision names: these rows are
+  # fixed, so the key that moves is the other one.
+  haus._contrib.windows.leaderActions = lib.mapAttrs (_: r: {
+    inherit (r) key command;
+    source = "haus.launcher.enable";
+  }) leaderRows;
+
   # The palette's own card in core's manual-click deck. The grant is pounce's,
   # so the sentence explaining it is this room's — core renders cards and knows
   # nothing about any particular one.

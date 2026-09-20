@@ -3912,7 +3912,7 @@
     "declarations": [
       "modules/options.nix"
     ],
-    "description": "The AeroSpace key name pressed after the leader (e.g. \"enter\",\n\"space\", \"backslash\", or a letter). A US keyboard POSITION,\nlike every other key name here; `haus.keys.layout` is what\nmoves the letters onto the keys that print them. Must not collide with a roster\napp's key or a built-in launch-mode key (one digit per\nnumbered workspace — see haus.windows.numberedWorkspaces — plus\nthe arrows, `-`/`=`, `v`/`f`/`z`, `,`, `.`, `` ` ``, `/`, esc) —\nnor with the workspace throws, which are ⇧ (follow) or ⌥⇧\n(stay) + any of those digits or a roster letter (\"shift-1\",\n\"alt-shift-b\", …). An assertion in modules/windows catches a\nclash rather than letting one binding silently shadow\nanother.\n",
+    "description": "The AeroSpace key name pressed after the leader (e.g. \"enter\",\n\"space\", \"backslash\", or a letter). A US keyboard POSITION,\nlike every other key name here; `haus.keys.layout` is what\nmoves the letters onto the keys that print them. Must not collide with a roster\napp's key, a built-in launch-mode key (one digit per\nnumbered workspace — see haus.windows.numberedWorkspaces — plus\nthe arrows, `-`/`=`, `z`, `,`, `.`, `` ` ``, esc) or a key\nanother room binds (a Focus scene's; the launcher's `/`,\n`v` and `f`, which are free only with that room off) —\nnor with the workspace throws, which are ⇧ (follow) or ⌥⇧\n(stay) + any of those digits or a roster letter (\"shift-1\",\n\"alt-shift-b\", …). An assertion in modules/windows catches a\nclash rather than letting one binding silently shadow\nanother.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"enter\""

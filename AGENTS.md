@@ -426,8 +426,14 @@ PR; hardcoded identity. Advisory, never a gate.
     (`modules/ai/default.nix`, `modules/focus/default.nix`). In production:
     `_contrib.bar.agents`, `_contrib.launcher.agents`,
     `_contrib.development.agents`, `_contrib.bar.focus`,
-    `_contrib.launcher.focus`. No room reads `config.haus.ai.*` to decide what
-    to draw.
+    `_contrib.launcher.focus`, and three the windows room receives —
+    `_contrib.windows.leaderActions` (a Focus scene's key, the launcher's
+    three pounce rows), `_contrib.windows.modeHooks` and
+    `_contrib.windows.workspaceChanged` (the bar's mode pill and workspace
+    redraw). No room reads `config.haus.ai.*` to decide what to draw, and
+    `aerospace.toml` names no other room's file: `windows-room` in `flake.nix`
+    evaluates the tiler with the bar and the launcher off and refuses a stray
+    `sketchybar` or `pounce`.
   - *Functional, with a substitute*: detect at RUNTIME and fall back —
     `lanes/lane-open.sh` picks `HAUS_WINDOW_BACKEND=aerospace|ghostty` by
     `command -v aerospace`; `modules/terminal/default.nix` warns, not asserts.

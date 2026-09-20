@@ -899,9 +899,11 @@ in
                   "space", "backslash", or a letter). A US keyboard POSITION,
                   like every other key name here; `haus.keys.layout` is what
                   moves the letters onto the keys that print them. Must not collide with a roster
-                  app's key or a built-in launch-mode key (one digit per
+                  app's key, a built-in launch-mode key (one digit per
                   numbered workspace — see haus.windows.numberedWorkspaces — plus
-                  the arrows, `-`/`=`, `v`/`f`/`z`, `,`, `.`, `` ` ``, `/`, esc) —
+                  the arrows, `-`/`=`, `z`, `,`, `.`, `` ` ``, esc) or a key
+                  another room binds (a Focus scene's; the launcher's `/`,
+                  `v` and `f`, which are free only with that room off) —
                   nor with the workspace throws, which are ⇧ (follow) or ⌥⇧
                   (stay) + any of those digits or a roster letter ("shift-1",
                   "alt-shift-b", …). An assertion in modules/windows catches a

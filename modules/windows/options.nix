@@ -188,9 +188,11 @@ in
         Leader (launch-mode) keys a room generates for itself: tap the leader,
         then the key, and the command runs.
 
-        Today's one writer is the Focus room — a scene with
-        `haus.focus.scenes.<name>.key` set. Off, or with this room off, the
-        scene keeps every other surface it has and loses only the key.
+        Two writers: the Focus room, one entry per scene with
+        `haus.focus.scenes.<name>.key` set, and the Launcher room, whose
+        cheatsheet, clipboard and Find Files rows are pounce's and so are
+        pounce's to bind. A writer that is off, or this room off, keeps every
+        other surface it has and loses only the key.
       '';
       options = {
         key = lib.mkOption {
@@ -224,6 +226,80 @@ in
             comment: a key claimed twice has to say which line to edit, and
             "haus.keys.leaderExtras" is the wrong answer on a machine where the
             key came from a scene.
+          '';
+        };
+      };
+    };
+
+    # The bar's pill, from the other side: launch, resize and navigate mode
+    # each light an indicator while they are armed, and the scripts that draw
+    # it are the BAR room's. Spelling them into every [mode.<name>.binding]
+    # row here would put one room's path in another's file with no gate, and
+    # on a machine with the bar off AeroSpace runs the row anyway — a missing
+    # exec-and-forget path does not abort the rest of the array — so nothing
+    # ever says the file is not there. The seam is what makes the row honest:
+    # the bar writes its scripts when it is on, and an absent bar leaves the
+    # row bare.
+    #
+    # A registry keyed `<room>-<mode>`, like every other deck, so a second
+    # room wanting to know a mode changed does not overwrite the bar's entry.
+    # `enter` and `leave` travel together because a pill that turns on has to
+    # turn off: one entry, one mode, both edges.
+    _contrib.windows.modeHooks = contrib.mkExtensionRegistry {
+      description = ''
+        Commands another room wants run when AeroSpace enters or leaves one
+        of its modes. Each row that enters the mode runs every `enter`, each
+        row that leaves it runs every `leave`, as `exec-and-forget` elements
+        ahead of the row's own command. Nothing written means the row is the
+        bare AeroSpace command — the mode still enters and leaves.
+
+        Today's one writer is the Bar room: `launch_mode.sh`,
+        `resize_mode.sh` and `navigate_mode.sh`, the pill that shows which
+        mode the keyboard is in.
+      '';
+      options = {
+        mode = lib.mkOption {
+          type = lib.types.enum [
+            "launch"
+            "resize"
+            "navigate"
+          ];
+          description = "Which AeroSpace mode the pair is about.";
+        };
+        enter = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          description = ''
+            The command run on the way in, as one `exec-and-forget` argument.
+            An absolute path, like every other generated exec. No single quote — it is spelled into a single-quoted TOML literal
+            with no escape, and one would end the string early.
+          '';
+        };
+        leave = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          description = "The command run on the way out; same rules as `enter`.";
+        };
+      };
+    };
+
+    # And the workspace-change hook, the same shape one edge shorter: the bar
+    # redraws its workspace pills off AeroSpace's `exec-on-workspace-change`,
+    # and its trigger script sat in this room's template beside the MRU push
+    # this room owns. Every entry runs, in one `bash -c`, ahead of the push.
+    _contrib.windows.workspaceChanged = contrib.mkExtensionRegistry {
+      description = ''
+        Commands another room wants run whenever the focused workspace
+        changes. Today's one writer is the Bar room (`aerospace-notify.sh`,
+        which triggers the workspace pills to redraw).
+      '';
+      options = {
+        command = lib.mkOption {
+          type = lib.types.str;
+          description = ''
+            A bash fragment, run as one statement of the hook's `bash -c`. An
+            absolute path, quoted by the writer if it needs quoting; no single
+            quote, for the reason `modeHooks` gives.
           '';
         };
       };
