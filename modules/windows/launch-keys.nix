@@ -24,11 +24,14 @@
   numbered,
 }:
 
+# Not here: `slash`, `v` and `f`. Those are pounce's rows — the cheatsheet,
+# clipboard history, Find Files — and the launcher room contributes them through
+# `_contrib.windows.leaderActions`, where they are checked against everything
+# below and against the roster like any other contributed key. A machine without
+# the launcher has no such rows, so they are not keys launch mode binds "no
+# matter what".
 [
   "esc"
-  "slash"
-  "v"
-  "f"
   "z"
   "comma"
   "period"

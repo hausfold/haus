@@ -137,14 +137,34 @@ let
     );
   persistentWorkspaces = lib.concatMapStringsSep ", " (w: ''"${w}"'') workspaceRoster;
 
-  # Every generated [mode.launch.binding] row has one shape: drop the mode
-  # indicator, run the commands, return to main. homeDir is baked literally
-  # (like launchInvocation), so these need no subTokens pass.
+  # What another room wants run when a mode is entered or left — the bar's
+  # pill today (`_contrib.windows.modeHooks`, declared in ./options.nix). Read
+  # off the seam, never off `config.haus.bar.*`: the writer decides whether it
+  # has anything to run, this room decides how it is run, and a writer that is
+  # off leaves the row the bare AeroSpace command rather than an exec of a
+  # file that is not there.
+  #
+  # Two renderings of one list. `hookCmds` is the list form, for the rows this
+  # file generates through `renderCmd`; `hookElems` is the same commands as
+  # leading array elements — each with its trailing `, ` — for the rows
+  # ./aerospace.toml still spells by hand, where a token stands at the head of
+  # the array. Both are empty strings/lists when nothing is written, and the
+  # hand-written row then reads `[ 'mode main' ]` with nothing ahead of it.
+  modeHooks = lib.attrValues config.haus._contrib.windows.modeHooks;
+  hookCmds =
+    mode: side:
+    map (h: "exec-and-forget ${h.${side}}") (
+      lib.filter (h: h.mode == mode && h.${side} != "") modeHooks
+    );
+  hookElems = mode: side: lib.concatMapStrings (c: "'${c}', ") (hookCmds mode side);
+
+  # Every generated [mode.launch.binding] row has one shape: leave the mode
+  # (whatever the hooks want on the way out), run the commands, return to
+  # main. homeDir is baked literally (like launchInvocation), so these need no
+  # subTokens pass.
   launchBind =
     chord: commands:
-    "${chord} = ['exec-and-forget ${homeDir}/.config/sketchybar/plugins/launch_mode.sh off'"
-    + lib.concatMapStrings (c: ", '${c}'") commands
-    + ", 'mode main']\n";
+    "${chord} = ${renderCmd (hookCmds "launch" "leave" ++ commands ++ [ "mode main" ])}\n";
 
   # What a workspace's key does, in one place for both the numbered digits and
   # the named workspaces — three bindings off one key:
@@ -211,8 +231,7 @@ let
   # follow keys.* the same way, and "none" renders an empty line rather than a
   # binding nothing can reach.
   leaderEntry = lib.optionalString (k.leader != null) (
-    "${k.leader.chord} = ['mode launch', "
-    + "'exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh on']\n"
+    "${k.leader.chord} = ${renderCmd ([ "mode launch" ] ++ hookCmds "launch" "enter")}\n"
   );
   serviceEntry = lib.optionalString (k.nav != null) (
     "${k.nav.chord}-shift-semicolon = 'mode service'\n"
@@ -235,8 +254,9 @@ let
   #
   # TWO sources, joined here and nowhere else: what a host wrote by hand
   # (`haus.keys.leaderExtras`) and what a room generated for itself
-  # (`_contrib.windows.leaderActions` — see ./options.nix for the seam, and
-  # modules/focus for today's one writer). The join has to happen before
+  # (`_contrib.windows.leaderActions` — see ./options.nix for the seam;
+  # modules/focus writes a scene's key, modules/launcher its three pounce
+  # rows). The join has to happen before
   # anything renders, because all three renderings below — the binding, the
   # script file, the uniqueness check — would otherwise see half the keys, and
   # the half they missed is the half that silently stops firing.
@@ -256,8 +276,7 @@ let
   leaderExtras = hostLeaderExtras ++ contributedLeaderExtras;
   leaderExtraPath = e: "${homeDir}/.config/aerospace/leader-extra-${e.key}.sh";
   launchExtras = lib.concatMapStrings (
-    e:
-    "${e.key} = ['exec-and-forget ${homeDir}/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget ${leaderExtraPath e}', 'mode main']\n"
+    e: launchBind e.key [ "exec-and-forget ${leaderExtraPath e}" ]
   ) leaderExtras;
   leaderExtraFiles = lib.listToAttrs (
     map (e: {
@@ -536,6 +555,25 @@ let
   );
   monitorChanged = lib.optionalString cfg.mouseFollowsFocus "'move-mouse monitor-lazy-center'";
 
+  # Same shape for `exec-on-workspace-change`: the bar's redraw trigger comes
+  # through `_contrib.windows.workspaceChanged`, rendered as statements ahead
+  # of this room's own MRU push inside the hook's one `bash -c`.
+  workspaceChanged = lib.concatMapStrings (h: "${h.command}; ") (
+    lib.attrValues config.haus._contrib.windows.workspaceChanged
+  );
+  # A `'` in any hook would end the single-quoted TOML literal it is spelled
+  # into, and AeroSpace would refuse the whole config — with a parse error
+  # that names a line in a generated file, not the room that wrote the quote.
+  hookQuoteOffenders =
+    lib.mapAttrsToList (name: h: "haus._contrib.windows.modeHooks.${name}") (
+      lib.filterAttrs (
+        _: h: lib.hasInfix "'" h.enter || lib.hasInfix "'" h.leave
+      ) config.haus._contrib.windows.modeHooks
+    )
+    ++ lib.mapAttrsToList (name: h: "haus._contrib.windows.workspaceChanged.${name}") (
+      lib.filterAttrs (_: h: lib.hasInfix "'" h.command) config.haus._contrib.windows.workspaceChanged
+    );
+
   # haus.keys.layout → AeroSpace's [key-mapping]. Nothing at all on "qwerty":
   # that IS AeroSpace's default, and emitting `preset = 'qwerty'` would put a
   # line in every existing machine's config for no behaviour.
@@ -575,6 +613,12 @@ let
         "@ACCORDION_PADDING@"
         "@FOCUS_CHANGED@"
         "@MONITOR_CHANGED@"
+        "@WORKSPACE_CHANGED@"
+        "@LAUNCH_LEAVE@"
+        "@RESIZE_ENTER@"
+        "@RESIZE_LEAVE@"
+        "@NAVIGATE_ENTER@"
+        "@NAVIGATE_LEAVE@"
         "@GAP_INNER@"
         "@GAP_OUTER_LEFT@"
         "@GAP_OUTER_RIGHT@"
@@ -590,7 +634,7 @@ let
         serviceStatic
         launchDigits
         launchMoves
-        (subTokens leaderEntry)
+        leaderEntry
         serviceEntry
         (launchLetters + launchExtras)
         windowRules
@@ -601,6 +645,12 @@ let
         (toString cfg.accordionPadding)
         focusChanged
         monitorChanged
+        workspaceChanged
+        (hookElems "launch" "leave")
+        (hookElems "resize" "enter")
+        (hookElems "resize" "leave")
+        (hookElems "navigate" "enter")
+        (hookElems "navigate" "leave")
         (monLine gaps.inner)
         (monLine gaps.outer.left)
         (monLine gaps.outer.right)
@@ -903,6 +953,15 @@ lib.mkMerge [
         message = "haus.keys assigns the same chord twice: " + lib.concatStringsSep "; " k.conflicts;
       }
       {
+        # See hookQuoteOffenders. Eval-time, because the alternative is an
+        # AeroSpace that will not load its config at all.
+        assertion = hookQuoteOffenders == [ ];
+        message =
+          "A windows hook must not contain a single quote (it is spelled into a "
+          + "single-quoted TOML literal); offending: "
+          + lib.concatStringsSep ", " hookQuoteOffenders;
+      }
+      {
         # Leader actions share the launch mode with the roster letters and the fixed
         # actions; a clash there shadows one binding silently (whichever AeroSpace
         # reads last), so refuse it at eval instead. Over the JOINED list, because
@@ -912,7 +971,9 @@ lib.mkMerge [
         message =
           "Leader keys must be unique and must not reuse a roster app's "
           + "key or a built-in launch-mode key; conflicting: "
-          + lib.concatStringsSep ", " (map extraSaid (lib.unique (extraCollisions ++ extraDuplicates)));
+          + lib.concatStringsSep ", " (map extraSaid (lib.unique (extraCollisions ++ extraDuplicates)))
+          + ". A roster app's key is haus.roster.<id>.key; a key a room generates moves at "
+          + "the address shown, and the launcher's three (/ v f) do not move at all.";
       }
       {
         # A key AeroSpace cannot name binds nothing, and this is the only place
@@ -934,10 +995,10 @@ lib.mkMerge [
         message =
           "haus.roster leader keys must not reuse a built-in launch-mode key; conflicting: "
           + lib.concatStringsSep ", " rosterBuiltinCollisions
-          + ". Those letters are leader actions haus already binds (v clipboard, f Find Files, "
-          + "z reopen-last-app, , settings, . tiling cycle, ` resort, - / = resize, digits and "
-          + "arrows for "
-          + "workspaces). Pick another letter for the app, or set its key to null and reach it "
+          + ". Those letters are leader actions haus already binds (z reopen-last-app, "
+          + ", settings, . tiling cycle, ` resort, - / = resize, digits and arrows for "
+          + "workspaces; the launcher's / v f are checked beside them). Pick another letter "
+          + "for the app, or set its key to null and reach it "
           + "from the palette. If the entry came from a shared desktop, override just "
           + "the key in your host file: haus.roster.<id>.key = \"…\";";
       }

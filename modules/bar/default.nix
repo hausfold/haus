@@ -1777,6 +1777,29 @@ lib.mkIf config.haus.bar.enable {
   # Core renders them; this room never learns what a wizard looks like.
   haus._contrib.permissions = permissionCards;
 
+  # The mode pill and the workspace-pill redraw, offered to the windows room
+  # through its seams (`_contrib.windows.modeHooks` / `.workspaceChanged`,
+  # modules/windows/options.nix) rather than spelled into its template: the
+  # scripts are this room's, so the rows that exec them exist exactly when this
+  # room does. Absolute paths, because AeroSpace's exec-and-forget does not
+  # expand `~`; the same ~/.config/sketchybar the home.file block below installs.
+  haus._contrib.windows.modeHooks =
+    let
+      plugin = name: "/Users/${username}/.config/sketchybar/plugins/${name}";
+      pill = mode: script: {
+        inherit mode;
+        enter = "${plugin script} on";
+        leave = "${plugin script} off";
+      };
+    in
+    {
+      bar-launch = pill "launch" "launch_mode.sh";
+      bar-resize = pill "resize" "resize_mode.sh";
+      bar-navigate = pill "navigate" "navigate_mode.sh";
+    };
+  haus._contrib.windows.workspaceChanged.bar-notify.command =
+    "\"/Users/${username}/.config/sketchybar/aerospace-notify.sh\"";
+
   # The octocat pill's push door. It TRIGGERS rather than fetches: github.sh
   # already knows when it should cross the network (and now asks the bridge as
   # part of deciding), so all a delivery has to do is wake it. Doing the fetch

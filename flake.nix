@@ -2908,6 +2908,102 @@
             (aiPillWarning "haus.bar.bottom.items.agents")
           ];
 
+          # ---- windows-room ----------------------------------------------------
+          # The windows room writes aerospace.toml, and two other rooms have
+          # lines in it: the bar's mode pill and workspace redraw
+          # (`_contrib.windows.modeHooks`, `.workspaceChanged`) and the
+          # launcher's three pounce rows (`_contrib.windows.leaderActions`).
+          # AeroSpace runs a row whose exec path is missing without a word —
+          # the rest of the array still fires — so a bar-less or launcher-less
+          # machine carrying those paths is a config that works by accident.
+          # This table reads the GENERATED toml and the generated leader
+          # scripts off four evaluated machines and counts the other rooms'
+          # names in them: every mention with the room on, none with it off.
+          windowsRoomAt =
+            extraModules:
+            let
+              cfg =
+                (mkHaus {
+                  inherit system extraModules;
+                  username = "you";
+                  hostname = "example";
+                }).config;
+              hm = cfg.home-manager.users.you;
+              files = hm.home.file;
+              # Comment lines dropped before anything is counted: the template
+              # talks about the rooms it does not name in a row, and a mention
+              # in prose is not a path AeroSpace execs.
+              rows =
+                text:
+                builtins.concatStringsSep "\n" (
+                  builtins.filter (l: builtins.isString l && !nixpkgs.lib.hasPrefix "#" l) (builtins.split "\n" text)
+                );
+              toml = rows files.".config/aerospace/aerospace.toml".text;
+              # The leader-extra scripts are where a contributed row's command
+              # lands (the toml only execs the script), so pounce's name is
+              # counted there, joined with the toml.
+              leaderScripts = rows (
+                builtins.concatStringsSep "\n" (
+                  map (n: files.${n}.text) (
+                    builtins.filter (nixpkgs.lib.hasPrefix ".config/aerospace/leader-extra-") (builtins.attrNames files)
+                  )
+                )
+              );
+              count = needle: hay: (builtins.length (builtins.split needle hay) - 1) / 2;
+              # [mode.launch.binding] alone — service mode has an `f` of its own
+              # (float), and it is not the one this table is about.
+              launchSection = builtins.head (
+                builtins.split "\n[[]" (builtins.elemAt (builtins.split "[[]mode[.]launch[.]binding[]]" toml) 2)
+              );
+            in
+            {
+              sketchybar = toString (count "sketchybar" toml);
+              pounce = toString (count "pounce" (toml + leaderScripts));
+              # The three keys the launcher contributes, as bound launch-mode
+              # rows — the launcher-off rows must lose them and nothing else.
+              keys = builtins.concatStringsSep "," (
+                builtins.filter (k: nixpkgs.lib.hasInfix "\n${k} = [" launchSection) [
+                  "slash"
+                  "v"
+                  "f"
+                  "z"
+                ]
+              );
+            };
+          windowsRoomFixtures = {
+            hacker = [ ];
+            "windows-alone" = [
+              {
+                haus.bar.enable = false;
+                haus.launcher.enable = false;
+              }
+            ];
+            "windows-with-bar" = [ { haus.launcher.enable = false; } ];
+            "windows-with-launcher" = [ { haus.bar.enable = false; } ];
+          };
+          windowsRoomTable = builtins.concatStringsSep "\n" (
+            map (
+              name:
+              let
+                r = windowsRoomAt windowsRoomFixtures.${name};
+              in
+              "${name} sketchybar=${r.sketchybar} pounce=${r.pounce} keys=${r.keys}"
+            ) (builtins.attrNames windowsRoomFixtures)
+          );
+          # `sketchybar=` with the bar on is every mode-hook element across the
+          # three modes plus the workspace-change trigger — the launcher's three
+          # rows each carry one, hence the 3 between the two bar-on rows. It
+          # moves when a row is added to a mode, which is what a pinned number
+          # is for. `pounce=` with the launcher on is its three leader scripts
+          # (the cheatsheet's names pounce twice: the binary and the JSON) and
+          # the app's own float rule.
+          expectedWindowsRoomTable = ''
+            hacker sketchybar=60 pounce=5 keys=slash,v,f,z
+            windows-alone sketchybar=0 pounce=0 keys=z
+            windows-with-bar sketchybar=57 pounce=0 keys=z
+            windows-with-launcher sketchybar=0 pounce=5 keys=slash,v,f,z
+          '';
+
           # A standalone `darwinModules` import, as a consumer would make it:
           # nix-darwin plus home-manager plus the one exported partial, with NO
           # builder and therefore no desktop. A function rather than an inline
@@ -5356,6 +5452,12 @@
               pkgs.writeText "expected" (builtins.concatStringsSep "\n" expectedAiBottomPillWarnings + "\n")
             } \
                     ${pkgs.writeText "actual" (builtins.concatStringsSep "\n" aiBottomPillWarnings + "\n")}
+            touch $out
+          '';
+
+          windows-room = pkgs.runCommand "haus-windows-room-ok" { } ''
+            diff -u ${pkgs.writeText "expected" expectedWindowsRoomTable} \
+                    ${pkgs.writeText "actual" (windowsRoomTable + "\n")}
             touch $out
           '';
 

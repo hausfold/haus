@@ -26,13 +26,15 @@ after-login-command = []
 # back. The same script the leader's ` runs by hand.
 after-startup-command = ['exec-and-forget @HOME@/.config/aerospace/resort-windows.sh']
 
-# Two hooks: the bar's trigger, and the workspace-MRU push (the recency file
-# behind page-aware `caps t` and pounce's ⌃⇥ page walk). AeroSpace runs the
-# entries as ONE argv, not two commands, so they ride a shell -c.
+# Whatever another room asked to hear about a workspace change (the bar's
+# redraw trigger, through _contrib.windows.workspaceChanged), then the
+# workspace-MRU push (the recency file behind page-aware `caps t` and pounce's
+# ⌃⇥ page walk). AeroSpace runs the entries as ONE argv, not two commands, so
+# they ride a shell -c.
 exec-on-workspace-change = [
     '/bin/bash',
     '-c',
-    '"@HOME@/.config/sketchybar/aerospace-notify.sh"; "@HOME@/.config/aerospace/workspace-mru.sh" push',
+    '@WORKSPACE_CHANGED@"@HOME@/.config/aerospace/workspace-mru.sh" push',
 ]
 
 start-at-login = false
@@ -149,9 +151,17 @@ outer.right = @GAP_OUTER_RIGHT@
 # Launch leader mode (entered by tapping caps -> F18). Each letter launches or
 # focuses its app, then drops back to main. esc / any unbound key + esc to
 # bail out without launching anything.
+#
+# Every row that leaves the mode starts with the LAUNCH_LEAVE token, every row
+# that enters resize or navigate with RESIZE_ENTER / NAVIGATE_ENTER: whatever
+# another room asked to run on that edge, as `'exec-and-forget …', ` elements,
+# or nothing at all. The bar's mode pill is the writer (its launch_mode.sh /
+# resize_mode.sh / navigate_mode.sh, through _contrib.windows.modeHooks in
+# ./options.nix) — the file this template becomes never names a script a room
+# that is off would have installed. (Spelled without the @s here on purpose:
+# the substitution does not know a comment from a row.)
 [mode.launch.binding]
-esc = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'mode main']
-slash = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @BIN@/pounce --cheatsheet ~/.config/pounce/cheatsheet.json', 'mode main']
+esc = [@LAUNCH_LEAVE@'mode main']
 # The numbered workspaces, generated from haus.windows.numberedWorkspaces (they
 # were written out as 1-4 here until the count became an option). Each gets
 # three rows: the digit focuses it off the same leader — caps then a digit,
@@ -164,49 +174,47 @@ slash = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off',
 # of; staying is the deliberate variant, for sending something away and carrying
 # on.
 @LAUNCH_DIGITS@
-# Non-launch leader actions. v = clipboard history; f = Find Files (pounce's
-# Spotlight-style file/folder search); z = reopen last closed app (the browser
-# ⌘⇧T analog — relaunch the most recently quit app; press again to walk back);
-# , = macOS System Settings (mirrors the ⌘, "preferences" convention); . =
-# advance the focused workspace's tiling mode one stop (columns -> grid ->
+# Non-launch leader actions this room owns. z = reopen last closed app (the
+# browser ⌘⇧T analog — relaunch the most recently quit app; press again to walk
+# back); , = macOS System Settings (mirrors the ⌘, "preferences" convention);
+# . = advance the focused workspace's tiling mode one stop (columns -> grid ->
 # accordion -> columns, one-shot each press — see tiling-mode.sh); ` = re-sort
 # every window to its workspace.
 # (Palette is on cmd+space now, so the old space->palette leader is gone.)
+#
+# Not here: / (this cheatsheet), v (clipboard history) and f (Find Files,
+# pounce's Spotlight-style file/folder search). Those three are pounce's, so
+# the launcher room binds them — through _contrib.windows.leaderActions, the
+# same seam a Focus scene's key comes in by — and they land in the letters
+# block below, as `leader-extra-<key>.sh` scripts like any other contributed
+# key. A
+# machine without the launcher has no pounce and no row that execs it.
 #
 # The emoji grid used to sit on `e` here. It doesn't any more: haus binds a bare
 # Fn/Globe tap to mode:emoji (modules/launcher — haus.launcher.items."mode:emoji"),
 # which is one key instead of two and is where a Mac user already reaches for it.
 # Two bindings for one picker only cost a leader letter, so the leader gave it up
 # rather than the Fn key; `f` is what took the slot.
-#
-# v and f go through `pounce run mode:<name>` — pounce's one dispatch grammar,
-# the same string that keys haus.launcher.items and the same closure a pounce
-# hotkey fires. So the leader row and an item binding are now literally the same
-# address, and the flags they used to call (`pounce --clipboard`) are gone from
-# pounce entirely. It's also a shorter-lived client: RUN acknowledges and exits
-# instead of holding a socket open for as long as the picker is on screen.
-v = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @BIN@/pounce run mode:clipboard', 'mode main']
-f = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @BIN@/pounce run mode:filesearch', 'mode main']
-z = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/aerospace/reopen-last-app.sh', 'mode main']
-comma = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget open -b com.apple.systempreferences', 'mode main']
-period = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/aerospace/tiling-mode.sh', 'mode main']
-backtick = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/aerospace/resort-windows.sh', 'mode main']
+z = [@LAUNCH_LEAVE@'exec-and-forget @HOME@/.config/aerospace/reopen-last-app.sh', 'mode main']
+comma = [@LAUNCH_LEAVE@'exec-and-forget open -b com.apple.systempreferences', 'mode main']
+period = [@LAUNCH_LEAVE@'exec-and-forget @HOME@/.config/aerospace/tiling-mode.sh', 'mode main']
+backtick = [@LAUNCH_LEAVE@'exec-and-forget @HOME@/.config/aerospace/resort-windows.sh', 'mode main']
 # - / = resize the focused tiled window (growing it shrinks its neighbour). The
 # first press also drops into `resize` mode so further -/= repeat without re-tapping caps.
-minus = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/sketchybar/plugins/resize_mode.sh on', 'resize smart -50', 'mode resize']
-equal = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/sketchybar/plugins/resize_mode.sh on', 'resize smart +50', 'mode resize']
+minus = [@LAUNCH_LEAVE@@RESIZE_ENTER@'resize smart -50', 'mode resize']
+equal = [@LAUNCH_LEAVE@@RESIZE_ENTER@'resize smart +50', 'mode resize']
 # Arrows drop into `navigate` mode: focus that direction and stay there, so
 # further arrows keep moving focus without re-tapping caps. ⇧+arrow MOVES the
 # focused window instead (the replacement for the old hyper move chord). esc /
 # enter (in navigate mode) return to main.
-left = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'focus left', 'mode navigate']
-down = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'focus down', 'mode navigate']
-up = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'focus up', 'mode navigate']
-right = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'focus right', 'mode navigate']
-shift-left = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'move left', 'mode navigate']
-shift-down = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'move down', 'mode navigate']
-shift-up = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'move up', 'mode navigate']
-shift-right = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'move right', 'mode navigate']
+left = [@LAUNCH_LEAVE@@NAVIGATE_ENTER@'focus left', 'mode navigate']
+down = [@LAUNCH_LEAVE@@NAVIGATE_ENTER@'focus down', 'mode navigate']
+up = [@LAUNCH_LEAVE@@NAVIGATE_ENTER@'focus up', 'mode navigate']
+right = [@LAUNCH_LEAVE@@NAVIGATE_ENTER@'focus right', 'mode navigate']
+shift-left = [@LAUNCH_LEAVE@@NAVIGATE_ENTER@'move left', 'mode navigate']
+shift-down = [@LAUNCH_LEAVE@@NAVIGATE_ENTER@'move down', 'mode navigate']
+shift-up = [@LAUNCH_LEAVE@@NAVIGATE_ENTER@'move up', 'mode navigate']
+shift-right = [@LAUNCH_LEAVE@@NAVIGATE_ENTER@'move right', 'mode navigate']
 # App launcher letters — generated from haus._apps.
 @LAUNCH_LETTERS@
 # Workspace throws (⇧+the workspace's own key to follow, ⌥⇧+it to stay) —
@@ -222,16 +230,16 @@ shift-right = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh
 [mode.resize.binding]
 minus = 'resize smart -50'
 equal = 'resize smart +50'
-left = ['exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'focus left', 'mode navigate']
-down = ['exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'focus down', 'mode navigate']
-up = ['exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'focus up', 'mode navigate']
-right = ['exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'focus right', 'mode navigate']
-shift-left = ['exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'move left', 'mode navigate']
-shift-down = ['exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'move down', 'mode navigate']
-shift-up = ['exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'move up', 'mode navigate']
-shift-right = ['exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'move right', 'mode navigate']
-esc = ['exec-and-forget @HOME@/.config/sketchybar/plugins/resize_mode.sh off', 'mode main']
-enter = ['exec-and-forget @HOME@/.config/sketchybar/plugins/resize_mode.sh off', 'mode main']
+left = [@NAVIGATE_ENTER@'focus left', 'mode navigate']
+down = [@NAVIGATE_ENTER@'focus down', 'mode navigate']
+up = [@NAVIGATE_ENTER@'focus up', 'mode navigate']
+right = [@NAVIGATE_ENTER@'focus right', 'mode navigate']
+shift-left = [@NAVIGATE_ENTER@'move left', 'mode navigate']
+shift-down = [@NAVIGATE_ENTER@'move down', 'mode navigate']
+shift-up = [@NAVIGATE_ENTER@'move up', 'mode navigate']
+shift-right = [@NAVIGATE_ENTER@'move right', 'mode navigate']
+esc = [@RESIZE_LEAVE@'mode main']
+enter = [@RESIZE_LEAVE@'mode main']
 
 # Navigate mode (entered via the launch leader's arrows, or by pressing an
 # arrow while resizing). Arrows keep moving focus; ⇧+arrow moves the focused
@@ -247,10 +255,10 @@ shift-left = 'move left'
 shift-down = 'move down'
 shift-up = 'move up'
 shift-right = 'move right'
-minus = ['exec-and-forget @HOME@/.config/sketchybar/plugins/resize_mode.sh on', 'resize smart -50', 'mode resize']
-equal = ['exec-and-forget @HOME@/.config/sketchybar/plugins/resize_mode.sh on', 'resize smart +50', 'mode resize']
-esc = ['exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh off', 'mode main']
-enter = ['exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh off', 'mode main']
+minus = [@RESIZE_ENTER@'resize smart -50', 'mode resize']
+equal = [@RESIZE_ENTER@'resize smart +50', 'mode resize']
+esc = [@NAVIGATE_LEAVE@'mode main']
+enter = [@NAVIGATE_LEAVE@'mode main']
 
 # Ghostty routing. Title matching races window detection (the AX title lands
 # after the window is mapped), so popup windows (peek, rebuild) used to get
