@@ -263,9 +263,7 @@ let
     `~/${agentHomes.${client}.skills}/haus/` is generated too, from the haus
     revision this machine pins (`haus update` regenerates it), as is every other
     skill haus installed. `hausfold/` is haus's second skill and is edited in
-    hausfold/haus beside the first;${lib.optionalString cfg.enable " `scruff/` and `handoff/` are scruff's, edited in hausfold/scruff; `factory/` is factory's, edited in hausfold/factory;"}
-    `nebelung/` is nebelung's, and half of it is rendered from
-    that repo's palette files rather than written;${lib.optionalString config.haus.notifications.compositor " `trill/` is trill's, here because `haus.notifications.compositor` is on;"}${lib.optionalString config.haus.launcher.enable " `pounce/` is pounce's, here because `haus.launcher.enable` is on;"}${lib.optionalString config.haus.shelf.enable " `perch/` is perch's, here because `haus.shelf.enable` is on;"} they arrive on a lock bump. Not everything beside them
+    hausfold/haus beside the first${skillDirClauses} Not everything beside them
     is generated: ${clientScopeNote.${client}} that you can edit live with no
     rebuild. `ls -l` the path before assuming which kind it is.${
       # The whole worktree section rides on this room's switch, for the same
@@ -531,8 +529,49 @@ let
     trillEnabled = config.haus.notifications.compositor;
     pounceEnabled = config.haus.launcher.enable;
     perchEnabled = config.haus.shelf.enable;
+    exclude = cfg.skillExclude;
   };
   inherit (toolSkills) toolSkillList;
+
+  # The tool skills this machine actually ends up with, by name: `ai.skill`,
+  # the room gates and `haus.ai.skillExclude` all applied. The instructions
+  # file reads this so it names only directories that are there.
+  hasToolSkill = name: cfg.skill && lib.elem name (map (skill: skill.name) toolSkillList);
+
+  # `haus.ai.skillExclude` is checked against the vocabulary tool-skills.nix
+  # can promise, not against what this machine installs — a name for a skill
+  # whose room is off is a fine no-op, a name for nothing is a typo.
+  unknownSkillExcludes = lib.filter (name: !(lib.elem name toolSkills.allNames)) cfg.skillExclude;
+
+  # One clause per skill directory in the instructions file's "what is
+  # generated" sentence, present only while the directory is. The room
+  # switches used to imply trill's, pounce's and perch's; `haus.ai.skillExclude`
+  # can drop any name on top, so each clause reads off the installed set.
+  skillDirClause =
+    names: rest:
+    let
+      here = lib.filter hasToolSkill names;
+      dirs = lib.concatStringsSep " and " (map (name: "`${name}/`") here);
+      verb = if lib.length here > 1 then "are" else "is";
+    in
+    lib.optionalString (here != [ ]) " ${dirs} ${verb} ${rest};";
+
+  # The rest of that sentence: every tool skill's clause, then that they arrive
+  # on a lock bump — or a full stop, on a host that installs none of them, so
+  # "they" never points at nothing.
+  skillDirClauses =
+    let
+      clauses =
+        skillDirClause [ "scruff" "handoff" ] "scruff's, edited in hausfold/scruff"
+        + skillDirClause [ "factory" ] "factory's, edited in hausfold/factory"
+        + skillDirClause [
+          "nebelung"
+        ] "nebelung's, and half of it is rendered from that repo's palette files rather than written"
+        + skillDirClause [ "trill" ] "trill's, here because `haus.notifications.compositor` is on"
+        + skillDirClause [ "pounce" ] "pounce's, here because `haus.launcher.enable` is on"
+        + skillDirClause [ "perch" ] "perch's, here because `haus.shelf.enable` is on";
+    in
+    if clauses == "" then "." else ";${clauses} they arrive on a lock bump.";
 
   # One directory symlink per skill, into each installed client's own skills
   # directory — the same fan-out the haus skill gets, and the reason the
@@ -993,6 +1032,17 @@ in
         "haus.ai.clients names ${lib.concatStringsSep ", " unavailableClients}, which "
         + "nixpkgs does not build for ${pkgs.stdenv.hostPlatform.system}. Installing nothing "
         + "would only move the failure into the agent pane; drop it from ai.clients.";
+    }
+    # A name nothing ships is a typo, and a typo that changed nothing would be
+    # the one failure this option cannot afford: the skill it meant to drop
+    # would stay, in silence, on every client.
+    {
+      assertion = unknownSkillExcludes == [ ];
+      message =
+        "haus.ai.skillExclude names ${lib.concatStringsSep ", " unknownSkillExcludes}, "
+        + "which haus installs no skill by. It can leave out "
+        + "${lib.concatStringsSep ", " toolSkills.allNames}; `haus` and `hausfold` are haus's "
+        + "own and follow haus.ai.skill.";
     }
     # The one client with a VERSION floor, and the tripwire for the override in
     # modules/lib/agent-packages.nix rather than a check on nixpkgs.

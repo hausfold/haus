@@ -25,6 +25,10 @@
   scruff-skill,
   factory-skill,
   aiEnabled ? true,
+  # Names the host asked to leave out (`haus.ai.skillExclude`), applied after
+  # the room gates. flake.nix's check passes none, so every name is still
+  # proved whatever one machine drops.
+  exclude ? [ ],
   nebelung-skill ? null,
   trill-skill ? null,
   trillEnabled ? true,
@@ -117,19 +121,29 @@ let
     }
   ];
 
+  # Every name the list above can promise, whatever this machine turns on or
+  # this platform ships: the vocabulary `haus.ai.skillExclude` is checked
+  # against in the room, so a typo there is an eval error rather than a skill
+  # that quietly stays.
+  allNames = lib.concatMap (t: t.names) toolSkills;
+
   # Both the install list and the check below are built from this, so a skill
   # can never be installed from a name the check did not prove.
   active = lib.filter (t: t.drv != null && (t.enable or true)) toolSkills;
 
   # Flattened to one entry per skill, so the fan-out in the room is a plain
-  # product of clients × skills.
-  toolSkillList = lib.concatMap (
-    t:
-    map (name: {
-      inherit name;
-      inherit (t) drv;
-    }) t.names
-  ) active;
+  # product of clients × skills — minus the names the host left out, which
+  # come off HERE rather than in the room so `checked` proves exactly the set
+  # that lands.
+  toolSkillList = lib.filter (skill: !(lib.elem skill.name exclude)) (
+    lib.concatMap (
+      t:
+      map (name: {
+        inherit name;
+        inherit (t) drv;
+      }) t.names
+    ) active
+  );
 
   # The names above are unverifiable at EVAL time and entirely checkable at
   # BUILD time, and the difference is the whole of this derivation.
@@ -177,5 +191,5 @@ let
   };
 in
 {
-  inherit toolSkillList checked;
+  inherit toolSkillList checked allNames;
 }
