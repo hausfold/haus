@@ -107,7 +107,10 @@ let
       "vscode.enable"
       "zed.enable"
     ];
-    appStore = [ "install" ];
+    appStore = [
+      "install"
+      "timeout"
+    ];
     bar = [
       "aiUsage.provider"
       "battery.hideOver"

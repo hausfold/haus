@@ -285,9 +285,12 @@
     "appStore": {
       "blurb": "Whether a rebuild may install the roster's `appStoreId` entries. Off by default: it reaches the network and acts on your Apple Account, and it can never be complete — `mas` cannot sign in, and cannot buy a paid app. Sign in once in App Store.app first, or every fetch waits on a sign-in sheet a rebuild cannot answer.",
       "kind": "room",
-      "optionCount": 1,
+      "optionCount": 2,
       "options": {
         "haus.appStore.install": {
+          "desktopSafe": true
+        },
+        "haus.appStore.timeout": {
           "desktopSafe": true
         }
       },
@@ -1844,7 +1847,7 @@
         "apps",
         "homebrew"
       ],
-      "optionCount": 9,
+      "optionCount": 10,
       "order": 10,
       "title": "Apps"
     },
