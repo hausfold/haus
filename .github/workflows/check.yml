@@ -378,11 +378,11 @@ jobs:
       #
       #   the SAVE — whichever job reached its post phase first would write the
       #   entry and the other two would be refused it as already present.
-      #   `checks` is the one whose store is nobody's subset: thirty
-      #   derivations `eval` never asks for. A shared key means the first
-      #   writer decides what the other two come back to, and whichever of them
-      #   needed more rebuilds it on every run — which reads not as a race but
-      #   as a cache that quietly stopped paying.
+      #   `checks` is the one whose store is nobody's subset: a whole check
+      #   set's worth of derivations `eval` never asks for. A shared key means
+      #   the first writer decides what the other two come back to, and
+      #   whichever of them needed more rebuilds it on every run — which reads
+      #   not as a race but as a cache that quietly stopped paying.
       #
       #   the PURGE — `purge-prefixes` below used to be the broad `nix-<os>-`
       #   with `purge-created: 0`, which takes every entry under that prefix
@@ -572,7 +572,7 @@ jobs:
       #
       # ⚠️ Every figure in this block predates the darwin checks joining this
       # step, and BOTH rows moved. The build row grew by about seventy
-      # derivations — twenty-three checks plus their `expected`/`actual`
+      # derivations — twenty-four checks plus their `expected`/`actual`
       # goldens, every one of them a local `writeText` or `runCommand` that
       # nothing substitutes — so "ninety-one" above is nearer a hundred and
       # sixty, and "the other eighty-nine cost 3.2-5.7s together" has that many
@@ -630,12 +630,12 @@ jobs:
       # check flake.nix declares except `brew-bundle-guarded`, and that is the
       # whole of the split — there is no second list to keep.
       #
-      # It was not always: twenty-four checks sat behind
+      # It was not always: twenty-five checks sat behind
       # `optionalAttrs (hasSuffix "-darwin" system)` and fired on a Mac, by
       # hand, or not at all. Among them the three *-reach tables, which
       # enumerate every generated home file so that ANY new one is a missing
-      # row — main merged red on exactly those at least twice. Twenty-three
-      # moved up. (One of the twenty-three, `app-store-activation`, had been
+      # row — main merged red on exactly those at least twice. Twenty-four
+      # moved up. (One of the twenty-four, `app-store-activation`, had been
       # running here until it was gated days earlier for reddening this job:
       # a true report of a real failure, with the wrong cause named.) What
       # moved them is not a Mac runner: it is
