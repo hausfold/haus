@@ -68,16 +68,40 @@ jobs:
   #             earned it a job of its own before that. It is the step this
   #             repo keeps adding to, and the only one whose store is nobody
   #             else's subset.
-  #   acquire   `haus add`/`desktop`/`remove` alone. It was the pole at 36s,
-  #             24 of which were `nixpkgs#nixfmt` resolving through the flake
-  #             REGISTRY — that unpacks channels.nixos.org's nixexprs.tar.xz
-  #             into ~/.cache/nix, which is not the /nix store, so
-  #             cache-nix-action never held it and the fetch was paid warm and
-  #             cold alike. test/haus-add.sh now takes nixfmt from this
-  #             flake's OWN lock (`--inputs-from`), so the name resolves with
-  #             no fetch at all and the step is 13s. Nothing left in this half
-  #             is bigger than the restore standing in front of it, so the
-  #             next step joins a job rather than opening a fourth.
+  #   acquire   the two suites that drive a REAL consumer flake through a real
+  #             nix: `haus add`/`desktop`/`remove`, and `haus set`/`get`/
+  #             `reset`/`unset`. Neither is a flake check — both scaffold a
+  #             consumer on disk and run nix against it — and neither wants a
+  #             store cache, which is what keeps them together and apart from
+  #             the other two.
+  #             It was `haus add` alone and the pole at 36s, 24 of which were
+  #             `nixpkgs#nixfmt` resolving through the flake REGISTRY — that
+  #             unpacks channels.nixos.org's nixexprs.tar.xz into ~/.cache/nix,
+  #             which is not the /nix store, so cache-nix-action never held it
+  #             and the fetch was paid warm and cold alike. test/haus-add.sh
+  #             now takes nixfmt from this flake's OWN lock (`--inputs-from`),
+  #             so the name resolves with no fetch at all and the step is 13s.
+  #             test/haus-settings.sh joined it at 35s, taking the job 46s →
+  #             84s (run 35595368851). It is 66s in a job of its OWN — `haus
+  #             add` in front of it has already realized nixpkgs and read this
+  #             flake, so the settings suite pays for neither. Quote the 35s
+  #             for what this job costs and the 66s for what the suite costs;
+  #             the step's own account is beside it below.
+  #
+  # ⚠️ "Nothing here is bigger than the restore in front of it, so the next
+  # step joins a job rather than opening a fourth" used to close this list, and
+  # the settings suite is the first step to break its premise — 66s alone,
+  # twice the restore the other two jobs pay and one this job does not pay at
+  # all. It joined anyway, and the measure that says so is
+  # rule 5 of the family's CI rules rather than this one: the gate is the
+  # longest job, `checks` is 180-243s, and a fourth job cannot take a second
+  # off THAT. So the number a new step is measured against is the distance from
+  # the job it would join to the POLE, not the restore standing in front of it.
+  # On run 35594402514 that distance was 197s and the step spent 38 of it.
+  #
+  # ⚠️ And "66s alone" is why the fixed cost misleads in the first place: a
+  # step measured on its own carries setup the job it joins has already paid.
+  # In place it is 35s. A step is only as expensive as the job it lands in.
   #
   # Three jobs and not six, for the reason the shell half's banner further down
   # gives: the gate is the longest job, not the total, and every job pays
@@ -697,7 +721,7 @@ jobs:
       - run: nix flake check
 
   acquire:
-    name: acquisition, against a real lock
+    name: acquisition and settings, against a real lock
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -736,6 +760,9 @@ jobs:
       # suite SKIPS without it — the assertions are on words, not on colour —
       # but it is what the suite has always run with, and a curl of one file is
       # the cheapest step in this half. The account is above `eval`'s copy.
+      # test/haus-settings.sh below runs with the same file set, and skips
+      # nothing without it either — it never names `HAUS_UI_SH` itself; the
+      # subject it spawns is what reads the variable out of the environment.
       - name: snug's painter, at the pinned rev
         run: |
           rev="$(jq -r '.nodes.snug.locked.rev' flake.lock)"
@@ -757,6 +784,46 @@ jobs:
       # the banner above `eval` describes going wrong.
       - name: haus add/desktop/remove tests
         run: bash test/haus-add.sh
+
+      # `haus set`/`get`/`reset`/`unset` end to end — 131 calls against a
+      # scaffolded consumer, asserting the overlay file on disk and the value
+      # read back. Most of them evaluate a real darwinConfiguration; the rest
+      # are refusals that die in the path grammar before nix is reached, and
+      # those are the cases with a history. test/settings-key.bats is the
+      # pure-bash half (the path
+      # grammar and the attrpath it generates); this is the half that can only
+      # be had from nix, which is why it sits here and not in `rooms`.
+      #
+      # ⚠️ IT WAS LINTED AND NEVER RUN, ITS WHOLE LIFE, ON A REASON THAT WAS
+      # NEVER TRUE — from #252 on 2026-08-07 to here, six weeks in which it
+      # asserted nothing on any machine but a Mac somebody remembered to run it
+      # on. Three places recorded it as "it evaluates a darwinConfiguration,
+      # so this runner can never execute it" — which is the one thing this
+      # image has always been good at: `eval` has read a whole darwin system
+      # here since it existed, and since #762 every flake check but
+      # `brew-bundle-guarded` does too. #762 removed the claim and left the
+      # blocker recorded as UNESTABLISHED, because disproving a reason is not
+      # the same as trying the thing. Nobody had taken the lint off and looked.
+      # Somebody did: it passes on ubuntu-latest, cold store, first try, no
+      # change to the suite (run 35594772634).
+      #
+      # 35s HERE, and 66s cold / 51s warm in a job of its own — the difference
+      # is nixpkgs and this flake, which `haus add` above has already paid for.
+      # 63s of that isolated 66 is CPU (39.6 user + 23.3 sys), so there is no
+      # idle in it — the `bats --jobs` trick that halved scruff's gate would
+      # find nothing here to overlap, which is worth knowing before anyone
+      # tries. It joins this job rather than opening a fourth because a fourth
+      # cannot shorten `checks`; the banner at the top of this file has that
+      # arithmetic, and the measurement that a step costs less in company than
+      # alone.
+      #
+      # It needs nix, a bash 4+ (it re-execs to find one; the runner's is 5.2),
+      # jq and git — all of which this job already had — and no Mac at any
+      # point. The macOS-only half of haus.sh is `capture`/`doctor`, which
+      # reach `defaults`, `plutil` and `/run/current-system`; the set/get path
+      # reaches none of them.
+      - name: haus set/get/reset/unset tests
+        run: bash test/haus-settings.sh
 
   # ── The shell half, and which of its four jobs a new suite joins ─────────
   #
@@ -927,14 +994,17 @@ jobs:
           # statusline-refresh.sh is linted for a different reason: it runs
           # DETACHED with its output discarded, so a non-zero anywhere in it is
           # completely invisible — the bar just quietly stops updating.
-          # test/haus-settings.sh is linted and not run, and ⚠️ THE REASON
-          # WRITTEN HERE WAS WRONG: "it evaluates a darwinConfiguration, so this
-          # runner can never execute it". Evaluating one is exactly what `eval`
-          # does on this image, and what every check in `checks` does now. So
-          # the blocker is unestablished rather than known — somebody has to
-          # take the lint off and read what actually breaks. Until then linting
-          # is what CI does for it, and the alternative is a suite nothing
-          # touches until someone remembers it by hand.
+          # test/haus-settings.sh is linted here and RUN in the `acquire` job.
+          # ⚠️ It was linted and NEVER run — every day of the six weeks between
+          # #252 and here — on a reason that was never true: "it evaluates a
+          # darwinConfiguration, so this runner can never execute it". #762
+          # disproved it; this change retired it by
+          # taking the lint off and looking: it passes on ubuntu-latest, cold,
+          # unchanged. The step there carries what it cost and why it sits in
+          # that job. The durable lesson is the shape of the mistake: a
+          # plausible reason written down once was read as a measurement by
+          # everyone after, and nobody ran the command that would have taken
+          # ninety seconds to answer it.
           # test/haus-plan.sh is linted here and RUN in the `rooms` job: its subject
           # pure parsing over fixture files, so it needs neither Nix nor a Mac.
           #
@@ -1198,10 +1268,9 @@ jobs:
       # making the file haus had just written a Nix syntax error; and a
       # whole-attrset write is `mkForce`, so naming the enclosing set withdrew
       # the five items haus defines while the command printed the new value and
-      # stopped. The end-to-end half is test/haus-settings.sh, which CI lints
-      # and does not run — for a reason that turned out not to hold; the
-      # shellcheck step's own comment carries it. Needs bash, bats and jq, no
-      # Nix and no Mac.
+      # stopped. The end-to-end half is test/haus-settings.sh, which runs in
+      # the `acquire` job — it needs a real nix, this suite does not. Needs
+      # bash, bats and jq, no Nix and no Mac.
       - name: haus set's option address
         run: bats test/settings-key.bats
 

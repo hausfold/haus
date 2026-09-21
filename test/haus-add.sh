@@ -4,8 +4,10 @@
 # SCAFFOLDED consumer flake, which is exactly what `haus show`'s suite needs
 # and exactly why this one runs the same way: `modules/core/haus.sh` run
 # directly, under the interpreter resolved below (no derivation may shell out to
-# `nix`), from CI's "acquisition, against a real lock" job, where a real nix
-# exists. It got a job to itself as the longest step in that half, back when
+# `nix`), from CI's "acquisition and settings, against a real lock" job, where
+# a real nix exists. It shares that job with test/haus-settings.sh, the other
+# suite of this shape. It got the job to itself as the longest step in that
+# half, back when
 # two thirds of its 36 seconds were one registry fetch — see the banner over
 # the nix jobs in .github/workflows/check.yml, and the nixfmt block below for
 # what that fetch was and why it is gone.
