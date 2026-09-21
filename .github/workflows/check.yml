@@ -576,7 +576,7 @@ jobs:
           echo "prefix=nix-${{ runner.os }}-checks-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
       # This job's store is the big one and the one nobody else's is a superset
       # of: on a cold runner `nix flake check` BUILDS ninety-two derivations —
-      # the thirty-three checks below plus the intermediates they read. Every
+      # the thirty-four checks below plus the intermediates they read. Every
       # input here is `eval`'s with a different token — read that copy for what
       # each does.
       - name: Restore the Nix store
@@ -591,7 +591,7 @@ jobs:
           purge-created: 0
           purge-primary-key: never
       # The platform-independent checks are declared for Linux too precisely so
-      # they can run HERE — THIRTY-THREE of them, everything in flake.nix's `checks`
+      # they can run HERE — THIRTY-FOUR of them, everything in flake.nix's `checks`
       # before the `optionalAttrs (hasSuffix "-darwin" system)` line, which is
       # the only thing that decides the split and the only place to re-derive
       # this list from:
@@ -662,6 +662,11 @@ jobs:
       #                            axis has and the ladder does not: a mark may not
       #                            land on a hue a tone spends on a VERDICT, or a
       #                            popup heading silently claims a state
+      #   app-store-activation     every mas call the App Store block emits carries
+      #                            SUDO_UID/SUDO_GID (activation runs under
+      #                            `env -i`, and mas 7 throws without them) and a
+      #                            `timeout` (a signed-out Mac answers with a
+      #                            sign-in sheet no rebuild can fill in)
       #   roster-bin-paths         every roster entry's binary is where the roster
       #                            says it is
       #   state-files              modules/lib/state-files.nix vs what the rooms

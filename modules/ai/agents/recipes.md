@@ -63,6 +63,9 @@ App Store apps take `appStoreId` (the digits in the store URL). Recording it is
 free; `haus.appStore.install = true` makes a rebuild fetch it. That can
 only ever be half-automatic — `mas` cannot sign in, and cannot make a first-time
 purchase — so buy a paid app once in App Store.app; free ones it fetches itself.
+Tell the user to sign in to App Store.app before turning the option on: a
+signed-out Mac answers each fetch with a sign-in sheet on screen, so the rebuild
+spends ten minutes per app and installs nothing.
 
 ```nix
 haus.roster.xcode = { name = "Xcode"; appStoreId = 497799835; };
