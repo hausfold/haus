@@ -24,7 +24,9 @@
 #
 # Pure bash: no nix, no Mac. The end-to-end half (a real consumer evaluated,
 # the file on disk, the value read back) is test/haus-settings.sh, which CI
-# cannot run because it evaluates a darwinConfiguration.
+# runs in the `acquire` job — the one with a real nix in it. ⚠️ This comment
+# used to say CI "cannot run" it "because it evaluates a darwinConfiguration".
+# That was never true: evaluating one is what the Linux runner does all day.
 
 bats_require_minimum_version 1.5.0
 
