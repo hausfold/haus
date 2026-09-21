@@ -48,6 +48,27 @@ what switched the profile on*. `haus.appearance.largePrint` is the one to watch
 — a desktop pinning `haus.ui.scale` wins over it, and setting the value itself
 in your host is what settles it.
 
+**And a profile does not run backwards.** Switching one off stops it setting its
+members; it does not put the machine back. What returns is decided one level
+down and per WRITE rather than per option, by whether haus writes that setting
+at BOTH values of the switch. A setting written either way follows the switch
+down — the terminal's size, the palette's contrast, Finder's sidebar rows, which
+is a macOS preference and returns anyway. One written only while the profile is
+on falls back to `null`, `{ }` or an unevaluated `mkIf`, and haus reads all
+three as
+*leave whatever you have alone* — so `haus.accessibility.increaseContrast`, a
+`haus.displays` entry and the Dock's `tilesize` stay where the profile put them.
+That is the right default for a personal setting and it cannot double as *undo*:
+nothing in an evaluation can tell a Mac that turned a profile off from one that
+never asked. Reversing it needs a receipt — something recording what haus
+actually wrote — which does not exist, so a profile that moves an opt-in leaf
+owes its description the lines that put that leaf back.
+`haus.appearance.largePrint` names three, and one of them rides on a leaf that
+otherwise returns — `ui.scale` writes the Dock's `tilesize` only while the
+scale is not 1.0, so a scale either side of 1.0 leaves a Dock behind on the way
+home — so the count of what stays is not the count of what stopped.
+`largeprint-return` in `flake.nix` keeps all of it evaluated.
+
 ## What a room is
 
 A nix-darwin module with a public `haus.<room>` option namespace. It may add

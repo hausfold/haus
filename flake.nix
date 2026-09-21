@@ -2590,6 +2590,160 @@
             file Library/Application Support/com.mitchellh.ghostty/config moves
           '';
 
+          # ---- largeprint-return ----------------------------------------------
+          # The other direction of the same question, for the one profile whose
+          # OFF state people actually ask about. `haus.appearance.largePrint`
+          # sets four leaves and coming back off returns two of them, which reads
+          # as a bug and is not one: a leaf haus writes at BOTH settings follows
+          # the setting, and a leaf haus writes only while the profile is on has
+          # nothing to fall back to, because not writing a key is not the same as
+          # writing the old value back. modules/appearance/default.nix says why
+          # there is no off-branch and what it would take to have one.
+          #
+          # Note which side of that line `finder.sidebar` lands on, because it is
+          # the row that stops the rule being read as "generated files return,
+          # macOS preferences don't": it IS a macOS preference, haus writes it at
+          # every scale, and it returns. The split is about whether haus writes,
+          # not about where the write lands.
+          #
+          # So the table earns its evaluations twice. The OFF column is the
+          # claim — an off-branch added later, or a gate dropped, moves a row's
+          # own word rather than landing silently on every machine that never
+          # asked for large print. The third column is the REMEDY: the option's
+          # description hands a reader three lines for putting the rest back, and
+          # a remedy printed in a blurb and never evaluated is a remedy that
+          # quietly becomes a no-op.
+          lpCfg =
+            extra:
+            (mkHaus {
+              inherit system;
+              username = "you";
+              hostname = "example";
+              extraModules = [ extra ];
+            }).config;
+          # The three states in the order a person meets them: on, off, and off
+          # plus the three lines the option's description prints.
+          lpRuns = map lpCfg [
+            { haus.appearance.largePrint = true; }
+            { haus.appearance.largePrint = false; }
+            {
+              haus.appearance.largePrint = false;
+              haus.accessibility.increaseContrast = false;
+              haus.displays.main.uiScale = "default";
+              system.defaults.dock.tilesize = 48;
+            }
+          ];
+          lpShow =
+            v:
+            if v == null then
+              "null"
+            else if builtins.isBool v then
+              nixpkgs.lib.boolToString v
+            else
+              toString v;
+          # Every leaf the profile moves, plus the two macOS-side keys that ride
+          # along on `ui.scale` — `finder.sidebar` is here precisely because it
+          # is the counterexample, and a table that omitted it would teach the
+          # wrong rule.
+          # The ACTIVATION's own line for an accessibility key, which is a
+          # different fact from the option's value and the one that decides what
+          # the Mac is left holding. Without this row the remedy column would be
+          # the host's own assignment echoed back: if `a11ySet`
+          # (modules/core/default.nix, `filterAttrs (_: v: v != null)`) ever
+          # narrowed to `v == true`, `increaseContrast = false` would stop
+          # emitting anything and a table reading only the option would not move
+          # a byte.
+          lpEmits =
+            c: key:
+            let
+              hits = builtins.filter (m: m != null) (
+                map (builtins.match "[[:space:]]*hausAccessibility ${key} -bool ([a-z]+)[[:space:]]*") (
+                  nixpkgs.lib.splitString "\n" c.system.activationScripts.postActivation.text
+                )
+              );
+            in
+            if hits == [ ] then "(no write)" else builtins.head (builtins.head hits);
+          lpLeaves = {
+            "a11y.increaseContrast" = c: lpShow c.haus.accessibility.increaseContrast;
+            "a11y.increaseContrast write" = c: lpEmits c "increaseContrast";
+            "displays.main.uiScale" =
+              c: if c.haus.displays ? main then lpShow c.haus.displays.main.uiScale else "(absent)";
+            "dock.tilesize" =
+              c:
+              if c.system.defaults.dock.tilesize == null then
+                "unset"
+              else
+                toString c.system.defaults.dock.tilesize;
+            "finder.sidebar" = c: toString c.system.defaults.NSGlobalDomain.NSTableViewDefaultSizeMode;
+            "fonts.mono.size" = c: toString c.haus.fonts.mono.size;
+            "launcher.scale" = c: toString c.haus.launcher.scale;
+            "theme.contrast" = c: lpShow c.haus.theme.contrast;
+          };
+          # "haus declares nothing here" has three spellings across the option
+          # surface, and they are what the OFF column shows for a leaf written
+          # only while the profile is on. The verdict is derived from that cell
+          # rather than hand-labelled per row, so a leaf that changes category
+          # moves its own word instead of waiting for someone to notice.
+          lpNothing = [
+            "null"
+            "unset"
+            "(absent)"
+            "(no write)"
+          ];
+          lpTable = builtins.concatStringsSep "\n" (
+            map (
+              name:
+              let
+                cells = map lpLeaves.${name} lpRuns;
+                off = builtins.elemAt cells 1;
+              in
+              "${name} ${builtins.concatStringsSep " " cells} ${
+                if builtins.elem off lpNothing then "LEFT" else "back"
+              }"
+            ) (builtins.attrNames lpLeaves)
+          );
+          # `lpLeaves` is a hand-written census, and a census is only as complete
+          # as whoever last typed it — the workshop's docs/drift.md row 33. So
+          # count the profile's own assignments out of the source as well: a
+          # fifth leaf added to the block gets no row above and would leave the
+          # golden green, and this is what says so. Anchored on the two `mkIf`s
+          # rather than on a comment, because a comment is the part people
+          # rewrite. `fragment-compat` catches the same thing today by
+          # drv-diffing the retired preset against the option, and it leaves
+          # when `compat/presets.nix` does.
+          lpProfileLeaves =
+            let
+              src = builtins.readFile ./modules/appearance/default.nix;
+              after = nixpkgs.lib.splitString "(lib.mkIf cfg.largePrint {" src;
+              body =
+                if builtins.length after < 2 then
+                  throw "largeprint-return: no `(lib.mkIf cfg.largePrint {` in modules/appearance/default.nix — the anchor moved, not the profile"
+                else
+                  builtins.head (nixpkgs.lib.splitString "(lib.mkIf cfg.reduceMotion {" (builtins.elemAt after 1));
+            in
+            builtins.length (
+              builtins.filter (l: builtins.match ".*lib[.]mkDefault.*" l != null) (
+                nixpkgs.lib.splitString "\n" body
+              )
+            );
+          # on · off · off-plus-the-three-lines · verdict. FOUR LEFT rows for
+          # THREE settings, because `increaseContrast` is here twice: the option
+          # landing on `null` and the activation emitting nothing are two facts,
+          # and the second is the one that leaves the Mac holding the old value.
+          # A fifth LEFT row means a leaf grew a gate; one disappearing means
+          # somebody built the off-branch, and the description has to say so on
+          # the same commit.
+          expectedLpTable = ''
+            a11y.increaseContrast true null false LEFT
+            a11y.increaseContrast write true (no write) false LEFT
+            displays.main.uiScale larger-text (absent) default LEFT
+            dock.tilesize 67 unset 48 LEFT
+            finder.sidebar 3 1 1 back
+            fonts.mono.size 27 19 19 back
+            launcher.scale 1.400000 1.000000 1.000000 back
+            theme.contrast high normal normal back
+          '';
+
           # ---- font-reach -----------------------------------------------------
           # The third "this option reaches exactly these things" table, and the
           # one with a story: `haus.fonts.mono.name` used to reach ONE
@@ -5830,6 +5984,24 @@
           scale-reach = pkgs.runCommand "haus-scale-reach-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedScaleTable} \
                     ${pkgs.writeText "actual" (scaleTable + "\n")}
+            touch $out
+          '';
+
+          largeprint-return = pkgs.runCommand "haus-largeprint-return-ok" { } ''
+            ${nixpkgs.lib.optionalString (lpProfileLeaves != 4) ''
+              cat >&2 <<'COUNT'
+              largeprint-return: the largePrint profile sets ${toString lpProfileLeaves}
+              options and this check carries rows for four.
+
+              A leaf added to `mkIf cfg.largePrint` needs a row in `lpLeaves`
+              (flake.nix) saying what it reads at each of the three states, and
+              a line in the option's own description saying whether `false` puts
+              it back. Adding the row without the sentence is the failure this
+              check exists for.
+              COUNT
+              exit 1''}
+            diff -u ${pkgs.writeText "expected" expectedLpTable} \
+                    ${pkgs.writeText "actual" (lpTable + "\n")}
             touch $out
           '';
 

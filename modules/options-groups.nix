@@ -879,7 +879,7 @@ let
     # ---- how it looks ---------------------------------------------------------
     appearance = {
       order = 25;
-      blurb = "The Appearance room's own profiles — named answers to whole-machine questions, where the groups below are the individual dials. `largePrint` sets the interface scale, the high-contrast palette, macOS's own contrast lift and the screen's scaled resolution together. `reduceMotion` stops the motion haus itself draws — the bar's hover sweeps, the pointer following focus, the pull back off an emptied workspace — and asks for macOS's own Reduce Motion alongside it. Both set every value as a default you can still pin by hand.";
+      blurb = "The Appearance room's own profiles — named answers to whole-machine questions, where the groups below are the individual dials. `largePrint` sets the interface scale, the high-contrast palette, macOS's own contrast lift and the screen's scaled resolution together. `reduceMotion` stops the motion haus itself draws — the bar's hover sweeps, the pointer following focus, the pull back off an emptied workspace — and asks for macOS's own Reduce Motion alongside it. Both set every value as a default you can still pin by hand. Neither is symmetric: turning one off returns the leaves haus writes at both settings and leaves the ones it writes only while the profile is on standing — `largePrint`'s own description names the three that stay and the lines that put them back.";
     };
     theme = {
       order = 30;

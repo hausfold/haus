@@ -41,6 +41,44 @@
           the only line here that reaches apps haus has never heard of, because
           it changes what a point means
 
+      Turning it off is not the mirror image, and the arithmetic is worth
+      having straight before you try it. `haus.ui.scale` and
+      `haus.theme.contrast` go back to their own values and everything they
+      render follows: the terminal drops 27 → 19 pt, the command palette returns
+      to 1.0, the normal-contrast colours come back. The other two do not go
+      back at all — they land on `null`, which haus reads as *leave whatever you
+      have alone*. And `ui.scale` leaves one thing behind on the way down: the
+      Dock's icon size, which it writes only while the scale is not 1.0. So two
+      of the four return, and three settings stay on the Mac — Increase Contrast
+      on, the Dock at 67, the display still a step down the ladder.
+
+      That is what `false` means here rather than an oversight. The line the
+      three fall on is whether haus writes that setting at BOTH values of this
+      option: it writes the terminal's size, the palette and Finder's sidebar
+      rows either way, so those follow, and it writes the other three only while
+      the profile is on, so `false` writes nothing for them. Not writing a key
+      is not the same as writing the old value back, and leaving a setting alone
+      is the right answer for a personal one — nothing in the evaluation can
+      tell your Mac apart from one that never asked for large print.
+
+      So say it, in the same host, and one rebuild puts the three back:
+
+        haus.accessibility.increaseContrast = false;
+        haus.displays.main.uiScale          = "default";
+        system.defaults.dock.tilesize       = 48;
+
+      The third line is nix-darwin's own key rather than a haus one because haus
+      has no leaf that says 48 — adding one would snap back every Dock anybody
+      ever sized by hand.
+      (`defaults delete com.apple.dock tilesize && killall Dock` is the same
+      trip by hand, and leaves the key absent rather than pinned at 48.) The
+      first line is FDA-gated exactly as its `true` was, so a Mac that has lost
+      the grant since you turned this on gets the other two and a warning. All
+      three land you on the stock Mac, not on whatever you had before — haus
+      never recorded that, so if your display was on `more-space` it is yours to
+      name again. Once the rebuild has run your Mac holds those values, so you
+      can drop the three lines or keep them and nothing moves either way.
+
       Each of those four says where it stops, and haus.ui.scale is the one to
       read: the shelf and the menu bar's height follow neither lever. One stop
       belongs here, because it is the lever people expect and it does not
@@ -123,6 +161,12 @@
       `haus.accessibility.reduceMotion = false` in your host keeps haus's half
       without the web one. haus's half needs no permission, so it still applies
       on a machine where Apple's FDA-gated flag is skipped.
+
+      That last line is also the way back. Turning this option off re-renders
+      haus's own five and they stop, but Apple's flag is a preference macOS now
+      holds rather than a file haus redraws, so it stays on until you say
+      `haus.accessibility.reduceMotion = false` yourself — the same asymmetry
+      `largePrint` has, one leaf instead of three.
     '';
   };
 }

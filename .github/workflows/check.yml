@@ -791,20 +791,31 @@ jobs:
       # fourteen. It went stale a third time the same day, from the other
       # direction: `namespace-guard` was written pure-lib, described in its own
       # comment as running on the Linux runner, and declared four lines BELOW
-      # the `optionalAttrs` split, so it ran on nobody's CI. So do not edit the sentence you are standing next to. Print
+      # the `optionalAttrs` split, so it ran on nobody's CI. A fourth time it was
+      # short by `windows-room`, and that one is the plainest of the four: the
+      # check landed correct, guarded and green, and the census line was simply
+      # not written in the same PR — the habit two paragraphs up, missed once.
+      # So do not edit the sentence you are standing next to. Print
       # both lists and diff them:
       #
       #   nix eval --json .#checks.x86_64-linux   --apply builtins.attrNames
       #   nix eval --json .#checks.aarch64-darwin --apply builtins.attrNames
       #
-      # The darwin-only TWENTY-TWO fingerprint a real evaluated system, so they
+      # The darwin-only TWENTY-FOUR fingerprint a real evaluated system, so they
       # stay guarded and don't run here — they fire on a Mac, by hand, or not at
       # all: catalogue (every desktop and compat alias raised as a real system),
       # fragment-compat (the retired top-level fragments' old spelling against
       # their new one), desktop-projection (the example host's carved values vs
       # the committed projection — the one thing that can notice the hacker
       # desktop quietly stopping short of what the module defaults used to give),
-      # accent-reach, scale-reach, font-reach, standalone-modules, ai-room,
+      # accent-reach, scale-reach, font-reach, largeprint-return (the one
+      # profile whose OFF state people ask about — which of
+      # `haus.appearance.largePrint`'s four leaves come back, and whether the
+      # three lines its description hands you for the rest still resolve),
+      # windows-room (the bar's and the launcher's rows inside the generated
+      # aerospace.toml, present with those rooms on and absent with them off —
+      # AeroSpace runs a row whose exec path is missing without a word),
+      # standalone-modules, ai-room,
       # app-collections, login-note, desktop-seam, editor-choice,
       # bar-bottom-focus, bar-bottom-groups, bar-third-party-widget,
       # bar-widget-header, bar-widget-intervals, bar-factory-default (the
@@ -821,7 +832,7 @@ jobs:
       # groups, and which file supplied it — the layer below the declared
       # `null` every other surface reads).
       #
-      # ⚠️ Two of those twenty-two are the reason `nix flake check` on a Mac is
+      # ⚠️ Two of those twenty-four are the reason `nix flake check` on a Mac is
       # not optional before a PR: the *-reach tables enumerate every generated
       # home file, so ANY new one is a missing row — and CI here can never see
       # it. main has merged red on exactly that at least twice.

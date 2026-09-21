@@ -77,7 +77,11 @@ modules/
   apps/                   # editorial picks as roster entries; packs/ are
                           #   haus.apps.packs.<name>.enable, our own data (a stranger's
                           #   collection is a room)
-  appearance/             # haus.appearance.largePrint: four rooms' options at mkDefault
+  appearance/             # haus.appearance.largePrint: four rooms' options at mkDefault.
+                          #   Not symmetric — `false` returns what haus writes at BOTH
+                          #   settings and leaves three standing (increaseContrast, the
+                          #   Dock's tilesize, the display's mode): `largeprint-return`,
+                          #   and the option's own description
   ai/                     # haus.ai.*. Owns scruff, factory, the statusline pair, agent-state,
                           #   agent-desktop-guard, scruff-cache, haus-vm-shot, haus-fix
                           #   (system) + the instructions/skill files (home; a path collision

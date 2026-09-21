@@ -1761,6 +1761,14 @@ in
       # to "minimal", so the principle stands but the wallpaper is now the
       # counterexample rather than the example — a Dock tilesize is a size you
       # chose, a desktop is a look haus is for.)
+      #
+      # The price of that is the RETURN trip, and it is worth knowing before you
+      # go looking for a bug: coming back DOWN to 1.0 also writes nothing, so a
+      # Dock this line grew stays grown. There is no haus leaf that says 48,
+      # because saying it would be the snap-back this gate exists to prevent —
+      # `system.defaults.dock.tilesize = 48` in your host is the way to ask for
+      # it. `haus.appearance.largePrint`'s description carries that trip, since
+      # the profile is where most people meet this line.
       tilesize = lib.mkIf (config.haus.ui.scale != 1.0) (
         lib.mkDefault (builtins.floor (48 * config.haus.ui.scale + 0.5))
       );

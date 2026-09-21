@@ -649,7 +649,10 @@ in
             Find Files / cheatsheet panels behind it
           - the type in Bar's menu bar — pill labels, icons and popup rows —
             up to a ceiling; see below
-          - the Dock icon size (system.defaults.dock.tilesize)
+          - the Dock icon size (system.defaults.dock.tilesize) — written only
+            while the scale is not 1.0, so a Dock you sized by hand is left
+            alone, and one this option grew stays grown when you come back to
+            1.0; `system.defaults.dock.tilesize = 48` is how you say otherwise
           - Finder's sidebar rows (NSTableViewDefaultSizeMode) — a threshold
             rather than a multiplier, and it is set at every scale: at or below
             1.0 haus picks SMALL rows (more fits in a tiled window), above
