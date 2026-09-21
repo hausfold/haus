@@ -4304,6 +4304,42 @@
     "readOnly": false,
     "type": "integer or floating point number between 0.8 and 2.0 (both inclusive)"
   },
+  "haus.launcher.urlScheme.confirm": {
+    "declarations": [
+      "modules/launcher/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Ask on screen before a `pounce://` link RUNS something — a command, a\nShortcut, an application, or the camera window, which starts a capture\nsession rather than drawing a list. The sheet names the app that opened\nthe link and every argument it carries, because the arguments are the\nhalf somebody else wrote. A link that only OPENS something — clipboard\nhistory, the emoji picker, a System Settings pane — is never confirmed.\n\nOn by default, and it is the one place pounce trusts your keyboard more\nthan its caller: a hotkey is you, while a URL can be written into a page,\nan email or a shared note, and the Apple Event names the app that OPENED\nthe link rather than whoever wrote it.\n\nSet false to trust a link exactly as much as a hotkey. The command's own\n`confirm =` header still gets its sheet — that is `pounce run`'s\ncontract — and nothing else does. Worth doing on a machine whose links\nall come from your own notes, where a second sheet behind your note\napp's own \"open this link?\" is a keystroke you stop reading.\n",
+    "loc": [
+      "haus",
+      "launcher",
+      "urlScheme",
+      "confirm"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.launcher.urlScheme.enable": {
+    "declarations": [
+      "modules/launcher/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Let a link run a palette item: `pounce://run?item=cmd:<id>&arg=<value>`,\nthe same item keys `pounce run` takes. It is how something that can only\nproduce a LINK — a row in an Obsidian base, a line in a note, a\nspreadsheet cell, a Shortcut, a web page — reaches a command with no\nplugin of its own to shell out for it.\n\n`arg` is repeatable (up to four) and positional: the script reads them as\n`$1`, `$2` and so on, nothing crosses a shell, and only a `cmd:` item\ntakes any.\n\nThe scheme itself is claimed by Pounce.app's bundle and cannot be\nunclaimed at runtime, so this is the switch that actually closes the\ndoor: with it false the daemon refuses every link and says so in a\nbanner. Set it false on a machine where a link arriving from a page or\nan email is not something you want reaching the palette at all.\n",
+    "loc": [
+      "haus",
+      "launcher",
+      "urlScheme",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
   "haus.launcher.windowMode": {
     "declarations": [
       "modules/launcher/options.nix"

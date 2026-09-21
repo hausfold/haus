@@ -307,6 +307,8 @@ let
       "items.<name>.workspaces"
       "plugins"
       "scale"
+      "urlScheme.confirm"
+      "urlScheme.enable"
       "windowMode"
       "windowSwitcher"
     ];

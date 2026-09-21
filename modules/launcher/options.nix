@@ -248,6 +248,52 @@ in
       '';
     };
 
+    launcher.urlScheme.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Let a link run a palette item: `pounce://run?item=cmd:<id>&arg=<value>`,
+        the same item keys `pounce run` takes. It is how something that can only
+        produce a LINK — a row in an Obsidian base, a line in a note, a
+        spreadsheet cell, a Shortcut, a web page — reaches a command with no
+        plugin of its own to shell out for it.
+
+        `arg` is repeatable (up to four) and positional: the script reads them as
+        `$1`, `$2` and so on, nothing crosses a shell, and only a `cmd:` item
+        takes any.
+
+        The scheme itself is claimed by Pounce.app's bundle and cannot be
+        unclaimed at runtime, so this is the switch that actually closes the
+        door: with it false the daemon refuses every link and says so in a
+        banner. Set it false on a machine where a link arriving from a page or
+        an email is not something you want reaching the palette at all.
+      '';
+    };
+
+    launcher.urlScheme.confirm = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Ask on screen before a `pounce://` link RUNS something — a command, a
+        Shortcut, an application, or the camera window, which starts a capture
+        session rather than drawing a list. The sheet names the app that opened
+        the link and every argument it carries, because the arguments are the
+        half somebody else wrote. A link that only OPENS something — clipboard
+        history, the emoji picker, a System Settings pane — is never confirmed.
+
+        On by default, and it is the one place pounce trusts your keyboard more
+        than its caller: a hotkey is you, while a URL can be written into a page,
+        an email or a shared note, and the Apple Event names the app that OPENED
+        the link rather than whoever wrote it.
+
+        Set false to trust a link exactly as much as a hotkey. The command's own
+        `confirm =` header still gets its sheet — that is `pounce run`'s
+        contract — and nothing else does. Worth doing on a machine whose links
+        all come from your own notes, where a second sheet behind your note
+        app's own "open this link?" is a keystroke you stop reading.
+      '';
+    };
+
     launcher.autoQuit.enable = lib.mkOption {
       type = lib.types.bool;
       default = false;
