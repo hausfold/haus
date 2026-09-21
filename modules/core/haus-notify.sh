@@ -43,8 +43,8 @@ usage: haus-notify --title TEXT [--body TEXT] [--source NAME] [--kind KIND]
 
   --source defaults to "haus". It is what rules.json matches on, so give a
   room its own (haus.bar, haus.lane, …) rather than sharing one.
-  --action's TARGET is trill's: an http(s)/file URL, `app:bundle.id`, or
-  `lane:repo/name` to go to a scruff lane's window. Up to three are drawn,
+  --action's TARGET is trill's: an http(s)/file/obsidian URL, `app:bundle.id`,
+  or `lane:repo/name` to go to a scruff lane's window. Up to three are drawn,
   and the FIRST is also what clicking the banner body does.
   --kind/--urgency/--symbol/--action reach trill only; macOS has nowhere to
   put them and they are dropped rather than faked.
