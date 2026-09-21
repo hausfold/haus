@@ -1824,9 +1824,17 @@ cmd_diff() {
 # PATH yet.
 #
 # Every domain this reads is ALSO snapshotted raw (`defaults export`), so a
-# later `haus revert-settings` can put the exact bytes back — this is the
+# later `haus revert-settings` can write those keys back — this is the
 # "pre-activation preference snapshot" §5.11 asks for: run `haus capture`
 # before a rebuild that's about to change settings you might want to keep.
+# "Those keys", not "the domain": the restore merges, so it cannot remove a key
+# this snapshot does not hold. cmd_revert_settings' head has the measurement.
+#
+# And note WHICH domains: the default categories are dock, keyboard and finder,
+# which is `com.apple.dock`, `NSGlobalDomain` and `com.apple.finder`.
+# `com.apple.universalaccess` is snapshotted only when a caller names it as a
+# literal domain, and skipped again at restore time without Full Disk Access —
+# so a bare `haus capture` is no answer for the accessibility keys.
 SNAP_BASE="${XDG_STATE_HOME:-$HOME/.local/state}/haus/settings-snapshots"
 
 cap_bool() { case "$(defaults read "$1" "$2" 2>/dev/null || true)" in 1) echo true ;; 0) echo false ;; esac; }
@@ -1958,17 +1966,30 @@ cmd_capture() {
   printf '%s' "$lines"
   echo
   info "paste what you want into your host file — a line you don't paste means 'use haus's default'."
-  info "the snapshot above is what 'haus revert-settings' puts back if you don't like where a rebuild takes this."
+  info "'haus revert-settings' puts these values back if you don't like where a rebuild takes this."
+  info "it restores keys this snapshot HAS — a key that is unset right now, and set later, is not removed again."
 }
 
 # ---- haus revert-settings ----------------------------------------------------
 # The installer already admits Nix rollback doesn't undo macOS defaults —
 # `haus rollback` rewinds every package and launchd agent, atomically, but a
 # Dock or Finder preference just sits there. This is the other half: restore
-# the exact snapshot `haus capture` took, byte for byte (`defaults import`,
-# not a replay of individual key writes), then make it live the same way core's
-# own postActivation does — a Dock/Finder/universalaccessd restart plus
+# the snapshot `haus capture` took through `defaults import` rather than a
+# replay of individual key writes, then make it live the same way core's own
+# postActivation does — a Dock/Finder/universalaccessd restart plus
 # activateSettings, so nothing waits for a logout.
+#
+# ⚠️ `defaults import` MERGES the file into the domain; it does not replace it.
+# So this restores a key the snapshot HAS and cannot remove one added since —
+# measured on a guest running haus `ef6e808d`: `tilesize` absent at capture,
+# written to 67, is still 67 after this prints `com.apple.dock restored`, while
+# one captured at 48 does come back. That asymmetry is exactly backwards from where people
+# reach for this: the settings a rebuild ADDS are the ones it cannot take away,
+# and `haus.appearance.largePrint`'s three are all normally unset beforehand.
+# Making it symmetric means deleting the domain before importing, which turns a
+# failed import into a wiped domain — a trade nobody has made yet, so until
+# then say what it does. The `restored` line below means "the snapshot's keys
+# are in place", not "the domain is as it was".
 cmd_revert_settings() {
   local which="${1:-latest}" snapdir domain file rc=0 touched_dock="" touched_finder="" touched_ua=""
 
@@ -2019,10 +2040,12 @@ cmd_revert_settings() {
   [ -n "$touched_finder" ] && { killall -qu "$(id -un)" Finder 2>/dev/null || true; }
   # universalaccessd for the same reason as the two above, added 2026-08-14:
   # cursor size and the closeView pair are invisible until this daemon rereads
-  # the domain, so a restore without it puts the bytes back and shows the user
-  # nothing until their next logout — the failure this whole command exists to
-  # avoid. Unconditional on the domain rather than per-key: `defaults import`
-  # replaces the whole plist, so which keys moved isn't knowable here.
+  # the domain, so a restore without it writes the snapshot's keys and shows the
+  # user nothing until their next logout — the failure this whole command exists
+  # to avoid. Unconditional on the domain rather than per-key: `defaults import`
+  # merges a whole file in one call, so which keys moved isn't knowable here.
+  # (The conclusion is the same either way; the reason is not. See the note at
+  # the head of this function — import merges, it does not replace.)
   [ -n "$touched_ua" ] && { killall -qu "$(id -un)" universalaccessd 2>/dev/null || true; }
 
   # Same broadcast core's postActivation makes after writing preferences — run
