@@ -254,11 +254,11 @@ PR; hardcoded identity. Advisory, never a gate.
     (`test/phase-painter.bats`'s `haus_sh` handle pins it for every plain
     suite). CI runs all three under bash 5 — `haus-plan.sh` in `rooms`,
     `haus-add.sh` and `haus-settings.sh` in `acquire`, which is the job with a
-    real nix in it. ⚠️ `haus-settings.sh` was lint-only for years on the
-    recorded reason "it evaluates a darwinConfiguration", which a Linux runner
-    does fine — and when someone finally took the lint off it passed cold,
-    unchanged, in 66s. There was never a blocker. Write down what you
-    measured, not what you expect; an unrun reason gets quoted as a finding.
+    real nix in it. ⚠️ `haus-settings.sh` was lint-only its whole life — #252
+    to #766 — on the recorded reason "it evaluates a darwinConfiguration",
+    which a Linux runner does fine; when someone finally took the lint off it
+    passed cold, unchanged. There was never a blocker. Write down what you
+    measured, not what you expect: an unrun reason gets quoted as a finding.
   - **Every ROW with columns is budgeted, never declared**: `ui_col` +
     `ui_trow` + `ui_table_data` measure the real window. The four table
     painters — `haus.sh`, `haus-show.sh`, `modules/focus/focus.sh`,

@@ -90,8 +90,9 @@ jobs:
   #
   # ⚠️ "Nothing here is bigger than the restore in front of it, so the next
   # step joins a job rather than opening a fourth" used to close this list, and
-  # the settings suite is the first step to break its premise — 66s alone
-  # against a ~35s restore. It joined anyway, and the measure that says so is
+  # the settings suite is the first step to break its premise — 66s alone,
+  # twice the restore the other two jobs pay and one this job does not pay at
+  # all. It joined anyway, and the measure that says so is
   # rule 5 of the family's CI rules rather than this one: the gate is the
   # longest job, `checks` is 180-243s, and a fourth job cannot take a second
   # off THAT. So the number a new step is measured against is the distance from
@@ -759,8 +760,9 @@ jobs:
       # suite SKIPS without it — the assertions are on words, not on colour —
       # but it is what the suite has always run with, and a curl of one file is
       # the cheapest step in this half. The account is above `eval`'s copy.
-      # test/haus-settings.sh below reads the same file for the same reason,
-      # and skips nothing without it either.
+      # test/haus-settings.sh below runs with the same file set, and skips
+      # nothing without it either — it never names `HAUS_UI_SH` itself; the
+      # subject it spawns is what reads the variable out of the environment.
       - name: snug's painter, at the pinned rev
         run: |
           rev="$(jq -r '.nodes.snug.locked.rev' flake.lock)"
@@ -784,14 +786,18 @@ jobs:
         run: bash test/haus-add.sh
 
       # `haus set`/`get`/`reset`/`unset` end to end — 131 calls against a
-      # scaffolded consumer, each one a real evaluation of a real
-      # darwinConfiguration, asserting the overlay file on disk and the value
-      # read back. test/settings-key.bats is the pure-bash half (the path
+      # scaffolded consumer, asserting the overlay file on disk and the value
+      # read back. Most of them evaluate a real darwinConfiguration; the rest
+      # are refusals that die in the path grammar before nix is reached, and
+      # those are the cases with a history. test/settings-key.bats is the
+      # pure-bash half (the path
       # grammar and the attrpath it generates); this is the half that can only
       # be had from nix, which is why it sits here and not in `rooms`.
       #
-      # ⚠️ IT WAS LINTED AND NOT RUN FOR FOUR YEARS ON A REASON THAT WAS NEVER
-      # TRUE. Three places recorded it as "it evaluates a darwinConfiguration,
+      # ⚠️ IT WAS LINTED AND NEVER RUN, ITS WHOLE LIFE, ON A REASON THAT WAS
+      # NEVER TRUE — from #252 on 2026-08-07 to here, six weeks in which it
+      # asserted nothing on any machine but a Mac somebody remembered to run it
+      # on. Three places recorded it as "it evaluates a darwinConfiguration,
       # so this runner can never execute it" — which is the one thing this
       # image has always been good at: `eval` has read a whole darwin system
       # here since it existed, and since #762 every flake check but
@@ -803,12 +809,13 @@ jobs:
       #
       # 35s HERE, and 66s cold / 51s warm in a job of its own — the difference
       # is nixpkgs and this flake, which `haus add` above has already paid for.
-      # 63s of that isolated 66 is CPU (39.6 user + 23.3 sys), so it WORKS
-      # rather than waits and the concurrency lever rule 5 describes has
-      # nothing to reach here. It joins this job rather than opening a fourth
-      # because a fourth cannot shorten `checks`; the banner at the top of this
-      # file has that arithmetic, and the measurement that a step costs less in
-      # company than alone.
+      # 63s of that isolated 66 is CPU (39.6 user + 23.3 sys), so there is no
+      # idle in it — the `bats --jobs` trick that halved scruff's gate would
+      # find nothing here to overlap, which is worth knowing before anyone
+      # tries. It joins this job rather than opening a fourth because a fourth
+      # cannot shorten `checks`; the banner at the top of this file has that
+      # arithmetic, and the measurement that a step costs less in company than
+      # alone.
       #
       # It needs nix, a bash 4+ (it re-execs to find one; the runner's is 5.2),
       # jq and git — all of which this job already had — and no Mac at any
@@ -988,9 +995,10 @@ jobs:
           # DETACHED with its output discarded, so a non-zero anywhere in it is
           # completely invisible — the bar just quietly stops updating.
           # test/haus-settings.sh is linted here and RUN in the `acquire` job.
-          # ⚠️ It was linted and NOT run for years on a reason that was never
-          # true — "it evaluates a darwinConfiguration, so this runner can
-          # never execute it" — which #762 disproved and this change retired by
+          # ⚠️ It was linted and NEVER run — every day of the six weeks between
+          # #252 and here — on a reason that was never true: "it evaluates a
+          # darwinConfiguration, so this runner can never execute it". #762
+          # disproved it; this change retired it by
           # taking the lint off and looking: it passes on ubuntu-latest, cold,
           # unchanged. The step there carries what it cost and why it sits in
           # that job. The durable lesson is the shape of the mistake: a
