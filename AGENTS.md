@@ -151,7 +151,8 @@ them — is in every `darwinModules.<room>` export, so what it reaches for off
 one they are asked for; every other tool belongs behind the switch of the room
 that installs it, and a skill derivation takes `or null` because a folder of
 instructions is not worth an eval failure. `standalone-modules` builds every
-export again with snug's overlay alone and diffs that table against the
+export again with snug's overlay alone (plus pounce's for `launcher`, whose
+activation switches its own room on) and diffs that table against the
 six-overlay one, so a tool pulled in outside a room's switch stops there rather
 than in someone else's flake.
 

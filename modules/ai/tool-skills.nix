@@ -140,6 +140,14 @@ let
   # never asked for. Short-circuiting leaves each attribute untouched until
   # this machine actually wants the skill. The SET is identical either way;
   # only what gets forced moves.
+  #
+  # Belt AND braces, deliberately, and each half is worth keeping on its own:
+  # modules/ai hands these in behind `if pkgs ? <tool>`, so a missing overlay
+  # is already a null rather than a throw by the time it arrives here. That
+  # covers the CONSUMER; this order covers the machine, by not reaching for a
+  # room's tool at all while the room is off. Deleting either one leaves
+  # something working and the reason for the other half unstated, which is how
+  # the second one gets deleted too.
   active = lib.filter (t: (t.enable or true) && t.drv != null) toolSkills;
 
   # Flattened to one entry per skill, so the fan-out in the room is a plain

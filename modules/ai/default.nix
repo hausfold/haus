@@ -222,11 +222,13 @@ let
   # each path was verified against.
   agentHomes = import ./agents/homes.nix;
 
-  # haus-owned preamble for each client's instructions file. It ships
-  # `scruff` (core) on PATH to every machine, and agent worktrees live OUTSIDE the
-  # repo tree (~/.cache/claude-worktrees/…), so a worktree agent's instructions
-  # walk never reaches the project/workshop AGENTS.md — only THIS file + the
-  # repo's own checked-out one are guaranteed read. So the general `scruff`
+  # haus-owned preamble for each client's instructions file. This room puts
+  # `scruff` on PATH when it is on (`environment.systemPackages` below, `mkIf
+  # cfg.enable` — the payload core used to host, and stopped: see
+  # modules/core's note beside its own list), and agent worktrees live OUTSIDE
+  # the repo tree (`~/.cache/scruff/<repo>/<name>`), so a worktree agent's
+  # instructions walk never reaches the project/workshop AGENTS.md — only THIS
+  # file + the repo's own checked-out one are guaranteed read. So the general `scruff`
   # etiquette every agent needs travels HERE, WITH the tool — not just in the
   # workshop repo end users don't have. Prepended to the host's own
   # `haus.ai.instructions`.
@@ -528,7 +530,10 @@ let
   # missing`, naming a derivation rather than an input.
   #
   # The fallback is keyed on the TOOL rather than spelled `pkgs.<tool>-skill or
-  # null`, and the difference is which failure stays loud. An overlay that
+  # null`, and the difference is which failure stays loud. `pkgs ? pounce-app`
+  # rather than `pkgs ? pounce` for a reason that is nixpkgs': `pounce` there
+  # is an IRC bouncer, so the short spelling would answer yes on a machine
+  # that has no pounce overlay at all and throw on the skill anyway. An overlay that
   # isn't there at all is the consumer's shape above, and it goes quiet. An
   # overlay that IS there and no longer exports its skill is a rot this room
   # would otherwise swallow — `.#tool-skills` builds those derivations from
