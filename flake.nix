@@ -485,6 +485,16 @@
       # Import the whole house, or one self-contained implementation partial.
       # Named exports carry the declaration + shared-data foundation above;
       # they do not activate any other room implementation.
+      #
+      # What `activation` switches on is the room's own `enable` and nothing
+      # else — in particular no key. `haus.keys.*` is a shared surface a DESKTOP
+      # sets, and a standalone import selects no desktop, so `windows` here
+      # hands a consumer a tiler that tiles with `[mode.main.binding]` and
+      # `[mode.service.binding]` empty until their own host sets `windowNav` and
+      # `leader`; the `launcher` export and `haus.keys.palette` are the same
+      # shape. That is deliberate, `standaloneWindowsKeys` below pins it on the
+      # export itself, and hausfold.co's rooms/keys page is where a consumer
+      # reads the defaults.
       darwinModules = {
         core = standaloneModule { implementation = ./modules/core; };
         terminal = standaloneModule {
@@ -3411,6 +3421,15 @@
           # what `curl … | bash` installs now, so a room that defaults itself on
           # breaks the install page's first sentence, and this is where it
           # breaks first.
+          #
+          # "No hotkey claimed" is all three key options, `windowNav` with the
+          # other two: it claims ⌥ chords with no leader anywhere near it, so a
+          # default that drifted there is a claim nothing here would REFUSE —
+          # `site-data-current` would only ask you to re-commit the new default.
+          # It stops at the foundation, though: this row is
+          # `mkHaus { desktop = null; }`, where the tiler is OFF, so a key
+          # claimed from inside an enabled windows room would sail past it.
+          # `standaloneWindowsKeys` below is that second half.
           foundationConfig = desktopRows.no-desktop;
           foundationSelections =
             builtins.filter
@@ -3434,6 +3453,7 @@
                   wallpaper = foundationConfig.haus.wallpaper.style != "none";
                   windows = foundationConfig.haus.windows.enable;
                   leader = foundationConfig.haus.keys.leader != "none";
+                  windowNav = foundationConfig.haus.keys.windowNav != "none";
                   palette = foundationConfig.haus.keys.palette != "none";
                 }
                 .${name}
@@ -3452,6 +3472,7 @@
                 "wallpaper"
                 "windows"
                 "leader"
+                "windowNav"
                 "palette"
               ];
 
@@ -3708,6 +3729,41 @@
           # evaluating exactly that way — the bare foundation plus one room,
           # with none of hacker's opinions and nothing to select.
           desktopStandalone = desktopSelection (standaloneSystem [ self.darwinModules.bar ]).config;
+
+          # The same entry point, asked the question `foundationSelections`
+          # cannot. That row is `mkHaus { desktop = null; }`, where the tiler is
+          # OFF; this one is the export a consumer actually imports, with
+          # `haus.windows.enable` on by its own `activation`. Both have to be
+          # silent, and only this one would notice a key claimed from INSIDE an
+          # enabled windows room.
+          #
+          # What it pins is a consumer-visible shape, not an internal one: take
+          # `darwinModules.windows` into your own flake and you get a tiler that
+          # tiles with `[mode.main.binding]` and `[mode.service.binding]` empty,
+          # because `wm-bindings.nix` renders both off `keys.windowNav` and the
+          # mode entries off `keys.leader`. hausfold.co's internals/flakes page
+          # tells a consumer to expect exactly that, so the two move together or
+          # the page is wrong — the same deal `standaloneRoomOverlays` strikes
+          # with the overlay list above.
+          standaloneWindowsKeys =
+            let
+              k = (standaloneSystem [ self.darwinModules.windows ]).config.haus.keys;
+            in
+            builtins.filter
+              (
+                name:
+                {
+                  leader = k.leader != "none";
+                  windowNav = k.windowNav != "none";
+                  palette = k.palette != "none";
+                }
+                .${name}
+              )
+              [
+                "leader"
+                "windowNav"
+                "palette"
+              ];
 
           # Two desktops. Not a type error and not a conflict — both files are
           # valid, and the module system would happily merge them — so the
@@ -5754,6 +5810,9 @@
               exit 1''}
             ${nixpkgs.lib.optionalString (foundationSelections != [ ]) ''
               echo 'The foundation (desktop = null) selected optional rooms or claims: ${builtins.concatStringsSep ", " foundationSelections}' >&2
+              exit 1''}
+            ${nixpkgs.lib.optionalString (standaloneWindowsKeys != [ ]) ''
+              echo 'The windows export claimed a key with no desktop to claim it: ${builtins.concatStringsSep ", " standaloneWindowsKeys}' >&2
               exit 1''}
             touch $out
           '';
