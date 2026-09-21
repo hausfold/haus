@@ -69,14 +69,10 @@ let
   # lists that are SET become keys — Claude Code keeps its own defaults for a
   # section the file does not name — and each one gets the `"$defaults"`
   # marker in front while keepDefaults is on, unless the list already carries
-  # it somewhere, which is how a rule is placed ahead of the built-ins. All
-  # four empty renders nothing, and `writeAutoMode` is then false, so the jq
-  # program below does not even name the key: `ai.instructions`'s rule, a
-  # block Claude Code (or `claude auto-mode`) wrote itself is never clobbered
-  # just because haus has no opinion. An empty list is "haus does not name
-  # this section", not "write an empty one" — there is no way to spell an
-  # explicitly empty override here, and that is the right default when the
-  # section it would empty is a list of refusals.
+  # it somewhere, which is how a rule is placed ahead of the built-ins. An
+  # empty list is "haus does not name this section", not "write an empty one":
+  # there is no way to spell an explicitly empty override here, and that is
+  # the right default when the section it would empty is a list of refusals.
   #
   # Not gated on `claude` being in `ai.clients`, for the same reason nothing
   # else in this program is: the file is written whenever the room is on,
@@ -85,20 +81,17 @@ let
   # of both — the hooks and the statusline arrive, and the one thing that
   # stops that client asking about ordinary work does not.
   #
-  # Merged PER SECTION rather than assigned: `.autoMode` is one object with
-  # four independent lists in it, and `claude auto-mode` writes to the same
-  # object. Setting it whole would mean a host that names only `allow`
-  # deleting an `environment` and a `hard_deny` the user wrote with the CLI —
-  # taking a refusal away as a side effect of adding a permission, silently.
-  # So haus owns the sections it NAMES and leaves the rest of the object
-  # alone. A section haus stops naming keeps whatever it last wrote, the same
-  # way `ai.instructions` going empty leaves the file it wrote in place.
+  # The merge itself is ./claude-settings.jq, with the per-section ownership
+  # rule and the reason a section is DELETED when the host stops naming it
+  # written out beside the code that does it. What this end owes that program
+  # is two files:
   #
-  # The `if type == "object"` guard is about the ABORT, not the merge: `+`
-  # against a string or null is a jq error, `&& mv` then leaves settings.json
-  # untouched and the activation dies — and a dead activation step means the
-  # whole rebuild stops before /run/current-system moves. A malformed
-  # `.autoMode` costs its own contents, never the generation.
+  #   autoModeFile          the sections declared now, `{}` when none are
+  #   autoModeSectionNames  their names, which the activation leaves in
+  #                         ~/.local/state/haus/claude-auto-mode-sections as
+  #                         the record of what haus wrote — the one thing that
+  #                         tells the next rebuild "haus has no opinion about
+  #                         this section" from "haus has never had one"
   #
   # A store file and `--slurpfile`, not an `--argjson` argument: the
   # environment alone runs to several KB of prose full of quotes and dollar
@@ -113,12 +106,10 @@ let
   };
   autoModeWithDefaults =
     l: if autoModeCfg.keepDefaults && !(lib.elem "$defaults" l) then [ "$defaults" ] ++ l else l;
-  writeAutoMode = autoModeSections != { };
   autoModeFile = pkgs.writeText "claude-auto-mode.json" (
     builtins.toJSON (lib.mapAttrs (_: autoModeWithDefaults) autoModeSections)
   );
-  autoModeJqArgs = lib.optionalString writeAutoMode "--slurpfile auto ${autoModeFile}";
-  autoModeJq = lib.optionalString writeAutoMode " | .autoMode = ((.autoMode | if type == \\\"object\\\" then . else {} end) + \\$auto[0])";
+  autoModeSectionNames = builtins.toJSON (builtins.attrNames autoModeSections);
 
   fontsCfg = config.haus.fonts; # terminal font family/size (core installs the package)
 
@@ -2775,15 +2766,20 @@ in
       # trill installed, daemon down, garbage payload — so wiring it on a
       # machine without trill is a silent no-op, never a broken session.
       # `.autoMode` is the classifier's picture of this machine
-      # (`haus.ai.autoMode.*`), and it is SET whole, like the worktree events:
-      # while the option names anything, the block is haus's, and a rebuild
-      # puts back what `claude auto-mode reset` or a hand edit changed. With
-      # the option empty the key is not in the program at all — see
-      # `writeAutoMode` at the top of this file — so a block Claude Code wrote
-      # itself is not touched. The prose arrives through `--slurpfile` from a
-      # store file rather than inline, because it is KB of quotes and dollar
-      # signs and the escaping stack here has bitten once already (the pi
-      # block below).
+      # (`haus.ai.autoMode.*`), and it is owned per SECTION: while the option
+      # names one, that section is haus's, and a rebuild puts back what
+      # `claude auto-mode reset` or a hand edit changed. Stop naming it and
+      # the next rebuild REMOVES it — which is why this block hands jq a
+      # second file, the names haus wrote last time, kept in
+      # ~/.local/state/haus/claude-auto-mode-sections. Without that record an
+      # undeclared section and a section haus never touched are the same
+      # thing from inside the program, and the safe reading left an `allow`
+      # rule lifting refusals for a config that had stopped asking. A block
+      # Claude Code wrote itself is still never touched. Both files arrive
+      # through `--slurpfile` rather than inline, because the prose is KB of
+      # quotes and dollar signs and the escaping stack here has bitten once
+      # already (the pi block below) — which is also why the program itself is
+      # ./claude-settings.jq now and not a quoted argument.
       #
       # Claude Code settings/hooks/statusline are agent tooling; a machine that
       # runs no agents should not have its ~/.claude/settings.json rewritten.
@@ -2791,29 +2787,46 @@ in
         lib.hm.dag.entryAfter [ "writeBoundary" ] ''
           run sh -c '
             settings="$0"
+            state="$1"
+            sections="$2"
             mkdir -p "''${settings%/*}"
             tmp="$settings.hm-seed"
             if [ -s "$settings" ]; then base="$settings"; else base="$tmp.base"; printf "{}" > "$base"; fi
-            ${pkgs.jq}/bin/jq ${autoModeJqArgs} ".hooks.WorktreeCreate = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook create\"}]}]
-              | .hooks.WorktreeRemove = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook remove\"}]}]
-              | .hooks.PreToolUse = (((.hooks.PreToolUse // []) | map(select([.hooks[]?.command] | any(. == \"/run/current-system/sw/bin/agent-desktop-guard\" or . == \"/run/current-system/sw/bin/agent-desktop-ask\") | not))) + [{matcher: \"Bash|mcp__computer-use__.*\", hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/agent-desktop-guard\"}]}])
-              | .hooks.Notification = (((.hooks.Notification // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
-              | .hooks.Stop = (((.hooks.Stop // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
-              | .hooks.UserPromptSubmit = (((.hooks.UserPromptSubmit // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
-              | .hooks.PostToolUse = (((.hooks.PostToolUse // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
-              | .permissions.defaultMode = \"auto\"
-              | .tui = \"fullscreen\"
-              | .disableAgentView = true
-              | .spinnerTipsEnabled = false
-              | .statusLine = {type: \"command\", command: \"/run/current-system/sw/bin/claude-statusline\", refreshInterval: 12}
-              | .footerLinksRegexes = [{type: \"regex\", pattern: \"(?<owner>[A-Za-z0-9_.-]+)/(?<repo>[A-Za-z0-9_.-]+)#(?<pr>[0-9]+)\", url: \"https://github.com/{owner}/{repo}/pull/{pr}\", label: \"{repo}#{pr}\"}]${autoModeJq}" \
-              "$base" > "$tmp" && mv "$tmp" "$settings"
+            # The record of what haus wrote LAST time, seeded the same way the
+            # base file is. Missing is the ordinary case on a machine that has
+            # never named a section, and jq refuses a --slurpfile that is not
+            # there, so an empty list stands in rather than a missing argument.
+            #
+            # Checked before it is used, and that is not belt and braces: a
+            # --slurpfile jq cannot PARSE fails the whole run, which would leave
+            # the hooks and the statusline unmerged too, on every rebuild, until
+            # somebody deleted a file nothing has ever told them about. A
+            # truncated record costs what it knows, never the merge.
+            if [ -s "$state" ] && ${pkgs.jq}/bin/jq -e "type == \"array\"" "$state" > /dev/null 2>&1; then
+              wrote="$state"
+            else
+              wrote="$tmp.wrote"; printf "[]" > "$wrote"
+            fi
+            merged=
+            ${pkgs.jq}/bin/jq --slurpfile auto ${autoModeFile} --slurpfile prev "$wrote" \
+              -f ${./claude-settings.jq} "$base" > "$tmp" && mv "$tmp" "$settings" && merged=yes
+            # Only after the merge landed, or haus would claim a section it
+            # never managed to write and delete it on the next rebuild. The
+            # guard keeps the file off a machine that has never had one: the
+            # list going empty still writes "[]" once, so the rebuild after a
+            # reset knows there is nothing left to clear.
+            if [ -n "''${merged:-}" ] && { [ "$sections" != "[]" ] || [ -s "$state" ]; }; then
+              mkdir -p "''${state%/*}"
+              printf "%s" "$sections" > "$state"
+            fi
             # Both, not just the base — the reason the piSettings block below
             # spells out: when jq fails the `&& mv` short-circuits, and a
             # half-written "$tmp" would otherwise sit beside the real
             # settings file forever, looking like something Claude should read.
-            rm -f "$tmp" "$tmp.base"
-          ' "$HOME/.claude/settings.json"
+            rm -f "$tmp" "$tmp.base" "$tmp.wrote"
+          ' "$HOME/.claude/settings.json" \
+            "$HOME/.local/state/haus/claude-auto-mode-sections" \
+            ${lib.escapeShellArg autoModeSectionNames}
         ''
       );
 
