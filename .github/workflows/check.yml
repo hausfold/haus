@@ -564,9 +564,20 @@ jobs:
       # off the pole, is not worth the line.
       #
       # ⚠️ Every figure in this block predates the darwin checks joining this
-      # step, and the BUILD side of it is the half that survives: what they
-      # added is evaluation, not derivations. Re-read it the same way — the
-      # build row, never the step total, which is now mostly eval.
+      # step, and BOTH rows moved. The build row grew by about seventy
+      # derivations — twenty-three checks plus their `expected`/`actual`
+      # goldens, every one of them a local `writeText` or `runCommand` that
+      # nothing substitutes — so "ninety-one" above is nearer a hundred and
+      # sixty, and "the other eighty-nine cost 3.2-5.7s together" has that many
+      # more cheap ones in it. The conclusion is the part that survives, and it
+      # survives for its own reason rather than this one: seventy trivial text
+      # derivations do not turn a serial 25s wallpaper chain into something
+      # max-jobs can split, and the eval that now dominates this step is
+      # single-threaded whatever the knob says.
+      #
+      # Re-take the build row the same way — the timestamps on the
+      # `building '…drv'` lines, never the step total, which is now mostly
+      # evaluation.
       #
       # What would change this: a second derivation as expensive as the
       # wallpaper, which could then run beside it.
@@ -609,12 +620,15 @@ jobs:
       # check flake.nix declares except `brew-bundle-guarded`, and that is the
       # whole of the split — there is no second list to keep.
       #
-      # It was not always: the darwin half of `checks` sat behind
+      # It was not always: twenty-four checks sat behind
       # `optionalAttrs (hasSuffix "-darwin" system)` and fired on a Mac, by
-      # hand, or not at all — twenty-three checks that no push has ever run,
-      # including the three *-reach tables, which enumerate every generated home
-      # file so that ANY new one is a missing row. main merged red on exactly
-      # those at least twice. What moved them here is not a Mac runner: it is
+      # hand, or not at all. Among them the three *-reach tables, which
+      # enumerate every generated home file so that ANY new one is a missing
+      # row — main merged red on exactly those at least twice. Twenty-three
+      # moved up. (One of the twenty-three, `app-store-activation`, had been
+      # running here until it was gated days earlier for reddening this job:
+      # a true report of a real failure, with the wrong cause named.) What
+      # moved them is not a Mac runner: it is
       # that raising a darwin machine and BUILDING one are different acts.
       # `eval` above instantiates a whole darwin system on this same
       # `ubuntu-latest` and always has. So flake.nix now names the two
@@ -892,10 +906,14 @@ jobs:
           # statusline-refresh.sh is linted for a different reason: it runs
           # DETACHED with its output discarded, so a non-zero anywhere in it is
           # completely invisible — the bar just quietly stops updating.
-          # test/haus-settings.sh can only be RUN on macOS — it evaluates a
-          # darwinConfiguration — so this runner can never execute it. Linting is
-          # the only thing CI can do for THAT one, and the alternative is a suite
-          # that nothing at all touches until someone remembers it by hand.
+          # test/haus-settings.sh is linted and not run, and ⚠️ THE REASON
+          # WRITTEN HERE WAS WRONG: "it evaluates a darwinConfiguration, so this
+          # runner can never execute it". Evaluating one is exactly what `eval`
+          # does on this image, and what every check in `checks` does now. So
+          # the blocker is unestablished rather than known — somebody has to
+          # take the lint off and read what actually breaks. Until then linting
+          # is what CI does for it, and the alternative is a suite nothing
+          # touches until someone remembers it by hand.
           # test/haus-plan.sh is linted here and RUN in the `rooms` job: its subject
           # pure parsing over fixture files, so it needs neither Nix nor a Mac.
           #
@@ -1159,9 +1177,10 @@ jobs:
       # making the file haus had just written a Nix syntax error; and a
       # whole-attrset write is `mkForce`, so naming the enclosing set withdrew
       # the five items haus defines while the command printed the new value and
-      # stopped. The end-to-end half is test/haus-settings.sh, which this runner
-      # cannot execute — it evaluates a darwinConfiguration. Needs bash, bats
-      # and jq, no Nix and no Mac.
+      # stopped. The end-to-end half is test/haus-settings.sh, which CI lints
+      # and does not run — for a reason that turned out not to hold; the
+      # shellcheck step's own comment carries it. Needs bash, bats and jq, no
+      # Nix and no Mac.
       - name: haus set's option address
         run: bats test/settings-key.bats
 

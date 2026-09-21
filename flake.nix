@@ -696,8 +696,9 @@
           #
           # So the rule is mechanical now — every package-typed leaf must have a
           # string sibling of the same name + "Name". It reads the same evaluated
-          # option tree the docs are rendered from, so it sees exactly the public
-          # surface, and it's pure lib, so it runs on Linux CI with the rest.
+          # option tree the docs are rendered from, so it sees exactly the
+          # public surface. Pure lib, so it is the cheapest shape a check in
+          # here has — which is a cost, not an admission criterion any more.
           optionsEval = nixpkgs.lib.evalModules {
             specialArgs.lib = nixpkgs.lib;
             modules = import ./modules/options-modules.nix;
@@ -1089,8 +1090,8 @@
           # the measurement and the reasoning; this pins the behaviour, including
           # the two ways it has already been got wrong.
           #
-          # It is pure lib, like `room-registry` and `data-only-surface`, so it
-          # runs on the Linux runner rather than on nobody's CI.
+          # Pure lib, like `room-registry` and `data-only-surface` — it raises
+          # no machine at all, where most of its neighbours raise several.
           namespaceGuard = import ./modules/lib/namespaces.nix {
             lib = nixpkgs.lib;
             inherit registry;
@@ -1645,8 +1646,8 @@
           # what the site snapshots, which is why it is still carried here.
           #
           # It reads the files as TEXT rather than evaluating a configuration,
-          # so it runs on every system (CI's Linux runner included) the way
-          # theme-variants does.
+          # the same shape as theme-variants — and the one that costs this
+          # step nothing.
           barTones = import ./modules/bar/tones.nix;
           barColorsFns = import ./modules/bar/colors-fns.nix { lib = nixpkgs.lib; };
           barColorsFnsExpected = pkgs.writeText "colors-fns.sh" barColorsFns.fixture;
@@ -6473,6 +6474,64 @@
             ${builtins.concatStringsSep "\n" evaluated}
             CATALOGUE
           '';
+
+          # ---- checks-platform-split -------------------------------------------
+          # The census, as a check. What used to live in a bullet list in
+          # `.github/workflows/check.yml` was this repo's only record of which
+          # checks CI runs, it was written by hand, and its own comment recorded
+          # finding it wrong at least seven separate times — every one of those
+          # by running the two evals and diffing, never by reading it. This does
+          # that diff, from inside the suite, on every push.
+          #
+          # ⚠️ It walks the POPULATION, not a list: `attrNames` of each system's
+          # own attrset, so a check added behind the gate is a red check rather
+          # than a line nobody wrote. That is `docs/drift.md` row 33's fix in
+          # the workshop, and row 32 is what it refuses — a check declared on a
+          # platform no runner has.
+          #
+          # The expected set is one name, and growing it is a decision rather
+          # than a typo: a check joins it by needing import-from-derivation, and
+          # nothing else has ever qualified. Argue it out against the account at
+          # the top of `checks` before editing the fixture.
+          #
+          # Only the attribute NAMES are read, so nothing here forces a check's
+          # own value and this cannot recurse into itself.
+          checks-platform-split =
+            let
+              onLinux = builtins.attrNames self.checks.x86_64-linux;
+              onDarwin = builtins.attrNames self.checks.aarch64-darwin;
+              gated = builtins.filter (n: !(builtins.elem n onLinux)) onDarwin;
+              linuxOnly = builtins.filter (n: !(builtins.elem n onDarwin)) onLinux;
+            in
+            pkgs.runCommand "haus-checks-platform-split-ok" { } ''
+              if ! diff -u ${pkgs.writeText "expected" "brew-bundle-guarded\n"} \
+                           ${pkgs.writeText "actual" (builtins.concatStringsSep "\n" gated + "\n")}; then
+                cat >&2 <<'SPLIT'
+
+              The set of checks CI's Linux runner cannot reach has changed.
+
+              A `-` line is a check that used to be darwin-only and now runs
+              everywhere: good news, and nothing to do but take the name out of
+              the fixture above.
+
+              A `+` line is a check that no push will ever run. Before adding it
+              to the fixture, read the account at the top of `checks`: the ONLY
+              reason that has ever held is import-from-derivation — reading a
+              file out of a darwin system that has to be BUILT first. "It
+              evaluates a real system" is not that reason. Raising a darwin
+              machine needs no Mac; `hostSystem` is how every fixture in here
+              does it, and a check that forgot and wrote `inherit system` fails
+              on the runner instead of hiding behind the gate.
+
+              SPLIT
+                exit 1
+              fi
+
+              ${nixpkgs.lib.optionalString (linuxOnly != [ ]) ''
+                echo 'a check exists on Linux and not on darwin, which no gate in this flake can produce: ${builtins.concatStringsSep ", " linuxOnly}' >&2
+                exit 1''}
+              touch $out
+            '';
         }
         # ---- the one check no Linux runner can answer -------------------------
         # Import-from-derivation: the check below `readFile`s a file out of a
