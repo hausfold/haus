@@ -501,7 +501,7 @@
       "_type": "literalExpression",
       "text": "false"
     },
-    "description": "Install roster entries that set `appStoreId` from the Mac App\nStore during activation, skipping any already installed.\n\nOff by default: this reaches the network and acts on your Apple\nID, which shouldn't happen as a side effect of turning on a\nwindow manager. It also can't be complete — `mas` cannot sign in\n(do that once in App Store.app) and cannot make a first-time\nPURCHASE, so a paid app you don't already own is reported and\nskipped rather than installed.\n\nSign in once in App Store.app before you turn this on. A Mac\nthat is signed out is asked for its Apple Account by a sheet on\nSCREEN, which a rebuild cannot fill in, so each fetch waits ten\nminutes, says why, and moves on rather than holding the rebuild.\n\nDeliberately NOT nix-darwin's `homebrew.masApps`: that runs\n`mas install` through `brew bundle` as your user, and since\nmacOS 13 the App Store install path requires root — so it stops\nfor a password prompt that a rebuild has no terminal to show,\nand the rebuild hangs. The activation step this option enables\nis already running as root, so no password is ever asked for.\n",
+    "description": "Install roster entries that set `appStoreId` from the Mac App\nStore during activation, skipping any already installed.\n\nOff by default: this reaches the network and acts on your Apple\nID, which shouldn't happen as a side effect of turning on a\nwindow manager. It also can't be complete — `mas` cannot sign in\n(do that once in App Store.app) and cannot make a first-time\nPURCHASE, so a paid app you don't already own is reported and\nskipped rather than installed.\n\nSign in once in App Store.app before you turn this on. A Mac\nthat is signed out is asked for its Apple Account by a sheet on\nSCREEN, which a rebuild cannot fill in, so each fetch carries a\nclock (`haus.appStore.timeout`): it gives up, says why, and\nmoves on rather than holding the rebuild open.\n\nDeliberately NOT nix-darwin's `homebrew.masApps`: that runs\n`mas install` through `brew bundle` as your user, and since\nmacOS 13 the App Store install path requires root — so it stops\nfor a password prompt that a rebuild has no terminal to show,\nand the rebuild hangs. The activation step this option enables\nis already running as root, so no password is ever asked for.\n",
     "loc": [
       "haus",
       "appStore",
@@ -509,6 +509,27 @@
     ],
     "readOnly": false,
     "type": "boolean"
+  },
+  "haus.appStore.timeout": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "3600"
+    },
+    "description": "How long one App Store fetch may run before activation stops\nwaiting on it, in seconds.\n\nThis is the bound on a question a rebuild cannot answer, not a\nslow-network allowance. `mas` has no way to ask whether this Mac\nis signed in, and a Mac that is signed out meets a fetch with a\n\"Sign in to download from the App Store\" sheet drawn on SCREEN,\nwhich an unattended rebuild can neither fill in nor outlive. A\nclock is the only bound on offer, so it has to sit above the\nlongest fetch you would ever sit through — and it is the same\nclock either way, which is why it is yours to set.\n\nAn hour by default, because it has to clear the biggest thing\nyou might reasonably declare: Xcode is around 15 GB, and a\ndeadline that a normal Xcode download cannot meet is not a\nsafety net, it is a rebuild that gives up every time. Lower it\nif everything you fetch is small and you would rather hear about\na stall sooner.\n\nThe first fetch to run the clock out skips the App Store entries\nafter it for that rebuild, since whatever stopped one is likely\nto stop the next — one deadline per rebuild rather than one per\napp. Fix the cause and rebuild again.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "900"
+    },
+    "loc": [
+      "haus",
+      "appStore",
+      "timeout"
+    ],
+    "readOnly": false,
+    "type": "positive integer, meaning >0"
   },
   "haus.appearance.largePrint": {
     "declarations": [

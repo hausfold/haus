@@ -172,20 +172,32 @@ let
   # core's (it installs it unconditionally); this just drives it.
   appStoreEntries = lib.filter (e: e.app.appStoreId != null) orderedNamedEntries;
 
-  # How long one `mas get` may sit there before activation stops waiting on it.
+  # How long one `mas get` may sit there before activation stops waiting on it:
+  # `haus.appStore.timeout`, in seconds, spelled straight into the call below.
   #
   # Not a slow-network allowance — it is the clock on a question a rebuild cannot
   # answer. A Mac signed OUT of the App Store meets `mas get` with a "Sign in to
   # download from the App Store" sheet, drawn by `storeuid` rather than by mas,
   # and mas 7 waits on it for as long as it is up. There is no sign-in query to
   # gate on first (mas 7 dropped `account`; the verbs are config, get, install,
-  # list, lookup, …), so a clock is the only bound on offer. Without it,
-  # restoring SUDO_UID below would trade today's instant wrong answer for exactly
-  # the wedge this option's own documentation promises it avoids.
+  # list, lookup, …), so a clock is the only bound on offer. Without it, the
+  # SUDO_UID below would trade today's instant wrong answer for exactly the wedge
+  # this option's own documentation promises it avoids.
   #
-  # ⚠️ Ten minutes is quoted in `haus.appStore.install`'s description as well
-  # (../options.nix). Move both or neither.
-  appStoreDeadline = 600;
+  # An option rather than the constant it replaced, because one number has to
+  # bound both ends of what the store holds: ten minutes was a fine wall for a
+  # signed-out Mac and gave up on every Xcode ever declared, at ~15 GB. The
+  # default clears the larger end (../options.nix says why); a machine that
+  # fetches only small things can say less and hear about a stall sooner.
+
+  # The same number as a phrase the failure line can use. Minutes read better
+  # than seconds at the length this actually runs, but `t / 60` is integer
+  # division, so anything under two minutes would announce itself as "0 minutes".
+  appStoreDeadlineSaid =
+    let
+      t = config.haus.appStore.timeout;
+    in
+    if t < 120 then "${toString t} seconds" else "${toString (t / 60)} minutes";
 
   appStoreCmds = lib.concatMapStrings (
     e:
@@ -198,16 +210,14 @@ let
         echo "apps: fetching ${label} (${id}) from the Mac App Store…" >&2
         masStatus=0
         SUDO_UID="$masUid" SUDO_GID="$masGid" \
-          ${pkgs.coreutils}/bin/timeout -k 10 ${toString appStoreDeadline} \
+          ${pkgs.coreutils}/bin/timeout -k 10 ${toString config.haus.appStore.timeout} \
             ${pkgs.mas}/bin/mas get ${id} >&2 || masStatus=$?
         # 124 is the clock; 137 is the same clock with mas needing the KILL that
         # `-k` sends ten seconds later. Both mean "we stopped waiting", and
         # neither has an error of mas's own above it to point at.
         if [ "$masStatus" -eq 124 ] || [ "$masStatus" -eq 137 ]; then
           masBlocked=1
-          echo "apps: gave up on ${label} (${id}) after ${
-            toString (appStoreDeadline / 60)
-          } minutes. Any App Store entry after it is skipped this rebuild. The usual cause is a Mac that is signed out of the App Store: the sheet asking for your Apple Account is drawn on screen, where a rebuild cannot fill it in. Sign in once in App Store.app, then rebuild. A sheet still on screen belongs to the App Store and is safe to dismiss." >&2
+          echo "apps: gave up on ${label} (${id}) after ${appStoreDeadlineSaid}. Any App Store entry after it is skipped this rebuild. Two different things end a fetch this way, and from here they look the same. If this Mac is signed OUT of the App Store, the sheet asking for your Apple Account is drawn on screen, where a rebuild cannot fill it in: sign in once in App Store.app, then rebuild — a sheet still up belongs to the App Store and is safe to dismiss. If you are already signed in, the download simply outran the clock: raise haus.appStore.timeout, or fetch this one in App Store.app where you can watch it." >&2
         elif [ "$masStatus" -ne 0 ]; then
           echo "apps: could NOT install ${label} (${id}); mas exited $masStatus and printed its own reason above. A paid app has to be bought once in App Store.app, because mas cannot make a first-time purchase. Skipping." >&2
         fi
@@ -331,10 +341,12 @@ in
         masInstalled="$(SUDO_UID="$masUid" SUDO_GID="$masGid" \
           ${pkgs.coreutils}/bin/timeout 60 ${pkgs.mas}/bin/mas list 2>/dev/null || true)"
 
-        # Set by the first fetch that runs out its clock. Being signed out is a
-        # state of the MACHINE, not of the app, so every entry after it would
-        # spend the same ten minutes learning the same thing: one wall per
-        # rebuild, not one per app.
+        # Set by the first fetch that runs out its clock. The likeliest reason a
+        # fetch runs a clock this long out is a state of the MACHINE rather than
+        # of the app — a sign-in sheet nobody is there to answer — and every
+        # entry after it would spend another full deadline learning the same
+        # thing. So the first one that stops is the last one tried: one wall per
+        # rebuild, not one per app. `haus rebuild` again once you have fixed it.
         masBlocked=""
         ${appStoreCmds}
       '';

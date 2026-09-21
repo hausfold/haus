@@ -4098,6 +4098,10 @@
                 self.darwinModules.core
                 {
                   haus.appStore.install = true;
+                  # A deadline no default and no constant would produce, so the
+                  # check below can tell a fetch that reads the option from one
+                  # that went back to a hardcoded number.
+                  haus.appStore.timeout = 4242;
                   haus.roster.unarchiver = {
                     name = "The Unarchiver";
                     appStoreId = 425424353;
@@ -5564,6 +5568,24 @@
                   echo "mas call with no SUDO_GID — dies on 'Failed to get sudo gid' under env -i:" >&2
                   echo "  $line" >&2
                   fail=1
+                  ;;
+              esac
+              # The fetch's clock is `haus.appStore.timeout`, and the fixture
+              # above sets a number nothing else would arrive at. A `timeout`
+              # that stopped reading the option still satisfies the test above
+              # it; this is the half that notices. `mas list` is deliberately
+              # not covered — its 60s is a bound on a local query, not on the
+              # download the option is about.
+              case "$line" in
+                *'/bin/mas get'*)
+                  case "$line" in
+                    *'timeout -k 10 4242 '*) ;;
+                    *)
+                      echo "the fetch ignores haus.appStore.timeout (4242 here):" >&2
+                      echo "  $line" >&2
+                      fail=1
+                      ;;
+                  esac
                   ;;
               esac
             done < joined

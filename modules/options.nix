@@ -606,8 +606,9 @@ in
 
           Sign in once in App Store.app before you turn this on. A Mac
           that is signed out is asked for its Apple Account by a sheet on
-          SCREEN, which a rebuild cannot fill in, so each fetch waits ten
-          minutes, says why, and moves on rather than holding the rebuild.
+          SCREEN, which a rebuild cannot fill in, so each fetch carries a
+          clock (`haus.appStore.timeout`): it gives up, says why, and
+          moves on rather than holding the rebuild open.
 
           Deliberately NOT nix-darwin's `homebrew.masApps`: that runs
           `mas install` through `brew bundle` as your user, and since
@@ -615,6 +616,37 @@ in
           for a password prompt that a rebuild has no terminal to show,
           and the rebuild hangs. The activation step this option enables
           is already running as root, so no password is ever asked for.
+        '';
+      };
+
+      timeout = lib.mkOption {
+        type = lib.types.ints.positive;
+        default = 3600;
+        example = 900;
+        description = ''
+          How long one App Store fetch may run before activation stops
+          waiting on it, in seconds.
+
+          This is the bound on a question a rebuild cannot answer, not a
+          slow-network allowance. `mas` has no way to ask whether this Mac
+          is signed in, and a Mac that is signed out meets a fetch with a
+          "Sign in to download from the App Store" sheet drawn on SCREEN,
+          which an unattended rebuild can neither fill in nor outlive. A
+          clock is the only bound on offer, so it has to sit above the
+          longest fetch you would ever sit through — and it is the same
+          clock either way, which is why it is yours to set.
+
+          An hour by default, because it has to clear the biggest thing
+          you might reasonably declare: Xcode is around 15 GB, and a
+          deadline that a normal Xcode download cannot meet is not a
+          safety net, it is a rebuild that gives up every time. Lower it
+          if everything you fetch is small and you would rather hear about
+          a stall sooner.
+
+          The first fetch to run the clock out skips the App Store entries
+          after it for that rebuild, since whatever stopped one is likely
+          to stop the next — one deadline per rebuild rather than one per
+          app. Fix the cause and rebuild again.
         '';
       };
     };
