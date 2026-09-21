@@ -119,6 +119,28 @@ haus.appearance.largePrint = true;
 An ordinary host line, no `flake.nix` edit. It sets defaults too, so any single
 value pinned in the host still wins.
 
+Say what going back costs, because it is not symmetric. `false` returns the
+terminal font, the palette's scale and the normal-contrast colours, and leaves
+three settings standing — the ones haus writes only while the profile is on.
+Putting those back is three more lines:
+
+```nix
+haus.accessibility.increaseContrast = false;
+haus.displays.main.uiScale          = "default";
+system.defaults.dock.tilesize       = 48;   # ui.scale writes this only while scale != 1.0
+```
+
+The first line carries the same Full Disk Access gate as its `true`: on a Mac
+that has since lost the grant it is skipped with a warning, so say two of three
+came back rather than reporting a clean revert.
+
+That is the general shape rather than a largePrint quirk: a leaf haus writes at
+both settings follows the setting down, and a leaf it writes only while a
+profile is on has nothing to fall back to — an option landing on `null` leaves
+the Mac holding whatever it was last told. Offer the revert lines
+whenever you turn a profile off for someone, and say that they land on the
+stock Mac rather than on what they had before.
+
 ## "Switch to light mode"
 
 ```nix

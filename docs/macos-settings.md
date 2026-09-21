@@ -41,8 +41,8 @@ exit 1. With FDA held by the invoking app it writes *and* macOS honours it.
 
 | key | haus option | nix-darwin typed? |
 |---|---|---|
-| `reduceMotion` | `haus.ui.motion` | ✅ |
-| `reduceTransparency` | `haus.ui.transparency` | ✅ |
+| `reduceMotion` | `haus.accessibility.reduceMotion` | ✅ |
+| `reduceTransparency` | `haus.accessibility.reduceTransparency` | ✅ |
 | `increaseContrast` | `haus.accessibility.increaseContrast` | ❌ → `CustomUserPreferences` |
 | `differentiateWithoutColor` | `haus.accessibility.differentiateWithoutColor` | ❌ → `CustomUserPreferences` |
 

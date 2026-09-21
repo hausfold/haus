@@ -44,6 +44,41 @@ in
       };
     })
 
+    # ---- why there is no `mkIf (!cfg.largePrint)` branch ---------------------
+    # Three of the four above outlive the profile, and the line they fall on is
+    # whether haus writes that leaf at BOTH settings. `ui.scale` and
+    # `theme.contrast` are written either way, so `false` re-renders Ghostty's
+    # config, pounce's config.json and the palette and all three come back — and
+    # so does `NSTableViewDefaultSizeMode`, which `ui.scale` also moves and which
+    # is a plain macOS preference, which is why the line is NOT "haus's files
+    # return, macOS's preferences don't". `increaseContrast`, the `displays`
+    # entry and the Dock's `tilesize` are written only while the profile is on:
+    # `false` writes nothing for them, and not writing a key is not the same as
+    # writing the old value back. Measured on a golden guest, 2026-09-20:
+    # `false` returns the terminal to 19 pt and the palette to 1.0, and leaves
+    # `hausax` reading `increaseContrast: true`, the Dock at `tilesize 67` and
+    # the display a step down.
+    #
+    # An off-branch would have to fire on `largePrint = false`, and false is
+    # this option's DEFAULT — so it would fire on every haus machine ever built
+    # and contradict three contracts written down elsewhere in this repo:
+    # `haus.accessibility.*` never picks a value for you (core/options.nix),
+    # `haus.displays` touches nothing until you name a screen
+    # (displays/options.nix), and `dock.tilesize` is deliberately unwritten at
+    # scale 1.0 so a Dock sized by hand survives (core/default.nix). Gating on
+    # "was this written EXPLICITLY false" would dodge that and buy something
+    # worse: two hosts whose RESOLVED config is identical would leave the Mac
+    # in different states, which is the one thing docs/model.md's priority
+    # ladder promises they cannot do.
+    #
+    # The shape that would work is a RECEIPT — haus recording that it applied
+    # the profile, so a later rebuild can tell "turned it off" from "never
+    # asked" and un-write only what it itself wrote. That is the general answer
+    # to the same gap in every room, not a largePrint one, and it is not built.
+    # Until it is, the option's description names the three that stay and the
+    # three lines that put them back, which is the honest version of a feature
+    # that only goes one way.
+
     # ---- reduceMotion: the layer's own animations, plus Apple's --------------
     # The second profile in this room, and the same ladder — every value a
     # `mkDefault`, so a host puts any one of them back by name.

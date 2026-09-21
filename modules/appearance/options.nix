@@ -41,6 +41,58 @@
           the only line here that reaches apps haus has never heard of, because
           it changes what a point means
 
+      Turning it off is not the mirror image, and the arithmetic is worth
+      having straight before you try it. `haus.ui.scale` and
+      `haus.theme.contrast` go back to their own values and everything they
+      render follows: the terminal drops 27 → 19 pt, the command palette returns
+      to 1.0, the normal-contrast colours come back. The other two do not go
+      back at all — they land on `null`, which haus reads as *leave whatever you
+      have alone*. And `ui.scale` leaves one thing behind on the way down: the
+      Dock's icon size, which it writes only while the scale is not 1.0. So two
+      of the four return, and three settings stay on the Mac — Increase Contrast
+      on, the Dock at 67, the display still a step down the ladder.
+
+      That is what `false` means here rather than an oversight. The line the
+      three fall on is whether haus writes that setting at BOTH values of this
+      option: it writes the terminal's size, the palette and Finder's sidebar
+      rows either way, so those follow, and it writes the other three only while
+      the profile is on, so `false` writes nothing for them. Not writing a key
+      is not the same as writing the old value back, and leaving a setting alone
+      is the right answer for a personal one — nothing in the evaluation can
+      tell your Mac apart from one that never asked for large print.
+
+      So say it, in the same host, and one rebuild puts the three back:
+
+        haus.accessibility.increaseContrast = false;
+        haus.displays.main.uiScale          = "default";
+        system.defaults.dock.tilesize       = 48;
+
+      The third line is nix-darwin's own key rather than a haus one because haus
+      has no leaf that says 48 — adding one would snap back every Dock anybody
+      ever sized by hand.
+      (`defaults delete com.apple.dock tilesize && killall Dock` is the same
+      trip by hand, and leaves the key absent rather than pinned at 48.) The
+      first line is FDA-gated exactly as setting it `true` was, so a Mac that has
+      lost the grant since you turned this on gets the other two and a warning.
+
+      Delete them again after the rebuild unless you meant to keep them, because
+      they are ASSERTIONS rather than undos:
+      `system.defaults.dock.tilesize` is a plain host value and outranks the
+      `mkDefault` `haus.ui.scale` writes, so leaving it in means a later
+      `ui.scale = 1.4` moves everything except your Dock — and a named
+      `haus.displays` entry puts that panel under management, driven to its
+      default rung at every activation rather than left alone. Only
+      `increaseContrast = false` is the same kind of statement as the `true` it
+      replaces.
+
+      They also land you on the STOCK Mac rather than on your own old values.
+      What records those is `haus capture` before the rebuild that changes them,
+      with `haus revert-settings` to put the bytes back: it exports
+      `com.apple.dock` by default and the contrast key if you name
+      `com.apple.universalaccess`. The display's scaled resolution is in no
+      preference domain and no snapshot, so if it was on `more-space` that one
+      is yours to name again.
+
       Each of those four says where it stops, and haus.ui.scale is the one to
       read: the shelf and the menu bar's height follow neither lever. One stop
       belongs here, because it is the lever people expect and it does not
@@ -123,6 +175,12 @@
       `haus.accessibility.reduceMotion = false` in your host keeps haus's half
       without the web one. haus's half needs no permission, so it still applies
       on a machine where Apple's FDA-gated flag is skipped.
+
+      That last line is also the way back. Turning this option off re-renders
+      haus's own five and they stop, but Apple's flag is a preference macOS now
+      holds rather than a file haus redraws, so it stays on until you say
+      `haus.accessibility.reduceMotion = false` yourself — the same asymmetry
+      `largePrint` has, one leaf instead of three.
     '';
   };
 }

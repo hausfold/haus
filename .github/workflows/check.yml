@@ -791,7 +791,11 @@ jobs:
       # fourteen. It went stale a third time the same day, from the other
       # direction: `namespace-guard` was written pure-lib, described in its own
       # comment as running on the Linux runner, and declared four lines BELOW
-      # the `optionalAttrs` split, so it ran on nobody's CI. So do not edit the sentence you are standing next to. Print
+      # the `optionalAttrs` split, so it ran on nobody's CI. A fourth time it was
+      # short by `windows-room`, and that one is the plainest of the four: the
+      # check landed correct, guarded and green, and the census line was simply
+      # not written in the same PR — the habit two paragraphs up, missed once.
+      # So do not edit the sentence you are standing next to. Print
       # both lists and diff them:
       #
       #   nix eval --json .#checks.x86_64-linux   --apply builtins.attrNames
@@ -804,7 +808,14 @@ jobs:
       # their new one), desktop-projection (the example host's carved values vs
       # the committed projection — the one thing that can notice the hacker
       # desktop quietly stopping short of what the module defaults used to give),
-      # accent-reach, scale-reach, font-reach, standalone-modules, ai-room,
+      # accent-reach, scale-reach, font-reach, largeprint-return (the one
+      # profile whose OFF state people ask about — which of
+      # `haus.appearance.largePrint`'s four leaves come back, and whether the
+      # three lines its description hands you for the rest still resolve),
+      # windows-room (the bar's and the launcher's rows inside the generated
+      # aerospace.toml, present with those rooms on and absent with them off —
+      # AeroSpace runs a row whose exec path is missing without a word),
+      # standalone-modules, ai-room,
       # app-collections, login-note, desktop-seam, editor-choice,
       # bar-bottom-focus, bar-bottom-groups, bar-third-party-widget,
       # bar-widget-header, bar-widget-intervals, bar-factory-default (the
