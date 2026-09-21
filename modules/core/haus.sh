@@ -3347,8 +3347,16 @@ settings_path() {
   # path into one. `app:/Applications/Foo.app` and `setting:<pane>.<anchor>`
   # hold both, so both are host-file keys, and saying which beats "not
   # writable".
+  #
+  # A bare `/` is NOT enough to earn that sentence, though: `haus set
+  # theme/accent teal` is a typo, and answering it with instructions for
+  # writing a key in a host file sends someone looking for a key that does not
+  # exist. So the host-file wording is for a surviving quote, or for a `/` in
+  # something that also holds a `:` — which is what a palette address looks
+  # like. Every other `/` falls through to the plain refusal below, which
+  # catches it because `/` is in no component's character class.
   case "$path" in
-    *'"'* | */*)
+    *'"'* | *:*/*)
       die "that key holds a '.' or a '/', so it is host-file-only (got '$raw') — \
 'haus set' splits a path on '.'; write it in your host file as \
 haus.<option>.\"<key>\".<leaf> = <value>;" ;;
@@ -3444,8 +3452,10 @@ OPTION_TYPE=""
 settings_option_exists() {
   local host="$1" path="$2" parts result err
   OPTION_TYPE=""
-  # Every component is [A-Za-z0-9_-]+ by now (settings_path), so this is safe to
-  # interpolate into Nix string literals.
+  # Every component is [A-Za-z0-9_:-]+ by now (settings_path) — no quote, no
+  # backslash, no `$` and no backtick — so this is safe to interpolate into a
+  # Nix string literal and into the double-quoted bash string holding it. A `:`
+  # is inert in both.
   parts="$(printf '%s' "${path#haus.}" | tr '.' '\n' | sed 's/.*/"&"/' | tr '\n' ' ')"
   err="$(mktemp)"
   result="$(
@@ -3903,6 +3913,15 @@ settings_drop_backups() {
 # an empty leading field into the next one, which read "fell back to its
 # default" as "gone". Nothing at all when the value is not an attrset, which is
 # the only shape that can carry a key away.
+#
+# The reset list goes ONE LEVEL INSIDE a key the caller named, and has to: a
+# whole-map write is a partial attrset per key as well as over the map, so
+# `haus set launcher.items '{"cmd:copy-text":{"listed":false}}'` takes
+# `cmd:copy-text.hotkey` from `cmd+shift+2` to null while `cmd:copy-text` itself
+# is a key the caller obviously knows about. Excluding every named key hid
+# exactly the loss the paragraph above cites — a keybind that silently stops
+# firing. One level and no deeper: that is where a submodule's leaves are, and
+# a recursive walk would report a diff rather than a sentence.
 settings_force_losses() { # settings_force_losses <before json> <after json> <raw value>
   local before="$1" after="$2" given
   [ -n "$before" ] && [ -n "$after" ] || return 0
@@ -3916,7 +3935,21 @@ settings_force_losses() { # settings_force_losses <before json> <after json> <ra
     | [ $b | keys_unsorted[] | . as $k | select(($given | has($k)) | not) ] as $unnamed
     | [ $unnamed[] | . as $k | select(($a | has($k)) | not) ] as $gone
     | [ $unnamed[] | . as $k | select(($a | has($k)) and ($a[$k] != $b[$k])) ] as $reset
-    | ($gone | join(", ")), ($reset | join(", "))' 2>/dev/null
+    # The leaves under a key the caller DID name, where both sides are attrsets:
+    # a leaf the caller left out of that key and whose value moved anyway.
+    | [ $given
+        | keys_unsorted[]
+        | . as $k
+        | select((($b[$k] | type) == "object") and (($a[$k] | type) == "object"))
+        | ($given[$k] | if type == "object" then . else { } end) as $named
+        | $b[$k]
+        | keys_unsorted[]
+        | . as $leaf
+        | select(($named | has($leaf)) | not)
+        | select($a[$k][$leaf] != $b[$k][$leaf])
+        | "\($k).\($leaf)"
+      ] as $inner
+    | ($gone | join(", ")), (($reset + $inner) | join(", "))' 2>/dev/null
 }
 
 # …and how it reads. Called once per pair in phase 4, after the value is on disk
@@ -4442,8 +4475,9 @@ reset one of them first (haus reset ${clash#haus.})"
     paths+=("$path"); values+=("$2"); types+=("$OPTION_TYPE"); TX_TARGETS+=("$target")
     # What this option holds BEFORE the write, and only for a value that is an
     # attrset — the one shape whose mkForce can carry keys away with it (see
-    # settings_force_losses). One more eval, on the rare pair that needs it,
-    # and the eval cache has just answered for this host anyway.
+    # settings_force_losses). It is a real extra module fixpoint, not a cache
+    # hit: settings_option_exists asked about `options.haus`, and this asks
+    # about `config.haus.<path>`. Paid only by the pair that needs it.
     if printf '%s' "$2" | jq -e 'type == "object"' >/dev/null 2>&1; then
       befores+=("$(settings_eval_json "$host" "$path" 2>/dev/null || true)")
     else

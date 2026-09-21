@@ -298,6 +298,7 @@ test "$("${haus[@]}" get launcher.items.cmd:copy-text.alias)" = "cpy"
 # separator, and settings_file turns the path into a filename — so the refusal
 # has to name the host file rather than say "not writable" about a key that is
 # perfectly legal there.
+before_count="$(find "$tmp/hosts/test/settings" -name '*.nix' | wc -l | tr -d ' ')"
 for bad in 'launcher.items."app:/Applications/Foo.app".listed' \
            'launcher.items.app:/Applications/Foo.app.listed' \
            'launcher.items."setting:com.apple.Appearance-Settings.extension".listed'; do
@@ -306,13 +307,22 @@ for bad in 'launcher.items."app:/Applications/Foo.app".listed' \
     *host-file-only*) ;;
     *) echo "haus set did not send a dotted key to the host file: $out" >&2; exit 1 ;;
   esac
-  # …and nothing landed on disk under any spelling of it.
-  for f in "$tmp/hosts/test/settings/"*Foo.app* "$tmp/hosts/test/settings/"*Appearance-Settings*; do
-    [ -e "$f" ] || continue   # an unmatched glob is the pattern itself, and `set -e`
-    echo "haus set wrote a file for a refused key: $f" >&2
-    exit 1
-  done
 done
+# …and the overlay gained nothing at all. A glob for the refused names would
+# pass whatever happened, since `settings_path` dies before phase 2 and a
+# `/`-bearing name could not land in this directory anyway; counting the whole
+# directory is the assertion that would actually notice a write.
+test "$(find "$tmp/hosts/test/settings" -name '*.nix' | wc -l | tr -d ' ')" = "$before_count"
+
+# A plain `/` is a TYPO, not a key: answering it with instructions for writing a
+# key in a host file sends someone looking for a key that does not exist. The
+# host-file sentence is for a surviving quote or a `/` beside a `:`.
+out="$("${haus[@]}" set theme/accent teal 2>&1 || true)"
+case "$out" in
+  *host-file-only*) echo "haus set gave host-file advice for a typo: $out" >&2; exit 1 ;;
+  *"only haus.* option paths are writable"*) ;;
+  *) echo "haus set refused a typo some other way: $out" >&2; exit 1 ;;
+esac
 
 # The whole-map form still WRITES mkForce — an overlay has to beat the desktop —
 # but it may not do it quietly. Before this, the command printed the new value
@@ -325,6 +335,13 @@ esac
 case "$out" in
   *"haus reset launcher.items"*) ;;
   *) echo "haus set named no way back from a whole-map write: $out" >&2; exit 1 ;;
+esac
+# …and the loss INSIDE the key it was given, which is the half that unbinds ⌘⇧2:
+# the named item's own hotkey goes with the partial attrset, and a report that
+# skipped every named key could not see it.
+case "$out" in
+  *"fell back to their defaults"*"cmd:copy-text.hotkey"*) ;;
+  *) echo "haus set dropped a leaf inside the key it was given: $out" >&2; exit 1 ;;
 esac
 "${haus[@]}" reset launcher.items >/dev/null
 test "$("${haus[@]}" get launcher.items.mode:emoji.hotkey)" = "fn"

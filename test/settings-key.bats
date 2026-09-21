@@ -86,6 +86,20 @@ haus_sh() { # haus_sh <VAR=val…> <snippet>
   done
 }
 
+@test "a plain / is a typo, not a key, and is told so" {
+  # `haus set theme/accent teal` is a misspelling. Answering it with
+  # instructions for writing a key in a host file sends the reader looking for a
+  # key that does not exist, so the host-file sentence is reserved for a
+  # surviving quote or a `/` beside a `:` — the shape of a palette address.
+  local p
+  for p in 'theme/accent' 'displays.a/b.uiScale'; do
+    haus_sh "settings_path '$p'"
+    [ "$status" -ne 0 ] || fail "accepted '$p' -> $output"
+    [[ "$output" != *"host-file-only"* ]] || fail "host-file advice for a typo: $output"
+    [[ "$output" == *"only haus.* option paths are writable"* ]] || fail "$output"
+  done
+}
+
 @test "the widening did not open the grammar to anything else" {
   # A trailing separator is the one a normalising walk drops by accident: strip
   # the empty last component and `haus.theme.` reads as `haus.theme`.
@@ -164,6 +178,29 @@ haus_sh() { # haus_sh <VAR=val…> <snippet>
   [[ "$output" != *"nothing defines these any more"* ]] || fail "a reset read as gone: $output"
 }
 
+@test "a leaf reset INSIDE the key you named is a loss too" {
+  # The half the first cut of this missed. A whole-map write is a partial
+  # attrset per key as well as over the map, so the item that WAS named loses
+  # the `hotkey` it had — a keybind that silently stops firing — while the key
+  # itself is obviously one the caller knows about. Excluding every named key
+  # hid exactly the defect the fix was for.
+  haus_sh '
+    settings_report_force_losses haus.launcher.items \
+      '"'"'{"cmd:copy-text":{"hotkey":"cmd+shift+2","listed":true},"mode:emoji":{"hotkey":"fn"}}'"'"' \
+      '"'"'{"cmd:copy-text":{"hotkey":null,"listed":false}}'"'"' \
+      '"'"'{"cmd:copy-text":{"listed":false}}'"'"' 2>&1'
+  [[ "$output" == *"cmd:copy-text.hotkey"* ]] || fail "the named key's own leaf went unsaid: $output"
+  [[ "$output" == *"nothing defines these any more"*"mode:emoji"* ]] || fail "$output"
+
+  # One level and no deeper, and only where BOTH sides are attrsets: a
+  # scalar-valued attrsOf (`windows.workspaceMonitors`) has no leaves to walk.
+  haus_sh '
+    settings_report_force_losses haus.windows.workspaceMonitors \
+      '"'"'{"T":"main","9":"secondary"}'"'"' '"'"'{"T":"other"}'"'"' '"'"'{"T":"other"}'"'"' 2>&1'
+  [[ "$output" == *"nothing defines these any more: 9"* ]] || fail "$output"
+  [[ "$output" != *"fell back"* ]] || fail "walked into a scalar: $output"
+}
+
 @test "nothing to say is said with nothing" {
   # A scalar cannot carry a key away, an unchanged map has not, and an option
   # with no previous value has nothing to lose. A warning on any of these would
@@ -174,4 +211,10 @@ haus_sh() { # haus_sh <VAR=val…> <snippet>
   [ -z "$output" ] || fail "warned about a key the caller named: $output"
   haus_sh 'settings_report_force_losses haus.x "" '"'"'{"a":2}'"'"' '"'"'{"a":2}'"'"' 2>&1'
   [ -z "$output" ] || fail "warned with no previous value: $output"
+  # A named key whose leaves all stayed put, and a key that is new on both
+  # sides: the nested walk must find nothing in either.
+  haus_sh '
+    settings_report_force_losses haus.x \
+      '"'"'{"a":{"k":1}}'"'"' '"'"'{"a":{"k":1},"new":{"k":2}}'"'"' '"'"'{"a":{"k":1},"new":{"k":2}}'"'"' 2>&1'
+  [ -z "$output" ] || fail "invented a loss: $output"
 }

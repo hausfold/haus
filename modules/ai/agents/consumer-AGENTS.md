@@ -32,10 +32,12 @@ The `CLAUDE.md` beside it is that pointer and holds no rules of its own.
   commas as well as JSON (`haus set zen.userStyles github,gmail`), and on a
   terminal a path with no value prompts for one instead of taking it.
 - **Address the leaf, not the set it sits in.** A path may go inside an option:
-  `haus set bar.items.aiUsage true`, `haus set displays.internal.uiScale
-  larger-text`. Naming the whole attribute set (`haus set bar.items
-  '{"aiUsage":true}'`) is an `mkForce` over all of it, so every key you didn't
-  name falls back to its default.
+  `haus set bar.items.aiUsage true`, `haus set launcher.items."cmd:copy-text".hotkey
+  null` — a key you invent is taken as given, quoted or bare, unless it holds a
+  `.` or a `/` (`app:/Applications/Foo.app`), which is host-file-only. Naming the
+  whole attribute set (`haus set bar.items '{"aiUsage":true}'`) is an `mkForce`
+  over all of it, so every key you didn't name falls back to its default or
+  disappears; `haus set` names what it dropped before it rebuilds.
 - **Apply with `haus rebuild`.** It builds first and switches only on success, so
   a broken config never reaches the running system.
 - **Undo with `haus rollback`.** Atomic, instant, and it rewinds everything Nix
