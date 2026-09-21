@@ -613,9 +613,8 @@ let
   # assertion in terminal against zellij's config.kdl; there is no kdl now, and
   # nothing here can read another room's generated JSON, so what keeps them
   # honest is that the table and the appHotkeys list sit one screen apart in
-  # this file. The Tips page used to teach these by hand, and spent months
-  # saying ⌘C started an agent; it had been ⌘A since the bind stopped being
-  # Claude-only.
+  # this file. (What hand-typing these cost the Tips page is written where that
+  # page is built, below.)
   # What the AI room contributes to the launcher, through the extension point
   # this room declares (modules/launcher/options.nix). The Terminal cards read the
   # DEVELOPMENT point instead: they describe the terminal's chords, so they must
@@ -1713,9 +1712,9 @@ lib.mkIf config.haus.launcher.enable {
           theme = if followAppearance then nb.darkVariant else nb.variant;
           themeLight = if followAppearance then nb.lightVariant else nb.variant;
           # The palette hotkey, registered in-process by the daemon for a near-instant
-          # open (no shell/client spawn). Which chord — and whether there is one at all
-          # — is haus.keys.palette.
-          # haus.keys.palette; "none" hands the chord back to the OS entirely.
+          # open (no shell/client spawn). Which chord it is, and whether there is one
+          # at all, is haus.keys.palette — "none" hands the chord back to the OS
+          # entirely.
           hotkey = {
             enabled = k.palette != null;
             key = if k.palette != null then k.palette.key else "space";
@@ -2030,8 +2029,8 @@ lib.mkIf config.haus.launcher.enable {
         # The agent worktree loop. `scruff` is shipped BY haus (a flake input on
         # PATH), unlike the family's `bench`, which the old card taught to every
         # install that had never seen the workshop — so these rows are true on any
-        # machine running haus. Off when no agent client is installed, same
-        # gate as the ⌘A card on the Keys page.
+        # machine running haus. Off when no agent client is installed, the same
+        # way the Keys page's ⌘↵ agent card is.
         ++ lib.optionals agentContrib.enable [
           {
             title = "Agent Worktrees";
