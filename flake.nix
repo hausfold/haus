@@ -422,9 +422,12 @@
         registry = import ./modules/options-groups.nix;
       };
 
-      # Linux is in here for the pure-evaluation outputs only (options-json, the
-      # theme-variants check) — that's what lets hausfold.co's Linux CI render the
-      # options reference. Anything needing a darwin system is guarded per-output.
+      # Linux is in here for the pure-evaluation outputs — options-json, which
+      # lets hausfold.co's Linux CI render the options reference, and `checks`,
+      # every one of which but the single IFD one is declared for Linux so this
+      # repo's own CI can run it. *Evaluating* a darwin machine wants no Mac;
+      # only building one does, and the outputs that build are guarded
+      # per-output.
       #
       # Darwin is aarch64 only: nixpkgs 26.11 dropped x86_64-darwin (Apple's own
       # Intel sunset), so instantiating a package set or a darwin system for it now
@@ -591,17 +594,56 @@
       # `desktop-seam`. A collection file is this repo's own now, so "is it
       # data?" is a code-review question rather than a check.
       #
-      # `theme-variants`, `bar-tones` and `bar-marks` run on EVERY system, Linux
-      # included: they're pure lib and pure text, the same property that lets
-      # options-json build on Linux CI — which matters most for the two colour
-      # ones, since the drift they catch is otherwise invisible on any machine
-      # (a widget paints the fallback and the reason goes to sketchybar's log).
-      # `catalogue` and `bar-third-party-widget` stay darwin-only — they
-      # evaluate real systems.
+      # ---- which runner a check can answer on -------------------------------
+      # Almost all of them: every check below is declared for EVERY system in
+      # `allSystems`, Linux included, and exactly one sits behind the
+      # `optionalAttrs (hasSuffix "-darwin" system)` line at the bottom.
+      #
+      # Raising a darwin machine and BUILDING one are different acts. Nix
+      # instantiates an aarch64-darwin derivation from a Linux evaluator
+      # perfectly well — the `eval` job's `nix eval
+      # .#darwinConfigurations.example.system.drvPath` has done it on
+      # `ubuntu-latest` for as long as that job has existed — so a check that
+      # only READS an evaluated darwin config (a drv path, an option value, the
+      # text of a generated file, an assertion message) is pure evaluation, and
+      # the `runCommand` that compares it can be built by whatever `pkgs` is to
+      # hand. That is why `system` and `hostSystem` are two names below: the
+      # first decides the BUILDER, the second the MACHINE, and they are only
+      # the same thing on a Mac.
+      #
+      # The one that cannot: `brew-bundle-guarded`, which `builtins.readFile`s
+      # the BUILT `activate` script out of `darwinConfigurations.example.system`
+      # — an import-from-derivation that wants a darwin builder and can have no
+      # Linux answer. What it guards is the assembly order of a script nothing
+      # produces until it is built, so reading the pieces at eval instead would
+      # be checking a different fact. It stays gated, and it is the one line of
+      # this flake CI cannot reach.
+      #
+      # ⚠️ So a new check does NOT need a reason to run on Linux; it needs one
+      # to be exempt, and the only reason that has ever held is IFD. Put it
+      # above the gate.
       checks = nixpkgs.lib.genAttrs allSystems (
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
+          # The platform of every haus machine raised below, fixed rather than
+          # inherited from the runner: these checks read a DARWIN system on
+          # whichever box is doing the arithmetic. See the account above the
+          # `checks` line — `system` is the builder, `hostSystem` the machine.
+          #
+          # aarch64 because that is the only darwin nixpkgs still instantiates
+          # (`allSystems`' own comment), and because it is what `mkHaus`
+          # defaults to, so these raise the same machine a consumer gets.
+          #
+          # ⚠️ Every `mkHaus` and `darwinSystem` in this block takes
+          # `system = hostSystem`, never `inherit system`. The habit is the
+          # other spelling and it does not fail on a Mac, where the two are
+          # equal — it fails on the runner, with nixpkgs refusing to name a
+          # darwin-only package for `x86_64-linux`. Which is now a red check
+          # inside two minutes instead of a check quietly declared for a
+          # platform no runner has: `largeprint-return` was written the old way
+          # and this is what caught it.
+          hostSystem = "aarch64-darwin";
           # The Apps room's saved collections, read off the option tree rather
           # than a hand list, so a new one is covered the day its switch exists.
           collectionNames = builtins.attrNames optionsEval.options.haus.apps.packs;
@@ -613,7 +655,7 @@
             builtins.unsafeDiscardStringContext
               (mkHaus (
                 {
-                  inherit system;
+                  system = hostSystem;
                   username = "you";
                   hostname = "example";
                 }
@@ -964,13 +1006,12 @@
           # one normal-priority field in a host takes the whole collection with
           # it. No error; you find out on the machine.
           #
-          # This used to be pure lib and ran on Linux CI. It is darwin-only now,
-          # and the check is declared in the darwin block to say so: proving the
-          # switch does the right thing means watching a host override MEET the
-          # collection, which is `mkHaus` below — a whole nix-darwin evaluation,
-          # and one no pure-lib eval can stand in for. Same reason
-          # `desktop-seam`'s behavioural half is darwin-only. Evaluation, not a
-          # build.
+          # This used to be pure lib. It needs a whole nix-darwin evaluation
+          # now — proving the switch does the right thing means watching a host
+          # override MEET the collection, which is `mkHaus` below, and no
+          # pure-lib eval can stand in for that. Evaluation, not a build, which
+          # is why it still runs on CI's Linux runner: `hostSystem` raises the
+          # darwin machine and `pkgs` builds the comparison.
           #
           # The file each switch installs comes from `modules/apps/packs`, the
           # same table the room reads. Deriving it from the option name instead
@@ -987,7 +1028,7 @@
               # can foresee.
               resolved =
                 (mkHaus {
-                  inherit system;
+                  system = hostSystem;
                   username = "you";
                   hostname = "example";
                   extraModules = [
@@ -1295,7 +1336,7 @@
           editorHome =
             mods:
             (mkHaus {
-              inherit system;
+              system = hostSystem;
               username = "you";
               hostname = "example";
               extraModules = mods;
@@ -1918,7 +1959,7 @@
             let
               c =
                 (mkHaus {
-                  inherit system;
+                  system = hostSystem;
                   username = "you";
                   hostname = "example";
                   extraModules = [ { haus.security.firewall = fw; } ];
@@ -2221,7 +2262,7 @@
             let
               cfg =
                 (mkHaus {
-                  inherit system;
+                  system = hostSystem;
                   username = "you";
                   hostname = "example";
                   extraModules = [
@@ -2264,7 +2305,7 @@
               # reads this one.
               hmEditor =
                 (mkHaus {
-                  inherit system;
+                  system = hostSystem;
                   username = "you";
                   hostname = "example";
                   extraModules = [ { haus.theme.accent = accent; } ];
@@ -2441,7 +2482,7 @@
             let
               cfg =
                 (mkHaus {
-                  inherit system;
+                  system = hostSystem;
                   username = "you";
                   hostname = "example";
                   extraModules = [ { haus.ui.scale = scale; } ];
@@ -2626,7 +2667,7 @@
           lpCfg =
             extra:
             (mkHaus {
-              inherit system;
+              system = hostSystem;
               username = "you";
               hostname = "example";
               extraModules = [ extra ];
@@ -2787,7 +2828,7 @@
             let
               cfg =
                 (mkHaus {
-                  inherit system;
+                  system = hostSystem;
                   username = "you";
                   hostname = "example";
                   extraModules = [
@@ -2980,7 +3021,8 @@
             let
               cfg =
                 (mkHaus {
-                  inherit system extraModules;
+                  system = hostSystem;
+                  inherit extraModules;
                   username = "you";
                   hostname = "example";
                 }).config;
@@ -3206,7 +3248,8 @@
             let
               cfg =
                 (mkHaus {
-                  inherit system extraModules;
+                  system = hostSystem;
+                  inherit extraModules;
                   username = "you";
                   hostname = "example";
                 }).config;
@@ -3298,11 +3341,11 @@
               hostname = "example";
             in
             inputs.nix-darwin.lib.darwinSystem {
-              inherit system;
+              system = hostSystem;
               specialArgs = { inherit inputs username hostname; };
               modules = [
                 {
-                  nixpkgs.hostPlatform = system;
+                  nixpkgs.hostPlatform = hostSystem;
                   nixpkgs.config.allowUnfree = true;
                   system.primaryUser = username;
                   system.stateVersion = 7;
@@ -3322,7 +3365,7 @@
                   home-manager.extraSpecialArgs = {
                     inherit username inputs;
                     nebelung = {
-                      themes = nebelung.packages.${system}.default;
+                      themes = nebelung.packages.${hostSystem}.default;
                       palette = nebelung.palette;
                       palettes = nebelung.palettes;
                       ports = nebelung.ports or { };
@@ -3416,14 +3459,14 @@
             "${name} ${
               builtins.unsafeDiscardStringContext
                 (inputs.nix-darwin.lib.darwinSystem {
-                  inherit system;
+                  system = hostSystem;
                   specialArgs = {
                     inherit inputs;
                     username = "you";
                   };
                   modules = [
                     {
-                      nixpkgs.hostPlatform = system;
+                      nixpkgs.hostPlatform = hostSystem;
                       nixpkgs.config.allowUnfree = true;
                       system.primaryUser = "you";
                       system.stateVersion = 7;
@@ -3442,7 +3485,7 @@
                         inherit inputs;
                         username = "you";
                         nebelung = {
-                          themes = nebelung.packages.${system}.default;
+                          themes = nebelung.packages.${hostSystem}.default;
                           palette = nebelung.palette;
                           palettes = nebelung.palettes;
                           ports = nebelung.ports or { };
@@ -3490,7 +3533,7 @@
             args:
             (mkHaus (
               {
-                inherit system;
+                system = hostSystem;
                 username = "you";
                 hostname = "example";
               }
@@ -3785,7 +3828,7 @@
               (
                 lib.splitString "\n"
                   (mkHaus {
-                    inherit system;
+                    system = hostSystem;
                     username = "you";
                     hostname = "example";
                     extraModules = [
@@ -3838,7 +3881,7 @@
             name:
             let
               s = mkHaus {
-                inherit system;
+                system = hostSystem;
                 username = "you";
                 hostname = "example";
                 desktop = desktopFiles.${name};
@@ -4164,7 +4207,7 @@
             let
               opts =
                 (mkHaus {
-                  inherit system;
+                  system = hostSystem;
                   username = "you";
                   hostname = "example";
                 }).options.haus;
@@ -4287,7 +4330,7 @@
             let
               hm =
                 (mkHaus {
-                  inherit system;
+                  system = hostSystem;
                   username = "you";
                   hostname = "example";
                   extraModules = [
@@ -4358,17 +4401,22 @@
               activationsWith =
                 haus:
                 (mkHaus {
-                  inherit system;
+                  system = hostSystem;
                   username = "you";
                   hostname = "example";
                   extraModules = [
                     { inherit haus; }
-                    # One entry's SCRIPT is read below, and a script names store
-                    # paths: the theme's holds hausax, a Swift helper that
-                    # declares itself darwin-only, and nixpkgs refuses to so much
-                    # as name a package for a platform it lists none of — which
-                    # on this repo's Linux runner is every mkHaus fixture.
-                    # Nothing here is built; this only lets the path be spelled.
+                    # Belt and braces, and no longer load-bearing. One entry's
+                    # SCRIPT is read below, and a script names store paths: the
+                    # theme's holds hausax, a Swift helper that declares itself
+                    # darwin-only, and nixpkgs refuses to so much as name a
+                    # package for a platform it lists none of. That used to bite
+                    # on the Linux runner, where the fixture was a LINUX machine;
+                    # `hostSystem` makes it an aarch64-darwin one everywhere, so
+                    # hausax is supported wherever this evaluates. Kept because
+                    # the next darwin-only helper to be added may not be, and
+                    # nothing here is built either way — it only lets a path be
+                    # spelled.
                     { nixpkgs.config.allowUnsupportedSystem = true; }
                   ];
                 }).config.home-manager.users.you.home.activation;
@@ -5452,11 +5500,12 @@
             touch $out
           '';
 
-          # `haus show`'s reading of every desktop fixture. Up here rather than
-          # beside `desktop-seam` because it is pure lib over files: the seam's
-          # half needs a real evaluated machine and is darwin-only, and this half
-          # is the one a publisher's Linux CI runs, so it belongs where CI can
-          # reach it.
+          # `haus show`'s reading of every desktop fixture. Kept apart from
+          # `desktop-seam` because it answers a different question with a much
+          # cheaper tool: this is pure lib over files, where the seam raises
+          # real machines. Both run on every system now, so the split is about
+          # what each one proves and what it costs, not about which runner can
+          # have it.
           desktop-show = pkgs.runCommand "haus-desktop-show-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedDesktopShowTable} \
                     ${pkgs.writeText "actual" (desktopShowTable + "\n")}
@@ -5545,10 +5594,9 @@
           # bootstrap.sh builds these four lines through printf rather than
           # writing them out as text that happens to look the same.
           #
-          # Every system, not darwin: it is grep and diff over two shell scripts,
-          # nothing evaluated and no Mac anywhere in it — and the installer is
-          # the surface whose regressions reach people fastest, so it belongs in
-          # the half CI's Linux runner actually runs.
+          # grep and diff over two shell scripts, nothing evaluated and no Mac
+          # anywhere in it — the cheapest shape a check in here has, on the
+          # surface whose regressions reach people fastest.
           installer-add-parity = pkgs.runCommand "haus-installer-add-parity-ok" { } ''
             boot=${./bootstrap.sh}
             cli=${./modules/core/haus.sh}
@@ -5648,13 +5696,16 @@
             [ "$status" -eq 0 ] || exit 1
             touch $out
           '';
-        }
-        // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-darwin" system) {
-          # ⚠️ DARWIN-ONLY, and not because it touches a Mac: `pkgs.mas` is
-          # `meta.platforms = [ "aarch64-darwin" ]`, so evaluating the activation
-          # text at all throws "Refusing to evaluate package 'mas-7.0.0'" on the
-          # Linux runner. Declared above the split it reddened `nix flake check`
-          # for everyone; the check itself is pure string work.
+          # ⚠️ `pkgs.mas` is `meta.platforms = [ "aarch64-darwin" ]`, so this
+          # one is the check that proves `hostSystem` is doing its job: it
+          # evaluates the activation TEXT, which names mas, and nixpkgs will
+          # not so much as name a package for a platform it lists none of.
+          # The fixture is an aarch64-darwin machine wherever this runs, so
+          # mas is supported and the Linux runner reads the same string a Mac
+          # does. It was darwin-only for the two days the fixture followed the
+          # RUNNER — declared above the split then, it reddened
+          # `nix flake check` for everyone. The check itself is pure string
+          # work and always was.
           # ---- app-store-activation -------------------------------------
           # The two things every mas call in the App Store block has to carry.
           # Both were missing, both failed without failing the rebuild, and
@@ -5768,75 +5819,6 @@
           #
           # Second half: the WARNING has to keep firing, or the guard covering a
           # consumer's own tap rots without anything going red.
-          # ---- brew-bundle-guarded ----------------------------------------------
-          # The structural half of the same story, read off the ACTIVATE SCRIPT
-          # the example host actually builds, because that file is the only
-          # place the ordering is real.
-          #
-          # Two facts, and neither is safe to assume. The bundle is the last
-          # step before home-manager, so everything user-facing haus does is
-          # ordered after a call into a package manager nix does not control;
-          # and the script runs under `set -e`, so upstream's unguarded
-          # invocation ENDS the activation. Together that is a machine which
-          # keeps its launchd agents and loses its whole home directory's worth
-          # of config to one refused cask — measured, not theorised.
-          #
-          # `modules/core` overrides the step to catch it. This refuses a build
-          # where that override stopped taking: an upstream rename of the
-          # activation-script attribute, a `mkForce` lost in a merge, a future
-          # room setting the same text. All three are silent — the rebuild is
-          # green until the day a cask fails.
-          brew-bundle-guarded =
-            let
-              inherit (nixpkgs) lib;
-              activate = builtins.readFile "${self.darwinConfigurations.example.system}/activate";
-              lines = lib.splitString "\n" activate;
-              indexOf =
-                pred:
-                let
-                  hits = builtins.filter (i: pred (builtins.elemAt lines i)) (
-                    lib.range 0 (builtins.length lines - 1)
-                  );
-                in
-                if hits == [ ] then null else builtins.head hits;
-              bundleAt = indexOf (l: lib.hasInfix "brew bundle --file=" l);
-              hmAt = indexOf (l: lib.hasInfix "Activating home-manager configuration" l);
-              bundleLine = if bundleAt == null then "" else builtins.elemAt lines bundleAt;
-              # The guard haus writes: the invocation is the condition of an
-              # `if !`, so its non-zero exit is a branch rather than the end of
-              # the script.
-              guarded = lib.hasPrefix "if ! " (lib.removePrefix "  " bundleLine);
-            in
-            pkgs.runCommand "haus-brew-bundle-guarded-ok" { } ''
-              ${lib.optionalString (bundleAt == null) ''
-                echo 'no `brew bundle --file=` line in the example host\'s activate script — has the Homebrew step moved? Until this parses again the guard is unchecked.' >&2
-                exit 1
-              ''}
-              ${lib.optionalString (hmAt == null) ''
-                echo 'no home-manager activation line in the example host\'s activate script — the ordering this check is about cannot be read.' >&2
-                exit 1
-              ''}
-              ${lib.optionalString (bundleAt != null && hmAt != null && bundleAt > hmAt) ''
-                echo 'the Homebrew step now runs AFTER home-manager. Good news, and this check plus the comments in modules/core/default.nix are now wrong — rewrite both rather than deleting them.' >&2
-                exit 1
-              ''}
-              ${lib.optionalString (!guarded) ''
-                cat >&2 <<'UNGUARDED'
-                `brew bundle` is not inside an `if !` in the built activate script:
-
-                ${bundleLine}
-
-                Unguarded, its non-zero exit ends activation under `set -e` — and
-                home-manager is ordered after it, so one refused cask costs the
-                machine its entire user half. modules/core/default.nix mkForces
-                this step to catch the failure; something has stopped that
-                override from winning.
-                UNGUARDED
-                exit 1
-              ''}
-              touch $out
-            '';
-
           brew-tap-trust =
             let
               inherit (nixpkgs) lib;
@@ -5883,11 +5865,10 @@
           # some. See `thirdPartyWidgetBlocks` in the `let` above for what the
           # golden pins and why a bundled pill can never catch it.
           #
-          # Darwin-only for `catalogue`'s reason, stated at the top of `checks`:
-          # it evaluates a real system. `bar-tones` and `bar-marks` are beside
-          # it in this room and run everywhere because they are pure lib over
-          # pure text; this one extends `darwinConfigurations.example`, so it
-          # goes behind the gate with the rest of that kind.
+          # This one extends `darwinConfigurations.example` where `bar-tones`
+          # and `bar-marks` beside it are pure lib over pure text — a real
+          # machine against a table. Extending one is still evaluation, so it
+          # runs on every system with the rest.
           #
           # Three assertions past the diff, and the SECOND is the one
           # `bar-plugins-executable` exists for one directory over: the script
@@ -6235,7 +6216,7 @@
               machine =
                 scene:
                 (mkHaus {
-                  inherit system;
+                  system = hostSystem;
                   username = "you";
                   hostname = "example";
                   extraModules = [
@@ -6301,7 +6282,7 @@
             let
               cfg =
                 (mkHaus {
-                  inherit system;
+                  system = hostSystem;
                   username = "you";
                   hostname = "example";
                   extraModules = [
@@ -6349,7 +6330,8 @@
                 let
                   cfg =
                     (mkHaus {
-                      inherit system extraModules;
+                      system = hostSystem;
+                      inherit extraModules;
                       username = "you";
                       hostname = "example";
                     }).config;
@@ -6398,7 +6380,7 @@
               mkBottom =
                 items:
                 (mkHaus {
-                  inherit system;
+                  system = hostSystem;
                   username = "you";
                   hostname = "example";
                   extraModules = [
@@ -6491,6 +6473,88 @@
             ${builtins.concatStringsSep "\n" evaluated}
             CATALOGUE
           '';
+        }
+        # ---- the one check no Linux runner can answer -------------------------
+        # Import-from-derivation: the check below `readFile`s a file out of a
+        # BUILT darwin system, so it wants a darwin builder and not merely a
+        # darwin evaluator. Everything above it is declared for every system in
+        # `allSystems` and runs on CI's Linux runner; this is the whole of what
+        # `nix flake check` on a Mac still has that CI does not.
+        #
+        # Do not grow this block. A check joins it only by needing IFD, and the
+        # first question to ask is whether the fact it is after can be read off
+        # the evaluated config instead — for this one it cannot, because the
+        # fact IS the assembly, and nothing assembles that script until it is
+        # built.
+        // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-darwin" system) {
+          # ---- brew-bundle-guarded ----------------------------------------------
+          # The structural half of the same story, read off the ACTIVATE SCRIPT
+          # the example host actually builds, because that file is the only
+          # place the ordering is real.
+          #
+          # Two facts, and neither is safe to assume. The bundle is the last
+          # step before home-manager, so everything user-facing haus does is
+          # ordered after a call into a package manager nix does not control;
+          # and the script runs under `set -e`, so upstream's unguarded
+          # invocation ENDS the activation. Together that is a machine which
+          # keeps its launchd agents and loses its whole home directory's worth
+          # of config to one refused cask — measured, not theorised.
+          #
+          # `modules/core` overrides the step to catch it. This refuses a build
+          # where that override stopped taking: an upstream rename of the
+          # activation-script attribute, a `mkForce` lost in a merge, a future
+          # room setting the same text. All three are silent — the rebuild is
+          # green until the day a cask fails.
+          brew-bundle-guarded =
+            let
+              inherit (nixpkgs) lib;
+              activate = builtins.readFile "${self.darwinConfigurations.example.system}/activate";
+              lines = lib.splitString "\n" activate;
+              indexOf =
+                pred:
+                let
+                  hits = builtins.filter (i: pred (builtins.elemAt lines i)) (
+                    lib.range 0 (builtins.length lines - 1)
+                  );
+                in
+                if hits == [ ] then null else builtins.head hits;
+              bundleAt = indexOf (l: lib.hasInfix "brew bundle --file=" l);
+              hmAt = indexOf (l: lib.hasInfix "Activating home-manager configuration" l);
+              bundleLine = if bundleAt == null then "" else builtins.elemAt lines bundleAt;
+              # The guard haus writes: the invocation is the condition of an
+              # `if !`, so its non-zero exit is a branch rather than the end of
+              # the script.
+              guarded = lib.hasPrefix "if ! " (lib.removePrefix "  " bundleLine);
+            in
+            pkgs.runCommand "haus-brew-bundle-guarded-ok" { } ''
+              ${lib.optionalString (bundleAt == null) ''
+                echo 'no `brew bundle --file=` line in the example host\'s activate script — has the Homebrew step moved? Until this parses again the guard is unchecked.' >&2
+                exit 1
+              ''}
+              ${lib.optionalString (hmAt == null) ''
+                echo 'no home-manager activation line in the example host\'s activate script — the ordering this check is about cannot be read.' >&2
+                exit 1
+              ''}
+              ${lib.optionalString (bundleAt != null && hmAt != null && bundleAt > hmAt) ''
+                echo 'the Homebrew step now runs AFTER home-manager. Good news, and this check plus the comments in modules/core/default.nix are now wrong — rewrite both rather than deleting them.' >&2
+                exit 1
+              ''}
+              ${lib.optionalString (!guarded) ''
+                cat >&2 <<'UNGUARDED'
+                `brew bundle` is not inside an `if !` in the built activate script:
+
+                ${bundleLine}
+
+                Unguarded, its non-zero exit ends activation under `set -e` — and
+                home-manager is ordered after it, so one refused cask costs the
+                machine its entire user half. modules/core/default.nix mkForces
+                this step to catch the failure; something has stopped that
+                override from winning.
+                UNGUARDED
+                exit 1
+              ''}
+              touch $out
+            '';
         }
       );
 
