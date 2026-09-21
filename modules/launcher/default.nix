@@ -1753,6 +1753,18 @@ lib.mkIf config.haus.launcher.enable {
             delay = autoQuit.delay;
           }
           // lib.optionalAttrs (autoQuit.exclude != null) { exclude = autoQuit.exclude; };
+          # The pounce:// door — haus.launcher.urlScheme. A link (a Bases row, a
+          # note, a page) runs the same item keys `pounce run` takes; `confirm`
+          # decides whether one that RUNS something has to be answered on screen
+          # first. Written unconditionally at both defaults, like `scale` and
+          # `themeLight`: a pounce that predates the block ignores it rather than
+          # failing on it, and the keys are inert until the release that has the
+          # door lands. Both are at pounce's own defaults here — this block
+          # exists so the machine can say NO, which nothing else could.
+          urlScheme = {
+            enabled = config.haus.launcher.urlScheme.enable;
+            confirm = config.haus.launcher.urlScheme.confirm;
+          };
           clipboard = {
             enabled = true;
             maxEntries = 200;

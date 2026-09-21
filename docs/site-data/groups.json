@@ -948,7 +948,7 @@
     "launcher": {
       "blurb": "The ⌘Space command palette. Pounce is the app behind it.",
       "kind": "room",
-      "optionCount": 17,
+      "optionCount": 19,
       "options": {
         "haus.launcher.autoQuit.delay": {
           "desktopSafe": true
@@ -994,6 +994,12 @@
           "desktopSafe": true
         },
         "haus.launcher.scale": {
+          "desktopSafe": true
+        },
+        "haus.launcher.urlScheme.confirm": {
+          "desktopSafe": true
+        },
+        "haus.launcher.urlScheme.enable": {
           "desktopSafe": true
         },
         "haus.launcher.windowMode": {
@@ -2016,7 +2022,7 @@
       "namespaces": [
         "launcher"
       ],
-      "optionCount": 17,
+      "optionCount": 19,
       "order": 70,
       "title": "Launcher"
     },
