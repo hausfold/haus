@@ -811,6 +811,43 @@ in
   # whichever the resolver happened to prefer would install silently. Refuse
   # instead — the fix is deleting a line, which is the cheapest kind of error.
   assertions = [
+    # snug is the painter every haus CLI draws through, and it arrives from a
+    # sibling flake's overlay rather than from nixpkgs. `mkHaus` applies that
+    # overlay itself, so a full house never reaches this; a bare
+    # `darwinModules.<room>` import is the consumer's OWN `darwinSystem` call,
+    # and nothing in the exported surface was telling them to carry it.
+    #
+    # An assertion rather than a guard at each `pkgs.snug` site, for a reason
+    # that is nix-darwin's rather than ours: `system.build.toplevel` is wrapped
+    # in `throwAssertions`, so this message is forced BEFORE the systemPackages
+    # list that would otherwise die on `undefined variable 'snug'`, an error
+    # naming neither haus nor the line to add. The foundation spells it in three
+    # rooms and in two shapes (`pkgs.snug`, and a bare `snug` under `with
+    # pkgs;`), and which one a given import trips first is not something any of
+    # them can order.
+    {
+      assertion = pkgs ? snug;
+      message = ''
+        haus: `pkgs.snug` is missing. snug is the painter every haus CLI draws
+        through, and it comes from its own flake's overlay rather than from
+        nixpkgs.
+
+        `mkHaus` applies that overlay for you. A bare `darwinModules.<room>`
+        import does not, so your own `darwinSystem` call has to:
+
+            inputs.snug.url = "github:hausfold/snug";
+            ...
+            nixpkgs.overlays = [ inputs.snug.overlays.default ];
+
+        That one is the whole foundation. Past it, only what you switch ON asks
+        for more: `haus.ai.enable` wants scruff's overlay and factory's,
+        `haus.launcher.enable` pounce's, `haus.notifications.compositor`
+        trill's, `haus.shelf.enable` perch's. Each of those rooms says so
+        itself, with the line to add.
+
+        https://hausfold.co/docs/haus/internals/flakes
+      '';
+    }
     {
       assertion = !(fontsCfg.mono.package != null && fontsCfg.mono.packageName != null);
       message = ''

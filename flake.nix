@@ -158,6 +158,28 @@
       nix-index-database,
     }:
     let
+      # The overlays the sibling flakes contribute, in the order `mkHaus`
+      # applies them. Named once because three callers apply the same six and a
+      # fourth deliberately applies one: a list written out per call site drifts
+      # between the builder and the fixture whose whole job is to be the builder.
+      #
+      # snug's is the only one the FOUNDATION needs. Every haus CLI paints
+      # through `share/ui.sh` out of that derivation and modules/core installs
+      # the binary beside it, so a machine without it has no painter at all. The
+      # other five each follow a ROOM: scruff's and factory's `haus.ai.enable`,
+      # trill's `haus.notifications.compositor`, pounce's `haus.launcher.enable`,
+      # perch's `haus.shelf.enable`. That split is what a consumer taking one
+      # export into their own flake has to act on, and `standalone-modules`
+      # below is what keeps the sentence true.
+      toolOverlays = [
+        pounce.overlays.default
+        perch.overlays.default
+        trill.overlays.default
+        scruff.overlays.default
+        snug.overlays.default
+        factory.overlays.default
+      ];
+
       # The house builder. Point it at a host file and it raises a full system.
       #   mkHaus { username = "ada"; hostname = "lovelace"; host = ./hosts/ada; }
       mkHaus =
@@ -212,14 +234,7 @@
             # x86_64-darwin no matter what callers passed.
             { nixpkgs.hostPlatform = nixpkgs.lib.mkDefault system; }
             {
-              nixpkgs.overlays = [
-                pounce.overlays.default
-                perch.overlays.default
-                trill.overlays.default
-                scruff.overlays.default
-                snug.overlays.default
-                factory.overlays.default
-              ];
+              nixpkgs.overlays = toolOverlays;
             }
             home-manager.darwinModules.home-manager
             {
@@ -3112,8 +3127,8 @@
           # builder and therefore no desktop. A function rather than an inline
           # map because the desktop-seam check below evaluates one of these too,
           # to prove that entry point still needs no desktop selection.
-          standaloneSystem =
-            extraModules:
+          standaloneSystemWith =
+            overlays: extraModules:
             let
               username = "you";
               hostname = "example";
@@ -3129,14 +3144,7 @@
                   system.stateVersion = 7;
                 }
                 {
-                  nixpkgs.overlays = [
-                    pounce.overlays.default
-                    perch.overlays.default
-                    trill.overlays.default
-                    scruff.overlays.default
-                    snug.overlays.default
-                    factory.overlays.default
-                  ];
+                  nixpkgs.overlays = overlays;
                 }
                 home-manager.darwinModules.home-manager
                 {
@@ -3164,10 +3172,61 @@
               ]
               ++ extraModules;
             };
+          standaloneSystem = standaloneSystemWith toolOverlays;
+
+          # The same scaffolding with only snug's overlay: what a consumer who
+          # read the docs page and turned no room on actually types. The five
+          # tool overlays are what `haus.ai.enable`, the notifications room, the
+          # launcher and the shelf need, and a stock standalone import switches
+          # none of them on, so handing them over here would prove nothing about
+          # a flake that doesn't.
+          #
+          # An export whose room brings a tool of its own is the exception, and
+          # it is data here rather than a sixth overlay handed to everybody:
+          # `darwinModules.launcher` activates `haus.launcher.enable`, which is
+          # the switch pounce's app and pounce's skill both follow, so that one
+          # export needs pounce's overlay and the other eight do not. Adding a
+          # line here is adding a line to what a consumer has to type — the
+          # docs page (hausfold.co, internals/flakes) names the same split, and
+          # the two move together or the page is wrong.
+          standaloneRoomOverlays = {
+            launcher = [ pounce.overlays.default ];
+          };
+          standaloneBareSystem =
+            name: standaloneSystemWith ([ snug.overlays.default ] ++ (standaloneRoomOverlays.${name} or [ ]));
           standaloneEvaluated = map (
             name:
             "${name} ${
               builtins.unsafeDiscardStringContext (standaloneSystem [ self.darwinModules.${name} ]).system.drvPath
+            }"
+          ) registeredExports;
+
+          # Every export a THIRD time, through `standaloneBareSystem`. Two
+          # claims, and the check below reads them as one diff against the table
+          # above.
+          #
+          # The first is that these evaluate at all. They did not: modules/ai is
+          # in every export's foundation and its skill list tested each tool
+          # derivation for null BEFORE the room switch that drops it, so a bare
+          # `darwinModules.windows` import forced `pkgs.scruff-skill`,
+          # `factory-skill`, `trill-skill`, `pounce-skill` and `perch-skill` on a
+          # machine that installs none of them, and died on the first with
+          # `attribute 'scruff-skill' missing`. Nothing said which overlay that
+          # was, and the table above could not see it, because a fixture that
+          # hands over all six overlays is a fixture for haus rather than for a
+          # consumer.
+          #
+          # The second is that the five are INERT: identical drv paths, so the
+          # system a consumer gets is the same one either way. That is the half
+          # that rots. A new eager `pkgs.<tool>` anywhere in the foundation
+          # either fails this table outright or moves a drv path, and both say
+          # the same thing — the docs page now names one overlay, and something
+          # in here started needing a second.
+          standaloneBare = map (
+            name:
+            "${name} ${
+              builtins.unsafeDiscardStringContext
+                (standaloneBareSystem name [ self.darwinModules.${name} ]).system.drvPath
             }"
           ) registeredExports;
 
@@ -3208,14 +3267,7 @@
                         name = "you";
                         home = "/Users/you";
                       };
-                      nixpkgs.overlays = [
-                        pounce.overlays.default
-                        perch.overlays.default
-                        trill.overlays.default
-                        scruff.overlays.default
-                        snug.overlays.default
-                        factory.overlays.default
-                      ];
+                      nixpkgs.overlays = toolOverlays;
                     }
                     home-manager.darwinModules.home-manager
                     {
@@ -5660,6 +5712,17 @@
             cat >> $out <<'NOHOSTNAME'
             ${builtins.concatStringsSep "\n" standaloneNoHostname}
             NOHOSTNAME
+            # The third is the consumer's own: every export with snug's overlay
+            # and nothing else. Forcing it is half the claim (these have to
+            # evaluate at all); the diff is the other half (the five tool
+            # overlays change nothing, so the docs page naming one is the whole
+            # truth). A room a consumer switches on brings its own tool, which
+            # is why the diff can hold while `haus.ai.enable` still wants
+            # scruff's overlay and factory's.
+            diff -u ${
+              pkgs.writeText "six-overlays" (builtins.concatStringsSep "\n" standaloneEvaluated + "\n")
+            } \
+                    ${pkgs.writeText "snug-only" (builtins.concatStringsSep "\n" standaloneBare + "\n")}
           '';
 
           desktop-seam = pkgs.runCommand "haus-desktop-seam-ok" { } ''

@@ -1400,6 +1400,32 @@ lib.mkIf config.haus.launcher.enable {
   ];
 
   assertions = [
+    # `darwinModules.launcher` activates this room by definition, so it is the
+    # one export that needs a second overlay before it evaluates at all. Said
+    # here because the error without it names `pounce-app`, this room's pin on
+    # the notarized app: a derivation, where what a consumer has to act on is
+    # an input missing from their own flake.
+    #
+    # No `enable` guard: this whole block sits inside the `mkIf
+    # config.haus.launcher.enable` above, so the assertion only exists on a
+    # machine that asked for the room.
+    {
+      assertion = pkgs ? pounce-app;
+      message = ''
+        haus.launcher.enable is on, and `pkgs.pounce-app` is missing. Pounce
+        comes from its own flake's overlay rather than from nixpkgs.
+
+        `mkHaus` applies it for you. A bare `darwinModules.launcher` import
+        does not, so your own `darwinSystem` call has to:
+
+            nixpkgs.overlays = [
+              inputs.snug.overlays.default
+              inputs.pounce.overlays.default
+            ];
+
+        https://hausfold.co/docs/haus/internals/flakes
+      '';
+    }
     {
       assertion = keyProblems == [ ];
       message = "haus.launcher.items: " + lib.concatStringsSep "; " keyProblems;

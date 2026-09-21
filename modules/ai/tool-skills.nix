@@ -129,7 +129,18 @@ let
 
   # Both the install list and the check below are built from this, so a skill
   # can never be installed from a name the check did not prove.
-  active = lib.filter (t: t.drv != null && (t.enable or true)) toolSkills;
+  #
+  # The gate is tested BEFORE the derivation, and that order is load-bearing
+  # rather than style. `enable` is a plain bool the caller has already worked
+  # out; `drv` is an attribute off someone else's `pkgs`. Testing `drv` first
+  # forced all five tool attributes on every machine, including one with every
+  # one of those rooms switched off — which is what made a bare
+  # `darwinModules.<room>` import demand five overlays for skills it then threw
+  # away, and die on `attribute 'scruff-skill' missing` in a room the consumer
+  # never asked for. Short-circuiting leaves each attribute untouched until
+  # this machine actually wants the skill. The SET is identical either way;
+  # only what gets forced moves.
+  active = lib.filter (t: (t.enable or true) && t.drv != null) toolSkills;
 
   # Flattened to one entry per skill, so the fan-out in the room is a plain
   # product of clients × skills — minus the names the host left out, which

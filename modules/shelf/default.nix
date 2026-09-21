@@ -45,6 +45,35 @@ let
   panes = import ../lib/settings-panes.nix;
 in
 lib.mkIf config.haus.shelf.enable {
+  # Perch comes from its own flake's overlay, and this room is reachable from a
+  # `darwinModules.default` import as well as from the full builder, so the
+  # consumer who has to add that overlay may be someone whose `darwinSystem`
+  # call is their own. Without this the room dies on `attribute 'perch'
+  # missing` inside an activation script, naming a derivation rather than an
+  # input. modules/core carries the same refusal for snug; this is the room's.
+  #
+  # No `enable` guard: the whole body is inside the `mkIf` above, so the
+  # assertion only exists on a machine that asked for the room.
+  assertions = [
+    {
+      assertion = pkgs ? perch;
+      message = ''
+        haus.shelf.enable is on, and `pkgs.perch` is missing. Perch comes
+        from its own flake's overlay rather than from nixpkgs.
+
+        `mkHaus` applies it for you. A `darwinModules` import of your own does
+        not, so your own `darwinSystem` call has to:
+
+            nixpkgs.overlays = [
+              inputs.snug.overlays.default
+              inputs.perch.overlays.default
+            ];
+
+        https://hausfold.co/docs/haus/internals/flakes
+      '';
+    }
+  ];
+
   # The bundle is copied to a fixed /Applications path by this module's
   # activation step (see the header on why the path must be fixed), so
   # `installedBy` is the only honest source field.
