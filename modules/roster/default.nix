@@ -171,6 +171,22 @@ let
   # App Store entries, as "<id> <name>" pairs for the activation loop. `mas` is
   # core's (it installs it unconditionally); this just drives it.
   appStoreEntries = lib.filter (e: e.app.appStoreId != null) orderedNamedEntries;
+
+  # How long one `mas get` may sit there before activation stops waiting on it.
+  #
+  # Not a slow-network allowance — it is the clock on a question a rebuild cannot
+  # answer. A Mac signed OUT of the App Store meets `mas get` with a "Sign in to
+  # download from the App Store" sheet, drawn by `storeuid` rather than by mas,
+  # and mas 7 waits on it for as long as it is up. There is no sign-in query to
+  # gate on first (mas 7 dropped `account`; the verbs are config, get, install,
+  # list, lookup, …), so a clock is the only bound on offer. Without it,
+  # restoring SUDO_UID below would trade today's instant wrong answer for exactly
+  # the wedge this option's own documentation promises it avoids.
+  #
+  # ⚠️ Ten minutes is quoted in `haus.appStore.install`'s description as well
+  # (../options.nix). Move both or neither.
+  appStoreDeadline = 600;
+
   appStoreCmds = lib.concatMapStrings (
     e:
     let
@@ -178,10 +194,23 @@ let
       label = if e.app.name != null then e.app.name else e.id;
     in
     ''
-      if ! ${pkgs.mas}/bin/mas list 2>/dev/null | /usr/bin/grep -qE "^ *${id} "; then
+      if [ -z "$masBlocked" ] && ! printf '%s\n' "$masInstalled" | /usr/bin/grep -qE "^ *${id} "; then
         echo "apps: fetching ${label} (${id}) from the Mac App Store…" >&2
-        ${pkgs.mas}/bin/mas get ${id} >&2 || \
-          echo "apps: could NOT install ${label} (${id}). If it is a paid app, buy it once in App Store.app (mas cannot purchase); if you are signed out, sign in there too. Skipping." >&2
+        masStatus=0
+        SUDO_UID="$masUid" SUDO_GID="$masGid" \
+          ${pkgs.coreutils}/bin/timeout -k 10 ${toString appStoreDeadline} \
+            ${pkgs.mas}/bin/mas get ${id} >&2 || masStatus=$?
+        # 124 is the clock; 137 is the same clock with mas needing the KILL that
+        # `-k` sends ten seconds later. Both mean "we stopped waiting", and
+        # neither has an error of mas's own above it to point at.
+        if [ "$masStatus" -eq 124 ] || [ "$masStatus" -eq 137 ]; then
+          masBlocked=1
+          echo "apps: gave up on ${label} (${id}) after ${
+            toString (appStoreDeadline / 60)
+          } minutes. Any App Store entry after it is skipped this rebuild. The usual cause is a Mac that is signed out of the App Store: the sheet asking for your Apple Account is drawn on screen, where a rebuild cannot fill it in. Sign in once in App Store.app, then rebuild. A sheet still on screen belongs to the App Store and is safe to dismiss." >&2
+        elif [ "$masStatus" -ne 0 ]; then
+          echo "apps: could NOT install ${label} (${id}); mas exited $masStatus and printed its own reason above. A paid app has to be bought once in App Store.app, because mas cannot make a first-time purchase. Skipping." >&2
+        fi
       fi
     ''
   ) appStoreEntries;
@@ -260,13 +289,53 @@ in
   # Deliberately not `homebrew.masApps`: that path runs `mas install` under
   # `brew bundle` as the invoking user, and since macOS 13 App Store installs
   # require root, so mas stops for a password prompt with no terminal to draw it
-  # in and the rebuild hangs. postActivation is ALREADY root, so `mas get`
-  # neither prompts nor wedges. Failures are reported and stepped over — an app
-  # you haven't bought must not be able to fail a rebuild.
+  # in and the rebuild hangs. postActivation is ALREADY root, so no password is
+  # ever asked for here.
+  #
+  # Root was only half the answer, and the other half is the block below. Being
+  # root is precisely what makes mas demand SUDO_UID/SUDO_GID, which `env -i`
+  # does not carry; and a Mac signed out of the App Store is asked for its Apple
+  # Account on SCREEN rather than on the terminal, so the wedge `masApps` gets
+  # from a password prompt this path gets from a sign-in sheet unless the call
+  # carries a clock. Failures are reported and stepped over: an app you have not
+  # bought, or a Mac you have not signed in, must not be able to fail a rebuild.
   system.activationScripts.postActivation.text =
     lib.optionalString (config.haus.appStore.install && appStoreEntries != [ ])
       ''
         # --- apps: Mac App Store (haus.appStore.install) --------------------
+        # mas 7 does its work as the user named by SUDO_UID/SUDO_GID whenever its
+        # own euid is root, and throws rather than guessing when they are missing
+        # (`runAsSudoEffectiveUserAndSudoEffectiveGroupIfRootEffectiveUser`,
+        # Sources/mas/Utilities/Processes/ProcessInfo.swift — it wraps every
+        # command, not only the installing ones). nix-darwin's
+        # /run/current-system/activate runs under `env -i`, so nothing survives
+        # from the sudo that elevated the rebuild and every call here died on
+        # "Error: Failed to get sudo uid" before it reached the App Store at all,
+        # on a signed-IN Mac exactly as on a signed-out one. Root is who may
+        # install; the Apple Account is the user's, so the ids that go back are
+        # ${username}'s. Set per call rather than exported, because the rest of
+        # postActivation is not ours to change the environment of.
+        masUid="$(/usr/bin/id -u -- ${username})"
+        masGid="$(/usr/bin/id -g -- ${username})"
+
+        # One list for the whole roster, CAPTURED rather than piped per entry.
+        # Two reasons, and the ids are the first: mas wraps EVERY command in the
+        # same sudo-identity call, so without them this printed nothing, exited
+        # non-zero and — behind its own `2>/dev/null` — read as "nothing
+        # installed", which is how an app already on the Mac was re-fetched on
+        # every rebuild. The second is the pipe it replaces: nixpkgs' `mas` is a
+        # wrapper whose `list` arm ends `| column`, so a `grep -q` that matches
+        # and exits early SIGPIPEs it, and the activate script runs with
+        # `pipefail`. `|| true` because an empty list is the safe wrong answer —
+        # it costs a redundant fetch, never a silent skip.
+        masInstalled="$(SUDO_UID="$masUid" SUDO_GID="$masGid" \
+          ${pkgs.coreutils}/bin/timeout 60 ${pkgs.mas}/bin/mas list 2>/dev/null || true)"
+
+        # Set by the first fetch that runs out its clock. Being signed out is a
+        # state of the MACHINE, not of the app, so every entry after it would
+        # spend the same ten minutes learning the same thing: one wall per
+        # rebuild, not one per app.
+        masBlocked=""
         ${appStoreCmds}
       '';
 }

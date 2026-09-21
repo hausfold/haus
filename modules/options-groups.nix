@@ -869,7 +869,7 @@ let
     };
     appStore = {
       order = 22;
-      blurb = "Whether a rebuild may install the roster's `appStoreId` entries. Off by default: it reaches the network and acts on your Apple Account, and it can never be complete — `mas` cannot sign in, and cannot buy a paid app.";
+      blurb = "Whether a rebuild may install the roster's `appStoreId` entries. Off by default: it reaches the network and acts on your Apple Account, and it can never be complete — `mas` cannot sign in, and cannot buy a paid app. Sign in once in App Store.app first, or every fetch waits on a sign-in sheet a rebuild cannot answer.";
     };
     apps = {
       order = 23;

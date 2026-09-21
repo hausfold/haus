@@ -604,12 +604,17 @@ in
           PURCHASE, so a paid app you don't already own is reported and
           skipped rather than installed.
 
+          Sign in once in App Store.app before you turn this on. A Mac
+          that is signed out is asked for its Apple Account by a sheet on
+          SCREEN, which a rebuild cannot fill in, so each fetch waits ten
+          minutes, says why, and moves on rather than holding the rebuild.
+
           Deliberately NOT nix-darwin's `homebrew.masApps`: that runs
           `mas install` through `brew bundle` as your user, and since
           macOS 13 the App Store install path requires root — so it stops
           for a password prompt that a rebuild has no terminal to show,
           and the rebuild hangs. The activation step this option enables
-          is already running as root, so it neither prompts nor wedges.
+          is already running as root, so no password is ever asked for.
         '';
       };
     };
