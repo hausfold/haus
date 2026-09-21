@@ -32,6 +32,12 @@ jobs:
   # 34686000184: nix eval 6s, nix flake check 1s, host template 7s, haus show
   # 6s, haus add 36s.
   #
+  # ⚠️ Every `nix flake check` figure in this banner — the 1s here, the 57s
+  # and 67s cold below — is from before the darwin checks joined that step.
+  # It runs 193s now, 186s of it evaluation, and it is the gate's pole; the
+  # account sits above the `nix flake check` line in the `checks` job. The
+  # `nix eval` figures beside them are untouched: that job did not change.
+  #
   # ⚠️ Do not quote the workshop's docs/ci.md `nix eval` 55s beside those.
   # That is the COLD figure — the same step with no store to come back to —
   # and it is not additive with the warm ones. Those runs sat at 92–132s warm
@@ -55,12 +61,13 @@ jobs:
   #             what it BUILDS — `nix eval`, the host template's defaults and
   #             `haus show`. Not one of the three is worth a restore of its
   #             own, so they are one job.
-  #   checks    `nix flake check` alone — and since the darwin checks joined
-  #             it, the one job in this half whose cost is EVALUATION rather
-  #             than build, which a warm restore does not touch. COLD it is
-  #             also the one step that BUILDS, which is what earned it a job of
-  #             its own before that. It is the step this repo keeps adding to,
-  #             and the only one whose store is nobody else's subset.
+  #   checks    `nix flake check` alone, and the gate's pole since the darwin
+  #             checks joined it: 193s on run 35591587897, of which 186s is
+  #             EVALUATION and 6s is build. A warm restore does not touch the
+  #             186s. COLD it is also the one step that BUILDS, which is what
+  #             earned it a job of its own before that. It is the step this
+  #             repo keeps adding to, and the only one whose store is nobody
+  #             else's subset.
   #   acquire   `haus add`/`desktop`/`remove` alone. It was the pole at 36s,
   #             24 of which were `nixpkgs#nixfmt` resolving through the flake
   #             REGISTRY — that unpacks channels.nixos.org's nixexprs.tar.xz
@@ -533,11 +540,11 @@ jobs:
       #      It used to average 47s against `eval`'s 72s, and this note used to
       #      read "shaving a job that is not the critical path moves the gate
       #      by zero". Both stopped being true when the darwin checks joined
-      #      this step — the account above `nix flake check` below. What they
-      #      added is EVALUATION: dozens of nix-darwin systems raised in one
-      #      evaluator, single-threaded by construction, before a single
-      #      derivation is realised. A knob governing how many builders run at
-      #      once governs none of it. Re-measure this job against `eval` with
+      #      this step: 221s against `eval`'s 62s on run 35591587897. What they
+      #      added is EVALUATION — 186s of that step's 193s, before a single
+      #      derivation is realised, single-threaded by construction. A knob
+      #      governing how many builders run at once governs none of it.
+      #      Re-measure this job against `eval` with
       #      `script/probes/ci-cache-value.sh haus` (in the workshop) — but do
       #      not reach for max-jobs to answer what it says.
       #   2. THERE IS ALMOST NOTHING TO PARALLELISE. Cold, this step builds
@@ -569,11 +576,14 @@ jobs:
       # goldens, every one of them a local `writeText` or `runCommand` that
       # nothing substitutes — so "ninety-one" above is nearer a hundred and
       # sixty, and "the other eighty-nine cost 3.2-5.7s together" has that many
-      # more cheap ones in it. The conclusion is the part that survives, and it
-      # survives for its own reason rather than this one: seventy trivial text
-      # derivations do not turn a serial 25s wallpaper chain into something
-      # max-jobs can split, and the eval that now dominates this step is
-      # single-threaded whatever the knob says.
+      # more cheap ones in it.
+      #
+      # The conclusion holds by a wider margin than when it was written, and
+      # the newer measurement is what widens it: on run 35591587897 the whole
+      # BUILD phase was 6s of a 193s step, eighty derivations, behind 186s of
+      # evaluation. Seventy more trivial text derivations do not turn a serial
+      # 25s wallpaper chain into something max-jobs can split, and nothing that
+      # governs how many builders run at once reaches an eval.
       #
       # Re-take the build row the same way — the timestamps on the
       # `building '…drv'` lines, never the step total, which is now mostly
@@ -665,14 +675,25 @@ jobs:
       # What each check is FOR stays beside that check in flake.nix, which is
       # the one copy that cannot drift from it.
       #
-      # ⚠️ This step is now the expensive one in the nix half, and the cost is
-      # EVALUATION, not build: it raises dozens of nix-darwin systems, and no
-      # store cache touches that — a warm run pays it in full, the same as a
-      # cold one. The restore above still hands back every check OUTPUT, so
-      # what is left is the eval. Measure it the way everything else in this
-      # file is measured, off the step timing on main and not off a local
-      # `nix flake check`, which starts from an eval cache this runner never
-      # has.
+      # ⚠️ This step is the pole of the whole gate now, and the cost is
+      # EVALUATION. Measured on run 35591587897 (the PR that moved the checks
+      # here), by the timestamps in this step's own log:
+      #
+      #   193s total  =  186s before the first `building '…drv'` line
+      #                +   6s building eighty derivations
+      #
+      # against 1-4s warm and 67s cold for the same step the day before. The
+      # job came to 221s behind a 22s restore, where `eval` took 62s — so the
+      # nix half's pole moved here, and the gate went from about 75s to about
+      # 3m40s.
+      #
+      # The 186s is the part no cache reaches. A store entry holds outputs, and
+      # those eighty derivations are what it handed back most of; it has never
+      # held an evaluation, and this step raises dozens of nix-darwin systems
+      # before it realises anything. A warm run pays the 186s in full.
+      #
+      # Re-take it the same way and from a run, not from a local `nix flake
+      # check` — that one starts from an eval cache no runner has.
       - run: nix flake check
 
   acquire:
