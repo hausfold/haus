@@ -4711,81 +4711,6 @@
             touch $out
           '';
 
-          # ---- app-store-activation -------------------------------------
-          # The two things every mas call in the App Store block has to carry.
-          # Both were missing, both failed without failing the rebuild, and
-          # neither is visible in a build log:
-          #
-          #   SUDO_UID / SUDO_GID — mas 7 does its work as the user those name
-          #     whenever its own euid is root, and throws "Failed to get sudo
-          #     uid" rather than guessing. `/run/current-system/activate` runs
-          #     under `env -i`, so nothing arrives on its own. Without them the
-          #     fetch failed loudly and the `mas list` skip-check failed
-          #     SILENTLY behind its own 2>/dev/null, which is the worse half:
-          #     an empty list reads as "nothing installed".
-          #   timeout — a Mac signed out of the App Store is asked for its Apple
-          #     Account by a sheet on SCREEN, which an unattended rebuild can
-          #     neither answer nor outlive.
-          #
-          # Read off the generated activation text rather than the module
-          # source, because what protects a rebuild is what actually ran.
-          app-store-activation = pkgs.runCommand "haus-app-store-activation-ok" { } ''
-            # Backslash continuations first: one mas call is written over three
-            # lines, and a per-line test would be reading its own formatting.
-            sed -e ':a' -e '/\\$/N' -e 's/\\\n[[:space:]]*/ /' -e 'ta' \
-              ${pkgs.writeText "post-activation" appStoreActivation} > joined
-
-            fail=0
-            if ! grep -q -- '/bin/mas ' joined; then
-              echo "haus.appStore.install = true emitted no mas call at all." >&2
-              fail=1
-            fi
-
-            # The ids the mas calls spend have to be ASSIGNED as well as spelled:
-            # delete these two lines and every `SUDO_UID="$masUid"` below expands
-            # to the empty string, which mas rejects exactly as it rejects an
-            # unset one — and the per-call test above would still pass.
-            if ! grep -qF 'masUid="$(/usr/bin/id -u -- ' joined; then
-              echo "the mas calls spend \$masUid and nothing assigns it." >&2
-              fail=1
-            fi
-            if ! grep -qF 'masGid="$(/usr/bin/id -g -- ' joined; then
-              echo "the mas calls spend \$masGid and nothing assigns it." >&2
-              fail=1
-            fi
-
-            while IFS= read -r line; do
-              case "$line" in *'/bin/mas '*) ;; *) continue ;; esac
-              case "$line" in
-                *'/bin/timeout '*) ;;
-                *)
-                  echo "unbounded mas call — a signed-out Mac wedges the rebuild on its sign-in sheet:" >&2
-                  echo "  $line" >&2
-                  fail=1
-                  ;;
-              esac
-              case "$line" in
-                *SUDO_UID=*) ;;
-                *)
-                  echo "mas call with no SUDO_UID — dies on 'Failed to get sudo uid' under env -i:" >&2
-                  echo "  $line" >&2
-                  fail=1
-                  ;;
-              esac
-              case "$line" in
-                *SUDO_GID=*) ;;
-                *)
-                  echo "mas call with no SUDO_GID — dies on 'Failed to get sudo gid' under env -i:" >&2
-                  echo "  $line" >&2
-                  fail=1
-                  ;;
-              esac
-            done < joined
-
-            [ "$fail" = 0 ] || exit 1
-            touch $out
-          '';
-
           roster-bin-paths = pkgs.runCommand "haus-roster-bin-paths-ok" { } ''
                         mods=${./modules}
                         fail=0
@@ -5567,6 +5492,86 @@
           '';
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-darwin" system) {
+          # ⚠️ DARWIN-ONLY, and not because it touches a Mac: `pkgs.mas` is
+          # `meta.platforms = [ "aarch64-darwin" ]`, so evaluating the activation
+          # text at all throws "Refusing to evaluate package 'mas-7.0.0'" on the
+          # Linux runner. Declared above the split it reddened `nix flake check`
+          # for everyone; the check itself is pure string work.
+          # ---- app-store-activation -------------------------------------
+          # The two things every mas call in the App Store block has to carry.
+          # Both were missing, both failed without failing the rebuild, and
+          # neither is visible in a build log:
+          #
+          #   SUDO_UID / SUDO_GID — mas 7 does its work as the user those name
+          #     whenever its own euid is root, and throws "Failed to get sudo
+          #     uid" rather than guessing. `/run/current-system/activate` runs
+          #     under `env -i`, so nothing arrives on its own. Without them the
+          #     fetch failed loudly and the `mas list` skip-check failed
+          #     SILENTLY behind its own 2>/dev/null, which is the worse half:
+          #     an empty list reads as "nothing installed".
+          #   timeout — a Mac signed out of the App Store is asked for its Apple
+          #     Account by a sheet on SCREEN, which an unattended rebuild can
+          #     neither answer nor outlive.
+          #
+          # Read off the generated activation text rather than the module
+          # source, because what protects a rebuild is what actually ran.
+          app-store-activation = pkgs.runCommand "haus-app-store-activation-ok" { } ''
+            # Backslash continuations first: one mas call is written over three
+            # lines, and a per-line test would be reading its own formatting.
+            sed -e ':a' -e '/\\$/N' -e 's/\\\n[[:space:]]*/ /' -e 'ta' \
+              ${pkgs.writeText "post-activation" appStoreActivation} > joined
+
+            fail=0
+            if ! grep -q -- '/bin/mas ' joined; then
+              echo "haus.appStore.install = true emitted no mas call at all." >&2
+              fail=1
+            fi
+
+            # The ids the mas calls spend have to be ASSIGNED as well as spelled:
+            # delete these two lines and every `SUDO_UID="$masUid"` below expands
+            # to the empty string, which mas rejects exactly as it rejects an
+            # unset one — and the per-call test above would still pass.
+            if ! grep -qF 'masUid="$(/usr/bin/id -u -- ' joined; then
+              echo "the mas calls spend \$masUid and nothing assigns it." >&2
+              fail=1
+            fi
+            if ! grep -qF 'masGid="$(/usr/bin/id -g -- ' joined; then
+              echo "the mas calls spend \$masGid and nothing assigns it." >&2
+              fail=1
+            fi
+
+            while IFS= read -r line; do
+              case "$line" in *'/bin/mas '*) ;; *) continue ;; esac
+              case "$line" in
+                *'/bin/timeout '*) ;;
+                *)
+                  echo "unbounded mas call — a signed-out Mac wedges the rebuild on its sign-in sheet:" >&2
+                  echo "  $line" >&2
+                  fail=1
+                  ;;
+              esac
+              case "$line" in
+                *SUDO_UID=*) ;;
+                *)
+                  echo "mas call with no SUDO_UID — dies on 'Failed to get sudo uid' under env -i:" >&2
+                  echo "  $line" >&2
+                  fail=1
+                  ;;
+              esac
+              case "$line" in
+                *SUDO_GID=*) ;;
+                *)
+                  echo "mas call with no SUDO_GID — dies on 'Failed to get sudo gid' under env -i:" >&2
+                  echo "  $line" >&2
+                  fail=1
+                  ;;
+              esac
+            done < joined
+
+            [ "$fail" = 0 ] || exit 1
+            touch $out
+          '';
+
           # ---- brew-tap-trust ---------------------------------------------------
           # The Brewfile is read, not the option, because the Brewfile is what
           # `brew bundle` obeys and the mapping from one to the other is
