@@ -72,12 +72,26 @@
       ever sized by hand.
       (`defaults delete com.apple.dock tilesize && killall Dock` is the same
       trip by hand, and leaves the key absent rather than pinned at 48.) The
-      first line is FDA-gated exactly as its `true` was, so a Mac that has lost
-      the grant since you turned this on gets the other two and a warning. All
-      three land you on the stock Mac, not on whatever you had before — haus
-      never recorded that, so if your display was on `more-space` it is yours to
-      name again. Once the rebuild has run your Mac holds those values, so you
-      can drop the three lines or keep them and nothing moves either way.
+      first line is FDA-gated exactly as setting it `true` was, so a Mac that has
+      lost the grant since you turned this on gets the other two and a warning.
+
+      Delete them again after the rebuild unless you meant to keep them, because
+      they are ASSERTIONS rather than undos:
+      `system.defaults.dock.tilesize` is a plain host value and outranks the
+      `mkDefault` `haus.ui.scale` writes, so leaving it in means a later
+      `ui.scale = 1.4` moves everything except your Dock — and a named
+      `haus.displays` entry puts that panel under management, driven to its
+      default rung at every activation rather than left alone. Only
+      `increaseContrast = false` is the same kind of statement as the `true` it
+      replaces.
+
+      They also land you on the STOCK Mac rather than on your own old values.
+      What records those is `haus capture` before the rebuild that changes them,
+      with `haus revert-settings` to put the bytes back: it exports
+      `com.apple.dock` by default and the contrast key if you name
+      `com.apple.universalaccess`. The display's scaled resolution is in no
+      preference domain and no snapshot, so if it was on `more-space` that one
+      is yours to name again.
 
       Each of those four says where it stops, and haus.ui.scale is the one to
       read: the shelf and the menu bar's height follow neither lever. One stop
