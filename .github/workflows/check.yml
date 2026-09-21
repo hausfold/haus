@@ -1301,6 +1301,21 @@ jobs:
       - name: the agent surface (haus skill, haus get --json)
         run: bats test/agent-surface.bats
 
+      # The `autoMode` block of ~/.claude/settings.json — the four lists of
+      # prose Claude Code's safety classifier judges every tool call against,
+      # and the one haus surface whose failures are measured in refusals that
+      # stopped happening rather than in anything on screen. It had no test at
+      # all until the section-clearing fix; what it needs one for is that both
+      # directions are silent: a merge that takes too much deletes a `hard_deny`
+      # somebody wrote with `claude auto-mode`, and a merge that takes too
+      # little leaves an `allow` rule lifting refusals for a config that stopped
+      # asking for it (measured on a guest, 2026-09-21). Runs the real
+      # modules/terminal/claude-settings.jq, and the activation's shell half
+      # lifted out of modules/terminal/default.nix rather than retyped. Needs
+      # bash + bats + jq, no Nix and no Mac.
+      - name: Claude Code auto-mode sections
+        run: bats test/claude-auto-mode.bats
+
       # `haus set`'s ADDRESS — which option path the verb can name, how that
       # path becomes Nix, and what it says when a write takes more than it was
       # given. All three failed silently, and two of them failed for real: the

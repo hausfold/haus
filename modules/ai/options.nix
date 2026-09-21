@@ -532,12 +532,20 @@ in
     # solo-owned repo.
     #
     # Four lists and a switch. modules/terminal's claudeCodeSettings renders
-    # them into that block, beside the hooks it already merges; all four lists
-    # empty writes nothing at all, `ai.instructions`'s rule. Written whenever
-    # the room is on rather than only when `claude` is in `ai.clients`, like
-    # every other key that merge writes: a hand-installed Claude Code reads
-    # the same file. Spelled camelCase here and snake_case in the file,
-    # because the file's keys are Claude Code's.
+    # them into that block, beside the hooks it already merges, per SECTION:
+    # haus owns the lists you set and nothing else in the object, since
+    # `claude auto-mode` writes into the same one. Stop setting a list and the
+    # next rebuild takes that section away again — which is not
+    # `ai.instructions`'s rule, and deliberately: an instructions file going
+    # unmanaged is a file nobody reads twice, while a rule here is a refusal
+    # that has been lifted, and a lifted refusal outliving the config that
+    # asked for it is the whole failure. The activation keeps the names it
+    # wrote in ~/.local/state/haus so it can tell those apart from a section
+    # written with the CLI. Written whenever the room is on rather than only
+    # when `claude` is in `ai.clients`, like every other key that merge
+    # writes: a hand-installed Claude Code reads the same file. Spelled
+    # camelCase here and snake_case in the file, because the file's keys are
+    # Claude Code's.
     ai.autoMode.environment = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
@@ -561,8 +569,23 @@ in
         ones you set and leaves the rest of the block alone, so a host that
         names only `allow` never deletes a `hard_deny` written with `claude
         auto-mode`. Inside a section you do set, that CLI's edits and a hand
-        edit last until the next rebuild. Empty (the default) means haus does
-        not name the section at all, not that it writes an empty one.
+        edit last until the next rebuild.
+
+        Empty (the default) means haus does not name the section — and if it
+        named it last rebuild, the next one REMOVES it from the file, the
+        whole section, any edit you made inside it included. That is the point
+        of emptying one: a rule here is a refusal that has been lifted, and it
+        should stop being lifted when you stop asking for it. A section haus
+        has never written is never touched, whatever is in it.
+
+        ⚠️ That works off a record haus keeps of what it wrote, and the record
+        starts on the first rebuild after this shipped. A section you emptied
+        BEFORE that has no record behind it, so haus cannot tell it from one
+        `claude auto-mode` wrote and leaves it in the file — and guessing here
+        would mean silently deleting somebody's hand-written `hard_deny`,
+        which is worse than the leftovers. To clear one of those: set the list
+        again, rebuild, empty it, rebuild. `claude auto-mode config` is how you
+        check what is actually in force either way.
 
         Only Claude Code reads this file, but haus writes it whenever the AI
         room is on rather than only when `claude` is in `ai.clients` — the
