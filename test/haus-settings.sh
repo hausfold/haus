@@ -270,6 +270,84 @@ fi
 grep -q '^  haus\.displays\."with"\.uiScale = ' "$tmp/hosts/test/settings/displays.with.uiScale.nix"
 "${haus[@]}" reset displays.with.uiScale >/dev/null
 
+# An `attrsOf` key that is a PALETTE ADDRESS. Every `haus.launcher.items` key
+# has a colon in it, and the path grammar refused the colon however it was
+# spelled — so `listed`, `alias`, `hotkey`, `workspaces` and `bundleIds` were
+# unreachable from the verb entirely, leaving the whole-map form below as the
+# only way in (hausfold/ops `todo/launch-phase-1.md`, the Launcher room's S1).
+# The colon also has to reach the attrpath QUOTED: the old bare-identifier glob
+# was `[A-Za-z_]*`, which matches `cmd:copy-text` and left it unquoted — a Nix
+# syntax error in the file `haus set` had just written.
+"${haus[@]}" set launcher.items.cmd:copy-text.listed false >/dev/null
+grep -q '^  haus\.launcher\.items\."cmd:copy-text"\.listed = ' \
+  "$tmp/hosts/test/settings/launcher.items.cmd:copy-text.listed.nix"
+test "$("${haus[@]}" get launcher.items.cmd:copy-text.listed)" = "false"
+# …and the items haus defines itself are still there, which is the whole
+# difference between this and the whole-map form.
+test "$("${haus[@]}" get launcher.items.mode:emoji.hotkey)" = "fn"
+"${haus[@]}" reset launcher.items.cmd:copy-text.listed >/dev/null
+
+# The HOST-FILE spelling of the same key, quotes and all, is what the docs show
+# and what a reader copies out of them, so it lands on the same path.
+"${haus[@]}" set 'launcher.items."cmd:copy-text".alias' cpy >/dev/null
+test -e "$tmp/hosts/test/settings/launcher.items.cmd:copy-text.alias.nix"
+test "$("${haus[@]}" get launcher.items.cmd:copy-text.alias)" = "cpy"
+"${haus[@]}" reset launcher.items.cmd:copy-text.alias >/dev/null
+
+# A key holding a `.` or a `/` is the one shape no widening reaches — `.` is the
+# separator, and settings_file turns the path into a filename — so the refusal
+# has to name the host file rather than say "not writable" about a key that is
+# perfectly legal there.
+for bad in 'launcher.items."app:/Applications/Foo.app".listed' \
+           'launcher.items.app:/Applications/Foo.app.listed' \
+           'launcher.items."setting:com.apple.Appearance-Settings.extension".listed'; do
+  out="$("${haus[@]}" set "$bad" false 2>&1 || true)"
+  case "$out" in
+    *host-file-only*) ;;
+    *) echo "haus set did not send a dotted key to the host file: $out" >&2; exit 1 ;;
+  esac
+  # …and nothing landed on disk under any spelling of it.
+  for f in "$tmp/hosts/test/settings/"*Foo.app* "$tmp/hosts/test/settings/"*Appearance-Settings*; do
+    [ -e "$f" ] || continue   # an unmatched glob is the pattern itself, and `set -e`
+    echo "haus set wrote a file for a refused key: $f" >&2
+    exit 1
+  done
+done
+
+# The whole-map form still WRITES mkForce — an overlay has to beat the desktop —
+# but it may not do it quietly. Before this, the command printed the new value
+# and said nothing about the four items it had just withdrawn.
+out="$("${haus[@]}" set launcher.items '{"cmd:copy-text":{"listed":false}}' 2>&1)"
+case "$out" in
+  *"nothing defines these any more"*"mode:emoji"*) ;;
+  *) echo "haus set dropped an attrsOf key without saying so: $out" >&2; exit 1 ;;
+esac
+case "$out" in
+  *"haus reset launcher.items"*) ;;
+  *) echo "haus set named no way back from a whole-map write: $out" >&2; exit 1 ;;
+esac
+"${haus[@]}" reset launcher.items >/dev/null
+test "$("${haus[@]}" get launcher.items.mode:emoji.hotkey)" = "fn"
+
+# The same loss one level down, and it reads differently: a partial attrset over
+# a SUBMODULE leaves every key in place and takes the ones it didn't name back
+# to their defaults — which is how the item that WAS named lost its own hotkey.
+out="$("${haus[@]}" set launcher.items.cmd:copy-text '{"listed":false}' 2>&1)"
+case "$out" in
+  *"fell back to their defaults"*hotkey*) ;;
+  *) echo "haus set reset a submodule leaf without saying so: $out" >&2; exit 1 ;;
+esac
+"${haus[@]}" reset launcher.items.cmd:copy-text >/dev/null
+
+# A value that is not an attrset cannot carry a key away, and must not spend the
+# extra evaluation or print the warning: theme.accent moves from one string to
+# another every time this suite runs.
+out="$("${haus[@]}" set theme.accent mauve 2>&1)"
+case "$out" in
+  *"written whole"*) echo "haus set warned about losses on a scalar: $out" >&2; exit 1 ;;
+esac
+"${haus[@]}" set theme.accent teal >/dev/null
+
 # Withdrawing the last override that DEFINED an attrsOf key takes the key away
 # rather than revealing a value beneath it, so `config.<path>` stops evaluating —
 # the reset working, reported as such and not as a failure.

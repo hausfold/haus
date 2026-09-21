@@ -79,11 +79,11 @@ named it yet — not an option set to null. `haus unset` and `haus reset` take a
 LIST under that rule. Hand-edit for a structural change.
 
 **A path may go INSIDE an option, and usually should.** `haus set
-bar.items.aiUsage true` switches one pill; `haus set displays.internal.uiScale
-larger-text` scales one screen. Naming the enclosing attribute set instead —
-`haus set bar.items '{"aiUsage":true}'` — is an `mkForce` over the WHOLE set, so
-every key the user didn't name falls back to its default and a bar they arranged
-over several commands goes back to stock. Setting the leaf touches only the leaf.
+bar.items.aiUsage true` switches one pill; an `attrsOf` key rides in quoted or
+bare — `haus set launcher.items."cmd:copy-text".listed false` — unless it holds
+a `.` or a `/` (`app:/Applications/Foo.app`), which is host-file-only. Naming
+the enclosing set instead is `mkForce` over the WHOLE of it: every key you did
+not name falls back to its default, and the command says which ones it dropped.
 
 ## Traps
 

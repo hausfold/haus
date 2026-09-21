@@ -3316,7 +3316,7 @@ cmd_edit() {
 # different operation: it explicitly writes null, and therefore only succeeds
 # for nullable options.
 settings_path() {
-  local raw="$1" path
+  local raw="$1" path rest c out=""
   [ -n "$raw" ] || die "an option path is required (for example: theme.accent)"
   # The `haus.` prefix is optional on the command line and always present in
   # what gets WRITTEN — an overlay file is regenerated on every `haus set`.
@@ -3324,10 +3324,44 @@ settings_path() {
     haus.*) path="$raw" ;;
     *) path="haus.$raw" ;;
   esac
+  # …and so are the QUOTES the host-file spelling puts round a key that isn't a
+  # bare identifier. `haus.launcher.items."cmd:copy-text".listed` is what the
+  # docs show and what a reader copies out of them, and a quoted component with
+  # no `.` inside it is that component with the quotes taken off.
+  #
+  # The appended `.` is what keeps a trailing separator visible: without it the
+  # walk would normalise `haus.theme.` into `haus.theme` and accept a path the
+  # grammar below is supposed to refuse.
+  rest="$path."
+  while [ -n "$rest" ]; do
+    c="${rest%%.*}"
+    rest="${rest#*.}"
+    case "$c" in '"'*'"') c="${c#\"}"; c="${c%\"}" ;; esac
+    out="${out:+$out.}$c"
+  done
+  path="$out"
+  # A quote still standing is a component the split went through the MIDDLE of,
+  # and that is the one shape no widening of the grammar can reach: `.` is the
+  # separator here, so a key holding one is unaddressable however it is spelled.
+  # A `/` is the same story from the filename end — `settings_file` turns the
+  # path into one. `app:/Applications/Foo.app` and `setting:<pane>.<anchor>`
+  # hold both, so both are host-file keys, and saying which beats "not
+  # writable".
+  case "$path" in
+    *'"'* | */*)
+      die "that key holds a '.' or a '/', so it is host-file-only (got '$raw') — \
+'haus set' splits a path on '.'; write it in your host file as \
+haus.<option>.\"<key>\".<leaf> = <value>;" ;;
+  esac
   # A component may start with a digit: the keys of an `attrsOf` option are the
   # user's, not haus's, and `haus.displays.<uuid>.uiScale` is the worked
-  # example — display UUIDs begin with a hex digit as often as not.
-  [[ "$path" =~ ^haus(\.[A-Za-z0-9_][A-Za-z0-9_-]*)+$ ]] \
+  # example — display UUIDs begin with a hex digit as often as not. A `:` is
+  # there for the same reason: every `haus.launcher.items` key is a palette
+  # address (`cmd:copy-text`, `mode:emoji`, `shortcut:<uuid>`), so refusing the
+  # colon left every leaf of that option reachable only through the whole-map
+  # form — which replaces the items haus defines itself rather than merging
+  # with them.
+  [[ "$path" =~ ^haus(\.[A-Za-z0-9_][A-Za-z0-9_:-]*)+$ ]] \
     || die "only haus.* option paths are writable (got '$raw')"
   printf '%s\n' "$path"
 }
@@ -3346,8 +3380,14 @@ settings_attrpath() {
       # quotes as much as a UUID does — `haus.displays.if.uiScale` is a syntax
       # error otherwise, and an attrsOf key can be any word the user likes.
       assert | else | if | in | inherit | let | or | rec | then | with) c="\"$c\"" ;;
-      [A-Za-z_]*) ;;
-      *) c="\"$c\"" ;;
+      # A bare Nix identifier stays bare, and NOTHING else does. The glob this
+      # replaced was `[A-Za-z_]*` — a leading letter and then anything at all,
+      # which is also the shape of every palette address: `cmd:copy-text` went
+      # through unquoted and made the file `haus set` had just written a Nix
+      # syntax error. (No `'` in the character class, though Nix allows one in
+      # an identifier: `settings_path`'s grammar can't produce one, and a key
+      # that somehow held one is safer quoted than bare.)
+      *) [[ "$c" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]] || c="\"$c\"" ;;
     esac
     out="${out:+$out.}$c"
   done
@@ -3838,6 +3878,64 @@ settings_drop_backups() {
   return 0
 }
 
+# What `haus set <path> '{…}'` takes away with it.
+#
+# An overlay file is `lib.mkForce` (the note above settings_path says why), and
+# on an option whose value is an ATTRSET that REPLACES the map rather than
+# merging into it. `haus set launcher.items '{"cmd:copy-text":{"listed":false}}'`
+# withdrew the five items haus defines itself — the emoji grid's Fn tap, ⌘⇧2,
+# and the three lane rows — and left the one key it was given without the
+# `hotkey` that key had; the command printed the new value and said nothing
+# about any of it (hausfold/ops `todo/launch-phase-1.md`, the Launcher room's
+# S1). Nothing warns at eval either: a whole-attrset mkForce evaluates fine.
+#
+# Merging per key instead is the fix this looks like and isn't. Without mkForce
+# the machine's own answer stops beating its desktop's, which is the one thing
+# the overlay exists to do, and `haus set` would start reporting values it had
+# not managed to set. So the write stands and the loss is SAID — before the
+# rebuild that makes it visible, with the two ways out under it.
+#
+# Two lists, because they read differently: a key with nothing left to define it
+# is GONE, while a key the option still has, holding something else, fell back
+# to what it defaults to (that is the shape a partial attrset makes of a
+# submodule's other leaves). Two LINES, gone then reset, either possibly empty —
+# not one tab-separated row, because tab is IFS whitespace and `read` collapses
+# an empty leading field into the next one, which read "fell back to its
+# default" as "gone". Nothing at all when the value is not an attrset, which is
+# the only shape that can carry a key away.
+settings_force_losses() { # settings_force_losses <before json> <after json> <raw value>
+  local before="$1" after="$2" given
+  [ -n "$before" ] && [ -n "$after" ] || return 0
+  given="$(printf '%s' "$3" | jq -c 'select(type == "object")' 2>/dev/null)" || return 0
+  [ -n "$given" ] || return 0
+  # `. as $k` before every test: inside `select($given | has(.))` the pipe has
+  # already moved `.` onto $given, so the key has to be carried in by name.
+  jq -rn --argjson before "$before" --argjson after "$after" --argjson given "$given" '
+    ($before | if type == "object" then . else { } end) as $b
+    | ($after | if type == "object" then . else { } end) as $a
+    | [ $b | keys_unsorted[] | . as $k | select(($given | has($k)) | not) ] as $unnamed
+    | [ $unnamed[] | . as $k | select(($a | has($k)) | not) ] as $gone
+    | [ $unnamed[] | . as $k | select(($a | has($k)) and ($a[$k] != $b[$k])) ] as $reset
+    | ($gone | join(", ")), ($reset | join(", "))' 2>/dev/null
+}
+
+# …and how it reads. Called once per pair in phase 4, after the value is on disk
+# and before the rebuild.
+settings_report_force_losses() { # <path> <before json> <after json> <raw value>
+  local short="${1#haus.}" out gone reset
+  out="$(settings_force_losses "$2" "$3" "$4")" || return 0
+  [ -n "$out" ] || return 0
+  gone="$(printf '%s\n' "$out" | sed -n 1p)"
+  reset="$(printf '%s\n' "$out" | sed -n 2p)"
+  [ -n "$gone$reset" ] || return 0
+  [ -z "$gone" ] || warn "$short was written whole — nothing defines these any more: $gone"
+  [ -z "$reset" ] || warn "$short was written whole — these fell back to their defaults: $reset"
+  hint "an overlay is mkForce: it replaces this option, it does not merge into it"
+  hint "one key at a time keeps the rest: haus set $short.<key> <value>"
+  hint "undo the lot: haus reset $short"
+  return 0
+}
+
 # Write ONE override file. No validation, no rebuild — cmd_set owns both,
 # because with several pairs neither can be per-file (see its header).
 #
@@ -4316,7 +4414,7 @@ cmd_set() {
   fi
   [ "$#" -ge 2 ] && [ $(( $# % 2 )) -eq 0 ] || die "$usage"
   local host dir path target backup clash seen="" i err
-  local -a paths=() values=() types=() results=()
+  local -a paths=() values=() types=() results=() befores=()
   TX_TARGETS=() TX_BACKUPS=()
   host="$(host_name)"
   dir="$(settings_host_dir)"
@@ -4342,6 +4440,15 @@ reset one of them first (haus reset ${clash#haus.})"
     # produced it is the authority on what this leaf will accept — see its
     # header. Kept per pair, because phase 2 writes them all.
     paths+=("$path"); values+=("$2"); types+=("$OPTION_TYPE"); TX_TARGETS+=("$target")
+    # What this option holds BEFORE the write, and only for a value that is an
+    # attrset — the one shape whose mkForce can carry keys away with it (see
+    # settings_force_losses). One more eval, on the rare pair that needs it,
+    # and the eval cache has just answered for this host anyway.
+    if printf '%s' "$2" | jq -e 'type == "object"' >/dev/null 2>&1; then
+      befores+=("$(settings_eval_json "$host" "$path" 2>/dev/null || true)")
+    else
+      befores+=("")
+    fi
     shift 2
   done
 
@@ -4378,6 +4485,7 @@ reset one of them first (haus reset ${clash#haus.})"
   for i in "${!paths[@]}"; do
     say "set ${paths[$i]#haus.} = $(printf '%s' "${results[$i]}" | settings_print_json)"
     info "${TX_TARGETS[$i]} (staged as ordinary Nix)"
+    settings_report_force_losses "${paths[$i]}" "${befores[$i]}" "${results[$i]}" "${values[$i]}"
   done
   settings_tx_note set ${paths[@]+"${paths[@]}"}
   settings_apply
