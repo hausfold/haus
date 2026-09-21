@@ -85,13 +85,20 @@
       `increaseContrast = false` is the same kind of statement as the `true` it
       replaces.
 
-      They also land you on the STOCK Mac rather than on your own old values.
-      What records those is `haus capture` before the rebuild that changes them,
-      with `haus revert-settings` to put the bytes back: it exports
-      `com.apple.dock` by default and the contrast key if you name
-      `com.apple.universalaccess`. The display's scaled resolution is in no
-      preference domain and no snapshot, so if it was on `more-space` that one
-      is yours to name again.
+      They also land you on the STOCK Mac rather than on your own old values,
+      and `haus capture` is a smaller help here than it looks. Its snapshots
+      restore through `defaults import`, which MERGES: a key the snapshot HOLDS
+      goes back to what it held, and one that was unset when you captured is not
+      removed again. Measured on haus `ef6e808d`: a `tilesize` absent at capture
+      and written to 67 is still 67 after `haus revert-settings` reports the
+      domain restored, while one captured at 48 does come back. The Dock and the
+      contrast key are both normally unset on a Mac that never asked for them,
+      which is the case it cannot help with — and if you DID pick your own Dock
+      size, plain `haus capture` covers it, while your own contrast needs
+      `haus capture com.apple.universalaccess` by name (and Full Disk Access at
+      restore time, or it is skipped). The display is outside all of this: its
+      scaled resolution is in no preference domain and no snapshot, so write
+      that one down yourself.
 
       Each of those four says where it stops, and haus.ui.scale is the one to
       read: the shelf and the menu bar's height follow neither lever. One stop
