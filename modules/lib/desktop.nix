@@ -455,8 +455,17 @@ let
           else if !(builtins.isString value.${key}) then
             [ (said "${path}.${key}" "must be a string") ]
           else if !(shellSafe value.${key}) then
+            # The VALUE's own sentence, not the key's. Both halves land in the
+            # same generated assignment and both are refused for the same
+            # reason, but a reader is sent to whichever half the message names —
+            # and until 2026-09-21 this arm borrowed the key's wording, so a
+            # desktop with a clean key and a `$(…)` value was told that
+            # `haus.bar.media.icons.play` may not contain a `$`, about a key
+            # that plainly does not. Measured against `shell-in-free-key.nix`
+            # beside it: the two cases were byte-identical, which is why the
+            # suite above could not see the difference either.
             [
-              (said "${path}.${key}" "may not contain quotes, backslashes, `$`, backticks, newlines or tabs")
+              (said "${path}.${key}" "takes a value with no quotes, backslashes, `$`, backticks, newlines or tabs")
             ]
           else
             [ ]
