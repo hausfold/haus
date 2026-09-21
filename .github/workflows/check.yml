@@ -32,6 +32,12 @@ jobs:
   # 34686000184: nix eval 6s, nix flake check 1s, host template 7s, haus show
   # 6s, haus add 36s.
   #
+  # ⚠️ Every `nix flake check` figure in this banner — the 1s here, the 57s
+  # and 67s cold below — is from before the darwin checks joined that step.
+  # It runs 193s now, 186s of it evaluation, and it is the gate's pole; the
+  # account sits above the `nix flake check` line in the `checks` job. The
+  # `nix eval` figures beside them are untouched: that job did not change.
+  #
   # ⚠️ Do not quote the workshop's docs/ci.md `nix eval` 55s beside those.
   # That is the COLD figure — the same step with no store to come back to —
   # and it is not additive with the warm ones. Those runs sat at 92–132s warm
@@ -55,12 +61,13 @@ jobs:
   #             what it BUILDS — `nix eval`, the host template's defaults and
   #             `haus show`. Not one of the three is worth a restore of its
   #             own, so they are one job.
-  #   checks    `nix flake check` alone. Warm it is 1s and this split buys
-  #             nothing; COLD it is the whole reason there are three jobs and
-  #             not two, because it is the one step that BUILDS — all
-  #             thirty derivations — and a lock bump makes every run
-  #             cold. It is also the step this repo keeps adding to, and the
-  #             only one whose store is nobody else's subset.
+  #   checks    `nix flake check` alone, and the gate's pole since the darwin
+  #             checks joined it: 193s on run 35591587897, of which 186s is
+  #             EVALUATION and 6s is build. A warm restore does not touch the
+  #             186s. COLD it is also the one step that BUILDS, which is what
+  #             earned it a job of its own before that. It is the step this
+  #             repo keeps adding to, and the only one whose store is nobody
+  #             else's subset.
   #   acquire   `haus add`/`desktop`/`remove` alone. It was the pole at 36s,
   #             24 of which were `nixpkgs#nixfmt` resolving through the flake
   #             REGISTRY — that unpacks channels.nixos.org's nixexprs.tar.xz
@@ -529,12 +536,17 @@ jobs:
       # auto }` is one line away, and it buys this gate nothing — for two
       # reasons that hold independently of each other:
       #
-      #   1. THIS JOB IS NOT THE POLE. Over the last ten pushes to main it
-      #      averages 47s against `eval`'s 72s
-      #      (`script/probes/ci-cache-value.sh haus`, in the workshop).
-      #      docs/ci.md rule 5: shaving a job that is not the critical path
-      #      moves the gate by zero. On the three cold runs below it led `eval`
-      #      once, by ONE second, and trailed it by 16s and 13s.
+      #   1. THIS JOB IS THE POLE NOW, AND NOT FOR A REASON max-jobs REACHES.
+      #      It used to average 47s against `eval`'s 72s, and this note used to
+      #      read "shaving a job that is not the critical path moves the gate
+      #      by zero". Both stopped being true when the darwin checks joined
+      #      this step: 221s against `eval`'s 62s on run 35591587897. What they
+      #      added is EVALUATION — 186s of that step's 193s, before a single
+      #      derivation is realised, single-threaded by construction. A knob
+      #      governing how many builders run at once governs none of it.
+      #      Re-measure this job against `eval` with
+      #      `script/probes/ci-cache-value.sh haus` (in the workshop) — but do
+      #      not reach for max-jobs to answer what it says.
       #   2. THERE IS ALMOST NOTHING TO PARALLELISE. Cold, this step builds
       #      ninety-one derivations, and ONE of them is the build phase: the
       #      generated wallpaper PNG (resvg + ImageMagick,
@@ -558,9 +570,27 @@ jobs:
       # max-jobs had nothing to govern. 3-6s on one run in eight, on a job 25s
       # off the pole, is not worth the line.
       #
+      # ⚠️ Every figure in this block predates the darwin checks joining this
+      # step, and BOTH rows moved. The build row grew by about seventy
+      # derivations — twenty-three checks plus their `expected`/`actual`
+      # goldens, every one of them a local `writeText` or `runCommand` that
+      # nothing substitutes — so "ninety-one" above is nearer a hundred and
+      # sixty, and "the other eighty-nine cost 3.2-5.7s together" has that many
+      # more cheap ones in it.
+      #
+      # The conclusion holds by a wider margin than when it was written, and
+      # the newer measurement is what widens it: on run 35591587897 the whole
+      # BUILD phase was 6s of a 193s step, eighty derivations, behind 186s of
+      # evaluation. Seventy more trivial text derivations do not turn a serial
+      # 25s wallpaper chain into something max-jobs can split, and nothing that
+      # governs how many builders run at once reaches an eval.
+      #
+      # Re-take the build row the same way — the timestamps on the
+      # `building '…drv'` lines, never the step total, which is now mostly
+      # evaluation.
+      #
       # What would change this: a second derivation as expensive as the
-      # wallpaper, which could then run beside it, or this job becoming the
-      # pole. Re-read it the same way — the BUILD row, never the step total.
+      # wallpaper, which could then run beside it.
       - uses: nixbuild/nix-quick-install-action@v35
       # The lineage prefix, with this job's own token — the account is above
       # `eval`'s copy of this step, and so is the reason the token is there.
@@ -575,10 +605,14 @@ jobs:
           week="$(date -u +%G-W%V)$half"
           echo "prefix=nix-${{ runner.os }}-checks-$week-${rev:0:12}-" >> "$GITHUB_OUTPUT"
       # This job's store is the big one and the one nobody else's is a superset
-      # of: on a cold runner `nix flake check` BUILDS ninety-two derivations —
-      # the thirty-three checks below plus the intermediates they read. Every
-      # input here is `eval`'s with a different token — read that copy for what
-      # each does.
+      # of: on a cold runner `nix flake check` BUILDS every check the flake
+      # declares plus the intermediates they read. Every input here is `eval`'s
+      # with a different token — read that copy for what each does.
+      #
+      # ⚠️ The restore is worth less to this job than it was, and that is worth
+      # knowing before reading a warm run as cheap: what the darwin checks
+      # added is evaluation, and no store entry has ever cached that. A hit
+      # still saves the build. It saves none of the eval below it.
       - name: Restore the Nix store
         uses: nix-community/cache-nix-action@v7
         with:
@@ -590,256 +624,76 @@ jobs:
           purge-prefixes: nix-${{ runner.os }}-checks-
           purge-created: 0
           purge-primary-key: never
-      # The platform-independent checks are declared for Linux too precisely so
-      # they can run HERE — THIRTY-THREE of them, everything in flake.nix's `checks`
-      # before the `optionalAttrs (hasSuffix "-darwin" system)` line, which is
-      # the only thing that decides the split and the only place to re-derive
-      # this list from:
+      # ── What this one command now covers ────────────────────────────────
       #
-      #   room-registry            registry vs the evaluated option tree
-      #   display-activations      a uiScale with no arrangement still gets its
-      #                            `hausdisp apply`, an arrangement with no uiScale
-      #                            does NOT (that call is an unknown intent, exit 64),
-      #                            and no ordering edge names an entry nothing defines
-      #   room-activations         the same for every other room whose
-      #                            `home.activation` entry hangs off an option
-      #                            finer than its own `enable` — wallpaper, theme,
-      #                            launcher, terminal, core — on two scratch hosts
-      #                            with the same options set both ways, so a gate
-      #                            that drops an entry or leaks one is red here
-      #                            instead of quiet at activation
-      #   data-only-surface        a package-typed option a data-only file can't set
-      #   agent-skill              the shipped skill's file inventory — and, by
-      #                            building it, the A4 shape guards that live in
-      #                            modules/ai/agents/skill.nix: frontmatter,
-      #                            `name: haus` against the install directory,
-      #                            the description's length, the 150-line cap,
-      #                            no surviving @placeholder@, no dangling
-      #                            references/ pointer
-      #   pounce-item-grammar      modules/launcher/item-grammar.nix vs the LOCKED
-      #                            pounce's ItemSettings.swift, so a prefix that
-      #                            app learns can't spend a day being refused
-      #                            here as a typo
-      #   pounce-command-keys      every `# pounce:` header key haus's
-      #                            command scripts use vs the LOCKED pounce's
-      #                            CommandRegistry.swift — the parser the DAEMON
-      #                            builds ⌘Space from, which silently ignores a
-      #                            key it doesn't know. The bash `pounce-palette`
-      #                            has a SECOND copy of that parser and is not on
-      #                            the ⌘Space path any more, so implementing a key
-      #                            there alone ships a feature that never runs
-      #   keymap                   keys.* → chord/glyph tables
-      #   alert-volume             the beep-volume ladder
-      #   firewall-posture         security.firewall's four posture leaves reach
-      #                            nix-darwin only under `enable = true` — Apple's
-      #                            `socketfilterfw` turns the firewall ON as a side
-      #                            effect of any posture write
-      #   accessibility-surface    classify_key's `effective` arm, sed'd out of
-      #                            modules/core/haus.sh, vs modules/lib/reachability.nix
-      #                            — the one copy of those key names a shell script
-      #                            cannot import, and the one whose going stale
-      #                            would make `haus diff` verify a new option
-      #                            against the PLIST instead of NSWorkspace
-      #   theme-variants           flavor/contrast → themes-subdir
-      #   site-data-current        docs/site-data/ vs the derivation the site reads
-      #   bar-rc-executable       the rc files' +x bit
-      #   bar-plugins-executable  the plugins' +x bit
-      #   bar-tones                the TONE ladder (modules/bar/tones.nix) vs the
-      #                            test pair — the bats stub's exports, and
-      #                            test/colors-fns.sh, the committed copy of the
-      #                            tone()/mark() the generated colors.sh emits
-      #                            from the list. (The doc table lives on
-      #                            hausfold.co and is checked THERE, against the
-      #                            ladder this repo publishes as
-      #                            docs/site-data/bar-tones.json.)
-      #                            Up here because the drift it catches is
-      #                            invisible on every machine: `tone()`
-      #                            deliberately does not error, so a forgotten
-      #                            rung paints grey and says why only in
-      #                            sketchybar's log
-      #   bar-marks                the same for the IDENTITY axis
-      #                            (modules/bar/marks.nix), plus the one thing that
-      #                            axis has and the ladder does not: a mark may not
-      #                            land on a hue a tone spends on a VERDICT, or a
-      #                            popup heading silently claims a state
-      #   roster-bin-paths         every roster entry's binary is where the roster
-      #                            says it is
-      #   state-files              modules/lib/state-files.nix vs what the rooms
-      #                            actually write under ~/.local/state/haus
-      #   wallpaper                the odd one out: it BUILDS the generated
-      #                            desktop and asserts its size and colour count,
-      #                            the only automated thing that can notice the
-      #                            dither stopped reaching the 8-bit reduction
-      #   desktop-show             `haus show`'s reading of every desktop
-      #                            fixture — the class it reports and which room
-      #                            each leaf files under. Up here rather than in
-      #                            the darwin list beside `desktop-seam` because
-      #                            it is pure lib, and because a publisher's CI
-      #                            is exactly the Linux caller it defends
-      #   namespace-guard          the reserved `haus.my.*` prefix: that haus
-      #                            never ships a room under it, and that a
-      #                            machine declaring some other unregistered
-      #                            `haus.<name>` is told so. Pure lib and up here
-      #                            deliberately — its worst failure is firing on
-      #                            a STOCK machine, which is a thing only a
-      #                            fixture can catch, and the `stock` row is that
-      #                            fixture
-      #   pounce-command-headers   every command script's `# pounce:` header
-      #                            re-parsed by this repo's own reader, so a
-      #                            header the daemon would silently half-read is
-      #                            a red check instead of a missing row
-      #   pounce-header-grammar    the header grammar itself against the LOCKED
-      #                            pounce's parser — the whitespace half of the
-      #                            same seam `pounce-command-keys` covers by key
-      #   userstyles-inline        every compiled userstyle is inlined, no
-      #                            @import left to fetch at page load
-      #   userstyles-important     and each one's declarations survive the site's
-      #                            own cascade
-      #   services-deck            the background-jobs deck against `config.launchd`:
-      #                            an entry with no job, and a job whose room never
-      #                            put a card in the deck
-      #   swift-bin                no room builds Swift by hand — every one-file
-      #                            helper goes through modules/lib/swift-bin.nix
-      #   installer-add-parity     bootstrap.sh and `haus add`'s `flake_add_input`
-      #                            build the same landmarks into a consumer's
-      #                            flake.nix — two writers of one file format,
-      #                            the same family as `ui-load-sync` beside it.
-      #                            Scoped to that ONE function on the haus.sh
-      #                            side, because its siblings spell two of the
-      #                            three landmarks and a file-wide grep stays
-      #                            green while the desktop half drifts alone
-      #   ui-load-sync             every carrier of snug's painter bootstrap against
-      #                            the one copy in modules/lib/ui-load.nix
-      #   yazi-opener-args         every yazi opener names its files with yazi's own
-      #                            `%s` and not the shell's `"$@"`. yazi 26 stopped
-      #                            passing them as arguments and substitutes them into
-      #                            the run string instead, so the old spelling still
-      #                            parses, still runs, and hands the command no file
-      #   factory-fixer-argv       `haus-factory-fixer` is a pure argv reorder
-      #                            with BOTH ends outside its own file — the
-      #                            LOCKED factory's runner appends `<repo>
-      #                            <branch> <run url>`, `haus-fix-github` reads
-      #                            `<selector> <verdict> <url>`, and the verdict
-      #                            is carried by neither. Here rather than on the
-      #                            Mac because factory outputs Linux, and here at
-      #                            all because `factory doctor` cannot see this:
-      #                            the failure is a 3 a.m. lane briefed on a
-      #                            branch name parsed as a repo, under a shift
-      #                            log that says the night went fine
-      #   tool-skills              every skill name modules/ai lists is one the
-      #                            pinned tool actually ships — a home file, so
-      #                            a wrong name is a failed `haus rebuild`.
-      #                            ⚠️ scruff's two, factory's two and
-      #                            nebelung's one, HERE: those flakes output
-      #                            Linux, so this runner proves those names.
-      #                            trill, pounce and perch output darwin systems
-      #                            alone, so their skills drop out of the list
-      #                            here and their names are proven by the Mac
-      #                            pass below, not by CI
+      # ALL of it but one line. `nix flake check` on this runner runs every
+      # check flake.nix declares except `brew-bundle-guarded`, and that is the
+      # whole of the split — there is no second list to keep.
       #
-      # ⚠️ Four of the checks above — not the skill names in the bullet just
-      # before this one — were declared for Linux and missing from this list until
-      # 2026-08-23, which is the fourth rot and the first in the SAFE direction:
-      # the checks were running and the census undercounted them. It said
-      # fifteen and the eval said nineteen. `tool-skills` was added hours later,
-      # in the census's own edit, which is the habit this comment is asking for.
+      # It was not always: twenty-four checks sat behind
+      # `optionalAttrs (hasSuffix "-darwin" system)` and fired on a Mac, by
+      # hand, or not at all. Among them the three *-reach tables, which
+      # enumerate every generated home file so that ANY new one is a missing
+      # row — main merged red on exactly those at least twice. Twenty-three
+      # moved up. (One of the twenty-three, `app-store-activation`, had been
+      # running here until it was gated days earlier for reddening this job:
+      # a true report of a real failure, with the wrong cause named.) What
+      # moved them is not a Mac runner: it is
+      # that raising a darwin machine and BUILDING one are different acts.
+      # `eval` above instantiates a whole darwin system on this same
+      # `ubuntu-latest` and always has. So flake.nix now names the two
+      # platforms separately — `hostSystem` is the aarch64-darwin machine each
+      # check reads, `system` is whatever box builds the comparison — and every
+      # check that only READS an evaluated config is declared for Linux.
       #
-      # ⚠️ It rotted the same way again, and was found the same way: the census
-      # said twenty and the eval said twenty-four. `bar-tones`, `roster-bin-paths`
-      # and `state-files` had been running unlisted for weeks; `bar-marks` was
-      # added and listed in the same change, which is the habit working. Re-derive
-      # from the eval, never from this list:
-      #   nix eval --json .#checks.x86_64-linux --apply builtins.attrNames
+      # ⚠️ `brew-bundle-guarded` is the exemption and the only kind there is:
+      # it `builtins.readFile`s the BUILT `activate` script out of
+      # `darwinConfigurations.example.system`, an import-from-derivation that
+      # wants a darwin BUILDER. What it guards is the assembly order of a file
+      # nothing produces until it is built, so there is no eval-time reading of
+      # it that checks the same fact. It runs on a Mac or nowhere.
       #
-      # ⚠️ And a third time, found the same way on 2026-09-05: the census said
-      # twenty-four and the eval said twenty-seven. `services-deck`, `swift-bin`
-      # and `ui-load-sync` had been running unlisted; `yazi-opener-args` was
-      # added and listed in the same change. The darwin sentence below was three
-      # short in the same reading — it said fifteen and named fifteen, and the
-      # eval said eighteen.
+      # So a new check does not need a reason to run here. It needs one to be
+      # exempt, and IFD is the only one that has ever held.
       #
-      # ⚠️ A fourth time on 2026-09-12, in the reading that moved this census
-      # into a job of its own — and this one had rotted in BOTH directions at
-      # once, which is new and is why COUNTING THE LIST is not enough: the
-      # sentence said twenty-four, the bullets under it named twenty-eight, and
-      # the eval said twenty-nine. `factory-fixer-argv` was the one running
-      # unlisted. The darwin sentence was two short again at the same moment —
-      # it said eighteen and named eighteen, and the eval said twenty
-      # (`bar-factory-default`, `scene-leader-key`). Count neither sentence
-      # against its own list. Run both evals.
-      #
-      # ⚠️ A fifth time on 2026-09-16, and this one was found by a reading that
-      # was not looking for it — the max-jobs measurement above had to know how
-      # many derivations this step builds. The sentence said thirty, the
-      # bullets under it named thirty, and the eval said thirty-one.
-      # `installer-add-parity` was the one running unlisted; it is listed now.
-      # The darwin sentence below held at twenty-two. A sentence agreeing with
-      # its own list is not the test, and this is the second rot to prove it —
-      # the eval is the test.
-      #
-      # All but the last two mirror a rule that lives in another repo, in a
-      # generated dotfile, in a shell script, or in a README — where drift is
-      # silent.
-      # Without this line they were declared and never executed.
-      #
-      # Keep this census honest when a check is added: it is this repo's only
-      # record of what CI actually covers, and it rots in every direction. It
-      # said ten once; checked properly on 2026-08-15 it was four wrong at once;
-      # and on 2026-08-20 it was four wrong AGAIN — it still listed `packs`,
-      # which no longer exists on any system, it had never heard of
-      # `agent-skill`, and it called the darwin set twelve when it was
-      # fourteen. It went stale a third time the same day, from the other
-      # direction: `namespace-guard` was written pure-lib, described in its own
-      # comment as running on the Linux runner, and declared four lines BELOW
-      # the `optionalAttrs` split, so it ran on nobody's CI. A fourth time it was
-      # short by `windows-room`, and that one is the plainest of the four: the
-      # check landed correct, guarded and green, and the census line was simply
-      # not written in the same PR — the habit two paragraphs up, missed once.
-      # So do not edit the sentence you are standing next to. Print
-      # both lists and diff them:
+      # ⚠️ The hand census that used to stand in this spot is gone, and its
+      # going is most of the point. It named every Linux check in a bullet
+      # list, it was this repo's only record of what CI covered, and its own
+      # comment recorded finding it wrong at least seven separate times — in
+      # both directions at once on one reading, twice while its sentence
+      # agreed with its own list, and twice in the week this was written.
+      # Every one of those was found by running the eval and diffing, never by
+      # reading. The diff is now one line long and nothing has to be written
+      # down to keep it true:
       #
       #   nix eval --json .#checks.x86_64-linux   --apply builtins.attrNames
       #   nix eval --json .#checks.aarch64-darwin --apply builtins.attrNames
       #
-      # The darwin-only TWENTY-FOUR fingerprint a real evaluated system, so they
-      # stay guarded and don't run here — they fire on a Mac, by hand, or not at
-      # all: catalogue (every desktop and compat alias raised as a real system),
-      # fragment-compat (the retired top-level fragments' old spelling against
-      # their new one), desktop-projection (the example host's carved values vs
-      # the committed projection — the one thing that can notice the hacker
-      # desktop quietly stopping short of what the module defaults used to give),
-      # accent-reach, scale-reach, font-reach, largeprint-return (the one
-      # profile whose OFF state people ask about — which of
-      # `haus.appearance.largePrint`'s four leaves come back, and whether the
-      # three lines its description hands you for the rest still resolve),
-      # windows-room (the bar's and the launcher's rows inside the generated
-      # aerospace.toml, present with those rooms on and absent with them off —
-      # AeroSpace runs a row whose exec path is missing without a word),
-      # standalone-modules, ai-room,
-      # app-collections, login-note, desktop-seam, editor-choice,
-      # bar-bottom-focus, bar-bottom-groups, bar-third-party-widget,
-      # bar-widget-header, bar-widget-intervals, bar-factory-default (the
-      # merge-lease pill, the one pill haus draws unasked), brew-tap-trust
-      # (every third-party tap in the example host's Brewfile carrying the
-      # `trusted: true` without which `brew bundle` refuses its casks),
-      # brew-bundle-guarded (that same bundle sitting inside an `if !` in the
-      # BUILT activate script, so a refused cask is a branch rather than the end
-      # of an activation home-manager is ordered after), scene-leader-key
-      # (`haus.focus.scenes.<name>.key` reaching both the room that binds it
-      # and the one that teaches it, and the collision that is not a build
-      # error but a second [mode.launch.binding] row), and settings-writes (what each
-      # shipping desktop actually WRITES across §5.6's ten macOS settings
-      # groups, and which file supplied it — the layer below the declared
-      # `null` every other surface reads). Two more that were unlisted here
-      # until they were counted: windows-room, and app-store-activation — the
-      # App Store block's mas calls, darwin-only not because they touch a Mac
-      # but because `pkgs.mas` is `meta.platforms = [ "aarch64-darwin" ]`, so
-      # the Linux runner refuses to evaluate the activation text at all.
+      # The second minus the first is `["brew-bundle-guarded"]`. If it is ever
+      # longer, either something grew an IFD or a check was gated by habit —
+      # and the account above `checks` in flake.nix is where to argue it out.
+      # What each check is FOR stays beside that check in flake.nix, which is
+      # the one copy that cannot drift from it.
       #
-      # ⚠️ Two of those twenty-four are the reason `nix flake check` on a Mac is
-      # not optional before a PR: the *-reach tables enumerate every generated
-      # home file, so ANY new one is a missing row — and CI here can never see
-      # it. main has merged red on exactly that at least twice.
+      # ⚠️ This step is the pole of the whole gate now, and the cost is
+      # EVALUATION. Measured on run 35591587897 (the PR that moved the checks
+      # here), by the timestamps in this step's own log:
+      #
+      #   193s total  =  186s before the first `building '…drv'` line
+      #                +   6s building eighty derivations
+      #
+      # against 1-4s warm and 67s cold for the same step the day before. The
+      # job came to 221s behind a 22s restore, where `eval` took 62s — so the
+      # nix half's pole moved here, and the gate went from about 75s to about
+      # 3m40s.
+      #
+      # The 186s is the part no cache reaches. A store entry holds outputs, and
+      # those eighty derivations are what it handed back most of; it has never
+      # held an evaluation, and this step raises dozens of nix-darwin systems
+      # before it realises anything. A warm run pays the 186s in full.
+      #
+      # Re-take it the same way and from a run, not from a local `nix flake
+      # check` — that one starts from an eval cache no runner has.
       - run: nix flake check
 
   acquire:
@@ -1073,10 +927,14 @@ jobs:
           # statusline-refresh.sh is linted for a different reason: it runs
           # DETACHED with its output discarded, so a non-zero anywhere in it is
           # completely invisible — the bar just quietly stops updating.
-          # test/haus-settings.sh can only be RUN on macOS — it evaluates a
-          # darwinConfiguration — so this runner can never execute it. Linting is
-          # the only thing CI can do for THAT one, and the alternative is a suite
-          # that nothing at all touches until someone remembers it by hand.
+          # test/haus-settings.sh is linted and not run, and ⚠️ THE REASON
+          # WRITTEN HERE WAS WRONG: "it evaluates a darwinConfiguration, so this
+          # runner can never execute it". Evaluating one is exactly what `eval`
+          # does on this image, and what every check in `checks` does now. So
+          # the blocker is unestablished rather than known — somebody has to
+          # take the lint off and read what actually breaks. Until then linting
+          # is what CI does for it, and the alternative is a suite nothing
+          # touches until someone remembers it by hand.
           # test/haus-plan.sh is linted here and RUN in the `rooms` job: its subject
           # pure parsing over fixture files, so it needs neither Nix nor a Mac.
           #
@@ -1340,9 +1198,10 @@ jobs:
       # making the file haus had just written a Nix syntax error; and a
       # whole-attrset write is `mkForce`, so naming the enclosing set withdrew
       # the five items haus defines while the command printed the new value and
-      # stopped. The end-to-end half is test/haus-settings.sh, which this runner
-      # cannot execute — it evaluates a darwinConfiguration. Needs bash, bats
-      # and jq, no Nix and no Mac.
+      # stopped. The end-to-end half is test/haus-settings.sh, which CI lints
+      # and does not run — for a reason that turned out not to hold; the
+      # shellcheck step's own comment carries it. Needs bash, bats and jq, no
+      # Nix and no Mac.
       - name: haus set's option address
         run: bats test/settings-key.bats
 

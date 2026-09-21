@@ -198,8 +198,8 @@ consumer (`~/.config/nix`, host `mbp`) through `bench try`, which builds
 against this checkout, uncommitted edits included; `bench ship` ripples the
 locks once committed. CI (`.github/workflows/check.yml`) evaluates the example
 host and runs `nix flake check`, shellcheck, `bats test/*.bats` and the `bash`
-suites it can (`test/haus-settings.sh` is lint-only — it evaluates a
-darwinConfiguration, which a Linux runner cannot). A suite that renders through snug needs
+suites it can (`test/haus-settings.sh` is lint-only, for a reason that did not
+hold — see the Rules below). A suite that renders through snug needs
 `HAUS_UI_SH` first — CI's "snug's painter, at the pinned rev" step writes it
 into `$GITHUB_ENV`; below a render suite the role cases SKIP, which reads as
 green. `nixfmt` formats `.nix` files.
@@ -252,9 +252,11 @@ PR; hardcoded identity. Advisory, never a gate.
     3.2 has no `coproc`, so `test/haus-settings.sh`, `test/haus-plan.sh` and
     `test/haus-add.sh` re-exec under a bash 4+ and spawn the subject as `$BASH`
     (`test/phase-painter.bats`'s `haus_sh` handle pins it for every plain
-    suite). CI runs `haus-plan.sh` and `haus-add.sh` under bash 5 and cannot run
-    `test/haus-settings.sh` at all — it evaluates a darwinConfiguration, so it
-    gets shellcheck only.
+    suite). CI runs `haus-plan.sh` and `haus-add.sh` under bash 5 and gives
+    `test/haus-settings.sh` shellcheck only. ⚠️ The reason recorded for that
+    was "it evaluates a darwinConfiguration", which a Linux runner does fine —
+    `eval` has always done it and every flake check does it now. The real
+    blocker, if there is one, has not been established.
   - **Every ROW with columns is budgeted, never declared**: `ui_col` +
     `ui_trow` + `ui_table_data` measure the real window. The four table
     painters — `haus.sh`, `haus-show.sh`, `modules/focus/focus.sh`,

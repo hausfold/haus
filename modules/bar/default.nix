@@ -1724,12 +1724,19 @@ let
     "leader"
     "leaderName"
   ];
+  # ⚠️ `[{]` and `[}]`, never `\\{` and `\\}`. POSIX ERE does not define a
+  # backslash before a brace, and the two libcs disagree about it: BSD regex
+  # takes `\\{` as a literal brace, glibc rejects the whole pattern with
+  # "invalid regular expression". `builtins.split` uses whichever libc the
+  # EVALUATOR was built against, so the old spelling worked on every Mac and
+  # threw on CI's Linux runner the day `catalogue` started evaluating there.
+  # A bracket expression is a literal on both.
   badPlaceholders = lib.unique (
     lib.filter (name: !(builtins.elem name knownPlaceholders)) (
       lib.concatMap (
         step:
         map (m: builtins.elemAt m 0) (
-          lib.filter builtins.isList (builtins.split "\\{([A-Za-z]+)\\}" step.hint)
+          lib.filter builtins.isList (builtins.split "[{]([A-Za-z]+)[}]" step.hint)
         )
       ) (if customTour then customTourSteps else [ ])
     )
