@@ -145,6 +145,16 @@ Each `modules/<room>` is a nix-darwin module; home config goes through
 split), as a module function (`{ lib, pkgs, ... }: {...}`) when you need
 `lib.hm`. Homebrew is contributed per room; core owns the framework.
 
+A module in the FOUNDATION — `core`, `ai`, `secrets`, and the seam files beside
+them — is in every `darwinModules.<room>` export, so what it reaches for off
+`pkgs` is what a consumer's own flake has to carry. snug's overlay is the only
+one they are asked for; every other tool belongs behind the switch of the room
+that installs it, and a skill derivation takes `or null` because a folder of
+instructions is not worth an eval failure. `standalone-modules` builds every
+export again with snug's overlay alone and diffs that table against the
+six-overlay one, so a tool pulled in outside a room's switch stops there rather
+than in someone else's flake.
+
 ### Desktops
 
 The model is [`docs/model.md`](./docs/model.md). `mkHaus` takes `desktop`

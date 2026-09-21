@@ -515,15 +515,32 @@ let
   # check` uses. `or null` for the same reason `nebelung.ports or { }` has one
   # in flake.nix: a lock pinned before the output existed degrades to no
   # nebelung skill instead of failing the eval.
+  #
+  # The other five fall back for the mirror-image reason, and it is what makes
+  # this room safe to put in every `darwinModules.<room>` export's foundation.
+  # A skill is DATA — a folder of SKILL.md — so a machine that hasn't got one
+  # loses instructions and nothing else; the TOOLS are asked for by the rooms
+  # that install them, which is where a missing overlay has to be loud (this
+  # file's own assertion, and the launcher's, the shelf's and the
+  # notifications'). Without the fallback, the mere presence of this room made
+  # all five attributes mandatory: a bare `darwinModules.windows` import on a
+  # machine installing none of them died on `attribute 'scruff-skill'
+  # missing`, naming a derivation rather than an input.
+  #
+  # The fallback is keyed on the TOOL rather than spelled `pkgs.<tool>-skill or
+  # null`, and the difference is which failure stays loud. An overlay that
+  # isn't there at all is the consumer's shape above, and it goes quiet. An
+  # overlay that IS there and no longer exports its skill is a rot this room
+  # would otherwise swallow — `.#tool-skills` builds those derivations from
+  # each flake's `packages`, not from the overlay, so nothing else on the
+  # machine would notice every client losing a skill.
   toolSkills = import ./tool-skills.nix {
     inherit pkgs lib;
-    inherit (pkgs)
-      scruff-skill
-      factory-skill
-      trill-skill
-      pounce-skill
-      perch-skill
-      ;
+    scruff-skill = if pkgs ? scruff then pkgs.scruff-skill else null;
+    factory-skill = if pkgs ? factory then pkgs.factory-skill else null;
+    trill-skill = if pkgs ? trill then pkgs.trill-skill else null;
+    pounce-skill = if pkgs ? pounce-app then pkgs.pounce-skill else null;
+    perch-skill = if pkgs ? perch then pkgs.perch-skill else null;
     nebelung-skill = inputs.nebelung.packages.${pkgs.stdenv.hostPlatform.system}.nebelung-skill or null;
     aiEnabled = cfg.enable;
     trillEnabled = config.haus.notifications.compositor;
@@ -1017,6 +1034,35 @@ in
   # be read. They are the AI room's invariants: they name only `haus.ai.*`,
   # and they must fail the rebuild on a machine that has no terminal room at all.
   assertions = [
+    # This room is what puts `scruff` and `factory` on PATH, and their two
+    # skills come out of the same two overlays. With the room on and either
+    # overlay absent the eval dies on `undefined variable 'scruff'`, out of the
+    # `with pkgs;` list below — a derivation, where what a consumer has to act
+    # on is an input missing from their own flake. And this room is in EVERY
+    # `darwinModules.<room>` export's foundation, so the person reading that
+    # message may have imported the tiling and nothing else.
+    # modules/core carries the same refusal for snug, the one overlay a machine
+    # needs with every room off; this is the switch's half of it.
+    {
+      assertion = !cfg.enable || (pkgs ? scruff && pkgs ? factory);
+      message = ''
+        haus.ai.enable is on, and `pkgs.scruff` or `pkgs.factory` is missing.
+        Both come from their own flakes' overlays rather than from nixpkgs.
+
+        `mkHaus` applies them for you. A bare `darwinModules.<room>` import
+        does not, so your own `darwinSystem` call has to:
+
+            nixpkgs.overlays = [
+              inputs.snug.overlays.default
+              inputs.scruff.overlays.default
+              inputs.factory.overlays.default
+            ];
+
+        Or leave `haus.ai.enable` off, and the room asks for neither.
+
+        https://hausfold.co/docs/haus/internals/flakes
+      '';
+    }
     {
       assertion = lib.elem cfg.default clients || clients == [ ];
       message =

@@ -91,6 +91,35 @@ let
   lsregister = "/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister";
 in
 lib.mkIf config.haus.notifications.compositor {
+  # trill comes from its own flake's overlay, and this room is reachable from a
+  # `darwinModules.default` import as well as from the full builder, so the
+  # consumer who has to add that overlay may be someone whose `darwinSystem`
+  # call is their own. Without this the room dies on `attribute 'trill'
+  # missing` inside an activation script, naming a derivation rather than an
+  # input. modules/core carries the same refusal for snug; this is the room's.
+  #
+  # No `enable` guard: the whole body is inside the `mkIf` above, so the
+  # assertion only exists on a machine that asked for the room.
+  assertions = [
+    {
+      assertion = pkgs ? trill;
+      message = ''
+        haus.notifications.compositor is on, and `pkgs.trill` is missing. trill comes
+        from its own flake's overlay rather than from nixpkgs.
+
+        `mkHaus` applies it for you. A `darwinModules` import of your own does
+        not, so your own `darwinSystem` call has to:
+
+            nixpkgs.overlays = [
+              inputs.snug.overlays.default
+              inputs.trill.overlays.default
+            ];
+
+        https://hausfold.co/docs/haus/internals/flakes
+      '';
+    }
+  ];
+
   # The bundle is copied to a fixed /Applications path by this module's
   # activation step (see the header on why the path must be fixed), so
   # `installedBy` is the only honest source field.
@@ -170,9 +199,7 @@ lib.mkIf config.haus.notifications.compositor {
             rm -f "$tmp"
           }
           exit 0
-        ' "$HOME/.config/trill/config.json" ${
-          lib.escapeShellArg config.haus.fonts.sans.name
-        } ${pkgs.jq}/bin/jq
+        ' "$HOME/.config/trill/config.json" ${lib.escapeShellArg config.haus.fonts.sans.name} ${pkgs.jq}/bin/jq
       '';
     };
 
