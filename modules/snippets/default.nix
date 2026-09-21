@@ -145,15 +145,49 @@ lib.mkIf cfg.enable {
   home-manager.users.${username} =
     { lib, ... }:
     {
+      # `force`, on both, because espanso WRITES THESE TWO PATHS ITSELF. A
+      # running espanso with no config of ours regenerates its own
+      # config/default.yml (2138 bytes of commented defaults), and the room
+      # turning off leaves that file behind unmanaged. home-manager then meets
+      # an unmanaged file where a managed one belongs on the next `enable`, and
+      # its default is to back it up — once. The second time round the backup
+      # would overwrite the backup, so it refuses and ABORTS ACTIVATION partway:
+      #
+      #   Existing file '~/.config/espanso/config/default.yml.backup' would be
+      #   clobbered by backing up '~/.config/espanso/config/default.yml'
+      #
+      # Measured 2026-09-21 on a haus-golden guest at haus b5ddb77b: a rebuild
+      # that dies there leaves the generation half-applied and the launchd
+      # service from the previous generation still loaded — an orphan no
+      # generation owns. Turning a room off and on again is an ordinary thing to
+      # do, and it must not be able to break the next rebuild.
+      #
+      # It was unreachable before #749 only because espanso never actually ran
+      # from a rebuild, so it never wrote the file that collides. Making the
+      # room work is what made this path ordinary.
+      #
+      # `force` is right here rather than a backup extension: haus OWNS both
+      # paths (the option is the edit surface — the match file says so in its
+      # own first line), and espanso's self-written copy is exactly the thing
+      # that should be replaced. Nothing a user wrote is lost, because a user
+      # who wants their own espanso config puts it in another file in the same
+      # dir — espanso loads every file in ~/.config/espanso/match, which is what
+      # `haus.snippets.matches`' own docs point at for dynamic matches.
       home.file = {
         # show_icon parity with the old setup; disable Espanso's ⌥Space hotkeys
         # (search_shortcut & toggle_key) so Pounce leader keys (like ⌥Space L) work.
-        ".config/espanso/config/default.yml".text = ''
-          show_icon: false
-          search_shortcut: OFF
-          toggle_key: OFF
-        '';
-        ".config/espanso/match/default.yml".text = matchesYaml;
+        ".config/espanso/config/default.yml" = {
+          force = true;
+          text = ''
+            show_icon: false
+            search_shortcut: OFF
+            toggle_key: OFF
+          '';
+        };
+        ".config/espanso/match/default.yml" = {
+          force = true;
+          text = matchesYaml;
+        };
       };
 
       # espanso's first run opens its own wizard — welcome, then "Launch on
