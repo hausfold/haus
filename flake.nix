@@ -6496,16 +6496,116 @@
           #
           # Only the attribute NAMES are read, so nothing here forces a check's
           # own value and this cannot recurse into itself.
+          #
+          # ⚠️ The fixture below is not the only written copy of that set, so
+          # this diffs BOTH. `.github/workflows/check.yml` states the same
+          # split in prose, in the `checks` job, as a backticked Nix list after
+          # "The second minus the first is" — the one line the hand census was
+          # reduced to, and still the thing a person reads when they want to
+          # know what CI covers. It is read here as a fixture: the sentence
+          # around it can be reworded freely, the list cannot drift. Losing the
+          # list is a failure too, not a silent pass — a check that stops
+          # reading its subject has to say so.
+          #
+          # What this does NOT reach is the prose ABOUT the exemption, which
+          # names it three more times in sentences no regex should be pointed
+          # at. Two are in the same comment block as the fixture, so a red
+          # lands beside them; the third is in the `acquire` job and is not
+          # near anything.
           checks-platform-split =
             let
               onLinux = builtins.attrNames self.checks.x86_64-linux;
               onDarwin = builtins.attrNames self.checks.aarch64-darwin;
               gated = builtins.filter (n: !(builtins.elem n onLinux)) onDarwin;
               linuxOnly = builtins.filter (n: !(builtins.elem n onDarwin)) onLinux;
+
+              # One name per line, and NO line for no names — `concatStringsSep`
+              # plus a trailing newline would hand `diff` a blank line to show
+              # instead of an empty side, on the one reading where the answer is
+              # that the set is empty.
+              asLines = nixpkgs.lib.concatMapStrings (n: n + "\n");
+
+              # check.yml's copy. Every comment line is stripped of its `#` and
+              # the lot joined with spaces, so the census sentence is read the
+              # way a person reads it and not the way `fmt` last wrapped it —
+              # the list may sit across two lines and this still sees one.
+              #
+              # ⚠️ That is the WHOLE FILE's comments, every job's, `run:` block
+              # shell comments included. Nothing below checks WHERE in the file
+              # a match came from, so the census sentence would still be read
+              # if somebody moved it to another job. The prose in check.yml
+              # says it lives in `checks` because that is where it belongs, not
+              # because this holds it there.
+              prose = builtins.concatStringsSep " " (
+                map (
+                  line:
+                  let
+                    m = builtins.match "[[:space:]]*#[[:space:]]*(.*)" line;
+                  in
+                  if m == null then "" else builtins.head m
+                ) (nixpkgs.lib.splitString "\n" (builtins.readFile ./.github/workflows/check.yml))
+              );
+
+              # Split on the literal delimiters rather than matching a regex:
+              # `[^]]` is not portable across the regex engines `builtins.match`
+              # has had, and there is nothing here a split cannot say.
+              opener = "The second minus the first is `[";
+              afterOpener = nixpkgs.lib.splitString opener prose;
+              closed =
+                if builtins.length afterOpener == 2 then
+                  nixpkgs.lib.splitString "]`" (builtins.elemAt afterOpener 1)
+                else
+                  [ ];
+              # `[]` is a real answer and not an absence: it is what the file
+              # says on the day `brew-bundle-guarded` stops being gated, which
+              # the message below calls good news.
+              listText = if builtins.length closed < 2 then "" else builtins.head closed;
+              parsed =
+                if builtins.match "[[:space:]]*" listText != null then
+                  [ ]
+                else
+                  map (builtins.match "[[:space:]]*\"([a-z0-9-]+)\"[[:space:]]*") (
+                    nixpkgs.lib.splitString "," listText
+                  );
+
+              # Four ways to have no census, and the failure names which —
+              # "it is missing" printed at a sentence written twice sends
+              # somebody looking for the wrong thing.
+              #
+              # ⚠️ The last of the four is not fussiness. `closed` splits on the
+              # first "]`" ANYWHERE after the opener, so a list left unclosed
+              # does not come back short: it comes back holding however much of
+              # the file runs up to the next one, and diffing that against the
+              # gated set prints a screen of somebody else's comments. Every
+              # element has to look like a check name — the flake declares
+              # `[a-z0-9-]+` and nothing else — before any of it is believed.
+              censusState =
+                if builtins.length afterOpener == 1 then
+                  "missing"
+                else if builtins.length afterOpener > 2 then
+                  "written more than once"
+                else if builtins.length closed < 2 then
+                  "left unterminated"
+                else if builtins.any (m: m == null) parsed then
+                  "not a list of quoted check names"
+                else
+                  "present";
+              statedCensus = if censusState != "present" then null else map builtins.head parsed;
+
+              # The sentence is only a census while the two `nix eval` lines it
+              # refers back to still name these two attrsets. Matched on the
+              # attrpaths alone and against the same file-wide `prose`, so
+              # re-aligning that pair costs nothing and so would moving it —
+              # this asks whether check.yml still says these two systems
+              # anywhere, not whether it says them above the sentence.
+              recipeMissing = builtins.filter (a: !(nixpkgs.lib.hasInfix a prose)) [
+                ".#checks.x86_64-linux"
+                ".#checks.aarch64-darwin"
+              ];
             in
             pkgs.runCommand "haus-checks-platform-split-ok" { } ''
               if ! diff -u ${pkgs.writeText "expected" "brew-bundle-guarded\n"} \
-                           ${pkgs.writeText "actual" (builtins.concatStringsSep "\n" gated + "\n")}; then
+                           ${pkgs.writeText "actual" (asLines gated)}; then
                 cat >&2 <<'SPLIT'
 
               The set of checks CI's Linux runner cannot reach has changed.
@@ -6530,6 +6630,49 @@
               ${nixpkgs.lib.optionalString (linuxOnly != [ ]) ''
                 echo 'a check exists on Linux and not on darwin, which no gate in this flake can produce: ${builtins.concatStringsSep ", " linuxOnly}' >&2
                 exit 1''}
+
+              # ── and the same set, as check.yml writes it down ──────────────
+              if [ '${censusState}' != present ]; then
+                echo "check.yml's census is ${censusState}, so nothing is holding that file to the eval." >&2
+                cat >&2 <<'ANCHOR'
+
+              There has to be exactly one of these in the file, and the `checks`
+              job is where it belongs:
+
+                The second minus the first is `["brew-bundle-guarded"]`.
+
+              Reword everything around it freely. Keep the opening clause and
+              the backticked Nix list that closes it — and keep quoting neither
+              anywhere else, or this reads two censuses and trusts neither.
+
+              ANCHOR
+                exit 1
+              fi
+
+              ${nixpkgs.lib.optionalString (recipeMissing != [ ]) ''
+                echo 'check.yml states a census but the `nix eval` pair above it no longer names ${builtins.concatStringsSep ", " recipeMissing}, so "the second minus the first" is a difference between some other two sets.' >&2
+                exit 1''}
+
+              if ! diff -u ${pkgs.writeText "eval" (asLines gated)} \
+                           ${
+                             pkgs.writeText "check-yml" (asLines (if statedCensus == null then [ ] else statedCensus))
+                           }; then
+                cat >&2 <<'CENSUS'
+
+              .github/workflows/check.yml's census disagrees with the eval.
+
+              A `-` line is a check the gate keeps off the Linux runner that the
+              file does not name. A `+` line is a name the file carries that no
+              gate produces — most likely one that just moved up, or was
+              renamed. The eval is right in both directions.
+
+              Fix the sentence in the `checks` job, and read the paragraphs
+              around it while you are there: they say the same set in words, and
+              no check is pointed at those.
+
+              CENSUS
+                exit 1
+              fi
               touch $out
             '';
         }
@@ -6780,10 +6923,19 @@
           #
           # ⚠️ For those three that proof is DARWIN's alone. CI runs `nix flake
           # check` on Linux, where the nulls above drop the entries and the
-          # names are checked by nobody — so it rides on `nix flake check` from
-          # a Mac before a PR, the same pre-merge pass the *-reach tables
-          # already make non-optional (.github/workflows/check.yml says so at
-          # its census).
+          # names are checked by nobody — this check goes green over a smaller
+          # population than the one it was written for, and says nothing about
+          # having done so. `checks-platform-split` cannot catch it either:
+          # what that walks is which checks a runner SELECTS, and this one is
+          # selected everywhere. It is what the check reaches afterwards that
+          # shrinks.
+          #
+          # So those three names ride on `nix flake check` from a Mac, and
+          # nothing makes that pass non-optional — every runner in
+          # `.github/workflows/` is `ubuntu-latest`. The remedy, if it ever
+          # matters more than it does, is a Linux-reachable name for each: the
+          # skill derivations are the only darwin-only part, and the NAMES are
+          # not.
           tool-skills =
             (import ./modules/ai/tool-skills.nix {
               inherit pkgs;

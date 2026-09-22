@@ -699,6 +699,20 @@ jobs:
       # What each check is FOR stays beside that check in flake.nix, which is
       # the one copy that cannot drift from it.
       #
+      # ⚠️ AND THAT SENTENCE IS A FIXTURE. `checks-platform-split` in flake.nix
+      # takes the two attribute sets those commands print, subtracts them, and
+      # diffs the answer against the Nix list written above — every push, on
+      # this runner, as part of the `nix flake check` below. So the record here
+      # is held to the eval by the suite, which is the thing the bullet list
+      # never had. Reword the prose around it as freely as any other comment in
+      # this file; keep the clause "The second minus the first is" and the
+      # backticked list after it, once, or the check fails saying it has
+      # nothing left to read.
+      #
+      # That same exemption is named three more times in words — twice in the
+      # paragraphs above, once in the `acquire` job — and nothing checks those.
+      # A change here is a change to all four.
+      #
       # ⚠️ This step is the pole of the whole gate now, and the cost is
       # EVALUATION. Measured on run 35591587897 (the PR that moved the checks
       # here), by the timestamps in this step's own log:
