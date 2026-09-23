@@ -634,8 +634,9 @@ fi
     # vanish() is the bails' other half, and only for the silent birth: a
     # $took=1 bail strands a VISIBLE floating window on the page you are
     # standing on — a nuisance you can see and fix — but a direct-exec bail
-    # strands a 1-px sliver in a screen corner, a lane that exists and works
-    # with nothing on any page to say so. ⌃⇥ will never find it (no tile ever
+    # strands the 10x4 birth frame, a box about a hundred pixels across
+    # wherever Ghostty put it: a lane that exists and works with nothing on any
+    # page to say so. ⌃⇥ will never find it (no tile ever
     # landed on T/<repo>), so say where it went: the agents pill and `scruff`
     # both raise it by session name, which is exactly what they are for.
     printf '  back=%q\n' "$prev_wid"
@@ -872,10 +873,12 @@ if [ "$backend" = aerospace ]; then
   # are in the background note above.
   if [ -n "$ghostty_bin" ]; then
     # A background lane's window, born silent: exec'ing the bundle's binary
-    # skips LaunchServices, so nothing activates, and the clamped
-    # --window-position keeps the birth frame to a 1-px corner sliver until the
-    # launcher's self-tile block moves it to T/<repo>. Backgrounded and nohup'd
-    # because this hook exits immediately and the app must outlive it.
+    # skips LaunchServices, so nothing activates, and --window-width/--window-height
+    # keep the birth frame to a speck until the launcher's self-tile block moves
+    # it to T/<repo>. Not the position pair, which is measured NOT to clamp
+    # anything — the size flags are the ones that work, a few lines down.
+    # Backgrounded and nohup'd because this hook exits immediately and the app
+    # must outlive it.
     #
     # BOTH stdio redirects are load-bearing, not tidy: a direct exec inherits
     # this hook's fds, the hook inherits scruff's, and `scruff spawn`'s stdout is
