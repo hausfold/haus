@@ -34,7 +34,8 @@
 #   * the probe tests for a NAME, not for bytes. `lsappinfo info -only name`
 #     answers the null ASN with `"LSDisplayName"=[ NULL ]`, which is non-empty
 #     and satisfies a bare `-n` on the first iteration — in exactly the window
-#     the loop exists for. The sed peel is what makes the test real;
+#     the loop exists for. The sed peel is what makes the test real, and it
+#     reads both formats: macOS 27's `-only` prints `"Finder" ASN:…` instead;
 #   * the settle after the wait is LOAD-BEARING, and lives in the SHARED script
 #     so that pounce gets it too. Across instrumented cold boots the probe first
 #     answered 0.08 / 0.54 / 0.31 s before a real RegisterEventHotKey — the
@@ -118,7 +119,7 @@ code_body() {
     # The regression this case exists for: `lsappinfo info -only name` answers
     # the null ASN with a line that is non-empty and is not a name. Run the
     # file's own sed over both, rather than restating it here.
-    peel=$(script_body | grep -o "/usr/bin/sed -n '[^']*'")
+    peel=$(script_body | grep -oE "/usr/bin/sed -n( -e '[^']*')+")
     [ -n "$peel" ]
     run bash -c "printf '%s' '\"LSDisplayName\"=[ NULL ] ' | $peel"
     [ "$status" -eq 0 ]
@@ -126,6 +127,15 @@ code_body() {
     run bash -c "printf '%s' '\"LSDisplayName\"=\"Finder\" ' | $peel"
     [ "$status" -eq 0 ]
     [ "$output" = "Finder" ]
+    # macOS 27's `-only` prints the whole record with one field filled: the
+    # name is the header line's quoted head, and a record whose name is null
+    # (here, a bundleid-only answer) must still peel to nothing.
+    run bash -c "printf '%s\n%s\n' '\"Finder\" ASN:0x0-0x1001: (in front) ' '    bundleID=[ NULL ] ' | $peel"
+    [ "$status" -eq 0 ]
+    [ "$output" = "Finder" ]
+    run bash -c "printf '%s\n%s\n' '[ NULL ]  ASN:0x0-0x1001: (in front) ' '    bundleID=\"com.apple.finder\" ' | $peel"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
 }
 
 @test "the script parses under the bash launchd runs it with" {

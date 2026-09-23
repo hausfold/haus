@@ -86,8 +86,8 @@ log() { [ "$DEBUG" = 1 ] && echo "$(date '+%H:%M:%S') $*" >> "$LOG"; }
 
 # Frontmost app's pid + name, the cheap way.
 asn=$(lsappinfo front 2>/dev/null)
-cur_pid=$(lsappinfo info -only pid "$asn" 2>/dev/null);   cur_pid=${cur_pid#\"pid\"=}
-cur_name=$(lsappinfo info -only name "$asn" 2>/dev/null); cur_name=${cur_name#\"LSDisplayName\"=}; cur_name=${cur_name#\"}; cur_name=${cur_name%\"}
+cur_pid=$(lsappinfo info -only pid "$asn" 2>/dev/null | sed -n -e 's/^"pid"=\([0-9]*\).*/\1/p' -e 's/.*[[:space:]]pid = \([0-9]*\).*/\1/p')
+cur_name=$(lsappinfo info -only name "$asn" 2>/dev/null | sed -n -e 's/.*"LSDisplayName"="\([^"]*\)".*/\1/p' -e '1s/^"\([^"]*\)" ASN:.*/\1/p')
 
 # Read the previous frontmost, then record the current one for the next event.
 prev=$(cat "$STATE" 2>/dev/null)

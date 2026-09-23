@@ -56,8 +56,8 @@ front_app_name() {
 
     # Two calls, not one: `lsappinfo front` answers with an ASN, which is the
     # handle `info` wants. The quoting is lsappinfo's own output format —
-    # `"LSDisplayName"="Ghostty"` — peeled the way lane-open.sh peels
-    # CFBundleIdentifier.
+    # `"LSDisplayName"="Ghostty"`, or on macOS 27 and later the record's header
+    # line `"Ghostty" ASN:…` — peeled the way lane-open.sh peels the bundle id.
     /usr/bin/lsappinfo info -only name "$(/usr/bin/lsappinfo front 2>/dev/null)" 2>/dev/null |
-        sed -n 's/.*"LSDisplayName"="\([^"]*\)".*/\1/p'
+        sed -n -e 's/.*"LSDisplayName"="\([^"]*\)".*/\1/p' -e '1s/^"\([^"]*\)" ASN:.*/\1/p'
 }
