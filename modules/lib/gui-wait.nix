@@ -54,10 +54,10 @@
 # `lsappinfo` is LaunchServices' own door: no Apple event, no grant, no prompt,
 # a couple of milliseconds, and a /usr/bin binary on the boot volume like
 # everything else here. Three parts, because `front` answers with an ASN, `info`
-# turns one into a `"LSDisplayName"="Finder"` line (macOS 27 and later print
-# the record's header, `"Finder" ASN:…`, so the `sed` peels both), and it is what makes
-# the test a NAME rather than some bytes: ask `info` about the null ASN and it
-# answers `"LSDisplayName"=[ NULL ]`, which is non-empty and would satisfy a
+# turns one into a `"LSDisplayName"="Finder"` line (on macOS 27, the record's
+# header `"Finder" ASN:…`; the `sed` peels both), and the `sed` is what makes
+# the test a NAME rather than some bytes: ask `info` about the null ASN before
+# macOS 27 and it answers `"LSDisplayName"=[ NULL ]`, which is non-empty and would satisfy a
 # bare `-n` on the first iteration — in exactly the window the loop exists for,
 # where the session is up but nothing is frontmost yet. That is the peel
 # front_app_lib.sh already does in the bar; the two halves of one idiom agree.

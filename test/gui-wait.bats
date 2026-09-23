@@ -128,7 +128,8 @@ code_body() {
     [ "$status" -eq 0 ]
     [ "$output" = "Finder" ]
     # macOS 27's `-only` prints the whole record with one field filled: the
-    # name is the header line's quoted head, and the null ASN prints nothing.
+    # name is the header line's quoted head, and a record whose name is null
+    # (here, a bundleid-only answer) must still peel to nothing.
     run bash -c "printf '%s\n%s\n' '\"Finder\" ASN:0x0-0x1001: (in front) ' '    bundleID=[ NULL ] ' | $peel"
     [ "$status" -eq 0 ]
     [ "$output" = "Finder" ]
