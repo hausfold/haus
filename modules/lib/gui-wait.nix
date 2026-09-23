@@ -54,7 +54,8 @@
 # `lsappinfo` is LaunchServices' own door: no Apple event, no grant, no prompt,
 # a couple of milliseconds, and a /usr/bin binary on the boot volume like
 # everything else here. Three parts, because `front` answers with an ASN, `info`
-# turns one into a `"LSDisplayName"="Finder"` line, and the `sed` is what makes
+# turns one into a `"LSDisplayName"="Finder"` line (macOS 27 and later print
+# the record's header, `"Finder" ASN:…`, so the `sed` peels both), and it is what makes
 # the test a NAME rather than some bytes: ask `info` about the null ASN and it
 # answers `"LSDisplayName"=[ NULL ]`, which is non-empty and would satisfy a
 # bare `-n` on the first iteration — in exactly the window the loop exists for,
@@ -92,7 +93,7 @@ let
         /bin/sleep 1
       done
     done
-    until [ -n "$(/usr/bin/lsappinfo info -only name "$(/usr/bin/lsappinfo front 2>/dev/null)" 2>/dev/null | /usr/bin/sed -n 's/.*"LSDisplayName"="\([^"]*\)".*/\1/p')" ]; do
+    until [ -n "$(/usr/bin/lsappinfo info -only name "$(/usr/bin/lsappinfo front 2>/dev/null)" 2>/dev/null | /usr/bin/sed -n -e 's/.*"LSDisplayName"="\([^"]*\)".*/\1/p' -e '1s/^"\([^"]*\)" ASN:.*/\1/p')" ]; do
       [ "$(/bin/date +%s)" -ge "$deadline" ] && break
       /bin/sleep 1
     done

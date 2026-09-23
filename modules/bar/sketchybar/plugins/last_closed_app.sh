@@ -20,8 +20,8 @@ MAX=20                                   # cap the stack depth
 
 # Frontmost app's pid + bundle id, the cheap way (mirrors empty_workspace.sh).
 asn=$(lsappinfo front 2>/dev/null)
-cur_pid=$(lsappinfo info -only pid "$asn" 2>/dev/null);      cur_pid=${cur_pid#\"pid\"=}
-cur_bid=$(lsappinfo info -only bundleid "$asn" 2>/dev/null); cur_bid=${cur_bid#\"CFBundleIdentifier\"=}; cur_bid=${cur_bid#\"}; cur_bid=${cur_bid%\"}
+cur_pid=$(lsappinfo info -only pid "$asn" 2>/dev/null | sed -n -e 's/^"pid"=\([0-9]*\).*/\1/p' -e 's/.*[[:space:]]pid = \([0-9]*\).*/\1/p')
+cur_bid=$(lsappinfo info -only bundleid "$asn" 2>/dev/null | sed -n -e 's/.*"CFBundleIdentifier"="\([^"]*\)".*/\1/p' -e 's/^[[:space:]]*bundleID="\([^"]*\)".*/\1/p')
 
 # Read the previous frontmost, then record the current one for the next event.
 prev=$(cat "$STATE" 2>/dev/null)

@@ -502,7 +502,7 @@ prev_app=""
 if [ -n "$bg" ] && [ "$backend" = aerospace ]; then
   prev_wid="$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)"
   prev_app="$(/usr/bin/lsappinfo info -only bundleid "$(/usr/bin/lsappinfo front 2>/dev/null)" 2>/dev/null |
-    sed -n 's/.*"CFBundleIdentifier"="\([^"]*\)".*/\1/p')"
+    sed -n -e 's/.*"CFBundleIdentifier"="\([^"]*\)".*/\1/p' -e 's/^[[:space:]]*bundleID="\([^"]*\)".*/\1/p')"
 fi
 
 # printf %q, not bash 5's ${var@Q}: /bin/bash on macOS is still 3.2, and this
