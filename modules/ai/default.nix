@@ -536,9 +536,9 @@ let
   # that has no pounce overlay at all and throw on the skill anyway. An overlay that
   # isn't there at all is the consumer's shape above, and it goes quiet. An
   # overlay that IS there and no longer exports its skill is a rot this room
-  # would otherwise swallow — `.#tool-skills` builds those derivations from
-  # each flake's `packages`, not from the overlay, so nothing else on the
-  # machine would notice every client losing a skill.
+  # would otherwise swallow — for scruff and factory, `.#tool-skills` builds
+  # the derivation from each flake's `packages`, not from the overlay, so
+  # nothing else would notice every client losing a skill.
   toolSkills = import ./tool-skills.nix {
     inherit pkgs lib;
     scruff-skill = if pkgs ? scruff then pkgs.scruff-skill else null;
