@@ -6902,13 +6902,14 @@
           # every machine's rebuild path and belongs in `checks` for the reason
           # spelled out above `.#agent-skill`.
           #
-          # Every skill derivation comes off the flake inputs rather than off
-          # `pkgs`: the `pkgs` here is a bare `legacyPackages` with no overlays
-          # applied, while the room reads all but nebelung's through those
-          # tools' own overlays. scruff's and factory's come off each input's
+          # Every skill derivation comes off a flake input's `packages` or
+          # overlay, never the bare `pkgs`, which is a `legacyPackages` with no
+          # overlays applied. scruff's and factory's come off each input's
           # `packages`, which covers every system; nebelung ships no overlay at
           # all — haus consumes it as a palette — so both the room and this
-          # reach its skill through `inputs`.
+          # reach its skill through `inputs`. Its `or null` no longer degrades
+          # quietly here: against a lock older than its skill, it routes into
+          # the throw below.
           #
           # trill's, pounce's and perch's flakes output darwin systems only, so
           # `<tool>.packages.x86_64-linux` does not exist. Their skill
