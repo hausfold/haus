@@ -6905,48 +6905,58 @@
           # Every skill derivation comes off the flake inputs rather than off
           # `pkgs`: the `pkgs` here is a bare `legacyPackages` with no overlays
           # applied, while the room reads all but nebelung's through those
-          # tools' own overlays. nebelung ships no overlay at all — haus
-          # consumes it as a palette — so the room reaches its skill through
-          # `inputs`, which is the one derivation named the same way in both
-          # places.
+          # tools' own overlays. scruff's and factory's come off each input's
+          # `packages`, which covers every system; nebelung ships no overlay at
+          # all — haus consumes it as a palette — so both the room and this
+          # reach its skill through `inputs`.
           #
-          # trill, pounce and perch are DARWIN ONLY — their flakes output no
-          # Linux systems, while this set spans allSystems — so Linux gets
-          # `null` and those entries drop out of the list. nebelung outputs all
-          # four, so its name is proved on CI's runner like scruff's.
+          # trill's, pounce's and perch's flakes output darwin systems only, so
+          # `<tool>.packages.x86_64-linux` does not exist. Their skill
+          # derivations are not darwin-only, though: each is a `runCommand` over
+          # the tool's own `ai/` tree, `platforms.all`, published through the
+          # tool's overlay like every other package it ships. So all three come
+          # off that overlay on EVERY system, and CI's Linux runner proves the
+          # same eight names a Mac does. It is also the channel the room reads
+          # (`modules/ai/default.nix`), so the check builds the derivation a
+          # machine installs rather than a sibling of it.
+          #
+          # ⚠️ Do not gate any entry on `isDarwin`, and do not hand one a
+          # `null` here. Either drops a name out of the list on the runner
+          # while this check stays green over the smaller set — the workshop's
+          # `docs/drift.md` rows 32 and 34, and `checks-platform-split` cannot
+          # see it, because this check is selected everywhere and it is the
+          # population it reaches afterwards that shrinks. The assertion below
+          # is what makes that shrinkage loud instead: every name the list in
+          # `modules/ai/tool-skills.nix` can promise has to reach `checked` on
+          # every system.
           #
           # None of the three `*Enabled` switches is passed: the room gates each
           # INSTALL on its own room switch (`haus.notifications.compositor`,
           # `haus.launcher.enable`, `haus.shelf.enable`), and this check has to
           # prove every skill name whatever any one machine turns on, or a name
           # rots until the first person switches that room on.
-          #
-          # ⚠️ For those three that proof is DARWIN's alone. CI runs `nix flake
-          # check` on Linux, where the nulls above drop the entries and the
-          # names are checked by nobody — this check goes green over a smaller
-          # population than the one it was written for, and says nothing about
-          # having done so. `checks-platform-split` cannot catch it either:
-          # what that walks is which checks a runner SELECTS, and this one is
-          # selected everywhere. It is what the check reaches afterwards that
-          # shrinks.
-          #
-          # So those three names ride on `nix flake check` from a Mac, and
-          # nothing makes that pass non-optional — every runner in
-          # `.github/workflows/` is `ubuntu-latest`. The remedy, if it ever
-          # matters more than it does, is a Linux-reachable name for each: the
-          # skill derivations are the only darwin-only part, and the NAMES are
-          # not.
           tool-skills =
-            (import ./modules/ai/tool-skills.nix {
-              inherit pkgs;
-              inherit (nixpkgs) lib;
-              scruff-skill = scruff.packages.${system}.scruff-skill;
-              factory-skill = factory.packages.${system}.factory-skill;
-              nebelung-skill = nebelung.packages.${system}.nebelung-skill or null;
-              trill-skill = if isDarwin then trill.packages.${system}.trill-skill else null;
-              pounce-skill = if isDarwin then pounce.packages.${system}.pounce-skill else null;
-              perch-skill = if isDarwin then perch.packages.${system}.perch-skill else null;
-            }).checked;
+            let
+              toolPkgs = pkgs.appendOverlays [
+                trill.overlays.default
+                pounce.overlays.default
+                perch.overlays.default
+              ];
+              toolSkills = import ./modules/ai/tool-skills.nix {
+                inherit pkgs;
+                inherit (nixpkgs) lib;
+                scruff-skill = scruff.packages.${system}.scruff-skill;
+                factory-skill = factory.packages.${system}.factory-skill;
+                nebelung-skill = nebelung.packages.${system}.nebelung-skill or null;
+                inherit (toolPkgs) trill-skill pounce-skill perch-skill;
+              };
+              proved = map (s: s.name) toolSkills.toolSkillList;
+              unproved = builtins.filter (n: !(builtins.elem n proved)) toolSkills.allNames;
+            in
+            if unproved == [ ] then
+              toolSkills.checked
+            else
+              throw "tool-skills on ${system} proves no skill named ${nixpkgs.lib.concatStringsSep ", " unproved}: an entry's derivation is null here, so the check would go green over fewer names than modules/ai/tool-skills.nix promises";
 
           # `nix build .#agent-skill` — the skill that teaches an agent to change
           # THIS machine's config: the edit → `haus rebuild` → `haus rollback`

@@ -55,17 +55,15 @@ let
   # the defaults — the `.#tool-skills` check therefore covers every name
   # whatever any one machine turns on, which is the point: a name that rots in
   # trill's output has to fail before a merge, not on the first person who
-  # switches the room on.
-  # ⚠️ "Before a merge" means a Mac: CI checks this on Linux, where the null
-  # below drops trill out entirely. flake.nix's comment above `.#tool-skills`
-  # is where that is written down.
+  # switches the room on. CI's Linux runner included: flake.nix reads trill's,
+  # pounce's and perch's skills off their overlays, which build anywhere, so
+  # no entry is darwin's alone.
   #
-  # A null `drv` is the other gate, and it is a platform fact rather than a
-  # choice: trill's, pounce's and perch's flakes output darwin systems only,
-  # while this repo's `packages` and `checks` both span allSystems, so flake.nix
-  # hands us `null` on Linux and those entries drop out rather than breaking the
-  # eval. nebelung outputs all four systems, so it is null only against a lock
-  # older than its skill.
+  # A null `drv` is the other gate, and it belongs to the ROOM: a consumer
+  # without a tool's overlay hands in `null` and loses that skill quietly
+  # (modules/ai/default.nix says why). flake.nix's check refuses one — a null
+  # there would shrink the population it proves while staying green, so it
+  # throws unless every name in `allNames` reaches `checked`.
   toolSkills = [
     {
       drv = scruff-skill;
