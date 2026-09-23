@@ -73,7 +73,7 @@
   # measured exception, and no value in this table can express it, because the
   # problem is not which restart to fire. `AppleInterfaceStyle` (macOS
   # Light/Dark) is INERT as a `defaults` write in BOTH directions on macOS 26.6
-  # (measured 2026-08-08, not recalled from docs): writing "Dark" from a light
+  # (measured 2026-08-08, not recalled from docs; unchanged on 27.0): writing "Dark" from a light
   # session and deleting the key from a dark one each change nothing — before or
   # after `activateSettings -u`, and not even for a process launched fresh
   # afterwards, with no AppleInterfaceThemeChangedNotification posted either

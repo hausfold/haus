@@ -259,8 +259,9 @@
   # (ReduceMotionEnabled, DifferentiateWithoutColor, DarkenSystemColors,
   # EnhancedBackgroundContrastEnabled, InvertColorsEnabled, GrayscaleDisplay,
   # ButtonShapesEnabled, FullKeyboardAccessEnabled) and moves none of them:
-  # measured, the plist reads `1` while NSWorkspace still reports false, unchanged
-  # after a settle and after poking com.apple.accessibility.cache.ax.
+  # measured on 26.6 and again on 27.0, the plist reads `1` while NSWorkspace
+  # still reports false, unchanged after a settle and after poking
+  # com.apple.accessibility.cache.ax.
   #
   # Listed here rather than merely avoided so that a host reaching it through
   # `haus capture` gets told, and so `haus diff` has a table to get its verdict

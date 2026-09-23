@@ -103,7 +103,7 @@ in
         haus flips it through System Events at each home-manager activation and
         confirms the result with `hausax`, which reads AppKit's effective
         appearance. It never writes `NSGlobalDomain.AppleInterfaceStyle`: that
-        key is inert in both directions on macOS 26 and mirrors the appearance
+        key is inert in both directions on macOS 26 and 27 and mirrors the appearance
         back at you, so a plist read calls an inert write applied.
         docs/macos-settings.md has the measurement.
 

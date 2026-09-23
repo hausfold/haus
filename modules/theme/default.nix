@@ -98,7 +98,8 @@ in
         in
         {
           # macOS appearance is NOT a `defaults` key you can write, however much
-          # it looks like one. Measured on macOS 26.6, 2026-08-08:
+          # it looks like one. Measured on macOS 26.6, 2026-08-08, and unchanged
+          # on 27.0:
           # `defaults write -g AppleInterfaceStyle Dark` from a light session and
           # `defaults delete -g AppleInterfaceStyle` from a dark one BOTH change
           # nothing — before or after `activateSettings -u`, and not even for a
