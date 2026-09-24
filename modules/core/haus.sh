@@ -1235,7 +1235,7 @@ settings_diff() {
         fi
         ;;
       noop)
-        warn "$domain $key: declared $declared — this domain is a KNOWN SILENT NO-OP on macOS 26 (writes, no effect; see haus docs/macos-settings.md)"
+        warn "$domain $key: declared $declared — this domain is a KNOWN SILENT NO-OP on macOS 26 and 27 (writes, no effect; see haus docs/macos-settings.md)"
         flagged=$((flagged + 1))
         ;;
       appearance)
@@ -1246,7 +1246,7 @@ settings_diff() {
         if [ -n "$ax_json" ]; then
           live="$(printf '%s' "$ax_json" | jq -r '.appearance // "unknown"')" || live=unknown
         fi
-        warn "$domain $key: declared $declared — writing this key is a KNOWN NO-OP in BOTH directions on macOS 26 (measured; the appearance system only mirrors it). macOS is effectively showing $live. Use haus.theme.systemAppearance instead."
+        warn "$domain $key: declared $declared — writing this key is a KNOWN NO-OP in BOTH directions on macOS 26 and 27 (measured; the appearance system only mirrors it). macOS is effectively showing $live. Use haus.theme.systemAppearance instead."
         flagged=$((flagged + 1))
         ;;
       by-eye | unconfirmed | plain)
@@ -1732,7 +1732,7 @@ plan_permissions() {
     fi
   fi
 
-  [ -z "$noop" ] || warn "writes and changes nothing on macOS 26 — the plist will read back correct anyway: ${noop//,/, }"
+  [ -z "$noop" ] || warn "writes and changes nothing on macOS 26 and 27 — the plist will read back correct anyway: ${noop//,/, }"
 }
 
 # One `haus: <verdict> <domain>…` line out of a built activation script, as a

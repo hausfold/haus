@@ -3,6 +3,12 @@
 **Measured on this machine, not recalled from docs.** macOS 26.6, aarch64,
 nix-darwin. Every domain touched was exported first and byte-compared after.
 
+**Re-run on macOS 27.0 (26A428): nothing below changed.** The write sweeps ran
+in two throwaway tart VMs, a 26.6.2 control and a 27.0 guest, and their output
+matched line for line; the read-only probes and the FDA refusal ran on the
+host. What 27 has *not*
+re-checked is listed in the last section.
+
 Method: `defaults` for the plist layer, plus a compiled Swift `NSWorkspace`
 probe for *effective* system state — **a plist read only proves the file
 changed, not that macOS listened.** The probes are re-runnable and live in the
@@ -90,8 +96,8 @@ made, a naive diff calls an inert write "applied", and the usual tiebreaker — 
 freshly launched process — *also* fails. The appearance lives in session state
 the WindowServer owns; `defaults` never reaches it.
 
-Measured 2026-08-08, all four directions: writing `Dark` from a light session
-does nothing, deleting the key from a dark one does nothing, `activateSettings
+Measured on 26.6 in all four directions, and again on 27.0: writing `Dark`
+from a light session does nothing, deleting the key from a dark one does nothing, `activateSettings
 -u` does not help either, and no `AppleInterfaceThemeChangedNotification` is
 posted. That key is a mirror the appearance system writes, not a lever.
 
@@ -101,7 +107,7 @@ it that way from home-manager activation; `hausax` has an `appearance` key so
 the effect is confirmed against AppKit.
 
 This means `system.defaults.NSGlobalDomain.AppleInterfaceStyle` — a *typed*
-nix-darwin option — is **dead on macOS 26**. The reachability cost is an
+nix-darwin option — is **dead on macOS 26 and 27**. The reachability cost is an
 **Automation** grant for whatever app runs the rebuild; refused means the
 appearance doesn't move, not that activation dies.
 
@@ -253,9 +259,27 @@ distinct HiDPI "looks-like" sizes.
 
 ## What this record does not settle
 
+**Re-checked on 27.0:** the FDA refusal (a launchd agent with no grant gets
+the same exit 1, while the same agent writes an unprotected domain fine), the
+four oracle-backed `universalaccess` keys (live the instant they're written), `com.apple.Accessibility` and `AppleInterfaceStyle`
+(both still inert, System Events still flips appearance and posts the
+notification), the sound curve and its two writers, every locale and input-source
+row, the display probe, and `com.apple.ncprefs` (still a stale mirror of
+usernoted's group container).
+
+**Still measured on 26 only:**
+
+- **The by-eye rows**, below.
+- **The `logout` rows** (`WindowManager`, `loginwindow`) and `FontSizeCategory`'s
+  missing notification. Nothing was written to either on 27.
+- **Power's battery/AC split.** A VM has no battery, so `systemsetup` landing on
+  AC tells you nothing there.
+
 The by-eye `universalaccess` rows are the difference between "persists" and
 "works", and only a human on a fresh macOS release can re-check them — cursor
-size at `3.0`, ⌃+scroll zoom. Whether `systemsetup -setdisplaysleep` is AC-only
+size at `3.0`, ⌃+scroll zoom. A headless VM can't stand in: the private
+`CGSGetCursorScale` read 1.0 after a `3.0` write and a `universalaccessd`
+restart on the 26 control and on 27 alike, so it is no oracle there. Whether `systemsetup -setdisplaysleep` is AC-only
 like `-setcomputersleep` is unmeasured; the probe prints both sources for that
 row, so the next run settles it. The `power.sleep.*` finding is worth an
 upstream report to `LnL7/nix-darwin`; `power-sweep.sh` is the reproducer.
