@@ -33,20 +33,21 @@ let
   # wrong page. This agent owns the tiler, so before it execs any AeroSpace
   # already running is a stray: TERM it and give it up to 5 s to go (KILL
   # after), so the new copy never starts alongside it. Case-sensitive -x: the
-  # CLI is `aerospace`, never matched. A stray launched AFTER this exec is not
-  # caught here; the next agent restart (rebuild, crash, login) collects it.
+  # CLI is `aerospace`, never matched; -u leaves another user's copy alone. A
+  # stray launched AFTER this exec is not caught here; the next agent restart
+  # (rebuild, crash, login) collects it.
   aerospaceLaunch = [
     "/bin/bash"
     "-c"
     ''
       ${guiWait}
-      if /usr/bin/pgrep -x AeroSpace >/dev/null 2>&1; then
-        /usr/bin/pkill -TERM -x AeroSpace
+      if /usr/bin/pgrep -u "$(/usr/bin/id -u)" -x AeroSpace >/dev/null 2>&1; then
+        /usr/bin/pkill -TERM -u "$(/usr/bin/id -u)" -x AeroSpace
         for _ in 1 2 3 4 5 6 7 8 9 10; do
-          /usr/bin/pgrep -x AeroSpace >/dev/null 2>&1 || break
+          /usr/bin/pgrep -u "$(/usr/bin/id -u)" -x AeroSpace >/dev/null 2>&1 || break
           /bin/sleep 0.5
         done
-        /usr/bin/pkill -KILL -x AeroSpace 2>/dev/null
+        /usr/bin/pkill -KILL -u "$(/usr/bin/id -u)" -x AeroSpace 2>/dev/null
       fi
       exec /Applications/AeroSpace.app/Contents/MacOS/AeroSpace
     ''
