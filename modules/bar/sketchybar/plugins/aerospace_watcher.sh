@@ -1,15 +1,22 @@
 #!/bin/bash
 
-# Batch-update every workspace indicator in one pass, rather than triggering
-# one space.sh run per pill.
+# Batch-update every workspace indicator in one pass — the ONE painter of the
+# workspace pills. What each pill says is plugins/workspace_lib.sh's; this is
+# when it is said.
+#
+# It used to share the job with plugins/space.sh, run once PER PILL on every
+# workspace change — eleven processes and twenty-two `aerospace` calls for one
+# keypress, painting the same answer this batch paints two seconds later. And
+# because a hidden pill never hears an event (the bar's `updates=when_shown`),
+# a workspace that gained its first window without being switched to — a
+# window thrown there with ⌥⇧ — only ever lit up on this loop's tick anyway.
+# So the workspace-change event comes HERE now, and so does
+# space_windows_change (a window opened or closed), which is what makes the
+# window pips on a pill move when the window does rather than a tick later.
 #
 # The roster comes from the generated workspaces.sh — the SAME WORKSPACES array
 # sketchybarrc adds the pills from, so this loop cannot cover a different set
-# than the one on screen. It used to be a hand-written `1 2 3 4 T N R S B F M H
-# C D`, which was one host's workspaces frozen into a shared file: a workspace
-# nobody on that list had never lit up, and one that had been renamed was
-# updated by name forever. Raising haus.windows.numberedWorkspaces past four is
-# what would have made that visible.
+# than the one on screen.
 #
 # It is also the sole writer of the FULLSCREEN state (plugins/aerospace_lib.sh)
 # — the glyph on the front-app pill and the focused workspace pill's peach fill,
@@ -28,49 +35,53 @@
 #
 # The TILING pill rides here on the same terms — one more `aerospace` call per
 # tick, no extra sketchybar call — and for the same reason the fullscreen state
-# does: its other input is how many tiled windows the focused workspace holds,
-# and NOTHING announces a window opening or closing. leader→. fires
-# aerospace_tiling_change (again through ../aerospace-notify.sh) so a mode
-# change lands on the keypress; the count follows on the next tick.
+# does: its other input is how many tiled windows the focused workspace holds.
+# leader→. fires aerospace_tiling_change (again through ../aerospace-notify.sh)
+# so a mode change lands on the keypress; the count follows space_windows_change.
+#
+# And the BURIED pill (workspace_lib.sh's ws_buried_args) rides here for the
+# same reason as both: a floating window sinks when you click something else,
+# which is a front_app_switched, and surfaces when you focus it, which is one
+# too. Clicking a second window of the SAME app fires nothing, and the tick is
+# what covers that.
 
 # $BAR_TOP — GENERATED from haus.roster.sketchybar.binPath. Everything this loop
 # paints is a menu-bar item, so it is always the TOP bar's mach service (§5.4).
 source "$HOME/.config/sketchybar/bar.sh"
 source "$HOME/.config/sketchybar/colors.sh"
+source "$HOME/.config/sketchybar/sizes.sh"
 source "$HOME/.config/sketchybar/workspaces.sh"
 source "$HOME/.config/sketchybar/plugins/aerospace_lib.sh"
-# $BAR_TILING — GENERATED from haus.windows.enable, the same switch that decides
-# whether sketchybarrc adds the `tiling` item at all. Read here for the reason
-# launch_mode.sh reads $BAR_PAGES: this paints in ONE batch, and a `--set`
-# naming an item that was never added takes the whole batch down with it.
+source "$HOME/.config/sketchybar/plugins/workspace_lib.sh"
+# $BAR_TILING / $BAR_BURIED — GENERATED from haus.windows.enable (and, for the
+# second, haus.bar.workspaces.buried), the same switches that decide whether
+# sketchybarrc adds the `tiling` and `buried` items at all. Read here for the
+# reason launch_mode.sh reads $BAR_PAGES: this paints in ONE batch, and a
+# `--set` naming an item that was never added takes the whole batch down with
+# it.
 source "$HOME/.config/sketchybar/windows_config.sh"
 
-CURRENT=$(/opt/homebrew/bin/aerospace list-workspaces --focused 2>/dev/null)
-WITH_WINDOWS=$(/opt/homebrew/bin/aerospace list-workspaces --monitor all --empty no 2>/dev/null)
-FULLSCREEN=$(aerospace_fullscreen)
-ACTIVE_COLOR=$(fullscreen_active_ws_color "$FULLSCREEN")
+# The leader has the left side swapped out for its picker: the pills are frozen
+# and hidden, and a paint now would put them back over it. launch_mode.sh
+# freezes this item too, but a trigger (space_windows_change above all) can
+# still reach it through the freeze; the snapshot file is launch_mode's own
+# "I am armed", the same one plugins/logo.sh reads.
+[ -f /tmp/sketchybar_launch_logo.json ] && exit 0
 
-ARGS=()
-# A PAGE counts as its workspace, in BOTH tests — the same rule plugins/space.sh
-# and launch_mode.sh's restore apply, and this is the copy that runs most often
-# (every 2 s, and on every app switch). The focused workspace may be `T/haus`,
-# and there is no `space.T/haus` pill, only `space.T`; bare `T` also holds no
-# windows once lanes tile onto their own pages, so an exact occupancy match
-# hides it as empty. Matched exactly here, this loop would re-darken the pill
-# space.sh had just lit, within two seconds, forever.
-for workspace in "${WORKSPACES[@]}"; do
-    if [ "$workspace" = "$CURRENT" ] || [ "${CURRENT#"$workspace"/}" != "$CURRENT" ]; then
-        ARGS+=(--set space.$workspace background.color=$ACTIVE_COLOR icon.color=$BASE label.color=$BASE drawing=on)
-    elif echo "$WITH_WINDOWS" | grep -qE "^${workspace}(/|\$)"; then
-        ARGS+=(--set space.$workspace background.color=$SURFACE0 icon.color=$TEXT label.color=$TEXT drawing=on)
-    else
-        ARGS+=(--set space.$workspace drawing=off)
-    fi
-done
+ws_snapshot
+ACTIVE_COLOR=$(fullscreen_active_ws_color "$WS_FULLSCREEN")
+
+WS_ARGS=()
+ws_pills_args "$ACTIVE_COLOR"
 
 # Unquoted on purpose — the helper echoes space-separated `key=value` words with
 # no spaces inside any value, and each has to reach sketchybar as its own arg.
-ARGS+=(--set front_app $(fullscreen_front_app_args "$FULLSCREEN"))
-[ "${BAR_TILING:-0}" = 1 ] && ARGS+=(--set tiling $(aerospace_tiling_args "$CURRENT"))
+WS_ARGS+=(--set front_app $(fullscreen_front_app_args "$WS_FULLSCREEN"))
+[ "${BAR_TILING:-0}" = 1 ] && WS_ARGS+=(--set tiling $(aerospace_tiling_args "$WS_FOCUSED"))
+[ "${BAR_BURIED:-0}" = 1 ] && ws_buried_args
 
-"$BAR_TOP" "${ARGS[@]}"
+# Asked again at the last moment: the snapshot above is five `aerospace` calls,
+# and a caps tap landing inside them would otherwise have this paint the pills
+# back over the picker it just drew.
+[ -f /tmp/sketchybar_launch_logo.json ] && exit 0
+"$BAR_TOP" "${WS_ARGS[@]}"

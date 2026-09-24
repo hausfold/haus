@@ -2438,6 +2438,50 @@
     "readOnly": false,
     "type": "attribute set of string"
   },
+  "haus.bar.workspaces.buried": {
+    "declarations": [
+      "modules/bar/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Whether the bar names a floating window that has sunk behind the tiled\nones. AeroSpace floats a window out of the tiling grid but keeps it in\nthe ordinary stacking order, so the first tiled window you click covers\nit, and nothing else on screen says it is there.\n\nWhile a floating window on the focused workspace is less than a quarter\nvisible, a pill after the workspace pills shows its app's logo and\nname, plus a count when there are more. Clicking it brings the window\nback to the front. It needs the windows room, which measures what each\nwindow has in front of it.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "loc": [
+      "haus",
+      "bar",
+      "workspaces",
+      "buried"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.bar.workspaces.windows": {
+    "declarations": [
+      "modules/bar/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"dots\""
+    },
+    "description": "How a workspace pill shows the windows on it, once there is more than\none. `dots` draws a pip per window beside the workspace's glyph: filled\nfor a tiled window, hollow for one off the tiling grid (floating,\nminimised, or belonging to a hidden app), which are the windows that\nget lost. Past six windows it switches to the number. `count` always\ndraws the number, with a hollow ring after it when any window is off\nthe grid. `off` draws neither, and the pill says only that something\nis there.\n\nA workspace with pages counts them in, because its pill stands for all\nof them. Click the pill you are on, or right-click any pill, for the\nlist of those windows. Choosing one focuses it, wherever it is.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"count\""
+    },
+    "loc": [
+      "haus",
+      "bar",
+      "workspaces",
+      "windows"
+    ],
+    "readOnly": false,
+    "type": "one of \"dots\", \"count\", \"off\""
+  },
   "haus.developer.enable": {
     "declarations": [
       "modules/options.nix"

@@ -201,6 +201,19 @@ sketchybar --add item haus.logo left \
 # Spaces - All AeroSpace workspaces. WORKSPACES + ws_icon come from the
 # generated workspaces.sh (sourced above); app-workspaces show the app's logo
 # (sketchybar-app-font ligature), numbered workspaces keep their digit.
+#
+# The pill's LABEL is its window pips (●●○ — haus.bar.workspaces.windows), and
+# its border the "shown on another display" ring; both are painted by the
+# watcher below through plugins/workspace_lib.sh, which is the one place that
+# decides what a pill says. The pill's own script is its CLICKS
+# (plugins/space.sh): a click goes there, a click on the pill you are on — or
+# a right-click on any — drops the list of every window on it. Subscribed to
+# mouse.clicked alone: the paint is not this item's job any more, so the
+# workspace-change event goes to the watcher, once, instead of to every pill.
+#
+# The popup frame is the one `popup = true` buys a framework widget
+# (frameworkItem in ../default.nix), written out because these pills are
+# hand-written. `align=left`: the pills sit at the left edge.
 sketchybar --add event aerospace_workspace_change
 
 for workspace in "${WORKSPACES[@]}"
@@ -218,14 +231,22 @@ do
             background.drawing=on \
             background.corner_radius=12 \
             background.height=28 \
+            background.border_width=0 \
+            background.border_color=$MAUVE \
             label.drawing=off \
+            popup.background.border_width=1 \
+            popup.background.corner_radius=12 \
+            popup.background.border_color=$SURFACE1 \
+            popup.background.color=$MANTLE \
+            popup.align=left \
             script="$HOME/.config/sketchybar/plugins/space.sh" \
-            click_script="aerospace workspace $workspace" \
-        --subscribe space.$workspace aerospace_workspace_change
+        --subscribe space.$workspace mouse.clicked
 done
 
-# Aerospace workspace watcher - polls + listens for app changes to catch missed
-# updates. Also the sole writer of the FULLSCREEN state (the glyph on front_app
+# Aerospace workspace watcher — the one painter of the workspace pills (and of
+# `tiling` and `buried` below): a workspace change, a window opening or
+# closing, an app switch, and a 2 s poll for everything none of those
+# announce. Also the sole writer of the FULLSCREEN state (the glyph on front_app
 # and the focused workspace pill's peach fill) — see plugins/aerospace_lib.sh
 # for why it lives here rather than in front_app.sh.
 #
@@ -248,7 +269,7 @@ sketchybar --add item aerospace_watcher left \
         updates=on \
         update_freq=2 \
         script="$HOME/.config/sketchybar/plugins/aerospace_watcher.sh" \
-    --subscribe aerospace_watcher front_app_switched space_change aerospace_fullscreen_change aerospace_tiling_change
+    --subscribe aerospace_watcher front_app_switched space_change space_windows_change aerospace_workspace_change aerospace_fullscreen_change aerospace_tiling_change
 
 # Empty-workspace reaction — when the focused workspace loses its last window,
 # whether to a ⌘Q or to the close of one window on a lane page, pull back to the
@@ -308,9 +329,9 @@ sketchybar --add item last_closed_app left \
 # page of it — or, on the workspace, how many there are to go to. (It was a
 # movable readout on the second bar — `haus.bar.items.page` — until 2026-08-19,
 # where it could only ever answer for `T`, and where the menu bar answered
-# "which workspace" with nothing at all whenever you were on a page:
-# plugins/space.sh matches the focused workspace by exact string, so `space.T`
-# goes dark the moment you focus `T/haus`.)
+# "which workspace" with nothing at all whenever you were on a page: the
+# workspace pills matched the focused workspace by exact string then, so
+# `space.T` went dark the moment you focused `T/haus`.)
 #
 # updates=on is load-bearing, exactly as it is for bar_position below: the item
 # starts drawing=off and the bar default is updates=when_shown, under which a
@@ -382,6 +403,45 @@ if [ "$BAR_TILING" = "1" ]; then
             label.padding_right=10 \
             background.color=$SURFACE0 \
             click_script="$HOME/.config/aerospace/tiling-mode.sh"
+fi
+
+# Buried — the floating window on this workspace that has sunk behind the
+# tiles. AeroSpace's `floating` is a layout, not a stacking order, so a
+# floating window you click away from goes under the tiled windows and nothing
+# on screen says it is still there; haus can only pin the popups it spawns
+# itself (terminal/floatpin.swift measured why). So the bar notices instead:
+# when a floating window on the focused workspace is less than a quarter
+# visible, this pill names it — the app's own logo in yellow, its name beside
+# it, `+1` for a second — and a click raises it.
+#
+# The watcher paints it (plugins/workspace_lib.sh's ws_buried_args), click
+# included: the click_script is `aerospace focus --window-id <id>`, rewritten
+# on every paint, so the pill carries its own answer and a click forks nothing
+# but AeroSpace. It is measured with `hausrect --visible` (windows room), and
+# only on a workspace that holds a floating window beside something that could
+# cover it, so the tick almost never pays for it.
+#
+# It sits after `tiling` and before the front app: the last thing the "where am
+# I" cluster says before naming the app you are in is what else is here that
+# you cannot see. updates=on for the same reason as `page` and `tiling`.
+#
+# $BAR_BURIED is GENERATED from haus.windows.enable and
+# haus.bar.workspaces.buried; off, the item is never added.
+if [ "$BAR_BURIED" = "1" ]; then
+    sketchybar --add item buried left \
+        --set buried \
+            drawing=off \
+            updates=on \
+            icon.font="sketchybar-app-font:Regular:$FS_APP_ICON" \
+            icon.color=$TONE_WATCH \
+            icon.padding_left=10 \
+            icon.padding_right=6 \
+            label.color=$TEXT \
+            label.padding_right=10 \
+            label.max_chars=18 \
+            background.color=$SURFACE0 \
+            background.border_width=1 \
+            background.border_color=0x66${TONE_WATCH#0xff}
 fi
 
 # Front app name. The icon slot starts empty and stays empty in every state but
@@ -471,6 +531,15 @@ fi
 # attached, and zero the outermost drawn pill's. Synchronous, so the record is
 # taken before --update starts anything that could repaint. See plugins/edge.sh.
 "$HOME/.config/sketchybar/plugins/edge.sh" top init
+
+# A bar that is starting is never mid-leader. launch_mode.sh's snapshot is its
+# "I am armed", and it can outlive the mode — a reload while the leader is up,
+# or AeroSpace leaving `launch` without running the `off` hook (a
+# reload-config during a rebuild does). The watcher stands down while that file
+# exists, and it is the one painter of the workspace pills, so a stale one
+# would freeze them until the next caps tap. Cleared here, before anything runs.
+rm -f /tmp/sketchybar_launch_logo.json
+echo off >/tmp/sketchybar_launch_state 2>/dev/null
 
 # Force all scripts to run at startup
 sketchybar --update

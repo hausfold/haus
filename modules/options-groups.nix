@@ -199,6 +199,8 @@ let
       "widgets.<name>.placement"
       "widgets.<name>.script"
       "widgets.<name>.style"
+      "workspaces.buried"
+      "workspaces.windows"
     ];
     developer = [
       "enable"

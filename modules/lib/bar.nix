@@ -81,6 +81,10 @@ rec {
     small = fontSize 13; # tighter labels (harvest, tour, popup rows)
     tiny = fontSize 12; # the popup's italic note
     appIcon = fontSize 16; # sketchybar-app-font glyphs (workspace app logos)
+    # A workspace pill's window pips (●●○). Small on purpose: they are the
+    # pill's second reading, beside a 17pt glyph, and a filled and a hollow
+    # circle stay tellable apart down to about this size and no further.
+    pip = fontSize 10;
     # `icon`, for the handful of glyphs that are as WIDE as they are tall.
     #
     # Nerd Font's Mono builds fit every patched glyph into one cell, and the fit

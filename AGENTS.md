@@ -113,7 +113,9 @@ modules/
                           #   `nixdConsumer` exprs (helix's under a `nixd` key, or nixd
                           #   reads none of them)
   windows/                # AeroSpace tiling + hausrect (window rects by id, which AeroSpace
-                          #   cannot report; scripts/tiling-mode.sh sizes its grid off them)
+                          #   cannot report; scripts/tiling-mode.sh sizes its grid off them,
+                          #   and `--visible` is how bar spots a floating window buried
+                          #   under the tiles)
   bar/                    # SketchyBar + barpop
   security/               # Touch ID sudo + passwordless activation
   launcher/               # the palette daemon (the notarized release app); item-grammar.nix

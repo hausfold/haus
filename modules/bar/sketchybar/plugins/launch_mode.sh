@@ -38,8 +38,9 @@ source "$HOME/.config/sketchybar/colors.sh"
 # scratch, so without this it would drop a fullscreen pill back to mauve every
 # time the leader was tapped and released.
 source "$HOME/.config/sketchybar/plugins/aerospace_lib.sh"
-# sizes.sh is deliberately not sourced any more: the only thing that needed it
-# was the ${BAR_FONT}:Bold:$FS_ICON on the lead-glyph swap, and the swap is gone.
+# BAR_FONT and FS_PIP — the pips' face, which do_disarm paints through
+# plugins/workspace_lib.sh (sourced below, with the roster it walks).
+source "$HOME/.config/sketchybar/sizes.sh"
 # BAR_LOGO_COLOR — the logo's resting accent, GENERATED from haus.bar.logo.*
 # (after colors.sh, which is where the `$MAUVE` it holds comes from). The fill
 # below is that same accent, so leader mode looks like the pill turned inside
@@ -50,9 +51,11 @@ source "$HOME/.config/sketchybar/logo_config.sh"
 # picker can't drift from the app roster. (bash 3.2 has no assoc arrays, hence a
 # plain "<key>:<ws>" string.)
 source "$HOME/.config/sketchybar/workspaces.sh"
+source "$HOME/.config/sketchybar/plugins/workspace_lib.sh"
 
-# $BAR_PAGES / $BAR_TILING — GENERATED from haus.windows.enable, the same switch
-# that decides whether sketchybarrc adds the `page` and `tiling` items at all.
+# $BAR_PAGES / $BAR_TILING / $BAR_BURIED — GENERATED from haus.windows.enable
+# (and haus.bar.workspaces.buried), the switches that decide whether
+# sketchybarrc adds the `page`, `tiling` and `buried` items at all.
 # Read here because this file eval's its whole repaint as ONE sketchybar
 # invocation: a `--set` naming an item that was never added would land mid-batch.
 # Unreachable today (launch mode is an AeroSpace mode, so the leader implies the
@@ -60,7 +63,11 @@ source "$HOME/.config/sketchybar/workspaces.sh"
 # whoever decouples them.
 source "$HOME/.config/sketchybar/windows_config.sh"
 
-spaces() { sketchybar --query bar | jq -r '.items[] | select(startswith("space."))'; }
+# The workspace pills, by the generated roster rather than by asking the bar
+# for every item named `space.*`: a pill's dropdown rows are items too
+# (`space.T.popup.0`, plugins/space.sh), and a query by prefix would hand them
+# to the disarm below to switch back ON.
+spaces() { local ws; for ws in "${WORKSPACES[@]}"; do printf 'space.%s\n' "$ws"; done; }
 
 acquire_lock() {
     local n=0
@@ -105,6 +112,8 @@ do_arm() {
     # group, and the watcher's 2 s tick would otherwise paint it back on top of
     # the picker row a beat after the leader armed.
     [ "${BAR_TILING:-0}" = 1 ] && hide+=" --set tiling drawing=off updates=off"
+    # `buried` too — the same group, the same watcher, the same flash.
+    [ "${BAR_BURIED:-0}" = 1 ] && hide+=" --set buried drawing=off updates=off"
 
     # Color the picker; collect open/active first for the left-ward ordering.
     local colors="" active="" closed=""
@@ -136,35 +145,26 @@ do_arm() {
 do_disarm() {
     # Query occupancy up front so the whole left side repaints in ONE batch —
     # no intermediate frame (the old mid-disarm aerospace_watcher.sh call left a
-    # visible gap that flashed).
-    local focused open active_color
-    focused=$(aerospace list-workspaces --focused 2>/dev/null)
-    open=$(aerospace list-workspaces --monitor all --empty no 2>/dev/null)
-    # Read with the rest of the state, up front, for the same reason: the
-    # focused pill's fill is part of the one frame this repaints.
-    active_color=$(fullscreen_active_ws_color "$(aerospace_fullscreen)")
+    # visible gap that flashed). The pills are painted by the same function the
+    # watcher paints them with (plugins/workspace_lib.sh), so a pill comes back
+    # from the leader saying exactly what it said going in: its pips, its
+    # ring, the fullscreen peach. This used to be the third hand copy of that
+    # rule, and the copies had already started to drift.
+    ws_snapshot
+    local active_color
+    active_color=$(fullscreen_active_ws_color "$WS_FULLSCREEN")
 
-    local a="" sp ws
+    WS_ARGS=()
+    local entry sp
     # Hide the picker bubbles.
-    for entry in $LAUNCHERS; do a+=" --set launcher.${entry%%:*} drawing=off"; done
-    # Thaw + repaint the workspace pills to live occupancy (mirrors space.sh).
-    # `$focused` may be a PAGE (`T/haus`), and the pill for its workspace is
-    # `space.T` — so match the workspace itself OR anything under it, exactly as
-    # plugins/space.sh does. Without this the terminal pill goes dark the moment
-    # a lane page is focused, which is most of the time this bar is looked at.
-    for sp in $(spaces); do
-        ws=${sp#space.}
-        if [ "$ws" = "$focused" ] || [ "${focused#"$ws"/}" != "$focused" ]; then
-            a+=" --set $sp updates=when_shown drawing=on background.color=$active_color icon.color=$BASE label.color=$BASE"
-        elif grep -qE "^${ws}(/|\$)" <<<"$open"; then
-            a+=" --set $sp updates=when_shown drawing=on background.color=$SURFACE0 icon.color=$TEXT label.color=$TEXT"
-        else
-            a+=" --set $sp updates=when_shown drawing=off"
-        fi
-    done
-    a+=" --set aerospace_watcher updates=on --set front_app drawing=on"
-    [ "${BAR_PAGES:-0}" = 1 ] && a+=" --set page updates=on"
-    [ "${BAR_TILING:-0}" = 1 ] && a+=" --set tiling updates=on"
+    for entry in $LAUNCHERS; do WS_ARGS+=(--set "launcher.${entry%%:*}" drawing=off); done
+    # Thaw the workspace pills, then paint them to live state.
+    for sp in $(spaces); do WS_ARGS+=(--set "$sp" updates=when_shown); done
+    ws_pills_args "$active_color"
+    WS_ARGS+=(--set aerospace_watcher updates=on --set front_app drawing=on)
+    [ "${BAR_PAGES:-0}" = 1 ] && WS_ARGS+=(--set page updates=on)
+    [ "${BAR_TILING:-0}" = 1 ] && WS_ARGS+=(--set tiling updates=on)
+    [ "${BAR_BURIED:-0}" = 1 ] && WS_ARGS+=(--set buried updates=on)
 
     # Restore the logo's two colours from the snapshot in the SAME batch, so the
     # left side repaints in a single frame. Restoring rather than recomputing is
@@ -172,21 +172,25 @@ do_disarm() {
     # nobody can hit, and logo.sh's next tick corrects it regardless.
     local ac ab
     ac=$(jq -r '.color' "$SNAP"); ab=$(jq -r '.bg' "$SNAP")
-    a+=" --set haus.logo icon.color=$ac background.color=$ab"
+    WS_ARGS+=(--set haus.logo icon.color="$ac" background.color="$ab")
 
-    eval "sketchybar $a"
+    # An ARRAY now, not the `eval`ed string this batch used to be: a pill's
+    # label is its pips, and nothing that is drawn should have to survive a
+    # second parse as shell.
+    sketchybar "${WS_ARGS[@]}"
     # One extra process, on a keypress that already spawns several, and the only
-    # honest way to restore a pill whose visibility depends on a name: the batch
-    # above is eval'ed unquoted, and a workspace name is not ours to assume is
-    # one shell word.
+    # honest way to restore a pill whose visibility depends on a name: its label
+    # is a workspace name, and the page pill owns that repaint.
     [ "${BAR_PAGES:-0}" = 1 ] &&
       "$HOME/.config/sketchybar/plugins/page.sh" >/dev/null 2>&1 &
-    # `tiling` needs no second process: it is painted by aerospace_watcher.sh,
-    # which the batch above has just un-frozen, so waking it is one trigger.
-    # Without it the pill would come back on the watcher's own tick — up to 2 s
-    # of a hole where a pill was, on every single leader tap.
-    [ "${BAR_TILING:-0}" = 1 ] && sketchybar --trigger aerospace_tiling_change
     rm -f "$SNAP"
+    # `tiling` and `buried` need no second process: they are painted by
+    # aerospace_watcher.sh, which the batch above has just un-frozen, so waking
+    # it is one trigger. Without it they would come back on the watcher's own
+    # tick — up to 2 s of a hole where a pill was, on every single leader tap.
+    # After the rm: the watcher stands down while $SNAP says the leader is up.
+    { [ "${BAR_TILING:-0}" = 1 ] || [ "${BAR_BURIED:-0}" = 1 ]; } &&
+      sketchybar --trigger aerospace_tiling_change
 }
 
 # Drive the bar toward the latest desired state, re-reading STATE each pass so

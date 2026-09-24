@@ -274,6 +274,25 @@ let
   clockLabelFont = if cfg.clock.monoFont then barFont else config.haus.fonts.sans.name;
 
   bashArray = xs: lib.concatMapStringsSep " " (x: ''"${x}"'') xs;
+
+  iconMap = (import ../lib/checked-ref.nix { inherit lib pkgs; }).collect {
+    name = "sketchybar-icon-map";
+    refs = [
+      {
+        path = "${pkgs.sketchybar-app-font}/bin/icon_map.sh";
+        test = "-f";
+        install = "icon_map.sh";
+        problem = [
+          "sketchybar-app-font no longer ships bin/icon_map.sh, which the bar's"
+          "workspace dropdown and buried pill read to turn an app name into its glyph."
+        ];
+        remedies = [
+          "haus author: point modules/bar/default.nix's iconMap at where the package keeps it now."
+          "consumer: pin haus's nixpkgs back with `haus update` once a fixed haus is out."
+        ];
+      }
+    ];
+  };
   appWorkspaces = map (ws: ws.id) workspaces;
   iconFont =
     icon:
@@ -316,6 +335,9 @@ let
     # no associative arrays, so a plain space-separated "<key>:<ws>" string). An
     # empty <ws> means no assigned space (always shown closed/grey).
     LAUNCHERS="${launchersStr}"
+    # haus.bar.workspaces.windows — how a pill shows the windows on it
+    # (plugins/workspace_lib.sh's ws_pips): dots | count | off.
+    BAR_WS_WINDOWS="${cfg.workspaces.windows}"
 
     # ws_icon <workspace>: sets ICON + IFONT. Default is the workspace's own
     # letter in the bar's Nerd Font; app-workspaces override to their logo glyph.
@@ -1591,12 +1613,21 @@ let
   # different pills whose reasons to exist are unrelated — a machine could
   # plausibly want one and not the other, and one name meaning two things is how
   # that becomes impossible to express.
+  #
+  # $BAR_BURIED is the fourth, and the one with a switch of its own
+  # (haus.bar.workspaces.buried): the pill naming a floating window that sank
+  # behind the tiles. It needs the windows room twice over — AeroSpace to say
+  # which windows float, and `hausrect --visible` (windows's helper) to say how
+  # much of each one is covered.
   windowsConfigSh = ''
     #!/bin/bash
     # GENERATED from haus.windows.* by modules/bar/default.nix — do not edit.
     BAR_GRAVITY="${if config.haus.windows.enable && config.haus.windows.gravity then "1" else "0"}"
     BAR_PAGES="${if config.haus.windows.enable then "1" else "0"}"
     BAR_TILING="${if config.haus.windows.enable then "1" else "0"}"
+    BAR_BURIED="${
+      if config.haus.windows.enable && cfg.workspaces.buried then "1" else "0"
+    }"
   '';
 
   # Bar position (haus.bar.position). Sourced by sketchybarrc — which sets
@@ -2551,6 +2582,7 @@ lib.mkIf config.haus.bar.enable {
         FS_SMALL="${sizes.small}"
         FS_TINY="${sizes.tiny}"
         FS_APP_ICON="${sizes.appIcon}"
+        FS_PIP="${sizes.pip}"
         # The icon padding sketchybarrc's `--default` hands every pill, plus
         # the symmetric one an ICON-ONLY pill wants: 8/4 reads centred beside
         # a label and visibly left-heavy without one. barlib's `pill` writes
@@ -2641,6 +2673,15 @@ lib.mkIf config.haus.bar.enable {
         ".config/sketchybar/logo_config.sh".text = logoConfigSh;
         ".config/sketchybar/sizes.sh".text = sizesSh;
         ".config/sketchybar/workspaces.sh".text = workspacesSh;
+        # App name → sketchybar-app-font ligature (`Ghostty` → `:ghostty:`),
+        # for the glyphs in the workspace dropdown and the buried pill
+        # (plugins/workspace_lib.sh's ws_app_glyph). It ships inside the font's
+        # own package, so it comes from the same derivation fonts.packages
+        # installs below and the map can never name a glyph the font lacks.
+        # Through ../lib/checked-ref.nix because it is a path spelled INTO a
+        # store output: if the package ever moves the script, the build stops
+        # instead of a dangling symlink turning every glyph into `:default:`.
+        ".config/sketchybar/icon_map.sh".source = "${iconMap}/icon_map.sh";
         ".config/sketchybar/top_items.sh".text = topItemsSh;
         ".config/sketchybar/bar.sh".text = barSh;
         ".config/sketchybar/barlib.sh".source = ./sketchybar/barlib.sh;
