@@ -503,19 +503,27 @@ fi
 # draws no toast.
 #
 # The file is EMPTIED, never deleted: a --config-file that has gone missing
-# turns the next reload of that window (⌘⇧, or a rebuild's) into Ghostty's
+# turns the next reload of that window (⌘⇧, say) into Ghostty's
 # Configuration Errors window — measured the same day. `?`, the optional
-# prefix, would have been the tidy answer and is not honoured on the command
-# line. So empty files accumulate here and are swept at the next spawn once no
-# process names them; one with content is a birth in flight and is left alone.
+# prefix, would have been the tidy answer; the one command-line try of it the
+# same day loaded nothing, so it is not relied on. Empty files accumulate here
+# instead and are swept at the next spawn once no process names them; one with
+# content is a birth in flight and is left alone.
 birth=""
 if [ -n "$ghostty_bin" ]; then
   birth_dir="${XDG_STATE_HOME:-$HOME/.local/state}/haus/lane-birth"
   if mkdir -p "$birth_dir" 2>/dev/null; then
     birth="$birth_dir/$sess.conf"
+    # Who still names a file is read off ONE `ps`, matched as a literal: not
+    # pgrep, whose -f is a regex (a checkout called `c++` is a path pgrep
+    # cannot find) and which skips its own ancestors — and a spawn from inside
+    # a lane descends from that lane's Ghostty, whose file this would sweep.
+    # Every line gets a trailing space, so a flag that ends its command line
+    # and one followed by more flags are the same match.
+    live="$(ps -axo command= 2>/dev/null | sed 's/$/ /')"
     for f in "$birth_dir"/*.conf; do
       [ -f "$f" ] && [ ! -s "$f" ] || continue
-      /usr/bin/pgrep -f "config-file=$f" >/dev/null 2>&1 || rm -f "$f"
+      case "$live" in *"config-file=$f "*) ;; *) rm -f "$f" ;; esac
     done
   fi
 fi
@@ -699,18 +707,20 @@ fi
     # restore() is the birth config's other half (see the note where $birth is
     # set): empty the file, then SIGUSR2 — Ghostty's config reload — to the one
     # process whose command line names it. By FILE and not by $gpid, so the
-    # bail where the pid walk found nothing still gets its window back. `-a`
-    # is the whole trick: BSD pkill skips its own ancestors unless told not
-    # to, and the Ghostty is exactly that — without it this matched nothing
-    # and every lane landed on T/<repo> at 1pt and see-through, which is a
-    # working lane nobody can read. And the signal FIRST: `pkill -a -USR2`
-    # reads as `-U SR2`, a user filter, and refuses. Called on every exit
-    # from this block.
+    # bail where the pid walk found nothing still gets its window back. Not
+    # pkill: BSD pkill skips its own ancestors, and the Ghostty is exactly that
+    # (with no `-a` this matched nothing and every lane landed on T/<repo> at
+    # 1pt and see-through), and its -f is a regex a path can break. So one
+    # `ps`, matched literally by awk, with the path handed in through the
+    # environment so awk's own command line never names it. Called on every
+    # exit from this block.
     printf '  birth=%q\n' "$birth"
     printf '  restore() {\n'
     printf '    [ -n "$birth" ] || return 0\n'
     printf '    : >"$birth"\n'
-    printf '    /usr/bin/pkill -USR2 -a -f "config-file=$birth" >/dev/null 2>&1\n'
+    printf '    ps -axo pid=,command= 2>/dev/null | B="config-file=$birth" awk %s |\n' \
+      "'index(\$0, ENVIRON[\"B\"] \" \") || substr(\$0, length(\$0) - length(ENVIRON[\"B\"]) + 1) == ENVIRON[\"B\"] { print \$1 }'"
+    printf '      while read -r p; do kill -USR2 "$p" 2>/dev/null; done\n'
     printf '    return 0\n'
     printf '  }\n'
     printf '  gpid=""; p=$$\n'
@@ -1052,7 +1062,10 @@ if [ "$backend" = aerospace ]; then
       --window-position-x=25000 \
       --window-position-y=25000 >/dev/null 2>&1 &
     sleep 0.2
-    kill -0 $! 2>/dev/null || exit 3
+    # A launch that died leaves its birth file FULL, which the sweep never
+    # collects, and a resume of the same session shares the name with a window
+    # that may still be open — so empty it on the way out.
+    kill -0 $! 2>/dev/null || { [ -n "$birth_arg" ] && : >"$birth"; exit 3; }
     # `kill -0` asks whether the PROCESS is alive; the question is whether a
     # CLIENT started, and the two came apart the morning the display-asleep
     # block above was written — a Ghostty whose surface died is a live process
