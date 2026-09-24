@@ -2105,6 +2105,33 @@ in
       enableStealthMode = whenOn firewallCfg.stealthMode;
     };
 
+  # Block-all can leave an `/usr/libexec/sshd-auth` row behind that says
+  # `(Block incoming connections)`: the first inbound ssh under State = 2 makes
+  # ALF write that row, as Block on some runs and Allow on others (hausfold/ops#83;
+  # nobody knows yet what decides it). The row outlives every later posture and
+  # a reboot, and once block-all is gone it is what refuses ssh: State = 1 kills
+  # every new connection at `kex_exchange_identification`, and nothing in the
+  # declared posture writes the row back. So while haus holds the firewall on
+  # without block-all, a Block row on sshd-auth is cleared, on EVERY rebuild —
+  # appended to nix-darwin's own `networking` step so it runs after the
+  # posture. Only a Block row is touched: an absent row reads "permitted" and
+  # costs nothing. Not gated on Remote Login, which only decides whether the
+  # row bites today; the day Remote Login goes on, it would bite with no
+  # rebuild in between. A failed unblock is said and not fatal — ssh being
+  # refused is no reason to abandon the rest of the activation.
+  system.activationScripts.networking.text =
+    lib.mkIf (firewallCfg.enable == true && firewallCfg.blockAllIncoming != true)
+      (
+        lib.mkAfter ''
+          if /usr/libexec/ApplicationFirewall/socketfilterfw --getappblocked /usr/libexec/sshd-auth \
+              | /usr/bin/grep -q 'is blocked'; then
+            echo "unblocking /usr/libexec/sshd-auth (a block-all leftover that refuses ssh)..." >&2
+            /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp /usr/libexec/sshd-auth >/dev/null \
+              || echo "warning: could not unblock /usr/libexec/sshd-auth; inbound ssh stays refused" >&2
+          fi
+        ''
+      );
+
   # ---- Nix housekeeping -----------------------------------------------------
   # Determinate owns the daemon + settings (/etc/nix/nix.custom.conf), so
   # nix-darwin's nix module is off. Determinate only GCs reactively under disk
