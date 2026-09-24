@@ -69,11 +69,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1790001916,
-        "narHash": "sha256-isQaMouZin3QAQZ/vfBqGFvSSuLPo/o8VgiZjAgFpZA=",
+        "lastModified": 1790236610,
+        "narHash": "sha256-EkoOdK7lSf4IiRkfUQOfaebGGwJ+XUSpr9E/yfX7AR4=",
         "owner": "hausfold",
         "repo": "nebelung",
-        "rev": "5846143f26fc7de6de31e490795af7fdf0259d74",
+        "rev": "d2b6f49264672f996748fbedc739a118fc85ede0",
         "type": "github"
       },
       "original": {
@@ -184,11 +184,11 @@
         "prebuilt": "prebuilt_2"
       },
       "locked": {
-        "lastModified": 1790150719,
-        "narHash": "sha256-JuK+28qcdFND37XxZzcV5He7668CgVQtZw2AebJxGFI=",
+        "lastModified": 1790237738,
+        "narHash": "sha256-a+59O3r0kG50L3cXWwlMRTwTTsDpNntAit40AET4CjQ=",
         "owner": "hausfold",
         "repo": "pounce",
-        "rev": "ee93fbd3b45023822440c5050e2a4cec1c3441c3",
+        "rev": "285f03bcf0f2f02aabdd4524daece149df376b1f",
         "type": "github"
       },
       "original": {
