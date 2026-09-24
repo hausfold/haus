@@ -1622,6 +1622,16 @@ jobs:
       - name: page pill count
         run: bats test/page-pill.bats
 
+      # Gravity's eviction tell. A lane's Ghostty quits with its last window,
+      # macOS activates the next app and AeroSpace follows it off the T family
+      # before the bar sees an event, so the close reads as navigation unless
+      # the plugin asks whether the window it last saw focused still exists.
+      # The traps are a throw-and-follow and a walk off a live page, which also
+      # leave you elsewhere and must not hop. Hermetic: aerospace is a stub
+      # answering from files, state in the tmpdir. Needs only bash + bats.
+      - name: gravity eviction
+        run: bats test/empty-workspace.bats
+
       # The aiUsage pill's weekly SUB-limits. A Max plan caps some model
       # families inside the weekly window rather than beside it, so a family can
       # be spent for the week while the weekly gauge it lives in reads 50% — a

@@ -609,7 +609,11 @@ in
         emptying `T/<repo>` lands on the most recent populated member of the T
         family — another page, even one never visited, or T itself — and only
         when the whole family is empty does it fall back to the most recently
-        populated workspace anywhere.
+        populated workspace anywhere. That holds when macOS moves you first,
+        too: ending the agent in a lane quits that lane's Ghostty, macOS hands
+        focus to the next app, and AeroSpace follows it to its workspace. If
+        that lands you outside the family while a member is still populated,
+        gravity takes you back into it; otherwise macOS's pick stands.
 
         Turn it off if a screen that changes without you touching it is worse
         than a blank one. That is what `haus.appearance.reduceMotion` decides on
