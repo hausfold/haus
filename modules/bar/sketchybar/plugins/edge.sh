@@ -129,6 +129,10 @@ spacers() {
 
 case "$mode:${SENDER:-}" in
     init:*)
+        # barlib's per-pill "last drawn" marks describe the bar before this
+        # reload; clearing them makes every edge pill's first render report in,
+        # rather than a stale "off" swallowing the flip after a reload.
+        rm -f "$cache_dir"/*.drawn
         record
         spacers
         heads

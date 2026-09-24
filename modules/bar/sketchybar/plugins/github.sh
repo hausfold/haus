@@ -272,9 +272,10 @@ fi
 # SketchyBar applies to event DELIVERY, so a bare drawing=off is a one-way door
 # and a host that later adds a source would get a pill that never comes back.
 # Spelled out rather than `pill --hide` because this runs at source time, ahead
-# of the runtime's own dispatch.
+# of the runtime's own dispatch — which is also why it pokes plugins/edge.sh
+# itself: this pill may be the one at the screen edge.
 if [ "$n_sources" -eq 0 ]; then
-  "$SB" --set "$NAME" drawing=off updates=on
+  "$SB" --set "$NAME" drawing=off updates=on --trigger haus_edge
   exit 0
 fi
 

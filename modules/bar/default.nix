@@ -203,9 +203,10 @@ let
   # left the built-in's pills 10pt inboard of its windows.
   #
   # `side` and not `left`: haus.windows.gaps lets the two side gaps differ, and
-  # a bar has ONE padding for both ends — so the number is the wider of them
-  # (../lib/gaps.nix, which owns the collapse so the rooms reading it can't each
-  # pick a different way to spend one number).
+  # a bar has ONE padding for both ends — so `gaps.side` is already the wider of
+  # left and right (../lib/gaps.nix owns that collapse, so the rooms reading it
+  # can't each spend one number differently). ACROSS displays it is the
+  # narrower, with the spacer making up the rest.
   barPadX = lib.min gaps.side.builtin gaps.side.external;
   edgeExtra = lib.max gaps.side.builtin gaps.side.external - barPadX;
   edgeWide =
