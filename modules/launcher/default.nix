@@ -741,8 +741,21 @@ let
   # wait for Finder wedges the daemon after ⌘Q).
   guiWait = (import ../lib/gui-wait.nix).script;
 
+  # Then retire Pounce.app's own login item before exec'ing. Launching the
+  # bundle with no arguments while no daemon is up (a login-time app restore,
+  # a `pounce://` link during guiWait) takes pounce's drag-install path, which
+  # registers com.hausfold.pounce.daemon via SMAppService. From the next login
+  # on that job starts at once, with none of this agent's environment, while
+  # this one is still in guiWait: it owns the socket, this agent exits 0 every
+  # 10s behind it, and every haus command (Spawn Agent first) is missing from
+  # the palette. `autostart off` is a no-op when nothing is registered; when
+  # something is, its daemon is booted out and KeepAlive brings this one up in
+  # its place on the next relaunch. Bounded like every other login-time
+  # SMAppService call here: a stalled unregister must never keep the daemon
+  # from exec'ing, and KeepAlive re-runs this script on every restart.
   daemonScript = ''
     ${guiWait}
+    ${pkgs.coreutils}/bin/timeout 5 "${pkgs.pounce-app}/Applications/Pounce.app/Contents/MacOS/pounce" autostart off >/dev/null 2>&1 || true
     exec "${pkgs.pounce-app}/Applications/Pounce.app/Contents/MacOS/pounce" --daemon
   '';
   # ---- haus.launcher.items → config.json's `items` map ---------------------
