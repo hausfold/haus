@@ -11,12 +11,13 @@
 # to its name, tiled on that repo's own T/<repo> page.
 #
 # Return files it and gets out of your way: the box closes at once, the lane's
-# window is born as a speck and walked to T/<repo> without ever taking focus,
-# and a banner says so when it is actually running — click it and you are taken
-# to that page. ⌃↵ is the one that brings you there in the first place.
-# (A speck, not off-screen: `--window-position-*` is IGNORED, and it is
-# `--window-width/--window-height` that shrink the birth. lane-open.sh:733 has
-# the measurement, and #544 was the cost of believing otherwise.)
+# window is born see-through and a few points wide, walked to T/<repo> without
+# ever taking focus, and given its real font and opacity once it is there; a
+# banner says so when it is actually running — click it and you are taken to
+# that page. ⌃↵ is the one that brings you there in the first place. (Hidden
+# in plain sight, not off-screen: no position flag gets a window off the
+# screen, and #544 was the cost of skipping the window instead. lane-open.sh's
+# birth config has the measurements.)
 #
 # Why it exists: the same thing by hand is caps→t to a terminal, cd to the repo,
 # ⌃⌘A for a lane, then type the prompt — and the worktree ends up
