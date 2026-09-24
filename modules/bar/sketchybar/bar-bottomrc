@@ -72,8 +72,8 @@ source "$HOME/.config/sketchybar/bar.sh"
 # is off), so the level can't leak the strip over a fullscreen app.
 #
 # $BAR_PAD_X is the side edge, generated from windows's outer side gap exactly
-# as on the menu bar — the two bars line up with the windows, and with each
-# other, from one number. See sketchybarrc's --bar block.
+# as on the menu bar, spacers and all — the two bars line up with the windows,
+# and with each other, from one number. See sketchybarrc's --bar block.
 "$SB" --bar \
     height=$BAR_BOTTOM_HEIGHT \
     blur_radius=30 \
@@ -114,7 +114,25 @@ source "$HOME/.config/sketchybar/bar.sh"
 # the left is the workspace pills and the front app, and the center is the one
 # span a MacBook's notch covers. `notch_width=0` above is the same value the menu
 # bar sets; down here there is simply no notch for it to describe.
+#
+# The two edge spacers go in first, so each is the outermost item of its group
+# — the same pair as the menu bar's, with plugins/edge.sh driving both.
+"$SB" --add event haus_edge \
+    --add item edge.left left \
+    --set edge.left width=0 drawing=off updates=on \
+        icon.drawing=off label.drawing=off background.drawing=off \
+        background.padding_left=0 background.padding_right=0 \
+        script="$HOME/.config/sketchybar/plugins/edge.sh bottom" \
+    --subscribe edge.left display_change system_woke haus_edge \
+    --add item edge.right right \
+    --set edge.right width=0 drawing=off \
+        icon.drawing=off label.drawing=off background.drawing=off \
+        background.padding_left=0 background.padding_right=0
 source "$HOME/.config/sketchybar/bottom_items.sh"
+
+# Every pill exists now: record the edge pills' own padding, size the spacers,
+# pick the outermost. See the same line in sketchybarrc.
+"$HOME/.config/sketchybar/plugins/edge.sh" bottom init
 
 # Force all scripts to run at startup
 "$SB" --update
