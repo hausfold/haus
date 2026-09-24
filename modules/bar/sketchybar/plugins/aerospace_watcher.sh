@@ -80,4 +80,8 @@ WS_ARGS+=(--set front_app $(fullscreen_front_app_args "$WS_FULLSCREEN"))
 [ "${BAR_TILING:-0}" = 1 ] && WS_ARGS+=(--set tiling $(aerospace_tiling_args "$WS_FOCUSED"))
 [ "${BAR_BURIED:-0}" = 1 ] && ws_buried_args
 
+# Asked again at the last moment: the snapshot above is five `aerospace` calls,
+# and a caps tap landing inside them would otherwise have this paint the pills
+# back over the picker it just drew.
+[ -f /tmp/sketchybar_launch_logo.json ] && exit 0
 "$BAR_TOP" "${WS_ARGS[@]}"

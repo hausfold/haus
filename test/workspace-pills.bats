@@ -74,6 +74,7 @@ paint() {
     MAUVE=0xff000005 YELLOW=0xff000006 BAR_FONT=Mono FS_TINY=12.0 FS_PIP=10.0
     WS_AEROSPACE='"$STUB"'/aerospace
     WS_HAUSRECT="${HAUSRECT-'"$STUB"'/hausrect}"
+    WS_BURIED_CACHE='"$BATS_TEST_TMPDIR"'/buried-cache
     WORKSPACES=(1 2 T TT B)
     HOME='"$BATS_TEST_TMPDIR"'
     source "'"$(LIB)"'"
@@ -237,4 +238,18 @@ buried() { paint ws_buried_args | tr '\n' ' '; }
   export HAUSRECT="$BATS_TEST_TMPDIR/nope"
   run -0 buried
   [[ "$output" == *"drawing=off"* ]]
+}
+
+@test "a quiet tick reuses the answer; a change of focus asks again" {
+  FOCUSED_WIN=11
+  WINDOWS=$'1|10|floating|FaceTime|call\n1|11|h_tiles|Zen|web\n1|12|h_tiles|Zen|web2'
+  COVER="10:5"
+  run -0 buried
+  run -0 buried
+  [[ "$output" == *"label=FaceTime "* ]]
+  [ "$(wc -l <"$BATS_TEST_TMPDIR/hausrect.log")" -eq 1 ]
+
+  FOCUSED_WIN=12
+  run -0 buried
+  [ "$(wc -l <"$BATS_TEST_TMPDIR/hausrect.log")" -eq 2 ]
 }

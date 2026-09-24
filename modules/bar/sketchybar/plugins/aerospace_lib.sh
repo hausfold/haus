@@ -31,17 +31,9 @@
 # no \u/\U; \xHH works. Same trick as the mode glyphs in front_app.sh.
 AEROSPACE_FS_GLYPH=$(printf '\xEF\x81\xA5')
 
-# 1 when the FOCUSED window is AeroSpace-fullscreen, 0 otherwise — including
-# when there is no focused window at all. The test is on the VALUE, not the exit
-# code: a workspace with no windows prints nothing and still exits 0, so `-eq 0`
-# on the status would read an empty workspace as fullscreen.
-aerospace_fullscreen() {
-    if [ "$(/opt/homebrew/bin/aerospace list-windows --focused --format '%{window-is-fullscreen}' 2>/dev/null)" = "true" ]; then
-        echo 1
-    else
-        echo 0
-    fi
-}
+# Whether the FOCUSED window is fullscreen is asked by workspace_lib.sh's
+# ws_snapshot ($WS_FULLSCREEN), in the same call that reads which window is
+# focused; the two paints below take its answer as their argument.
 
 # The `--set front_app …` property arguments carrying the glyph, for the
 # caller's own batch. Only the icon and the label's left padding are touched —
@@ -63,9 +55,9 @@ fullscreen_front_app_args() {
 
 # The FOCUSED workspace pill's fill. Inactive pills are unaffected: fullscreen
 # is a property of the focused window, so only the pill you're standing on can
-# be showing it. Called by every writer of that colour — space.sh,
-# aerospace_watcher.sh and launch_mode.sh's disarm — so none of them can restore
-# a mauve pill over a fullscreen one.
+# be showing it. Called by both writers of that colour — aerospace_watcher.sh
+# and launch_mode.sh's disarm — so neither can restore a mauve pill over a
+# fullscreen one.
 fullscreen_active_ws_color() {
     if [ "$1" = 1 ]; then echo "$PEACH"; else echo "$MAUVE"; fi
 }

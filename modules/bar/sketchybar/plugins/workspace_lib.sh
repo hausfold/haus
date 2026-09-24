@@ -26,10 +26,12 @@
 # and the `buried` pill beside the front app names the floating window you can
 # no longer see, and raises it on a click (ws_buried_args, below).
 #
-# One snapshot per paint (ws_snapshot): four `aerospace` calls, ~10 ms each,
-# and a `hausrect --visible` only when the focused workspace holds a floating
-# window beside something that could cover it — which is almost never, so the
-# common tick pays nothing for the feature.
+# One snapshot per paint (ws_snapshot): four `aerospace` calls, ~10 ms each.
+# The buried check adds a `hausrect --visible` (~30 ms, most of it launching a
+# Swift binary) only when the focused workspace holds a floating window beside
+# something that could cover it — common on a desk where Finder, Settings and
+# every popup float — and then only when the answer could have CHANGED: it is
+# cached against what decides it (ws_buried's key), so a quiet tick reuses it.
 #
 # ⚠️ bash 3.2 (/bin/bash): no associative arrays, no `declare -g`, no `${x^^}`.
 # The window table is a plain string walked with `while read`.
@@ -46,6 +48,7 @@ WS_US=$'\037'
 # is still a target you can click; less than that is a strip along an edge, and
 # on a tiled desktop usually nothing at all.
 WS_BURIED_BELOW=25
+WS_BURIED_CACHE="${WS_BURIED_CACHE:-${TMPDIR:-/tmp}/haus-bar-buried}"
 
 # ── the snapshot ─────────────────────────────────────────────────────────────
 # WS_FOCUSED       the focused workspace (may be a page, `T/haus`)
@@ -62,6 +65,7 @@ ws_snapshot() {
         --format "%{window-id}${WS_US}%{window-is-fullscreen}" 2>/dev/null)
     WS_FOCUSED_WIN=${f%%"$WS_US"*}
     WS_FULLSCREEN=0
+    # shellcheck disable=SC2034 # read by the callers, not here
     [ "${f#*"$WS_US"}" = true ] && WS_FULLSCREEN=1
     [ -n "$f" ] || WS_FOCUSED_WIN=""
     WS_VISIBLE=$("$WS_AEROSPACE" list-workspaces --monitor all --visible 2>/dev/null)
@@ -228,6 +232,24 @@ ws_buried() {
         fi
     done <<<"$WS_WINDOWS"
     [ -n "$ids" ] && [ "$n" -ge 2 ] || return 0
+
+    # What decides the answer: which window is in front (focus raises it), and
+    # which windows are here in which layout. Same key within ten seconds, same
+    # answer — the bound is for what the key cannot see, a tiled window resized
+    # under a float by hand.
+    local key="$WS_FOCUSED $WS_FOCUSED_WIN" now cached stamp
+    while IFS="$WS_US" read -r w id layout rest; do
+        [ "$w" = "$WS_FOCUSED" ] && key="$key $id:$layout"
+    done <<<"$WS_WINDOWS"
+    now=$(date +%s)
+    if [ -r "$WS_BURIED_CACHE" ]; then
+        { IFS= read -r cached; IFS= read -r stamp; } <"$WS_BURIED_CACHE"
+        if [ "$cached" = "$key" ] && [ $((now - ${stamp:-0})) -lt 10 ] 2>/dev/null; then
+            WS_BURIED=$(sed '1,2d' "$WS_BURIED_CACHE")
+            return 0
+        fi
+    fi
+
     local vid pct
     # shellcheck disable=SC2086 # ids are numbers AeroSpace printed
     while IFS=$'\t' read -r vid pct; do
@@ -237,11 +259,13 @@ ws_buried() {
         done <<<"$floats"
     done < <("$WS_HAUSRECT" --visible $ids 2>/dev/null)
     WS_BURIED=${WS_BURIED%$'\n'}
+    { printf '%s\n%s\n' "$key" "$now"; [ -n "$WS_BURIED" ] && printf '%s\n' "$WS_BURIED"; } \
+        >"$WS_BURIED_CACHE.$$" 2>/dev/null && mv -f "$WS_BURIED_CACHE.$$" "$WS_BURIED_CACHE"
 }
 
 # ws_buried_args — append the `buried` pill's `--set` to WS_ARGS. The glyph is
 # the app's own logo (sketchybar-app-font, the same face the workspace pills
-# draw theirs in), yellow: `watch` on the tone ladder — worth knowing, nothing
+# draw theirs in), in `watch` on the tone ladder (yellow) — worth knowing, nothing
 # broken. The click raises the front-most one; a second is a `+1` and the next
 # click.
 ws_buried_args() {
@@ -257,7 +281,7 @@ ws_buried_args() {
     [ "$n" -gt 1 ] && label="$app +$((n - 1))"
     ws_app_glyph "$app"
     WS_ARGS+=(--set buried drawing=on
-        icon="$WS_GLYPH" icon.color="$YELLOW"
+        icon="$WS_GLYPH" icon.color="${TONE_WATCH:-$YELLOW}"
         label="$label"
         click_script="$WS_AEROSPACE focus --window-id $id")
 }

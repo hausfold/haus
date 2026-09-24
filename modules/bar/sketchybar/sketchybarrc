@@ -329,9 +329,9 @@ sketchybar --add item last_closed_app left \
 # page of it — or, on the workspace, how many there are to go to. (It was a
 # movable readout on the second bar — `haus.bar.items.page` — until 2026-08-19,
 # where it could only ever answer for `T`, and where the menu bar answered
-# "which workspace" with nothing at all whenever you were on a page:
-# plugins/space.sh matches the focused workspace by exact string, so `space.T`
-# goes dark the moment you focus `T/haus`.)
+# "which workspace" with nothing at all whenever you were on a page: the
+# workspace pills matched the focused workspace by exact string then, so
+# `space.T` went dark the moment you focused `T/haus`.)
 #
 # updates=on is load-bearing, exactly as it is for bar_position below: the item
 # starts drawing=off and the bar default is updates=when_shown, under which a
@@ -433,7 +433,7 @@ if [ "$BAR_BURIED" = "1" ]; then
             drawing=off \
             updates=on \
             icon.font="sketchybar-app-font:Regular:$FS_APP_ICON" \
-            icon.color=$YELLOW \
+            icon.color=$TONE_WATCH \
             icon.padding_left=10 \
             icon.padding_right=6 \
             label.color=$TEXT \
@@ -441,7 +441,7 @@ if [ "$BAR_BURIED" = "1" ]; then
             label.max_chars=18 \
             background.color=$SURFACE0 \
             background.border_width=1 \
-            background.border_color=0x66${YELLOW#0xff}
+            background.border_color=0x66${TONE_WATCH#0xff}
 fi
 
 # Front app name. The icon slot starts empty and stays empty in every state but
@@ -531,6 +531,15 @@ fi
 # attached, and zero the outermost drawn pill's. Synchronous, so the record is
 # taken before --update starts anything that could repaint. See plugins/edge.sh.
 "$HOME/.config/sketchybar/plugins/edge.sh" top init
+
+# A bar that is starting is never mid-leader. launch_mode.sh's snapshot is its
+# "I am armed", and it can outlive the mode — a reload while the leader is up,
+# or AeroSpace leaving `launch` without running the `off` hook (a
+# reload-config during a rebuild does). The watcher stands down while that file
+# exists, and it is the one painter of the workspace pills, so a stale one
+# would freeze them until the next caps tap. Cleared here, before anything runs.
+rm -f /tmp/sketchybar_launch_logo.json
+echo off >/tmp/sketchybar_launch_state 2>/dev/null
 
 # Force all scripts to run at startup
 sketchybar --update

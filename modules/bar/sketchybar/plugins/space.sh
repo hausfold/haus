@@ -28,12 +28,16 @@
 # the time.
 export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/usr/bin:/bin"
 
+# shellcheck disable=SC2034 # read by bar.sh, which barlib sources
 BAR_ITEM="${NAME:-}"
 source "$HOME/.config/sketchybar/barlib.sh"
 source "$HOME/.config/sketchybar/workspaces.sh"
 source "$HOME/.config/sketchybar/plugins/workspace_lib.sh"
 
 WS="${NAME#space.}"
+# Before any row, which is where barlib wants it: popup_open lays the panel's
+# top pad before it calls popup_rows, and the grid is fixed from then on.
+popup_width 360
 MRU="$HOME/.config/aerospace/workspace-mru.sh"
 
 go() {
@@ -96,7 +100,6 @@ popup_rows() {
     ws_is_under "$WS" "$WS_FOCUSED" && ws_buried
     ws_count "$WS"
     local total=$((WS_N_TILED + WS_N_LOOSE))
-    popup_width 360
 
     # The places this pill stands for, in the order the page pill counts them:
     # the workspace itself when anything is on it, then its pages as AeroSpace
@@ -106,7 +109,8 @@ popup_rows() {
         [ "$w" = "$WS" ] && { places="$WS"$'\n'; break; }
     done <<<"$WS_WINDOWS"
     while IFS="$WS_US" read -r w rest; do
-        [ "$w" != "$WS" ] && ws_is_under "$WS" "$w" || continue
+        [ "$w" != "$WS" ] || continue
+        ws_is_under "$WS" "$w" || continue
         case $'\n'"$places" in *$'\n'"$w"$'\n'*) continue ;; esac
         places="${places}${w}"$'\n'
     done <<<"$WS_WINDOWS"
