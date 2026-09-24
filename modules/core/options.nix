@@ -1348,6 +1348,11 @@ in
           screen sharing, a dev server on your LAN). null (the default) leaves
           macOS's own choice alone. Has no effect while `enable` is null or
           false.
+
+          Leaving block-all can leave ssh refused: the first inbound ssh while
+          it is on can write a lasting "Block" entry for
+          `/usr/libexec/sshd-auth`. While `enable` is true and this is not,
+          every rebuild clears that one entry.
         '';
       };
       allowSigned = lib.mkOption {

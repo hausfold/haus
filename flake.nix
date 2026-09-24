@@ -1954,17 +1954,20 @@
           # lines, and `enable = null` with the same leaf enabled one haus was
           # told not to touch (the VM lane's Security pass, 2026-09-16).
           # The table pins what reaches nix-darwin: nothing but `enable` unless
-          # `enable` is true, and everything declared when it is.
+          # `enable` is true, and everything declared when it is. `unblock` is
+          # core's sshd-auth step (hausfold/ops#83): on exactly when the
+          # firewall is held on without block-all.
           firewallPosture =
             fw:
             let
-              c =
+              cfg =
                 (mkHaus {
                   system = hostSystem;
                   username = "you";
                   hostname = "example";
                   extraModules = [ { haus.security.firewall = fw; } ];
-                }).config.networking.applicationFirewall;
+                }).config;
+              c = cfg.networking.applicationFirewall;
             in
             builtins.concatStringsSep " " [
               "enable=${builtins.toJSON c.enable}"
@@ -1972,6 +1975,7 @@
               "allowSigned=${builtins.toJSON c.allowSigned}"
               "allowSignedApp=${builtins.toJSON c.allowSignedApp}"
               "stealth=${builtins.toJSON c.enableStealthMode}"
+              "unblock=${builtins.toJSON (nixpkgs.lib.hasInfix "--unblockapp /usr/libexec/sshd-auth" cfg.system.activationScripts.networking.text)}"
             ];
           firewallPostureTable = builtins.concatStringsSep "\n" [
             (
@@ -2005,12 +2009,20 @@
               }
             )
             ("on, nothing else: " + firewallPosture { enable = true; })
+            (
+              "on, block-all: "
+              + firewallPosture {
+                enable = true;
+                blockAllIncoming = true;
+              }
+            )
           ];
           expectedFirewallPostureTable = ''
-            off, posture declared: enable=false blockAll=null allowSigned=null allowSignedApp=null stealth=null
-            unmanaged, posture declared: enable=null blockAll=null allowSigned=null allowSignedApp=null stealth=null
-            on, posture declared: enable=true blockAll=false allowSigned=true allowSignedApp=false stealth=true
-            on, nothing else: enable=true blockAll=null allowSigned=null allowSignedApp=null stealth=null
+            off, posture declared: enable=false blockAll=null allowSigned=null allowSignedApp=null stealth=null unblock=false
+            unmanaged, posture declared: enable=null blockAll=null allowSigned=null allowSignedApp=null stealth=null unblock=false
+            on, posture declared: enable=true blockAll=false allowSigned=true allowSignedApp=false stealth=true unblock=true
+            on, nothing else: enable=true blockAll=null allowSigned=null allowSignedApp=null stealth=null unblock=true
+            on, block-all: enable=true blockAll=true allowSigned=null allowSignedApp=null stealth=null unblock=false
           '';
 
           # ---- roster-bin-paths ------------------------------------------------
