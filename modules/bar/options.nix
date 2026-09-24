@@ -794,6 +794,48 @@ in
       '';
     };
 
+    bar.workspaces.windows = lib.mkOption {
+      type = lib.types.enum [
+        "dots"
+        "count"
+        "off"
+      ];
+      default = "dots";
+      example = "count";
+      description = ''
+        How a workspace pill shows the windows on it, once there is more than
+        one. `dots` draws a pip per window beside the workspace's glyph: filled
+        for a tiled window, hollow for one off the tiling grid (floating,
+        minimised, or belonging to a hidden app), which are the windows that
+        get lost. Past six windows it switches to the number. `count` always
+        draws the number, with a hollow ring after it when any window is off
+        the grid. `off` draws neither, and the pill says only that something
+        is there.
+
+        A workspace with pages counts them in, because its pill stands for all
+        of them. Click the pill you are on, or right-click any pill, for the
+        list of those windows. Choosing one focuses it, wherever it is.
+      '';
+    };
+
+    bar.workspaces.buried = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      example = false;
+      description = ''
+        Whether the bar names a floating window that has sunk behind the tiled
+        ones. AeroSpace floats a window out of the tiling grid but keeps it in
+        the ordinary stacking order, so the first tiled window you click covers
+        it, and nothing else on screen says it is there.
+
+        While a floating window on the focused workspace is less than a quarter
+        visible, a pill after the workspace pills shows its app's logo and
+        name, plus a count when there are more. Clicking it brings the window
+        back to the front. It needs the windows room, which measures what each
+        window has in front of it.
+      '';
+    };
+
     bar.battery.hideOver = lib.mkOption {
       type = lib.types.nullOr lib.types.int;
       default = null;

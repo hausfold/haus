@@ -3,6 +3,9 @@
 //   hausrect [<window-id>...]     one `id x y width height` line per window,
 //                                 tab separated; every on-screen ordinary
 //                                 window when given no ids
+//   hausrect --visible <id>...    one `id percent` line per named window: how
+//                                 much of it is NOT covered by an ordinary
+//                                 window stacked in front of it, 0-100
 //
 // It exists because AeroSpace can't answer this. `aerospace list-windows
 // --format` has no rect placeholder (`--format` rejects `monitor-width` and
@@ -35,11 +38,72 @@ import Foundation
 // all. A non-numeric argument is dropped rather than fatal: the caller is a
 // shell loop over ids it got from aerospace, and one unparseable word should
 // cost that window's line, not the whole answer.
-let wanted = Set(CommandLine.arguments.dropFirst().compactMap(Int.init))
+var argv = Array(CommandLine.arguments.dropFirst())
+let visibleMode = argv.first == "--visible"
+if visibleMode { argv.removeFirst() }
+let wanted = Set(argv.compactMap(Int.init))
 
 let info =
     CGWindowListCopyWindowInfo(
         [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+
+func rect(_ window: [String: Any]) -> CGRect? {
+    guard let bounds = window[kCGWindowBounds as String] as? [String: Any],
+        let x = bounds["X"] as? Double, let y = bounds["Y"] as? Double,
+        let w = bounds["Width"] as? Double, let h = bounds["Height"] as? Double
+    else { return nil }
+    return CGRect(x: x, y: y, width: w, height: h)
+}
+
+// ── --visible: how much of a window you can actually see ────────────────────
+// The bar's question, not tiling-mode's: AeroSpace's `floating` is a LAYOUT
+// rather than a stacking order, so a floating window sinks behind the first
+// tiled window you click and nothing on screen says it is still there
+// (modules/terminal/floatpin.swift measures why haus can only PIN the popups
+// it spawns itself). What haus CAN do is notice — and the stacking order is
+// exactly what this list already hands out: CGWindowListCopyWindowInfo returns
+// on-screen windows FRONT TO BACK, so everything before a window in the list
+// is in front of it.
+//
+// Only layer-0 windows count as cover. The bar itself is a full-width window
+// at a higher level and is almost entirely transparent, floatring's outline is
+// a hollow frame, and a pinned popup (floatpin) is a window haus put there on
+// purpose — none of them is what buries a window you lost. A fully transparent
+// window (alpha 0) covers nothing either.
+//
+// The area is SAMPLED rather than unioned: a 24 × 16 grid of points over the
+// window, each one covered or not. Exact rectangle-union arithmetic buys
+// nothing at a threshold the bar reads in quarters, and the grid is a few
+// thousand comparisons.
+//
+// A named id that is not on screen (minimised, a hidden app, another
+// workspace AeroSpace parked in the corner) prints nothing, which the caller
+// reads as "not buried" — there is nothing in front of a window that is not
+// there.
+if visibleMode {
+    var cover: [CGRect] = []
+    for window in info {
+        guard let id = window[kCGWindowNumber as String] as? Int else { continue }
+        let layer = window[kCGWindowLayer as String] as? Int ?? -1
+        let alpha = window[kCGWindowAlpha as String] as? Double ?? 1
+        guard let r = rect(window) else { continue }
+        if wanted.contains(id) && r.width > 0 && r.height > 0 {
+            let cols = 24, rows = 16
+            var seen = 0
+            for i in 0..<cols {
+                for j in 0..<rows {
+                    let p = CGPoint(
+                        x: r.minX + (Double(i) + 0.5) * r.width / Double(cols),
+                        y: r.minY + (Double(j) + 0.5) * r.height / Double(rows))
+                    if !cover.contains(where: { $0.contains(p) }) { seen += 1 }
+                }
+            }
+            print("\(id)\t\(seen * 100 / (cols * rows))")
+        }
+        if layer == 0 && alpha > 0 { cover.append(r) }
+    }
+    exit(0)
+}
 
 for window in info {
     guard let id = window[kCGWindowNumber as String] as? Int else { continue }
@@ -49,9 +113,6 @@ for window in info {
     // and second-guessing that would make the tool lie about a window it can
     // see perfectly well.
     if wanted.isEmpty && (window[kCGWindowLayer as String] as? Int ?? -1) != 0 { continue }
-    guard let bounds = window[kCGWindowBounds as String] as? [String: Any],
-        let x = bounds["X"] as? Double, let y = bounds["Y"] as? Double,
-        let w = bounds["Width"] as? Double, let h = bounds["Height"] as? Double
-    else { continue }
-    print("\(id)\t\(Int(x))\t\(Int(y))\t\(Int(w))\t\(Int(h))")
+    guard let r = rect(window) else { continue }
+    print("\(id)\t\(Int(r.minX))\t\(Int(r.minY))\t\(Int(r.width))\t\(Int(r.height))")
 }
