@@ -785,11 +785,15 @@ fi
     printf '  aerospace move-node-to-workspace %s--window-id "$WID" %q\n' \
       "$follow" "T/$repo"
     printf '  aerospace layout --window-id "$WID" tiling\n'
-    # Out of sight now, so the window can have its real font and opacity back.
-    printf '  restore\n'
     # And again once the lane has left the visible workspace, for an
     # activation that landed after the first call.
     printf '  giveback\n'
+    # Out of sight now, so the window can have its real font and opacity back.
+    # AFTER the giveback, not before: on macOS a SIGUSR2 reload is dropped
+    # while the receiving Ghostty is focused (ghostty-org/ghostty discussion
+    # #12221, open against 1.3.1), and a self-activated lane would then stay
+    # at 1pt and see-through.
+    printf '  restore\n'
     # LAST: the label is allowed to land late — a chord pressed in the first
     # quarter-second simply gets the title join — and neither the move nor the
     # giveback is.
