@@ -5,7 +5,8 @@ nix-darwin. Every domain touched was exported first and byte-compared after.
 
 **Re-run on macOS 27.0 (26A428): nothing below changed.** The write sweeps ran
 in two throwaway tart VMs, a 26.6.2 control and a 27.0 guest, and their output
-matched line for line; the read-only probes ran on the host. What 27 has *not*
+matched line for line; the read-only probes and the FDA refusal ran on the
+host. What 27 has *not*
 re-checked is listed in the last section.
 
 Method: `defaults` for the plist layer, plus a compiled Swift `NSWorkspace`
@@ -258,18 +259,16 @@ distinct HiDPI "looks-like" sizes.
 
 ## What this record does not settle
 
-**Re-checked on 27.0:** the four oracle-backed `universalaccess` keys (live the
-instant they're written), `com.apple.Accessibility` and `AppleInterfaceStyle`
+**Re-checked on 27.0:** the FDA refusal (a launchd agent with no grant gets
+the same exit 1, while the same agent writes an unprotected domain fine), the
+four oracle-backed `universalaccess` keys (live the instant they're written), `com.apple.Accessibility` and `AppleInterfaceStyle`
 (both still inert, System Events still flips appearance and posts the
 notification), the sound curve and its two writers, every locale and input-source
 row, the display probe, and `com.apple.ncprefs` (still a stale mirror of
 usernoted's group container).
 
-**Still measured on 26 only**, because the VM can't answer them:
+**Still measured on 26 only:**
 
-- **The FDA refusal.** The cirruslabs guests run with SIP off, so TCC doesn't
-  gate Full Disk Access there and a no-FDA writer succeeds. Only a real Mac
-  can repeat it.
 - **The by-eye rows**, below.
 - **The `logout` rows** (`WindowManager`, `loginwindow`) and `FontSizeCategory`'s
   missing notification. Nothing was written to either on 27.
