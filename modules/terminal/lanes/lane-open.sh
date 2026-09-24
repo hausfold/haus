@@ -378,11 +378,12 @@ fi
 #         invisible.
 #
 # So the window is back, born the #529 way plus the flag pair that was actually
-# measured to shrink the birth (--window-width/--window-height). What is left
-# of the flash is a speck, not a terminal. If even that is too much, the honest
-# next move is NOT a third position trick: it is to keep the windowless birth
-# and materialise the window when you arrive on T/<repo>, where it belongs and
-# where nothing has to be hidden.
+# measured to shrink the birth (--window-width/--window-height). That left a
+# speck in the bottom-right corner for ~200 ms; the birth config (below, where
+# $birth is set) makes the speck a few points of see-through, and 10 recorded
+# spawns out of 10 showed nothing at all. A windowless birth was weighed again
+# and turned down a second time: Mission Control, ⌃⇥ and the page counter all
+# count WINDOWS, and the first of those cannot be taught otherwise.
 #
 # On the aerospace backend the silence is in how the window is BORN, two facts
 # working together (both MEASURED 2026-08-27 on Ghostty 1.3.1):
@@ -478,6 +479,45 @@ if [ -n "$bg" ] && [ "$backend" = aerospace ]; then
       break
     fi
   done
+fi
+
+# ── the birth config: a window that is there but not SEEN ────────────────────
+# The direct exec still shows something before the self-tile hides it: AeroSpace
+# cannot move a window until it has noticed one, and it notices ~100 ms after
+# the window is up. So the window spends that time looking like nothing:
+#
+#   font-size = 1, padding 0   10x4 cells of a 1pt font is a window of a few
+#                              points, down from the ~130pt box that 13pt cells
+#                              made
+#   background-opacity = 0     what is left of it is see-through
+#   cursor-opacity = 0,        and has no cursor block or shadow to give it an
+#   macos-window-shadow=false  outline
+#
+# All four live in a per-lane --config-file rather than on the command line,
+# because CLI flags are re-applied on every reload and a file is re-READ: once
+# the lane is on T/<repo>, the launcher's restore() empties the file and sends
+# the process SIGUSR2, Ghostty's config reload, and the window comes back at
+# your own font and opacity out of sight. MEASURED 2026-09-24 on Ghostty 1.3.1
+# in a headless guest: font-size and background-opacity both take effect on that
+# reload (the docs' "opacity needs a restart" did not hold), and the reload
+# draws no toast.
+#
+# The file is EMPTIED, never deleted: a --config-file that has gone missing
+# turns the next reload of that window (⌘⇧, or a rebuild's) into Ghostty's
+# Configuration Errors window — measured the same day. `?`, the optional
+# prefix, would have been the tidy answer and is not honoured on the command
+# line. So empty files accumulate here and are swept at the next spawn once no
+# process names them; one with content is a birth in flight and is left alone.
+birth=""
+if [ -n "$ghostty_bin" ]; then
+  birth_dir="${XDG_STATE_HOME:-$HOME/.local/state}/haus/lane-birth"
+  if mkdir -p "$birth_dir" 2>/dev/null; then
+    birth="$birth_dir/$sess.conf"
+    for f in "$birth_dir"/*.conf; do
+      [ -f "$f" ] && [ ! -s "$f" ] || continue
+      /usr/bin/pgrep -f "config-file=$f" >/dev/null 2>&1 || rm -f "$f"
+    done
+  fi
 fi
 
 # Who holds the screen right now, so a background lane can give it back once it
@@ -656,6 +696,23 @@ fi
     printf '      --thread %q --title "haus · agent lane" \\\n' "$sess"
     printf '      --body %q >/dev/null 2>&1\n' "$sess opened out of sight and could not be tiled — raise it from the agents pill, or scruff"
     printf '  }\n'
+    # restore() is the birth config's other half (see the note where $birth is
+    # set): empty the file, then SIGUSR2 — Ghostty's config reload — to the one
+    # process whose command line names it. By FILE and not by $gpid, so the
+    # bail where the pid walk found nothing still gets its window back. `-a`
+    # is the whole trick: BSD pkill skips its own ancestors unless told not
+    # to, and the Ghostty is exactly that — without it this matched nothing
+    # and every lane landed on T/<repo> at 1pt and see-through, which is a
+    # working lane nobody can read. And the signal FIRST: `pkill -a -USR2`
+    # reads as `-U SR2`, a user filter, and refuses. Called on every exit
+    # from this block.
+    printf '  birth=%q\n' "$birth"
+    printf '  restore() {\n'
+    printf '    [ -n "$birth" ] || return 0\n'
+    printf '    : >"$birth"\n'
+    printf '    /usr/bin/pkill -USR2 -a -f "config-file=$birth" >/dev/null 2>&1\n'
+    printf '    return 0\n'
+    printf '  }\n'
     printf '  gpid=""; p=$$\n'
     printf '  while [ -n "$p" ] && [ "$p" != 1 ]; do\n'
     printf '    case "$(ps -o comm= -p "$p" 2>/dev/null)" in\n'
@@ -669,7 +726,7 @@ fi
     printf '    esac\n'
     printf '    p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d " ")\n'
     printf '  done\n'
-    printf '  [ -n "$gpid" ] || { stamp ""; vanish; giveback; exit 0; }\n'
+    printf '  [ -n "$gpid" ] || { restore; stamp ""; vanish; giveback; exit 0; }\n'
     # The window does not exist for AeroSpace the instant the shell inside it
     # does, so this poll is a real wait rather than the no-op the old one was.
     # ONE window, or none. A fresh `open -na` process owns exactly one window,
@@ -685,7 +742,7 @@ fi
     printf '    [ "$(printf "%%s\\n" "$mine" | grep -c .)" = 1 ] && { WID="$mine"; break; }\n'
     printf '    sleep 0.05\n'
     printf '  done\n'
-    printf '  [ -n "${WID:-}" ] || { stamp ""; vanish; giveback; exit 0; }\n'
+    printf '  [ -n "${WID:-}" ] || { restore; stamp ""; vanish; giveback; exit 0; }\n'
     # T/<repo>, not a single shared T: every lane of one repo tiles on its own
     # workspace page, so five agents across three repos stop fighting over one
     # tree. Workspace names may contain "/" (checked by hand against AeroSpace);
@@ -703,12 +760,25 @@ fi
     # same-repo lane is somewhere else until this line runs. The one case that
     # really is a no-op — you were already standing on T/<repo> — costs nothing,
     # because the focus it follows to is the focus that window already has.
+    # Give focus back BEFORE the move as well as after it. A direct exec does
+    # not activate — except when it does: Ghostty activated itself on launch
+    # in four of ~30 spawns (MEASURED 2026-09-24, 60 fps recordings in a
+    # headless guest), and if the lane still holds focus when
+    # it is moved, AeroSpace follows it to T/<repo> and the page you were on
+    # blanks for ~300 ms until the giveback below brings you home. Handing
+    # focus back first makes the move one of a window nobody is looking at.
+    # Safe now that the move names --window-id: the reason this used to wait
+    # (a move aimed by focus) left with `--focused`. giveback() is a no-op
+    # unless the lane's own instance holds focus, so the second call stays the
+    # net it was.
+    printf '  giveback\n'
     printf '  aerospace move-node-to-workspace %s--window-id "$WID" %q\n' \
       "$follow" "T/$repo"
     printf '  aerospace layout --window-id "$WID" tiling\n'
-    # Only once the lane has left the visible workspace: give it back any
-    # earlier and AeroSpace would move a window that no longer has focus,
-    # which is the same mis-aim `--focused` used to make.
+    # Out of sight now, so the window can have its real font and opacity back.
+    printf '  restore\n'
+    # And again once the lane has left the visible workspace, for an
+    # activation that landed after the first call.
     printf '  giveback\n'
     # LAST: the label is allowed to land late — a chord pressed in the first
     # quarter-second simply gets the title join — and neither the move nor the
@@ -921,6 +991,15 @@ if [ "$backend" = aerospace ]; then
     # can be drawn narrow and redrawn. That is a scrollback artifact; the
     # alternative was a full window on the page you were standing on.
 
+    # The birth config, written only now: the display-off exit above spawns no
+    # window and must leave no file. Without one (no state dir) the lane is born
+    # the old way, as the speck.
+    birth_arg=""
+    if [ -n "$birth" ] && printf '%s\n' 'font-size = 1' 'window-padding-x = 0' 'window-padding-y = 0' \
+      'background-opacity = 0' 'cursor-opacity = 0' 'macos-window-shadow = false' >"$birth" 2>/dev/null; then
+      birth_arg="--config-file=$birth"
+    fi
+
     # ── born in /, never in the checkout it was spawned FROM ──────────────
     # A direct exec inherits this hook's cwd, and this hook inherits its
     # caller's — and a GUI process keeps the cwd it was born with for the life
@@ -967,6 +1046,7 @@ if [ "$backend" = aerospace ]; then
     nohup "$ghostty_bin" \
       --title="$sess" \
       --initial-command="$launcher" \
+      ${birth_arg:+"$birth_arg"} \
       --window-width=10 \
       --window-height=4 \
       --window-position-x=25000 \
