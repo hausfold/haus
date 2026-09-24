@@ -23,7 +23,35 @@
 
 let
   panes = import ../lib/settings-panes.nix;
-  withGUIWait = (import ../lib/gui-wait.nix).wrap;
+  guiWait = (import ../lib/gui-wait.nix).script;
+
+  # AeroSpace does not refuse a second copy of itself. Launched a second way (a
+  # Dock or Spotlight click, macOS relaunching apps after an OS update), it runs
+  # beside this agent's: the newer one takes the CLI socket, both tile, and both
+  # fire exec-on-workspace-change, so the orphan pushes its own stale idea of the
+  # focused workspace into workspace-mru and pounce's ⌃⇥ walk starts from the
+  # wrong page. This agent owns the tiler, so before it execs any AeroSpace
+  # already running is a stray: TERM it and give it up to 5 s to go (KILL
+  # after), so the new copy never starts alongside it. Case-sensitive -x: the
+  # CLI is `aerospace`, never matched; -u leaves another user's copy alone. A
+  # stray launched AFTER this exec is not caught here; the next agent restart
+  # (rebuild, crash, login) collects it.
+  aerospaceLaunch = [
+    "/bin/bash"
+    "-c"
+    ''
+      ${guiWait}
+      if /usr/bin/pgrep -u "$(/usr/bin/id -u)" -x AeroSpace >/dev/null 2>&1; then
+        /usr/bin/pkill -TERM -u "$(/usr/bin/id -u)" -x AeroSpace
+        for _ in 1 2 3 4 5 6 7 8 9 10; do
+          /usr/bin/pgrep -u "$(/usr/bin/id -u)" -x AeroSpace >/dev/null 2>&1 || break
+          /bin/sleep 0.5
+        done
+        /usr/bin/pkill -KILL -u "$(/usr/bin/id -u)" -x AeroSpace 2>/dev/null
+      fi
+      exec /Applications/AeroSpace.app/Contents/MacOS/AeroSpace
+    ''
+  ];
   swiftBin = pkgs.callPackage ../lib/swift-bin.nix { };
 
   # `hausrect` — on-screen window rects by window id, the one thing AeroSpace
@@ -1121,7 +1149,7 @@ lib.mkMerge [
 
     launchd.user.agents.aerospace = {
       serviceConfig = {
-        ProgramArguments = withGUIWait "/Applications/AeroSpace.app/Contents/MacOS/AeroSpace";
+        ProgramArguments = aerospaceLaunch;
         KeepAlive = true;
         RunAtLoad = true;
         ProcessType = "Interactive";

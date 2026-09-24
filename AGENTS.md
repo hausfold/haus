@@ -342,7 +342,9 @@ PR; hardcoded identity. Advisory, never a gate.
   before the Aqua session is up park with exit 78 (EX_CONFIG).
   `modules/lib/gui-wait.nix` polls for Dock/Finder/SystemUIServer and then for
   a name out of `lsappinfo`, from `/bin/bash` (the /nix volume isn't mounted
-  yet): `.wrap` for windows and bar, `.script` for pounce. **Keep the 60 s
+  yet): `.wrap` for the bar, `.script` for pounce and for windows, whose
+  AeroSpace agent also kills a stray AeroSpace (one launched outside launchd)
+  before its exec. **Keep the 60 s
   deadline** — unbounded, a KeepAlive restart parks forever with a live pid,
   which is why `core` leaves Finder's `QuitMenuItem` off. **No wait in there may
   be an Apple event**: macOS files one from a launchd job under `/bin/bash`, so
