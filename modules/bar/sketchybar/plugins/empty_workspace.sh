@@ -21,6 +21,17 @@
 #                chord that means "off". That is what space_windows_change is
 #                subscribed for.
 #
+#   an EVICTION the last window goes AND macOS takes you with it. A lane is its
+#                own Ghostty process, so ⌃C out of the agent ends the shell,
+#                Ghostty quits (quit-after-last-window-closed), macOS activates
+#                the next app — the browser, say — and AeroSpace follows that
+#                app to ITS workspace before this script sees an event. Both
+#                tells above key on standing where the window died, so both
+#                read the hop as navigation and let it stand: tabbing through
+#                T/<repo> pages, you closed one and were dropped in the browser.
+#                The tell is below; the fork then decides whether macOS's pick
+#                stands.
+#
 # The CLOSE tell is a transition rather than a state, and it has to be: an empty
 # workspace you NAVIGATED to must not be pulled out from under you, and once you
 # are standing on one the two look identical. So every event records whether the
@@ -73,13 +84,15 @@
 
 export PATH="/run/current-system/sw/bin:/opt/homebrew/bin:/usr/bin:/bin:$PATH"
 
-AEROSPACE=/opt/homebrew/bin/aerospace
+# Both overridable for test/empty-workspace.bats, which stubs the tiler.
+AEROSPACE=${EMPTY_WS_AEROSPACE:-/opt/homebrew/bin/aerospace}
+DIR=${EMPTY_WS_DIR:-/tmp}
 
-STATE=/tmp/sketchybar_empty_ws.state    # "<pid>|<name>" of last frontmost app
-SEEN=/tmp/sketchybar_empty_ws.seen      # "<workspace>|<1 if it had windows>", last event
-HIST=/tmp/sketchybar_empty_ws.hist      # focused-workspace history, most recent LAST
-TOKEN=/tmp/sketchybar_empty_ws.token    # latest-event nonce; guards the fork
-LOG=/tmp/sketchybar_empty_ws.log
+STATE=$DIR/sketchybar_empty_ws.state    # "<pid>|<name>" of last frontmost app
+SEEN=$DIR/sketchybar_empty_ws.seen      # "<workspace>|<1 if it had windows>|<focused window id>", last event
+HIST=$DIR/sketchybar_empty_ws.hist      # focused-workspace history, most recent LAST
+TOKEN=$DIR/sketchybar_empty_ws.token    # latest-event nonce; guards the fork
+LOG=$DIR/sketchybar_empty_ws.log
 DEBUG=0
 
 log() { [ "$DEBUG" = 1 ] && echo "$(date '+%H:%M:%S') $*" >> "$LOG"; }
@@ -119,10 +132,11 @@ log "event: sender=${SENDER:-none} prev=$prev cur=$cur_pid|$cur_name focused=$fo
 nonempty=$($AEROSPACE list-workspaces --monitor all --empty no 2>/dev/null)
 now_full=0
 [ -n "$focused" ] && [ -n "$nonempty" ] && grep -qxF "$focused" <<<"$nonempty" && now_full=1
-seen=$(cat "$SEEN" 2>/dev/null)
-seen_ws=${seen%%|*}
-seen_full=${seen#*|}
-[ -n "$focused" ] && printf '%s|%s' "$focused" "$now_full" > "$SEEN"
+# The focused window's id is what tells a window that CLOSED from one that was
+# thrown elsewhere, for the eviction tell below. Empty on an empty workspace.
+now_wid=$($AEROSPACE list-windows --focused --format '%{window-id}' 2>/dev/null)
+IFS='|' read -r seen_ws seen_full seen_wid < "$SEEN" 2>/dev/null
+[ -n "$focused" ] && printf '%s|%s|%s' "$focused" "$now_full" "$now_wid" > "$SEEN"
 
 # Deliberately NOT gated on `SENDER = space_windows_change`, even though that is
 # the event this tell was added for. Every event rewrites the record above, so a
@@ -134,10 +148,26 @@ seen_full=${seen#*|}
 # second close to catch. Firing from any sender costs nothing, because the
 # TRANSITION is what is being tested, not the event — and a ⌘Q that reaches this
 # line first simply fires the same fork the quit tell would have.
+# `leaving` is the workspace that emptied — where gravity pulls AWAY from.
 emptied=0
+leaving=$focused
 if [ -n "$focused" ] && [ "$focused" = "$seen_ws" ] &&
    [ "$seen_full" = "1" ] && [ "$now_full" = "0" ]; then
     emptied=1
+fi
+
+# The EVICTION tell: we are somewhere else now, the workspace we were on had
+# windows and has none, and the window that was focused there no longer exists.
+# That last clause is what separates it from a throw-and-follow (leader ⇧digit),
+# which also leaves the old workspace empty — but the window survives, on the
+# workspace you followed it to. Only this branch pays for list-windows --all.
+evicted=0
+if [ "$emptied" = 0 ] && [ -n "$focused" ] && [ -n "$seen_ws" ] &&
+   [ "$focused" != "$seen_ws" ] && [ "$seen_full" = "1" ] && [ -n "$seen_wid" ] &&
+   [ -n "$nonempty" ] && ! grep -qxF "$seen_ws" <<<"$nonempty" &&
+   ! $AEROSPACE list-windows --all --format '%{window-id}' 2>/dev/null | grep -qxF "$seen_wid"; then
+    evicted=1
+    leaving=$seen_ws
 fi
 
 # The QUIT tell, as a function so the two triggers read as the two triggers
@@ -163,11 +193,13 @@ quit_in_place() {
 
 if [ "$emptied" = 1 ]; then
     log "  EMPTIED in place ('$focused' lost its last window) → fork"
+elif [ "$evicted" = 1 ]; then
+    log "  EVICTED ('$leaving' lost its last window, macOS moved us to '$focused') → fork"
 else
     quit_in_place || exit 0
 fi
 
-nonce="$cur_pid.$prev_pid.${SENDER:-}"
+nonce="$cur_pid.$prev_pid.$leaving.${SENDER:-}"
 echo "$nonce" > "$TOKEN"
 (
     # Act the instant the window is reaped — tight poll, not a fixed sleep, so
@@ -179,13 +211,12 @@ echo "$nonce" > "$TOKEN"
         # said so — so this costs it one round trip and breaks on the first
         # pass. The QUIT path is the one that has to wait for the reap.
         nonempty=$($AEROSPACE list-workspaces --monitor all --empty no 2>/dev/null)
-        grep -qxF "$focused" <<<"$nonempty" || { reaped=1; break; }
+        grep -qxF "$leaving" <<<"$nonempty" || { reaped=1; break; }
         sleep 0.01
     done
-    [ "$reaped" = 1 ] || { log "  [fork] '$focused' still has windows → skip"; exit 0; }
+    [ "$reaped" = 1 ] || { log "  [fork] '$leaving' still has windows → skip"; exit 0; }
     [ "$(cat "$TOKEN" 2>/dev/null)" = "$nonce" ] || { log "  [fork] superseded → skip"; exit 0; }
     now=$($AEROSPACE list-workspaces --focused 2>/dev/null)
-    [ "$now" = "$focused" ] || { log "  [fork] moved off '$focused' → skip"; exit 0; }
 
     # Candidates = non-empty workspaces (excluding the one we're leaving),
     # ordered most-relevant first: recent history, then any other populated
@@ -194,7 +225,7 @@ echo "$nonce" > "$TOKEN"
     add() {
         local w=$1 c
         [ -z "$w" ] && return
-        [ "$w" = "$focused" ] && return
+        [ "$w" = "$leaving" ] && return
         grep -qxF "$w" <<<"$nonempty" || return
         for c in "${ordered[@]}"; do [ "$c" = "$w" ] && return; done
         ordered+=("$w")
@@ -209,10 +240,20 @@ echo "$nonce" > "$TOKEN"
     # family is empty. `ordered` already runs history-then-anything, so the
     # family pick is just its first member with the same base.
     D=
-    base=${focused%%/*}
+    base=${leaving%%/*}
     for w in "${ordered[@]}"; do
         case "$w" in "$base" | "$base"/*) D=$w; break ;; esac
     done
+
+    # Moved off already — macOS handed focus to the next app and AeroSpace
+    # followed it (the eviction, or the same race landing inside this fork's
+    # poll). Where macOS put you is as good as plain recency, so it stands
+    # unless the family still has somewhere to be and you are not in it:
+    # one hop back into the family, never a hop between two outsiders.
+    if [ "$now" != "$leaving" ]; then
+        case "$now" in "$base" | "$base"/*) log "  [fork] moved within the family to '$now' → stay"; exit 0 ;; esac
+        [ -n "$D" ] || { log "  [fork] moved to '$now', family empty → stay"; exit 0; }
+    fi
     [ -n "$D" ] || D=${ordered[0]}
 
     # Nothing populated anywhere — every workspace is empty, so there's nowhere
