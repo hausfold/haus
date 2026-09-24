@@ -472,7 +472,7 @@ let
   # name and whose last is the fallback everything else takes.
   monLine =
     edge:
-    ''[{ monitor."Built-in Retina Display" = ${toString edge.builtin} }, ${toString edge.external}]'';
+    ''[{ monitor."${gaps.builtinName}" = ${toString edge.builtin} }, ${toString edge.external}]'';
 
   # ---- haus.windows.workspaceMonitors -> the force-assignment table -----------
   # A workspace id to one pattern, or to a list of them AeroSpace tries in

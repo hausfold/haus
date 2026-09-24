@@ -194,22 +194,28 @@ let
   # its own outer padding so the two land on the same line — at every
   # haus.ui.scale, and through any later change to the gaps.
   #
-  # It was a hardcoded 10 in both rcs, and where that landed was an accident of
-  # whichever pill happened to be outermost: the menu bar's logo edge sat at 14
-  # (10 + its own 4) and its clock edge at 18 (10 + the clock's 8), against a
-  # 20pt window gap on an external display and a 10pt one on the built-in. So
-  # every edge was wrong, each by a different amount, and in opposite directions
-  # on the two displays — which is what a constant with no relationship to the
-  # edge it is drawn against buys.
+  # The gap differs per display (10pt on the built-in, 20 on an external by
+  # default) and SketchyBar has ONE padding for every screen an instance draws
+  # on. So the padding is the NARROWER of the two, and the display class that
+  # wants more gets the difference from a spacer item at each edge, assigned
+  # only to those displays (`edge.left` / `edge.right`, plugins/edge.sh, which
+  # re-assigns them on every display_change). A single padding at the wider gap
+  # left the built-in's pills 10pt inboard of its windows.
   #
-  # `outermost` rather than a per-monitor pair, because SketchyBar has no
-  # per-display padding: an instance draws one bar across every screen with one
-  # padding, so this has to be a single number for a machine whose displays want
-  # 10 and 20. The widest is the safe direction and it is the same reason
-  # wallpaper takes `outermost` — inset further than the windows on the narrower
-  # display reads as deliberate, where the other choice puts pills outboard of
-  # the window edge on the wider one, which is the thing that looks broken.
-  # (Exact on an external, then, and up to 10pt inset on the built-in alone.)
+  # `side` and not `left`: haus.windows.gaps lets the two side gaps differ, and
+  # a bar has ONE padding for both ends — so the number is the wider of them
+  # (../lib/gaps.nix, which owns the collapse so the rooms reading it can't each
+  # pick a different way to spend one number).
+  barPadX = lib.min gaps.side.builtin gaps.side.external;
+  edgeExtra = lib.max gaps.side.builtin gaps.side.external - barPadX;
+  edgeWide =
+    if edgeExtra == 0 then
+      ""
+    else if gaps.side.builtin > gaps.side.external then
+      "builtin"
+    else
+      "external";
+
   gaps = import ../lib/gaps.nix {
     inherit lib;
     scale = config.haus.ui.scale;
@@ -217,43 +223,24 @@ let
     windows = config.haus.windows;
   };
 
-  # The inset itself: the bar's padding IS the window gap, in full, and the pill
-  # at each edge gives up its own outer padding to make that true (`edgePad`).
-  #
-  # `side` and not `left`: haus.windows.gaps lets the two side gaps differ, and
-  # a bar has ONE padding for both ends — so the number is the wider of them,
-  # for the same reason `outermost` takes the wider of the two displays. Both
-  # collapses live in ../lib/gaps.nix rather than here, so the four rooms
-  # reading it can't each pick a different way to spend one number.
-  barPadX = gaps.outermost.side;
-
   # The outermost pill's outer padding is spent on nothing — there is no
-  # neighbour out there, only the screen, and the bar's padding is already the
-  # whole gap. Zeroing it is what keeps the identity exact for pills that carry
-  # their own separation (the clock and the graph pills use 8 where the default
-  # is 4), and it is the ONLY form that also works for the bracket pills: a
-  # bracket's members draw their padding INSIDE the pill (see the `agents.pill`
-  # comment below), so setting one to 4 widens the pill by 4 rather than pushing
-  # it in, while 0 is what those members already carry. So the rule is "the
-  # outer edge belongs to the bar", said once, with no per-pill table to drift.
+  # neighbour out there, only the screen (and the spacer), and the bar's padding
+  # is already the whole gap. Zeroing it is what keeps the identity exact for
+  # pills that carry their own separation (the clock and the graph pills use 8
+  # where the default is 4), and it is the ONLY form that also works for the
+  # bracket pills: a bracket's members draw their padding INSIDE the pill (see
+  # the `agents.pill` comment below), so setting one to 4 widens the pill by 4
+  # rather than pushing it in, while 0 is what those members already carry.
   #
-  # `head` is the outermost one in both directions — SketchyBar packs a group
-  # outward from its own edge, so a `right` group reads outside-in and a `left`
-  # group inside-out from the first item added. `center` has no screen edge and
-  # is skipped.
-  #
-  # A multi-item pill is the one place `head` names a member rather than the
-  # edge itself: `agents` is four items under a bracket, and on the RIGHT its
-  # segments are reversed, so the member at the screen edge is `agents.done`
-  # while this addresses `agents`. It comes out exact anyway — every member of
-  # that pill carries 0 already and the bracket's own padding moves nothing — so
-  # this is a note rather than a hole. A future bracket pill whose members
-  # carried real padding would want the whole SET zeroed on the edge side.
-  edgePad =
-    sb: side: names:
-    lib.optionalString (names != [ ] && (side == "left" || side == "right")) ''
-      ${sb} --set ${itemId (builtins.head names)} background.padding_${side}=0
-    '';
+  # Which pill is outermost is decided at RUNTIME, by plugins/edge.sh: it is the
+  # first one DRAWN, and a group's head can hide (agents with no lanes), which
+  # a zero written here at build time could not follow — the next pill's own 4pt
+  # then showed at the edge. These are the group lists it walks, outward-in:
+  # SketchyBar packs a group outward from its own edge, so a `right` group reads
+  # outside-in and a `left` group inside-out from the first item added. `center`
+  # has no screen edge and is skipped, and so is the menu bar's left, whose
+  # outermost pill is the hand-written logo (it zeroes its own in sketchybarrc).
+  edgeGroup = names: lib.concatMapStringsSep " " itemId names;
 
   # ---- the bar's type FAMILY, from the same option as the terminal's ----------
   # Everything in the bar except the workspace logos is drawn in this. It used to
@@ -1510,10 +1497,7 @@ let
     # GENERATED from haus.bar.widgets (which haus.bar.items, and the rooms that
     # contribute a pill, write into) by modules/bar/default.nix — do not edit.
   ''
-  + lib.concatMapStrings (widgetBlock barTopPath "right") topItems
-  # The menu bar's only edge group is `right`; its left edge is the hand-written
-  # logo, which zeroes its own padding_left in sketchybarrc for the same reason.
-  + edgePad barTopPath "right" topItems;
+  + lib.concatMapStrings (widgetBlock barTopPath "right") topItems;
 
   # The same blocks again, emitted against the OTHER bar and grouped by side.
   # $SB is set by bar.sh, which bar-bottomrc sources before this file — an
@@ -1535,9 +1519,6 @@ let
     lib.optionalString (names != [ ]) (
       "\n# --- ${side} ---\n"
       + lib.concatMapStrings (widgetBlock "$SB" side) names
-      # Both of the bottom bar's outer groups get the same treatment as the menu
-      # bar's.
-      + edgePad "$SB" side names
     )
   ) bottomSides;
 
@@ -1558,6 +1539,19 @@ let
     BAR_TOP="${barTopPath}"
     BAR_BOTTOM="${barBottomPath}"
     BAR_BOTTOM_ITEMS="${lib.concatMapStringsSep " " itemId bottomItems}"
+
+    # The side edges, for plugins/edge.sh (and barlib, which pokes it when one
+    # of these repaints). Each group outward-in; see `edgeGroup`. EXTRA is how
+    # much wider the side gap is on the WIDE display class than the bar's
+    # padding, and BUILTIN_NAME is the name windows keys the built-in's gaps on
+    # in aerospace.toml, so both rooms tell the displays apart the same way.
+    BAR_EDGE_TOP_RIGHT="${edgeGroup topItems}"
+    BAR_EDGE_BOTTOM_LEFT="${edgeGroup (bottomGroup "left")}"
+    BAR_EDGE_BOTTOM_RIGHT="${edgeGroup (bottomGroup "right")}"
+    BAR_EDGE_ITEMS="${edgeGroup (topItems ++ bottomGroup "left" ++ bottomGroup "right")}"
+    BAR_EDGE_EXTRA="${toString edgeExtra}"
+    BAR_EDGE_WIDE="${edgeWide}"
+    BAR_EDGE_BUILTIN_NAME="${gaps.builtinName}"
 
     case "''${BAR_NAME:-}" in
       bar-bottom) SB="$BAR_BOTTOM" ;;
@@ -2532,12 +2526,14 @@ lib.mkIf config.haus.bar.enable {
         BAR_HEIGHT="${toString bar.barHeight}"
         BAR_BOTTOM_HEIGHT="${toString bar.bottomHeight}"
         # The bar's left/right padding, which is windows's outer SIDE gap
-        # (../lib/gaps.nix) verbatim — so the outermost pill's edge lands on the
-        # tiled window's edge below it, at every haus.ui.scale and through any
-        # later change to the gaps. Unlike the heights above it DOES scale: a
-        # window gap is a tuned gap, not a measurement of a band macOS owns.
-        # The pill at each edge gives up its own outer padding to make the sum
-        # come out (`edgePad` in ../default.nix, and the logo in sketchybarrc).
+        # (../lib/gaps.nix) on the display that wants the narrower one — so the
+        # outermost pill's edge lands on the tiled window's edge below it, at
+        # every haus.ui.scale and through any later change to the gaps. The
+        # other display class gets the rest from plugins/edge.sh's spacers.
+        # Unlike the heights above it DOES scale: a window gap is a tuned gap,
+        # not a measurement of a band macOS owns. The pill at each edge gives up
+        # its own outer padding to make the sum come out (plugins/edge.sh, and
+        # the logo in sketchybarrc).
         BAR_PAD_X="${toString barPadX}"
         # The family every pill draws in, from haus.fonts.mono.name — the
         # same one Ghostty uses. Here rather than in the rc for the reason the

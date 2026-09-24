@@ -14,8 +14,8 @@
 # what makes them true. wallpaper READS them to find the rectangle a tiled window
 # will cover, so the debug band it draws in the corner lands exactly under the
 # window rather than beside it. bar takes the side gap as its own left/right
-# padding, so the outermost pill's edge lands on the tiled window's edge below
-# it. terminal bakes the outer gaps into float-term.sh, whose `geom --tiled`
+# padding (the narrower display's, plus a per-display spacer on the wider), so
+# the outermost pill's edge lands on the tiled window's edge below it. terminal bakes the outer gaps into float-term.sh, whose `geom --tiled`
 # has to know where the tiled desktop ends. All four have to agree, and the only
 # way they can't drift is for three of them not to own the numbers.
 #
@@ -206,6 +206,12 @@ in
 {
   # Between windows, per monitor class.
   inherit inner side;
+
+  # What tells the two classes apart: the built-in's NSScreen name, which
+  # aerospace.toml keys the per-monitor gaps on (AeroSpace has no `built-in`
+  # pattern — see modules/displays/hausdisp.swift). The bar's edge spacers match
+  # the same string, so a display is "built-in" to both rooms or to neither.
+  builtinName = "Built-in Retina Display";
 
   # At each edge of the screen, per monitor class. windows writes these straight
   # into aerospace.toml's [gaps] block.

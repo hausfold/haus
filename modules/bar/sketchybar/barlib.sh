@@ -308,6 +308,19 @@ barlib_flush() {
     return 0
 }
 
+# _barlib_edge — a pill in one of the bar's side groups tells plugins/edge.sh
+# it may have just appeared or gone. The pill at the screen edge gives up its
+# outer padding, and which pill that is depends on which ones are DRAWN — so
+# hiding the head (agents with no lanes) has to hand the zero to the next one.
+# Rides the batch, after the drawing= it follows. Only fires from render, which
+# only runs on a state change, so a quiet pill costs nothing here either.
+# $BAR_EDGE_ITEMS is generated into bar.sh (`barSh` in ../default.nix).
+_barlib_edge() {
+    case " ${BAR_EDGE_ITEMS:-} " in
+        *" ${NAME:-} "*) _BARLIB_ARGS+=(--trigger haus_edge) ;;
+    esac
+}
+
 # pill --icon <glyph> --label <text> [--tone <tone>] [--mark <mark>]
 #      [--label-tone <tone>] [--hide]
 # The standard readout, one or two tones: --tone paints the icon and
@@ -368,12 +381,14 @@ pill() {
         if [ -n "${BARLIB_SEGMENTS:-}" ]; then
             _barlib_set_on "$_BARLIB_POPUP" drawing=off
         fi
+        _barlib_edge
         return 0
     fi
     sb_set drawing=on
     if [ -n "${BARLIB_SEGMENTS:-}" ]; then
         _barlib_set_on "$_BARLIB_POPUP" drawing=on
     fi
+    _barlib_edge
     if [ "$have_label" = 1 ]; then
         if [ -n "$label" ]; then
             sb_set label="$label" label.drawing=on
