@@ -4934,7 +4934,7 @@ cmd_doctor() {
   say "Agents"
   # The skill lands once per installed client, each in the directory that
   # client scans — the same table `skill install` writes by
-  # (HAUS_AGENT_SKILL_DIRS, rendered from modules/ai/agents/homes.nix). Report
+  # (HAUS_AGENT_SKILL_DIRS, rendered from modules/ai/clients). Report
   # the first one found rather than the Claude path alone: on a codex-only
   # machine that path is legitimately absent, and saying "no skill" there sent
   # people to set an option already true.
@@ -5259,7 +5259,7 @@ HAUS_SKILL_DIR="${HAUS_SKILL_DIR:-}"
 
 # The client table — which agent clients exist and where each keeps its skills
 # directory — handed in the same way and from the same room: the wrapper
-# renders modules/ai/agents/homes.nix into `claude=.claude/skills:codex=…`
+# renders modules/ai/clients' homes into `claude=.claude/skills:codex=…`
 # (home-relative, colon-separated). PARSED here, never restated: this file
 # used to carry the table as a bash case, and test/agent-surface.bats was the
 # only thing holding the two spellings equal.

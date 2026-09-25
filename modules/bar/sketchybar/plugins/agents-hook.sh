@@ -12,16 +12,16 @@
 #                    UserPromptSubmit→working, Notification→waiting, Stop→idle,
 #                    SessionEnd→remove. Passes no client id; detected from env.
 #   • OpenCode     — ~/.config/opencode/plugin/haus-agent-state.js (written
-#                    by terminal), which maps chat.message/permission.ask/
+#                    by its client record), which maps chat.message/permission.ask/
 #                    session.idle/dispose onto the same four words.
-#   • Codex        — ~/.codex/hooks.json (seeded by terminal when codex is in
+#   • Codex        — ~/.codex/hooks.json (seeded by its record when codex is in
 #                    haus.ai.clients): UserPromptSubmit→working,
 #                    PermissionRequest→waiting, Stop→idle. Codex has NO
 #                    session-end event, so nothing ever reports `remove` for one
 #                    of its windows — and nothing has to: its state lives as
 #                    LABELS on the zmx session and dies with it.
 #   • pi           — ~/.pi/agent/extensions/haus-agent-state.ts (written by
-#                    terminal), pi's one seam: input/agent_start→working, an
+#                    its record), pi's one seam: input/agent_start→working, an
 #                    ask TOOL starting→waiting (pi has no permission prompt to
 #                    map, so a tool whose execution is a question stands in),
 #                    agent_settled→idle, session_shutdown→remove. It carries

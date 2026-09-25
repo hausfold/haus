@@ -1,6 +1,6 @@
 # ~/.claude/settings.json, as haus re-asserts it on every rebuild.
 #
-# Read by `home.activation.claudeCodeSettings` in ./default.nix, which hands it
+# Read by the `claudeCodeSettings` activation in ./default.nix, which hands it
 # the file Claude Code already had (`$base`) and two arguments:
 #
 #   $auto[0]  the `autoMode` sections haus DECLARES this generation, already

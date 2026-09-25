@@ -19,7 +19,7 @@
 # from running it too.
 #
 # ── the boundary, and why the agent runs with permissions off ───────────────
-# The one-shot argv (modules/lib/agent-oneshot.nix) opens each client's
+# The one-shot argv (each record's `oneshot`, modules/ai/clients) opens each client's
 # permission gate, and HAUS_DESKTOP_OK=1 turns off the desktop guard that would
 # otherwise raise a trill question from a run nobody is watching. That is a
 # deliberate trade, not an oversight: an agent that stops to ask about its
@@ -68,7 +68,7 @@
 # `config.haus.ai.*`.
 #
 # @client@, @oneshot@ and @uiSh@ are substituted at build time from
-# `haus.ai.default`, modules/lib/agent-oneshot.nix and snug's bash painter.
+# `haus.ai.default`, that client record's `oneshot` and snug's bash painter.
 # All three are assignment right-hand sides, which is why an unsubstituted copy
 # still parses — CI lints this file as a template.
 PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/etc/profiles/per-user/$(id -un 2>/dev/null)/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
@@ -127,7 +127,7 @@ die2() { note "haus fix: $*"; banner fault "haus fix" "$*"; exit 2; }
 # on the other side of the screen.
 #
 # ⚠️ Measured for `claude` only — it is the one on the machine this was written
-# on, the same limit modules/lib/agent-oneshot.nix states for `codex`. A client
+# on, the same limit modules/ai/clients/codex states for `codex`. A client
 # that DOES narrate as it works (`codex exec` and `opencode run` both look like
 # they do) trades a live log for a spinner and one dump at the end. Nothing is
 # lost — the transcript is $FIXLOG either way, and it is still the right side

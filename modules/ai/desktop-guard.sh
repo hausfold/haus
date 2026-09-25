@@ -32,14 +32,14 @@
 # off for that pane — for a long unattended run where 40 prompts is the problem.
 # Mirrors bench's BENCH_AGENT_SWITCH=1: a reminder, not a jail.
 #
-# Wired by modules/terminal (home.activation.claudeCodeSettings) as a PreToolUse
+# Wired by the claude record (modules/ai/clients/claude, `settings`) as a PreToolUse
 # hook matching "Bash|mcp__computer-use__.*". Contract:
 # stdin is the hook JSON ({tool_name, tool_input, …}); stdout is either nothing
 # (no opinion — normal permission flow) or a hookSpecificOutput verdict; exit 0
 # always, because a nonzero exit from a PreToolUse hook means something else.
 #
 # TWO clients speak that contract. pi's `haus-desktop-guard.ts` extension
-# (modules/terminal/pi/desktop-guard.ts) runs this same binary from `tool_call`
+# (modules/ai/clients/pi/desktop-guard.ts) runs this same binary from `tool_call`
 # with a synthesised {tool_name:"Bash"} payload, and blocks the call when the
 # verdict comes back "ask" and the human says Deny. So the contract above is a
 # real interface with a second implementation behind it, not a private detail of

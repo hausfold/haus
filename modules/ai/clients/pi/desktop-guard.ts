@@ -2,8 +2,9 @@
  * desktop-guard.ts — pi's half of the guard that keeps an agent off the screen
  * the user is sitting at, asked as a trill banner you can answer from anywhere.
  *
- * Installed by terminal as ~/.pi/agent/extensions/haus-desktop-guard.ts, with
- * the two @PLACEHOLDER@ paths rendered to absolute /run/current-system/sw/bin
+ * Installed by its client record (./default.nix) as
+ * ~/.pi/agent/extensions/haus-desktop-guard.ts, with the two @PLACEHOLDER@
+ * paths rendered to absolute /run/current-system/sw/bin
  * names: an extension runs inside pi's own process, which is given no PATH
  * guarantees.
  *

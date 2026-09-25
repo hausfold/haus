@@ -12,7 +12,7 @@
 #
 # Nothing else to do afterwards: the manifest carries its own version and one
 # upstream sha256 per platform, so there is no hash to re-derive by hand.
-# `claudeFloor` in modules/ai/default.nix is a separate decision and moves only
+# The claude record's `floor` (modules/ai/clients/claude) is a separate decision and moves only
 # when a new model raises the bar.
 set -euo pipefail
 

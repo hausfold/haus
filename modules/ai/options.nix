@@ -243,7 +243,7 @@ in
         is a second decision and this option is where you make it.
 
         pi does that fetch itself, by spawning `npm` at startup — so haus puts
-        one on pi's PATH (`modules/lib/agent-packages.nix`), taking it from the
+        one on pi's PATH (`modules/ai/clients/pi`), taking it from the
         very node nixpkgs already runs pi with. Without it pi does not warn and
         carry on: it dies on an uncaught `spawn npm ENOENT` before drawing
         anything, which made these four defaults fatal on a machine that never
