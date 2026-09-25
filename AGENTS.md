@@ -597,7 +597,8 @@ PR; hardcoded identity. Advisory, never a gate.
   its reservation matters more: `haus.launcher.items` hotkeys are GLOBAL and
   would beat it. A row's `enable = false` drops it from the tap and the card
   but keeps it reserved and released. Ghostty's hand-written holes (⌘⇧T, ⌘R,
-  ⌘D, ⌘C) stay in `ghostty/config`: nothing arms or teaches them.
+  ⌘D, ⌘⇧D) and ⌘C's explicit copy stay in `ghostty/config`: nothing arms or
+  teaches them.
 - **Every window is a `zmx` session** (`modules/terminal/scripts/launch.sh`,
   Ghostty's `command`): `zmx history` / `zmx tail` are the read API ⌘F, ⌘L and
   the bar's agent peek need — Ghostty's AppleScript can create a surface but not

@@ -126,9 +126,17 @@ let
     ghDashEnabled = ghDashCfg.enable;
     benchLaneEnabled = devCfg.enable;
   };
+  # The placeholder must be a line of its own; a leftover one would reach
+  # Ghostty as a config error it reports only in its own log.
   ghosttyConfigTemplate =
-    builtins.replaceStrings [ "@CHORD_LAYER@\n" ] [ termBindings.ghosttyBinds ]
-      (builtins.readFile ./ghostty/config);
+    let
+      rendered = builtins.replaceStrings [ "@CHORD_LAYER@\n" ] [ termBindings.ghosttyBinds ] (
+        builtins.readFile ./ghostty/config
+      );
+    in
+    lib.throwIf (lib.hasInfix "@CHORD_LAYER@" rendered)
+      "modules/terminal: ghostty/config's @CHORD_LAYER@ placeholder was not rendered"
+      rendered;
 
   # System Settings deep links, spelled once (modules/lib/settings-panes.nix) —
   # a wrong x-apple.systempreferences: URL lands on the front page with no error.

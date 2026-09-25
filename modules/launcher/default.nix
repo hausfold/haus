@@ -986,11 +986,12 @@ let
   # an item hotkey is registered GLOBALLY, so it wins over a Ghostty keybind as
   # surely as it wins over an app-scoped tap.
   #
-  # termBindings covers every one of them, both halves of a folded row included
-  # (its `chords` list is what makes that true), and it is feature-aware — ⌘G
-  # and ⌘B are absent when disabled, and the whole Agents section's chords stay
-  # reserved even when the card is hidden, so turning a client on can't surface
-  # a clash that was invisible while it was off.
+  # termBindings.chords covers every one of them, derived from each row's
+  # `binds`, so both halves of a folded row are reserved. It is feature-aware:
+  # ⌘G and ⌘B are absent when disabled, while an `enable = false` row (the lane
+  # chords with no agent client) stays reserved though nothing arms it, so
+  # turning a client on can't surface a clash that was invisible while it was
+  # off.
   riceChords =
     lib.optional (k.palette != null) {
       what = "haus.keys.palette";

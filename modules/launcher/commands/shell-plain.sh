@@ -24,8 +24,8 @@
 # It is the chord every Mac terminal spells "new terminal", and this desktop had
 # it free: its row in modules/terminal/term-bindings.nix releases cmd+t in
 # Ghostty, because a window IS a pane here (windows/AeroSpace tiles them) and a
-# Ghostty tab would nest a second layout model inside one tile. The letter is also the workspace this lands on,
-# which is a coincidence worth keeping.
+# Ghostty tab would nest a second layout model inside one tile. The letter is
+# also the workspace this lands on, which is a coincidence worth keeping.
 #
 # ── why this script never touches AeroSpace ──────────────────────────────────
 # The obvious shape — switch workspace, then spawn — is wrong twice. It moves
