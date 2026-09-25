@@ -1,7 +1,8 @@
 // agent-state.js — Opencode's half of haus's agent status.
 //
-// Installed by terminal as ~/.config/opencode/plugin/haus-agent-state.js,
-// with BIN below rendered to core's `agent-state` by absolute path (a plugin gets
+// Installed by its client record (./default.nix) as
+// ~/.config/opencode/plugin/haus-agent-state.js, with BIN below rendered to
+// core's `agent-state` by absolute path (a plugin gets
 // no PATH guarantees). It is the Opencode equivalent of the four Claude Code
 // hooks a haus host wires into ~/.claude/settings.json, mapping this
 // client's lifecycle onto the same four words agent-state understands:

@@ -1,6 +1,7 @@
 # Claude Code, held AHEAD of nixpkgs. This overlay decides WHICH build of
-# `claude-code` exists on a haus machine, so modules/lib/agent-packages.nix can
-# go on being a one-line reference to `pkgs.claude-code`.
+# `claude-code` exists on a haus machine, so the claude record's `package`
+# (modules/ai/clients/claude) can go on being a one-line reference to
+# `pkgs.claude-code`.
 #
 # WHY haus pins at all, when nixpkgs already packages it: Claude Code gates
 # MODELS on the client version. Fable 5.1 needs 2.1.255 or later, and below
@@ -9,23 +10,23 @@
 # trails the releases; haus's own nixpkgs pin trails that again; and Claude
 # Code ships most days. The result is not a failure anyone reports — nothing
 # crashes, a model the user's plan already includes is quietly absent from a
-# menu. That invisibility is the argument: pi's floor in agent-packages.nix
+# menu. That invisibility is the argument: pi's floor (modules/ai/clients/pi)
 # kills the pane outright and gets noticed, this one never would.
 #
-# An OVERLAY rather than another entry in modules/lib/agent-packages.nix, and
-# the difference is composition. That table is `claude = pkgs.claude-code`, and
-# its header tells a host that wants a patched build to overlay `claude-code`.
-# Pinning in the table would mean calling `.override { manifest = …; }` on
+# An OVERLAY rather than a pin in the record, and the difference is
+# composition. The record's `package` is `pkgs: pkgs.claude-code`, and the
+# registry's header tells a host that wants a patched build to overlay
+# `claude-code`. Pinning in the record would mean calling `.override { manifest = …; }` on
 # whatever that host overlay returned — a symlinkJoin wrapper, in the case this
 # was written for — which takes no `manifest` argument and fails eval. Pinning
 # here puts the version UNDERNEATH every host overlay instead: `prev.claude-code`
 # inside a host's own overlay is already this one, patches ride on top, and the
-# table keeps its meaning.
+# record keeps its meaning.
 #
 # The pin is Anthropic's own release manifest, vendored — the same file nixpkgs
 # vendors, and the whole input a version bump needs: a version and one sha256
 # per platform, published upstream rather than re-derived here. Refresh it with
-# ./claude-code-update.sh. `claudeFloor` in modules/ai/default.nix is the
+# ./claude-code-update.sh. The claude record's `floor` is the
 # separate question of which version haus REFUSES to go below, and only moves
 # when a new model raises the bar.
 #

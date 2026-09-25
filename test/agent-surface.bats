@@ -74,23 +74,26 @@ setup() {
   mkdir -p "$FAKEHOME"
 
   # The client table the wrapper hands `haus` (modules/core/default.nix),
-  # derived here from the same source it renders — modules/ai/agents/homes.nix
-  # — so the suite exercises the real client paths without holding a copy of
-  # them. haus.sh no longer carries a table at all, only this parse's input.
-  # Both patterns are anchored to the file's exact indentation, and the pair
-  # count is checked against the client-header count below, so a future edit
-  # the awk cannot read (a renamed client, a comment carrying `skills = "`)
-  # fails the whole suite instead of silently feeding it a wrong table.
-  local homes="$BATS_TEST_DIRNAME/../modules/ai/agents/homes.nix"
-  HAUS_AGENT_SKILL_DIRS="$(awk '
-    /^  [a-z0-9_-]+ = \{$/ { client = $1 }
-    /^    skills = "/      { split($0, q, "\""); printf "%s%s=%s", sep, client, q[2]; sep = ":" }
-  ' "$homes")"
+  # derived here from the same source it renders — each record's `home` in
+  # modules/ai/clients/<id>/default.nix — so the suite exercises the real client
+  # paths without holding a copy of them. haus.sh no longer carries a table at
+  # all, only this parse's input. The pattern is anchored to the records' exact
+  # indentation, and the pair count is checked against the client-directory
+  # count below, so a future edit the awk cannot read (a record reshaped, a
+  # comment carrying `skills = "`) fails the whole suite instead of silently
+  # feeding it a wrong table.
+  local clients="$BATS_TEST_DIRNAME/../modules/ai/clients" record client
+  HAUS_AGENT_SKILL_DIRS="$(for record in "$clients"/*/default.nix; do
+    client="${record%/default.nix}"
+    awk -v client="${client##*/}" '
+      /^    skills = "/ { split($0, q, "\""); print client "=" q[2] }
+    ' "$record"
+  done | paste -sd: -)"
   local nclients npairs
-  nclients="$(grep -cE '^  [a-z0-9_-]+ = \{$' "$homes")"
+  nclients="$(find "$clients" -mindepth 2 -maxdepth 2 -name default.nix | wc -l | tr -d ' ')"
   npairs="$(awk -F: '{ print NF }' <<<"$HAUS_AGENT_SKILL_DIRS")"
   [ -n "$HAUS_AGENT_SKILL_DIRS" ] && [ "$nclients" = "$npairs" ] \
-    || { echo "setup: parsed $npairs pairs out of $nclients clients in homes.nix" >&2; return 1; }
+    || { echo "setup: parsed $npairs pairs out of $nclients client records" >&2; return 1; }
   export HAUS_AGENT_SKILL_DIRS
 }
 
@@ -434,13 +437,14 @@ haus_sh() { # haus_sh <VAR=val…> <snippet>
 @test "the client table exists once, and haus.sh only parses it" {
   # The table used to be said twice — modules/ai's `agentHomes` and a bash
   # case here — with this test diffing the spellings. Now
-  # modules/ai/agents/homes.nix is the one copy: modules/ai imports it, core
-  # renders it into the wrapper as HAUS_AGENT_SKILL_DIRS, and haus.sh parses
-  # that. What is left to hold is the WIRING, each end by the line that does it.
+  # each record's `home` in modules/ai/clients is the one copy: modules/ai
+  # reads it, core renders it into the wrapper as HAUS_AGENT_SKILL_DIRS, and
+  # haus.sh parses that. What is left to hold is the WIRING, each end by the
+  # line that does it.
   local root="$BATS_TEST_DIRNAME/.."
-  grep -qF 'agentHomes = import ./agents/homes.nix;' "$root/modules/ai/default.nix" \
-    || fail "modules/ai no longer imports agents/homes.nix"
-  grep -qF 'agentHomes = import ../ai/agents/homes.nix;' "$root/modules/core/default.nix" \
+  grep -qF 'agentHomes = lib.mapAttrs (_: client: client.home) clientRecords;' "$root/modules/ai/default.nix" \
+    || fail "modules/ai no longer reads the records' homes"
+  grep -qF 'agentHomes = builtins.mapAttrs (_: client: client.home) (import ../ai/clients);' "$root/modules/core/default.nix" \
     || fail "core no longer imports the table"
   grep -qF -- '--set-default HAUS_AGENT_SKILL_DIRS' "$root/modules/core/default.nix" \
     || fail "the wrapper no longer hands haus.sh the rendered table"
@@ -452,7 +456,7 @@ haus_sh() { # haus_sh <VAR=val…> <snippet>
   # The parse feeding this suite (setup) produced the real table, so the
   # behavior tests above exercised the paths a rebuild writes.
   [[ "$HAUS_AGENT_SKILL_DIRS" == *"claude=.claude/skills"* ]] \
-    || fail "setup's parse of homes.nix answered: '$HAUS_AGENT_SKILL_DIRS'"
+    || fail "setup's parse of the records answered: '$HAUS_AGENT_SKILL_DIRS'"
   haus_sh 'skill_client_dir claude'
   [ "$output" = "$FAKEHOME/.claude/skills" ] || fail "the parse answers '$output'"
 }

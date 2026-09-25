@@ -86,6 +86,13 @@ modules/
                           #   agent-desktop-guard, scruff-cache, haus-vm-shot, haus-fix
                           #   (system) + the instructions/skill files (home; a path collision
                           #   with terminal's is an error)
+    clients/              # ONE DIRECTORY PER CODING-AGENT CLIENT, and the directory is the
+                          #   registry: `<id>/default.nix` is plain data (package, home,
+                          #   oneshot, scopeNote; optional floor, files, settings), so adding
+                          #   or dropping a client is one directory here plus scruff's
+                          #   `specFor()` first. Core imports it for `.home` only. The bash
+                          #   arms (bar marks, agents-hook, spawn-agent's namer) fall back
+                          #   on an unknown id and stay out of the record on purpose
     agents/               # the two skills every client in haus.ai.clients gets (agentHomes
                           #   has the paths): `haus` and `hausfold/SKILL.md`, plus the consumer
                           #   starter pair `haus doctor` offers (`consumer-AGENTS.md` +
@@ -638,8 +645,8 @@ PR; hardcoded identity. Advisory, never a gate.
     `../ai/agents/skill.nix` as `HAUS_SKILL_DIR`; modules/ai owns whether the
     skill is INSTALLED, core only whether it can be PRINTED. `agents/SKILL.md`
     is a template (`@hausVersion@`), so it is handed in, never looked for beside
-    the script. `haus skill install`'s client table is
-    `modules/ai/agents/homes.nix` (`agentHomes`), rendered as
+    the script. `haus skill install`'s client table is each record's `home`
+    in `modules/ai/clients` (`agentHomes`), rendered as
     `HAUS_AGENT_SKILL_DIRS` (`claude=.claude/skills:codex=…`), which haus.sh
     parses — no bash copy; off the wrapper it refuses in words.
     `test/agent-surface.bats` asserts it end to end.
@@ -654,15 +661,15 @@ PR; hardcoded identity. Advisory, never a gate.
     once, and `haus fix` dispatches onto the binary. **Core's whole test is
     `command -v haus-fix`** — never `config.haus.ai.*`, which core may not read.
     The CTA needs `$CONSUMER` to be a git repo; the undo is `git -C
-    ~/.config/nix revert HEAD`. `haus.ai.default` and
-    `modules/lib/agent-oneshot.nix` are substituted at build; it verifies with
+    ~/.config/nix revert HEAD`. `haus.ai.default` and that client record's
+    `oneshot` argv are substituted at build; it verifies with
     `nix eval` and never activates.
   - `agent-state` has no source of its own: `modules/ai` `readFile`s
     `modules/bar/sketchybar/plugins/agents-hook.sh`, the script bar installs.
     Every client's hooks call `agent-state <working|waiting|idle|remove>
-    <client>`. pi's is an extension terminal writes,
+    <client>`. pi's is an extension its record writes,
     `~/.pi/agent/extensions/haus-agent-state.ts`
-    (`modules/terminal/pi/agent-state.ts`), which also hands `scruff hook notify`
+    (`modules/ai/clients/pi/agent-state.ts`), which also hands `scruff hook notify`
     the Claude-shaped payload and sends its two pi-only events through
     `haus-notify`; its header is the event map.
   - **`haus-secret`** (`modules/secrets`) is the single door to the values rooms

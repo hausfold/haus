@@ -8,7 +8,7 @@
 { lib, ... }:
 
 let
-  agentClients = import ../lib/agents.nix;
+  agentClients = builtins.attrNames (import ../ai/clients);
   accentNames = import ../lib/accents.nix;
 
   # ---- the bundled pills -----------------------------------------------------
@@ -879,9 +879,9 @@ in
     };
 
     bar.aiUsage.provider = lib.mkOption {
-      # The clients come from modules/lib/agents.nix — the same list
-      # haus.ai.clients and .default read, so a fourth client is one
-      # edit rather than one per room. `latest` is bar's own extra: it is a
+      # The clients come from modules/ai/clients — the same registry
+      # haus.ai.clients and .default read, so a new client is one
+      # directory rather than one edit per room. `latest` is bar's own extra: it is a
       # selection rule, not a client, which is why it is prepended here.
       type = lib.types.enum ([ "latest" ] ++ agentClients);
       default = "latest";

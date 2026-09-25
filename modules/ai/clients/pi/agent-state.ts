@@ -1,8 +1,9 @@
 /**
  * agent-state.ts — pi's half of haus's agent status AND its lane banners.
  *
- * Installed by terminal as ~/.pi/agent/extensions/haus-agent-state.ts (pi's
- * global auto-discovery dir), with the three @PLACEHOLDER@ paths below rendered
+ * Installed by its client record (./default.nix) as
+ * ~/.pi/agent/extensions/haus-agent-state.ts (pi's global auto-discovery dir),
+ * with the three @PLACEHOLDER@ paths below rendered
  * to absolute /run/current-system/sw/bin names: an extension runs inside pi's
  * own process, which is given no PATH guarantees.
  *

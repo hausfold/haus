@@ -16,9 +16,10 @@
 let
   # Every coding-agent client haus knows how to install, spawn and resume —
   # read by ai.clients, ai.default, and bar's aiUsage.provider, so none
-  # of the three can drift apart. modules/lib/agents.nix says why it lives there
-  # rather than here, and names the one copy that can't be folded in.
-  agentClients = import ../lib/agents.nix;
+  # of the three can drift apart. The registry is ./clients, one directory per
+  # client; its default.nix says what a record carries and names the copies
+  # that can't be folded in.
+  agentClients = builtins.attrNames (import ./clients);
 in
 {
   options.haus = {
@@ -38,9 +39,10 @@ in
         (SPEC.md §5.5 — `scruff runtime up|enter|down --backend tart` stands a
         lane up in its own headless macOS, so an agent can feel-test a desktop
         change without touching the screen its user is sitting at; pulling a
-        base image is still a manual, one-time step), and the client
-        config the Terminal room writes (Claude Code's settings.json keys, opencode's
-        agent-state plugin). Which clients get installed is `ai.clients`.
+        base image is still a manual, one-time step), and each client's own
+        config (Claude Code's settings.json keys, opencode's agent-state
+        plugin, codex's hooks, pi's extensions and settings). Which clients get
+        installed is `ai.clients`.
 
         On, this room brings its clients, `scruff` and the lifecycle wiring on its
         own. What it adds to OTHER rooms it adds only when they are present: the
@@ -242,7 +244,7 @@ in
         is a second decision and this option is where you make it.
 
         pi does that fetch itself, by spawning `npm` at startup — so haus puts
-        one on pi's PATH (`modules/lib/agent-packages.nix`), taking it from the
+        one on pi's PATH (`modules/ai/clients/pi`), taking it from the
         very node nixpkgs already runs pi with. Without it pi does not warn and
         carry on: it dies on an uncaught `spawn npm ENOENT` before drawing
         anything, which made these four defaults fatal on a machine that never

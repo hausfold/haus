@@ -125,12 +125,12 @@ let
 
   # The client table — which agent clients exist and where each keeps its
   # skills — under the same rule as `hausSkill` above: an import of PURE DATA
-  # (modules/ai/agents/homes.nix takes nothing), never a `config.haus.ai.*`
-  # read. Rendered flat for the wrapper below, `claude=.claude/skills:codex=…`,
+  # (modules/ai/clients takes nothing, and only each record's `home` is read
+  # here), never a `config.haus.ai.*` read. Rendered flat for the wrapper below, `claude=.claude/skills:codex=…`,
   # so `haus skill install`'s bash is a PARSE of that room's table rather than
   # a second spelling of it — the copy test/agent-surface.bats used to hold
   # equal by hand.
-  agentHomes = import ../ai/agents/homes.nix;
+  agentHomes = builtins.mapAttrs (_: client: client.home) (import ../ai/clients);
   agentSkillDirs = lib.concatStringsSep ":" (
     lib.mapAttrsToList (client: home: "${client}=${home.skills}") agentHomes
   );
@@ -1222,7 +1222,7 @@ in
       # `--help` the version that answers `skill`.
       #
       # `HAUS_AGENT_SKILL_DIRS` is the third of the set: the client table
-      # (`agentSkillDirs` above), rendered from modules/ai/agents/homes.nix so
+      # (`agentSkillDirs` above), rendered from modules/ai/clients so
       # `haus skill install` parses the table that room installs by, rather
       # than carrying its own copy.
       #

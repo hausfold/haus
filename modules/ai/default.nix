@@ -26,10 +26,11 @@
 # which is the property that makes splitting them safe. Measured with a
 # throwaway `home.file` from this module before anything was moved.
 #
-# What terminal keeps is its own business, not a leftover: the client packages
-# a pane needs on PATH, the dotfiles it themes for clients whether or not this
-# room is on, and the two activation blocks that merge into a client's
-# user-editable JSON.
+# The client packages and the settings merges into each client's own JSON
+# followed on 2026-09-25: every per-client fact is one record under ./clients
+# now, and this room renders all of them. What terminal keeps is its own
+# business, not a leftover: the dotfiles it themes for clients whether or not
+# this room is on.
 {
   config,
   lib,
@@ -46,13 +47,13 @@
 
 let
   cfg = config.haus.ai;
-  agentPackages = import ../lib/agent-packages.nix pkgs;
 
-  # How to run one client for ONE headless turn — the table `haus-fix` is built
-  # from. It checks itself against modules/lib/agents.nix on import, so a client
-  # added there and forgotten there throws with both file names rather than
-  # failing on whichever machine happened to default to it.
-  agentOneshot = import ../lib/agent-oneshot.nix;
+  # Every coding-agent client haus knows, one record each (./clients — its
+  # default.nix says what a record carries and refuses one that is missing a
+  # field, by path). This room is what renders them: the package, the files in
+  # its home, the one-shot argv, the settings merge.
+  clientRecords = import ./clients;
+  clientPackage = client: clientRecords.${client}.package pkgs;
 
   # `haus-fix` — the binary behind the "Fix it" pill on a failed `haus rebuild`
   # (modules/core/haus.sh's `rebuild_failed`), and behind `haus fix`, which is
@@ -68,7 +69,7 @@ let
       [ "@client@" "@oneshot@" "@uiSh@" ]
       [
         cfg.default
-        (lib.escapeShellArgs agentOneshot.${cfg.default})
+        (lib.escapeShellArgs clientRecords.${cfg.default}.oneshot)
         "${pkgs.snug}/share/ui.sh"
       ]
       (builtins.readFile ./fix.sh)
@@ -120,23 +121,22 @@ let
     exec /run/current-system/sw/bin/haus-fix-github "$2" ci "$3"
   '';
 
-  # The pi release that first accepted `--`. Named once, read by the assertion
-  # below and by nothing else; the pin that satisfies it is in that same file.
-  piFloor = "0.84.3";
-
-  # The Claude Code release that first offered Fable 5.1, and so the oldest
-  # client haus is willing to hand someone. Same shape as piFloor, different
-  # kind of floor: pi's is a crash, this one is a model quietly missing from
-  # `/model`. The pin that satisfies it is modules/lib/claude-code.nix.
-  claudeFloor = "2.1.255";
-
-  # `null` when the installed claude-code carries no version — which happens
-  # when a host has overlaid it with a wrapper (a symlinkJoin around a patched
-  # build is the shape that drops it). haus cannot judge a version it cannot
-  # read, and the host that built the wrapper made that choice knowingly, so
-  # the assertion below stands down rather than failing a machine that is
-  # almost certainly fine.
-  claudeVersion = agentPackages.claude.version or null;
+  # One assertion per installed client whose record names a `floor`. A build
+  # that carries no `version` — a host that overlaid the client with a wrapper,
+  # a symlinkJoin around a patched build being the shape that drops it — stands
+  # the check down: haus cannot judge a version it cannot read, and the host
+  # that built the wrapper made that choice knowingly.
+  clientFloors = map (
+    client:
+    let
+      inherit (clientRecords.${client}) floor;
+      built = (clientPackage client).version or null;
+    in
+    {
+      assertion = built == null || lib.versionAtLeast built floor.version;
+      message = floor.message built;
+    }
+  ) (lib.filter (client: clientRecords.${client} ? floor) clients);
 
   # This room's own resolved client list, under the name the moved blocks below
   # already used. `clients` (just below) is the same value; both names are kept
@@ -174,7 +174,7 @@ let
   # exists to end. (The `lib.meta.availableOn` guard it replaces did skip
   # silently.)
   unavailableClients = lib.filter (
-    c: !lib.meta.availableOn pkgs.stdenv.hostPlatform agentPackages.${c}
+    c: !lib.meta.availableOn pkgs.stdenv.hostPlatform (clientPackage c)
   ) clients;
 
   # Whether this machine actually SPAWNS agents. The room being on is not enough:
@@ -216,11 +216,10 @@ let
         agents never fight over a single checkout.'';
 
   # One client id → where that client keeps the two files haus ships into a
-  # home. The table itself is ./agents/homes.nix — pure data, split out so
-  # modules/core can render it into the `haus` wrapper (HAUS_AGENT_SKILL_DIRS)
-  # without reading this room's config; the file's header carries the probes
-  # each path was verified against.
-  agentHomes = import ./agents/homes.nix;
+  # home: each record's `home`, which modules/core also renders into the `haus`
+  # wrapper (HAUS_AGENT_SKILL_DIRS) without reading this room's config. The
+  # records carry the probe each path was verified against.
+  agentHomes = lib.mapAttrs (_: client: client.home) clientRecords;
 
   # haus-owned preamble for each client's instructions file. This room puts
   # `scruff` on PATH when it is on (`environment.systemPackages` below, `mkIf
@@ -245,12 +244,6 @@ let
   # exact — a host may wire individual skills as out-of-store symlinks, and each
   # client owns its own settings file, so a blanket "this directory is
   # nix-managed" would be wrong.
-  clientScopeNote = {
-    claude = "`settings.json` is Claude Code's own, and a host may wire individual skills as out-of-store symlinks";
-    codex = "`config.toml` and `hooks.json` are Codex's own, and a host may wire individual skills as out-of-store symlinks";
-    opencode = "`opencode.json` is OpenCode's own, and a host may wire individual skills or plugins as out-of-store symlinks";
-    pi = "`settings.json`, `models.json` and `trust.json` are pi's own — haus merges a few keys into the first at rebuild and owns none of the three — and a host may wire individual skills or extensions as out-of-store symlinks";
-  };
 
   hausGuidance = client: ''
     # This file is generated by Nix — don't edit it here
@@ -266,7 +259,7 @@ let
     revision this machine pins (`haus update` regenerates it), as is every other
     skill haus installed. `hausfold/` is haus's second skill and is edited in
     hausfold/haus beside the first${skillDirClauses} Not everything beside them
-    is generated: ${clientScopeNote.${client}} that you can edit live with no
+    is generated: ${clientRecords.${client}.scopeNote} that you can edit live with no
     rebuild. `ls -l` the path before assuming which kind it is.${
       # The whole worktree section rides on this room's switch, for the same
       # reason ./tool-skills.nix gates the `scruff` SKILL on it: `scruff` is
@@ -726,9 +719,9 @@ let
   agentRuntimeAdapterFiles = lib.optionalAttrs cfg.enable (
     let
       # System-config scope has no `config.home.homeDirectory` — that's a
-      # home-manager submodule field, and this whole block is a flat
-      # `home-manager.users.${username}.home.file` assignment, not a nested
-      # home-manager function like terminal's. "/Users/${username}" is the
+      # home-manager submodule field, and this block is computed in the
+      # room's own `let`, outside the home-manager function below that merges
+      # it. "/Users/${username}" is the
       # same literal core/windows/bar/launcher already use at this scope.
       script = "/Users/${username}/.config/haus/runtime/tart-adapter.sh";
     in
@@ -1095,53 +1088,12 @@ in
         + "${lib.concatStringsSep ", " toolSkills.allNames}; `haus` and `hausfold` are haus's "
         + "own and follow haus.ai.skill.";
     }
-    # The one client with a VERSION floor, and the tripwire for the override in
-    # modules/lib/agent-packages.nix rather than a check on nixpkgs.
-    #
-    # `--` — end-of-options — reached pi in 0.84.3, and every earlier version
-    # answers `Error: Unknown option: --`. scruff's pi spec puts a `--` before the
-    # first-turn prompt (a brief typed into Spawn Agent very often starts with a
-    # dash, which is a flag otherwise), so an older pi turns every PROMPTED lane
-    # into a pane that dies before the agent draws. A lane opened with no prompt
-    # would keep working, which is what makes this worth asserting instead of
-    # leaving to be discovered: the failure is intermittent by workflow.
-    #
-    # This passes today because that file pins 0.84.3 itself. It is here for the
-    # day someone deletes the pin — when nixpkgs has caught up, this stays quiet;
-    # when it has not, this is the named refusal instead of the dead pane.
-    {
-      assertion = !(lib.elem "pi" clients) || lib.versionAtLeast agentPackages.pi.version piFloor;
-      message =
-        "haus.ai.clients names pi, but this pkgs builds pi ${agentPackages.pi.version} and "
-        + "scruff needs ${piFloor} or later: `--` (end-of-options) landed in ${piFloor}, and "
-        + "without it every lane spawned WITH a prompt dies on `Error: Unknown option: --` "
-        + "before the agent draws. Restore the version pin in "
-        + "modules/lib/agent-packages.nix, or drop pi from ai.clients.";
-    }
-    # The second version floor, and the one with no symptom. Claude Code gates
-    # MODELS on the client version — Fable 5.1 needs 2.1.255 — so an old build
-    # does not crash, it just serves a `/model` menu missing something the
-    # user's plan includes, with a greyed "Update to 2.1.255+ to use Fable 5.1"
-    # where the model should be. Nobody files that as a haus bug, which is
-    # exactly why haus checks it rather than waiting to be told.
-    #
-    # This passes today because modules/lib/claude-code.nix pins past it. Like
-    # pi's, it is here for the day the pin is deleted: quiet once nixpkgs has
-    # caught up, a named refusal while it has not.
-    {
-      assertion =
-        !(lib.elem "claude" clients)
-        || claudeVersion == null
-        || lib.versionAtLeast claudeVersion claudeFloor;
-      message =
-        "haus.ai.clients names claude, but this pkgs builds Claude Code ${claudeVersion} "
-        + "and haus will not ship older than ${claudeFloor}: Claude Code gates models on "
-        + "the client version, so below that Fable 5.1 is greyed out of `/model` with "
-        + "nothing to explain why. Refresh the manifests with "
-        + "modules/lib/claude-code-update.sh (the pin lives beside them in "
-        + "modules/lib/claude-code.nix), or drop claude from ai.clients.";
-    }
-  ];
+    # Every client record's `floor`, asserted while that client is installed:
+    # the oldest build haus will hand anyone, and the tripwire for a version
+    # pin under the record rather than a check on nixpkgs. Each record's own
+    # comment says what goes wrong below its floor.
+  ]
+  ++ clientFloors;
 
   # ---- the profile: what this room ASKS of the power room --------------------
   # modules/appearance/default.nix is the pattern and its header is the full
@@ -1343,7 +1295,7 @@ in
     };
   };
 
-  # The pin behind claudeFloor, applied here rather than in flake.nix's overlay
+  # The pin behind the claude record's `floor`, applied here rather than in flake.nix's overlay
   # list, because the room that INSTALLS a client is the one that has to be
   # sure of its version: a consumer who bare-imports `darwinModules.ai` never
   # touches mkHaus, and would otherwise meet the floor assertion with no way to
@@ -1365,9 +1317,9 @@ in
       # a flake input). Every caller haus owns is on it: terminal's
       # ⌘↵ runs `scruff new --open` (bare `scruff new` only prints the path since
       # scruff 0.2.94), pounce's Spawn Agent goes through `scruff spawn`, and
-      # the Claude Code WorktreeCreate/WorktreeRemove hooks — which terminal
+      # the Claude Code WorktreeCreate/WorktreeRemove hooks — which this room
       # DECLARES into ~/.claude/settings.json and re-asserts on every rebuild
-      # (see modules/terminal, home.activation.claudeCodeSettings) — point at
+      # (the claude record's `settings`, ./clients/claude) — point at
       # `scruff hook create` / `scruff hook remove`. Its bash predecessor `wt.sh`
       # has been retired entirely; there is no fallback to roll back to.
       scruff
@@ -1452,7 +1404,7 @@ in
       # so the two can never drift); this copy exists only to give it a stable
       # name on PATH. Claude Code's hooks point at the sketchybar path because the
       # user's own settings.json wires them, but the Codex and Opencode wirings
-      # terminal writes are client config files with no business knowing where a bar
+      # their client records write are client config files with no business knowing where a bar
       # keeps its plugins — they call
       # `agent-state <working|waiting|idle|remove> <client>` instead.
       (writeShellScriptBin "agent-state" (builtins.readFile ../bar/sketchybar/plugins/agents-hook.sh))
@@ -1475,7 +1427,7 @@ in
       # script's header.
       #
       # TWO clients read this one binary. pi reaches it from `tool_call`
-      # (terminal's `haus-desktop-guard.ts`), handing it the same hook-shaped
+      # (its record's `haus-desktop-guard.ts`, ./clients/pi), handing it the same hook-shaped
       # JSON Claude Code's hook does and reading the same verdict back, so the
       # line lives in one file and one bats suite for both. What differs is only
       # where the question is put: Claude re-opens its own prompt in the pane, pi
@@ -1499,8 +1451,8 @@ in
     # `haus-fix` — "Fix it with AI" for a rebuild that just failed. haus.sh
     # writes a breadcrumb and puts the CTA up; this is what the pill runs. See
     # its header for the boundary (the cwd plus one git commit, undone with
-    # `git -C ~/.config/nix revert HEAD`) and modules/lib/agent-oneshot.nix for
-    # the argv it runs a client with.
+    # `git -C ~/.config/nix revert HEAD`) and each record's `oneshot`
+    # (./clients) for the argv it runs a client with.
     #
     # Gated on the DEFAULT CLIENT being installed, not on the room, and that is
     # the same failure the assertion above exists to end one layer up:
@@ -1530,12 +1482,51 @@ in
   );
 
   # What this room ships into home: per-client instructions and skill files,
-  # plus the machine-wide tart runtime adapter. Written into the SAME user
-  # modules/terminal writes; home-manager merges the attrsets, and a
+  # every client record's own files and settings merge, the clients
+  # themselves, plus the machine-wide tart runtime adapter. Written into the
+  # SAME user modules/terminal writes; home-manager merges the attrsets, and a
   # collision on one path would be an error rather than a silent last-wins —
   # which is what makes splitting them safe.
-  home-manager.users.${username}.home.file =
-    agentInstructionFiles // agentSkillFiles // toolSkillFiles // agentRuntimeAdapterFiles;
+  #
+  # A module function rather than a flat assignment because a record's
+  # `settings.activation` is a home-manager DAG entry, and `lib.hm` only exists
+  # on home-manager's own `lib` — the one this function is handed, which is
+  # nixpkgs' plus that, so shadowing the outer `lib` here costs nothing.
+  home-manager.users.${username} =
+    { lib, ... }:
+    {
+      home.file =
+        agentInstructionFiles
+        // agentSkillFiles
+        // toolSkillFiles
+        // agentRuntimeAdapterFiles
+        # Each record's `files`: written whenever the room is on, installed or
+        # not, because every one is inert without its client and hands a
+        # hand-installed one a working pill.
+        // lib.optionalAttrs cfg.enable (
+          lib.mergeAttrsList (lib.mapAttrsToList (_: record: record.files or { }) clientRecords)
+        );
+
+      # Each record's `settings`: a merge into the client's OWN user-editable
+      # JSON, under the activation name the record gives it (the flake's
+      # activation checks pin those names). `onlyWhenInstalled` is the record's
+      # call — a statusline path helps a hand-installed client, a list of npm
+      # sources to fetch does not.
+      home.activation = lib.concatMapAttrs (
+        client: record:
+        lib.optionalAttrs (record ? settings) {
+          ${record.settings.name} = lib.mkIf (
+            cfg.enable && (!record.settings.onlyWhenInstalled || lib.elem client clients)
+          ) (record.settings.activation { inherit pkgs lib cfg; });
+        }
+      ) clientRecords;
+
+      # The coding-agent clients, one package per `ai.clients` entry.
+      # Unlisted means uninstalled, and `ai.default` is asserted to be a
+      # member — so the client the palette is about to spawn is on PATH by
+      # construction, rather than discovered missing inside the pane.
+      home.packages = map clientPackage clients;
+    };
 
   # ---- what the room contributes to other rooms -------------------------------
   # One write per extension point. Every value here is a fact about the AI room;
