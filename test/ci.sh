@@ -49,7 +49,6 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-export LC_ALL=C
 
 WORKFLOW=.github/workflows/check.yml
 KNOWN_NEEDS=" painter nix "
@@ -100,12 +99,14 @@ error() {
     fi
 }
 
-# Every file the census is about, in the order `run` runs them.
+# Every file the census is about, in the order `run` runs them. LC_ALL=C on
+# the sort alone: exported, it reaches the suites, and haus-secret.bats's
+# fold cases measure `↳` in a UTF-8 locale and fail under C.
 candidates() {
     local f
     for f in test/*.bats test/*.sh; do
         [ -e "$f" ] && printf '%s\n' "$f"
-    done | sort
+    done | LC_ALL=C sort
 }
 
 # `parse <file>` sets KIND (suite | not-a-suite), JOB and NEEDS (space
@@ -316,7 +317,7 @@ cmd_lint() {
     local sc=${SHELLCHECK:-shellcheck} f reason tracked bad=0
     local lint=() by_zsh=0 by_widget=0 by_name=0
     "$sc" --version | sed -n 2p
-    tracked=$(git ls-files '*.sh' | sort)
+    tracked=$(git ls-files '*.sh' | LC_ALL=C sort)
 
     while IFS='	' read -r f reason; do
         [ -n "$f" ] || continue
