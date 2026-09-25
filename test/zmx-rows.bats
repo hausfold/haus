@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # Hermetic tests for modules/terminal/scripts/zmx-rows.sh — the one reader for
 # the `zmx ls` wire format, which ~10 awk/sed programs in 8 files across three
 # rooms each re-derived by hand until it existed.
@@ -18,6 +19,17 @@
 # Hermetic: zmx is a stub behind HAUS_ZMX_BIN — the subject's own PATH prelude
 # puts the system profile first, so on a dev Mac a PATH stub could never beat
 # the real zmx (the same reason awake.sh takes AWAKE_DATE_BIN). Needs only
+# bash + bats + awk.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The zmx wire-format reader — the one parse of `zmx ls`/`zmx get`
+# everything reads through (three rooms; ~10 hand parses replaced).
+# Every trap it owns fired silently in production first: the attached
+# marker glued to the first key, the 0.7.0 start_dir rename, and `zmx
+# get`'s tab→space flip that left both label helpers answering empty.
+# Hermetic: zmx is a fixture behind HAUS_ZMX_BIN, because the subject's
+# own PATH prelude would beat a PATH stub on a real machine. Needs only
 # bash + bats + awk.
 
 bats_require_minimum_version 1.5.0

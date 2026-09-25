@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # Hermetic tests for the row filter in modules/launcher/commands/lanes.sh —
 # the rule that decides which lanes the ⌘-palette's Lanes picker will offer.
 #
@@ -21,6 +22,18 @@
 # The subject opens windows, so the jq program is LIFTED out of it by its own
 # delimiters rather than copied — reshape the pipeline and the extraction fails
 # loudly instead of testing a program that no longer exists.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# Which lanes the Lanes picker offers. It drops the ones with no pane of
+# their own — a `scruff child` checkout resumes into the pane that made
+# it, so opening one here starts a client where no conversation lives.
+# Every way of getting that wrong hides something real and shows nothing:
+# filtering on `parent` rather than scruff's `chat` would hide a lane
+# opened with ⌘↵ from inside another pane, which is a running agent with
+# a window; treating an absent `chat` as "no chat" empties the picker
+# against an older scruff. The picker still opens either way — it is the
+# missing row nobody notices.
 
 bats_require_minimum_version 1.5.0
 

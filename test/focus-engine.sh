@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# not-a-suite: sourced by test/focus-auto.sh and test/focus-timer.sh to build the focus engine they run
 # The ONE place a focus suite turns modules/focus/focus.sh into the script the
 # module actually builds. Sourced, never run.
 #

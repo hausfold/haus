@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: job=rooms
 # lidawake — the daemon behind haus.power.lidAwake, driven tick by tick against
 # a fake pmset and a fake clock.
 #
@@ -8,6 +9,13 @@
 # Mac you forgot to close. So each scenario asserts the WHOLE sequence of
 # disablesleep writes, which is the only way to catch a hold that was taken
 # twice, released twice, or never released at all.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# lidawake's three failsafes, over a fake pmset and a fake clock. Every
+# one of them is time-dependent and every one fails invisibly: a Mac that
+# quietly stopped sleeping on a lid close looks exactly like a Mac you
+# forgot to close, and the bill arrives as a flat battery in a bag.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)

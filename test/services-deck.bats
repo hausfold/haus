@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 #
 # The background-jobs deck's READERS: the US record encoding, the
 # `launchctl print` parse, and the four-verdict truth table behind
@@ -31,6 +32,20 @@
 # haus.sh's `snug_open`, and every case here dies at `source` with an unbound
 # `SNUG[1]` rather than testing anything. `$BASH` is the interpreter bats itself
 # is running under, which is by construction one that can.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The background-jobs deck's READERS. `nix flake check`'s `services-deck`
+# pins the deck's completeness — every launchd job has an entry — and
+# knows nothing about what the CLI then does with the file, which is where
+# a wrong answer costs something: a false red line also fires the BTM card
+# in the permissions deck, and a false green hides a job that has stopped
+# working. The case it exists for is `last exit code = (never exited)`,
+# which launchd prints for a job with `runs = 0` — a present field that is
+# not a number, and so "failed" to any reader testing non-empty-and-not-0.
+# `launchctl` is faked as a shell FUNCTION rather than a stub on PATH,
+# because haus.sh prepends its own PATH at load and would shadow a stub.
+# Needs bash + bats; no painter, so it can sit anywhere.
 
 setup() {
   # The REAL file, sourced through its own library seam — `HAUS_LIB=1` returns

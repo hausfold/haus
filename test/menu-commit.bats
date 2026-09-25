@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # modules/launcher/commands/lib/menu-commit.sh — the ONE parse of a pounce
 # stdin-menu answer, over fixture commit strings shaped exactly like pounce's
 # (State.swift, buildCommit's .plain case: "<action>\t<raw-row>", free text in
@@ -10,6 +11,15 @@
 # Seven scripts each carried a private copy of the fix before the helper; the
 # last test holds them to the shared one, so an eighth private parse cannot
 # land quietly.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The one parse of a pounce stdin-menu answer, over fixture commit
+# strings — "<action>\t<raw-row>", the shape every picker's reply wears.
+# The bug it pins shut is silent by construction: a case on the ANSWER's
+# first field compares every row against the literal "enter" and the
+# menu does nothing at all. Also counts the seven consumers, so an
+# eighth private parse cannot land quietly. Needs only bash + bats.
 
 bats_require_minimum_version 1.5.0
 

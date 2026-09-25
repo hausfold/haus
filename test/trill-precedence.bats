@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # Hermetic tests for modules/core/trill.sh — WHICH Trill.app the name on PATH
 # resolves to.
 #
@@ -24,6 +25,19 @@
 #
 # Hermetic: fake bundles under $BATS_TEST_TMPDIR, and the subject's one absolute
 # path rewritten to point inside it. Needs only bash + bats — no Mac, no Trill.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# Which Trill.app the `trill` on PATH resolves to. A precedence with no
+# error surface: every candidate is a real, working Trill, so the wrong
+# one costs nothing at the call site and runs a stale daemon forever —
+# a dev build in ~/Applications used to outrank the bundle
+# `haus.notifications.compositor` pins at /Applications, and no rebuild
+# could displace it. Asserts the order in each of the three files that
+# spell it out (the wrapper, haus.sh's `trill_bin`, the bar's trill pill),
+# so one cannot drift from the others silently. Hermetic: fake bundles in
+# a tmpdir, the subject's absolute paths repointed into it. Needs only
+# bash + bats.
 
 bats_require_minimum_version 1.5.0
 

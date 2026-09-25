@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # Hermetic tests for modules/bar/sketchybar/plugins/workspace_lib.sh — what a
 # workspace pill says, and the buried pill beside the front app.
 #

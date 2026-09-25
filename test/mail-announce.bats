@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # The mail watcher's decisions — modules/notifications/mail-announce.py.
 #
 # The IMAP half is somebody else's tested code (goimapnotify holds the IDLE
@@ -30,6 +31,22 @@
 # Hermetic and hostless: none of the five opens a socket, which is why they are
 # the five that were split out. test/mail-imap.bats is the other side of that
 # line: the same subject, driven end to end against a real one.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The mail watcher's five decisions (modules/notifications/mail-announce.py).
+# Every one of them fails silently, and in both directions — too many
+# cards or none at all: the flood guard that has to answer "nothing" for
+# a mailbox this Mac has never watched (goimapnotify runs the hook once
+# at startup, and launchd starts the agent at every login); the same
+# guard across a UIDVALIDITY change, and its counterpart that must not
+# keep the old watermark past one, which is what would put every later
+# message below the line for good; the RFC 2047 decode that is the
+# difference between a subject and `=?UTF-8?B?…?=`; and the mailbox-name
+# slug the watermark file is named for, which is `[Gmail]/All Mail` on
+# the account this was built for. Hermetic: none of the five opens a
+# socket, which is why they are the five that were split out. Needs bash
+# + bats + python3.
 
 bats_require_minimum_version 1.5.0
 

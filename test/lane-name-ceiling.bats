@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # The zmx session-name ceiling, as modules/terminal/lanes/lane-open.sh meets it.
 #
 # ── the failure this exists for ──────────────────────────────────────────────

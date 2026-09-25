@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: job=rooms
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -8,9 +9,9 @@ AWAKE="$ROOT/modules/core/awake.sh"
 # draw through snug when one is reachable, and every exact-match assertion below
 # is written against the plain sentence. Unset rather than left alone: this file
 # is run straight off disk with whatever environment a caller has, and
-# `.github/workflows/check.yml` exports HAUS_UI_SH for the render suites further
-# down the same job. Today this step happens to run above that export; that is
-# ordering, not a contract, and a reordered workflow would turn every assertion
+# a CI job whose suites say `needs=painter` exports HAUS_UI_SH for all of
+# them. This one runs in `rooms`, which exports nothing today; that is a header
+# line, not a contract, and moving it to such a job would turn every assertion
 # here red with a mark it never asked about. The painted shapes are
 # test/awake-ui.bats's subject.
 unset HAUS_UI_SH || true

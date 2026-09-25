@@ -1,4 +1,5 @@
 #!/bin/bash
+# not-a-suite: the third-party widget fixture `bar-third-party-widget` and `bar-widget-header` in flake.nix read
 # The fixture a THIRD-PARTY framework widget is pinned by — not a pill, and not
 # installed on any machine. `bar-third-party-widget` in flake.nix declares it
 # through `haus.bar.widgets.<name>.script` and diffs what the bar's item file

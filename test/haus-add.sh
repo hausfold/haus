@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: job=acquire needs=nix
 # `haus add` / `haus desktop` / `haus remove` / `haus update`'s own suite —
 # acquisition step D. Needs a real `nix flake lock` and `nix eval` against a
 # SCAFFOLDED consumer flake, which is exactly what `haus show`'s suite needs

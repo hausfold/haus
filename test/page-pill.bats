@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # Hermetic tests for modules/bar/sketchybar/plugins/page.sh — the fraction on
 # the page pill, and the three states it draws.
 #
@@ -38,6 +39,20 @@
 # unbalanced one from a `case` pattern (`*/*)`) written in there takes the whole
 # file down at load with `unexpected EOF`. `bash -n` under any bash 4+ passes it
 # happily. These cases run the file, so they are the local guard against it.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The page pill's fraction. It counts PLACES — a workspace with a window
+# on it — out of one `aerospace` call that treats the two kinds
+# differently: a page is non-persistent and so listed only while it is
+# live, while the base (`T`) is persistent and listed whether or not
+# anything is on it. `--empty no` is the whole of what makes them
+# comparable, and every way to get this wrong draws a plausible number
+# nobody can check, or hides the pill in the one state it exists for: an
+# emptied `T` whose pages nothing else on screen mentions. Hermetic: fake
+# $HOME, aerospace and sketchybar as recorders, the subject's PATH prelude
+# rewritten so a real Mac's workspaces cannot answer. Needs only bash +
+# bats.
 
 bats_require_minimum_version 1.5.0
 

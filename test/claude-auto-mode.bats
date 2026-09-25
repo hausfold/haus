@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=agents
 # The `autoMode` block of ~/.claude/settings.json — haus's half of Claude Code's
 # safety classifier, and the first test it has ever had.
 #
@@ -27,6 +28,21 @@
 # The second is EXTRACTED from the module rather than retyped, so this suite
 # fails when that block changes shape rather than quietly testing a copy that
 # has stopped resembling it. Needs bash + bats + jq, no Nix and no Mac.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The `autoMode` block of ~/.claude/settings.json — the four lists of
+# prose Claude Code's safety classifier judges every tool call against,
+# and the one haus surface whose failures are measured in refusals that
+# stopped happening rather than in anything on screen. It had no test at
+# all until the section-clearing fix; what it needs one for is that both
+# directions are silent: a merge that takes too much deletes a `hard_deny`
+# somebody wrote with `claude auto-mode`, and a merge that takes too
+# little leaves an `allow` rule lifting refusals for a config that stopped
+# asking for it (measured on a guest, 2026-09-21). Runs the real
+# modules/terminal/claude-settings.jq, and the activation's shell half
+# lifted out of modules/terminal/default.nix rather than retyped. Needs
+# bash + bats + jq, no Nix and no Mac.
 
 bats_require_minimum_version 1.5.0
 

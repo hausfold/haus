@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # Hermetic tests for modules/bar/sketchybar/barlib.sh — the bar widget runtime
 # (hausfold.co/docs/haus/rooms/bar-widgets).
 #
@@ -13,6 +14,15 @@
 # BATS_TEST_TMPDIR) and replaces $SB with a recorder that appends one line of
 # argv per invocation — so a test can assert on sketchybar TRAFFIC: how many
 # calls, and exactly what rode each one.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The bar widget runtime (ops/todo/bar-framework.md). Every promise barlib
+# makes fails silently on a live bar: a diff that never settles repaints
+# a quiet pill forever, one that over-matches freezes a pill on stale
+# data, and a --hide without updates=on is a pill no event can bring
+# back — the one-way door the framework exists to close. Hermetic: fake
+# $HOME, a recorder standing in for sketchybar. Needs only bash + bats.
 
 bats_require_minimum_version 1.5.0
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # `haus report` — the in-product door to haus's bug form (modules/core/haus.sh's
 # `cmd_report` and its two helpers), and the palette row that is one line into it.
 #
@@ -28,6 +29,18 @@
 # PATH at load, so on a machine that has shipped this feature a real `open` and a
 # real `haus-notify` are ahead of any directory a test could add. `command -v`
 # finds a function first, so that is the one seam that actually shadows them.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# `haus report` — the door to the one feedback channel anything we ship
+# has, and every way it breaks leaves a working-looking command behind: a
+# `body=` prefill opens GitHub's blank editor and files a shapeless report
+# with no error, a lax encoder turns every `+` in the block into a space,
+# a redaction that stops firing publishes a username, and past the length
+# cap the form opens empty. Hermetic: a fixture consumer flake, and every
+# stub a function (haus.sh puts the system profile on PATH ahead of any
+# directory a test could add). Needs bash + bats + jq, python3 for one
+# round-trip case, no Nix and no Mac.
 
 bats_require_minimum_version 1.5.0
 

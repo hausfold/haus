@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # A background lane spawned with the screen asleep, pinned as an invariant of
 # modules/terminal/lanes/lane-open.sh.
 #
@@ -29,6 +30,19 @@
 # names the failure it is standing in front of.
 #
 # Needs bash + bats. No Nix, no Mac, no display.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# A background lane spawned while the screen is asleep. Ghostty cannot
+# build a surface when macOS reports zero active displays, and
+# lanes/lane-open.sh IS the lane's --initial-command — so the window came
+# up as an error pane, the script never ran, and the lane had no session,
+# no client and not even a fault banner, while `scruff spawn` exited 0 and
+# the palette reported it working. Three lanes were lost that way inside
+# ninety seconds before anyone looked at the windows. Pins the display
+# gate, the windowless path's create-or-bail, zmx's flag order, and the
+# probe that now asks whether a CLIENT started rather than whether a
+# process is alive. Needs only bash + bats.
 
 bats_require_minimum_version 1.5.0
 

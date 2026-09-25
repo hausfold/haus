@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # The mail watcher's other half — the conversation itself.
 #
 # test/mail-announce.bats pins the four decisions in isolation. This one drives
@@ -17,6 +18,20 @@
 #
 # Hostless: ./fake-imap.py is the server, the certificate is generated per run,
 # and `haus-notify` is a recorder. Needs bash + bats + python3 + openssl.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The other half of the same subject, and the half nothing else covers:
+# the announcer driven end to end against test/fake-imap.py — a real
+# socket, a real TLS handshake and a real imaplib. Everything between
+# those decisions and the card is a response SHAPE (EXAMINE's
+# UIDVALIDITY, the untagged SEARCH list, `FETCH *`'s sequence-numbered
+# UID, a header literal with X-GM-THRID glued to the front), and a wrong
+# parse there is not an error anywhere — it is a Mac that stopped
+# mentioning mail. TLS rather than plaintext deliberately: a fake that
+# skipped it would have needed a plaintext seam in the production code,
+# whose failure mode is a mailbox password crossing a network in the
+# clear. Needs bash + bats + python3 + openssl.
 
 bats_require_minimum_version 1.5.0
 

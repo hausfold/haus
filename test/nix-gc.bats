@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # Hermetic tests for modules/core/nix-gc.sh — the weekly store cleanup's
 # survival of a store path macOS will not let go of.
 #
@@ -20,6 +21,17 @@
 # So the subject is faked at three seams — the collector, `xattr`, and
 # `nix-store`'s validity check — over a store directory built per case under
 # `$BATS_TEST_TMPDIR`. No case can touch a real store.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The weekly store cleanup's survival of a store path macOS will not let
+# go of. One refused chmod on a launched app bundle aborts the WHOLE
+# collection, so the wrapper pins that path and carries on — and every
+# way of getting that wrong is invisible from outside: a loop whose exit
+# condition is "nix stopped complaining" either spins forever, or pins
+# something that isn't a store path and breaks the store it was saving.
+# Faked at two seams (the collector, `xattr`), so it needs no nix, no
+# root and no week.
 
 bats_require_minimum_version 1.5.0
 

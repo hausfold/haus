@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=agents
 # The two halves of the family agent-surface standard haus owes an agent
 # (`docs/agent-surface.md` in the workshop): **A3**, the `haus skill` verb, and
 # **A2**, `--json` on a read verb — here, `haus get`.
@@ -27,6 +28,19 @@
 # test/report-door.bats spells out: haus.sh prepends the system profile to PATH
 # at load, so on a machine that has shipped this a real `haus` is ahead of any
 # directory a test could add, and only `command -v`'s function lookup shadows it.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# `haus skill` and `haus get --json` — A3 and A2 of the family
+# agent-surface standard, and both are surfaces only an agent reads, so
+# every way they break is silent: printing the UNRENDERED template puts
+# `@hausVersion@` in front of a user and points an agent at option docs
+# that were never generated; `skill install` meeting the read-only Nix
+# symlinks haus itself put there has to refuse in words, because an agent
+# that reads EPERM reaches for sudo; and a bare-value `--json` cannot tell
+# "nothing defines this yet" from "defined as null", which is exactly the
+# pair `haus unset` makes. Hermetic: a fixture skill dir, a fixture HOME,
+# nix stubbed out. Needs bash + bats + jq, no Nix and no Mac.
 
 bats_require_minimum_version 1.5.0
 

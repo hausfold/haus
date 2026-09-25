@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=agents
 # `haus set`'s ADDRESS: which option path the verb can name, how that path
 # becomes Nix, and what it says when a write takes more than it was given.
 #
@@ -27,6 +28,21 @@
 # runs in the `acquire` job — the one with a real nix in it. ⚠️ This comment
 # used to say CI "cannot run" it "because it evaluates a darwinConfiguration".
 # That was never true: evaluating one is what the Linux runner does all day.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# `haus set`'s ADDRESS — which option path the verb can name, how that
+# path becomes Nix, and what it says when a write takes more than it was
+# given. All three failed silently, and two of them failed for real: the
+# grammar refused the `:` every `haus.launcher.items` key carries, so no
+# palette item was reachable from the verb and the refusal read as a typo;
+# `settings_attrpath`'s bare-identifier glob then left such a key UNQUOTED,
+# making the file haus had just written a Nix syntax error; and a
+# whole-attrset write is `mkForce`, so naming the enclosing set withdrew
+# the five items haus defines while the command printed the new value and
+# stopped. The end-to-end half is test/haus-settings.sh, which runs in
+# the `acquire` job — it needs a real nix, this suite does not. Needs
+# bash, bats and jq, no Nix and no Mac.
 
 bats_require_minimum_version 1.5.0
 

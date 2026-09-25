@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=agents
 # Hermetic tests for `tart-adapter.sh screenshot` — the subcommand behind
 # `haus-vm-shot`, which lifts a frame out of a lane's headless guest so it can
 # be attached to a pull request (`gh … --attach`, gh 2.99.0+).
@@ -18,6 +19,14 @@
 #
 # `tart`, `ssh` and `scp` are stubbed onto PATH, so this runs on the CI's Linux
 # runner with no VM, no network and no macOS anywhere.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# `haus-vm-shot`'s capture path. Its whole output is consumed by a `$( )`
+# and published into a pull request, so its failures are ones nobody
+# reads: a stray line on stdout, a capture without `-x`, the wrong lane's
+# VM, a PNG left on the guest, a failure that still printed a path.
+# tart/ssh/scp are stubbed, so no VM and no Mac.
 
 bats_require_minimum_version 1.5.0
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # Hermetic tests for the lane→window join in
 # modules/terminal/scripts/raise-session.sh — the AeroSpace branch that answers
 # "which window is this lane in?".
@@ -31,6 +32,15 @@
 # `^        \$2 == "Ghostty"`. If either moves the eval yields nothing and every
 # case fails with an empty result, which is the loud failure and the reason this
 # is acceptable.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# raise-session's lane→window join — the answer to "which window is this
+# agent in?", which a trill banner click, ⌘F's ⏎ and the bar's agent rows
+# all go through. The bug it guards was an awk parse error that only fired
+# once TWO plain windows carried a label, and the runner's awk tolerates
+# the input that kills macOS's — so the suite stubs awk to reproduce
+# one-true-awk's rule, and would pass on the old code without it.
 
 bats_require_minimum_version 1.5.0
 

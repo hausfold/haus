@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # Hermetic tests for the weekly SUB-limits in the aiUsage pill
 # (modules/bar/sketchybar/plugins/ai_usage.sh).
 #
@@ -20,6 +21,18 @@
 # Harness as barlib.bats's: $HOME redirected, the three sourced files faked, and
 # $SB a recorder that appends one line of argv per call, so a test asserts on
 # sketchybar TRAFFIC rather than on pixels.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The aiUsage pill's weekly SUB-limits. A Max plan caps some model
+# families inside the weekly window rather than beside it, so a family can
+# be spent for the week while the weekly gauge it lives in reads 50% — a
+# number the bar shows WRONG rather than not at all, which no glance
+# catches. The other half is freshness: the nine-column row beside these
+# is pushed by every render while these are only pulled, so a sub-limit
+# riding its neighbour's stamp onto the pill is the first bug back.
+# Hermetic, same harness as barlib's, and it shims `date -r` because that
+# spelling is BSD and the runner is not.
 
 bats_require_minimum_version 1.5.0
 

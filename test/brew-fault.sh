@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: job=rooms
 # What `haus` can see about a cask that did NOT install.
 #
 # The regression suite for the half of the AeroSpace tap S1 that was not the
@@ -15,6 +16,16 @@
 # `haus doctor` needs a Mac with a built system. `brew` is a stub on PATH and
 # `declared_brewfile` is redefined after the source, which is what keeps the
 # suite hermetic: neither /run/current-system nor a real Homebrew is touched.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# What `haus` can see about a cask that did NOT install. Activation now
+# CATCHES a `brew bundle` failure instead of dying on it, so noticing is
+# the whole job: `missing_casks` names the absent app and `haus rebuild`
+# fails on the marker. Pure list arithmetic over a fixture Brewfile and a
+# stubbed `brew`, so no Mac needed — and worth running rather than only
+# linting, because the bug it guards against is silence, which is exactly
+# what shipped before it.
 set -euo pipefail
 
 # ── an interpreter that can actually run haus.sh ─────────────────────────────

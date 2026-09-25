@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: job=eval needs=painter,nix
 # `haus show`'s own suite — the half the `desktop-show` flake check cannot run.
 #
 # That check pins the READING (class, counts, which room each leaf files under)

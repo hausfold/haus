@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=agents
 # Hermetic tests for the statusline refresher (modules/ai/statusline-refresh.sh)
 # — the detached half of the agent-worktree bar.
 #
@@ -16,6 +17,14 @@
 # HAUS_CONSUMER, and `gh` — so the suite never touches the real registry, the
 # real cache, or the network. The script APPENDS its PATH rescue (it used to
 # prepend, which made the shim unreachable), so $BIN wins here.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The refresher is `scruff`'s reader, and it fails in the one way nobody sees:
+# it runs detached under `set -e`, so any non-zero leaves the LAST panel.tsv
+# in place and the bar keeps showing worktrees that were reaped hours ago —
+# no error, no empty bar, just a confidently stale one. Same hermetic shape
+# as scruff's own acceptance suite (throwaway repos, shim gh, redirected cache).
 
 bats_require_minimum_version 1.5.0
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=agents
 # Hermetic tests for modules/ai/scruff-cache.sh — the one warm copy of
 # `scruff --json` that the agents pill and the Lanes palette both read.
 #
@@ -26,6 +27,17 @@
 #
 # `touch -t 209901010000` rather than `date -v+…`: -t's CCYYMMDDhhmm is the one
 # spelling BSD and GNU touch agree on, and this suite runs on both.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The warm `scruff --json` both the agents pill and the Lanes palette read
+# instead of running scruff on a hot path. Every verb in it is an age, so
+# a cache file stamped AHEAD of `now` — a clock stepped backward, a VM
+# resumed from a snapshot — reads FRESH rather than stale and both
+# consumers serve lane rows nothing is refreshing, silently and forever.
+# `path`, `age` and `read` only: `kick` prepends the system bin dirs
+# before it looks for `scruff`, so it can be neither shimmed here nor run
+# on a runner that has no scruff at all. Needs only bash + bats.
 
 bats_require_minimum_version 1.5.0
 

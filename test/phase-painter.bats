@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=draw needs=painter
 # How the two end-user CLIs put a line on screen: the `haus rebuild` phase
 # painter, the colour gate, and the `snug run` coprocess both of them draw
 # through. The standard is hausfold/snug's README and AGENTS.md.
@@ -24,6 +25,18 @@
 #
 # haus.sh is sourced as a library (HAUS_LIB=1, the same seam test/haus-plan.sh
 # uses) so the verbs can be called directly, on streams no window has to have.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The `haus rebuild` phase painter and the colour gate both end-user CLIs
+# grew with it. Three silent failure modes: a record `snug run` cannot
+# parse is a line that simply never appears; a repaint that assumes a
+# width corrupts the screen only on a window narrower than the author's
+# (52 columns and below for the finished `activate` row, 13 and below for
+# the running one — measured in real ptys, which is what the last tests
+# here build); and an ungated escape is invisible to anyone watching
+# colour. Needs bash + python3 + bats + the painter (needs=painter), no Nix and
+# no Mac.
 
 setup() {
   SUBJECT="$BATS_TEST_DIRNAME/../modules/core/haus.sh"

@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # Hermetic tests for modules/terminal/lanes/lane-seen.sh — "you are looking at
 # the lane, so take its trill fin down."
 #
@@ -25,6 +26,15 @@
 # prepend — so the macOS path is intercepted at $TRILL_APP, the seam that
 # wrapper documents, while a runner with no haus at all finds the plain stub
 # on PATH. Both write the same file, so the assertions don't care which ran.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# lane-seen's other half of that join, read backwards: the focused
+# window's session name back to the trill key scruff gave that lane's fin.
+# The boundary between `<repo>` and `<lane>` cannot be found in the string
+# — `hausfold.co` is one of ours — so it comes from scruff's registry, and
+# the failure mode of getting it wrong is silent: `trill resolve` is
+# idempotent, so a wrong key exits 0 and the fin just stays up.
 
 bats_require_minimum_version 1.5.0
 

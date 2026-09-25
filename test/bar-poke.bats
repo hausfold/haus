@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # Hermetic tests for modules/core/haus-bar-poke.sh — the both-bars trigger.
 #
 # Why a suite. "Anything that pokes a bar pokes both" (AGENTS.md) used to be a
@@ -12,6 +13,19 @@
 #
 # The harness stands a recorder at each bar path and asserts on the TRAFFIC:
 # which binaries were called, and exactly what rode each call.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# `haus-bar-poke` — the both-bars trigger, and the one place that rule
+# lives now that four producers call it instead of writing the pair out.
+# SketchyBar keys its lock file and its mach service on
+# `basename(argv[0])`, so a `--trigger` reaches exactly ONE instance:
+# poking the top bar alone is valid syntax, exits 0, logs nothing, and
+# freezes a pill that `haus.bar.bottom.items` moved downward. The other
+# half is the no-op contract — three rooms call this on their SUCCESS
+# paths, so a machine with no bar, a missing bottom binary or a bar
+# mid-reload must never make a focus toggle or an `awake 1h` report
+# failure. Hermetic: a recorder at each bar path. Needs only bash + bats.
 
 bats_require_minimum_version 1.5.0
 

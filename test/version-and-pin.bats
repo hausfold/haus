@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # The two answers to "which haus is this?" — `haus version` (what is RUNNING)
 # and the line `haus status` draws about the pin (what the next rebuild would
 # build, and whether upstream has moved past it).
@@ -22,6 +23,22 @@
 # test/report-door.bats spells out: haus.sh prepends the system profile to PATH
 # at load, so on a machine that has shipped this a real `git` is ahead of any
 # directory a test could add. `command -v` finds a function first.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# `haus version` and what `haus status` says about the pin — the two
+# answers to "which haus is this?", and both failed while looking like
+# they worked. There was no version verb at all, so the first thing anyone
+# types at a CLI they have just met got `unknown command` and thirty other
+# verbs. And `git ls-remote <url> <tag>` answers an ANNOTATED tag with the
+# tag OBJECT while the lock pins the commit it peels to, so a tag-pinned
+# config — `script/build-golden-vm.sh` writes one, and so does any consumer
+# who wants a stable pin — was told "a newer haus is available upstream" on
+# every run by a status that `haus update` flatly contradicted. The third
+# case here is the one nobody would have gone looking for: with no network
+# the probe's own non-zero ended the whole command mid-draw, under a
+# comment promising it was offline-safe. Hermetic: a fixture lock, git a
+# shell function. Needs bash + bats + jq, no Nix and no Mac.
 
 bats_require_minimum_version 1.5.0
 

@@ -540,8 +540,8 @@ jobs:
             -o "$RUNNER_TEMP/snug/ui.sh"
           echo "HAUS_UI_SH=$RUNNER_TEMP/snug/ui.sh" >> "$GITHUB_ENV"
 
-      - name: haus show tests
-        run: bash test/haus-show.sh
+      - name: every suite whose header says job=eval
+        run: bash test/ci.sh run eval
 
   checks:
     name: the flake's checks
@@ -796,9 +796,6 @@ jobs:
       # one anyway: folding it back into `eval` would only move the seconds,
       # and the two would then share one cache entry, which is the arrangement
       # the banner above `eval` describes going wrong.
-      - name: haus add/desktop/remove tests
-        run: bash test/haus-add.sh
-
       # `haus set`/`get`/`reset`/`unset` end to end — 131 calls against a
       # scaffolded consumer, asserting the overlay file on disk and the value
       # read back. Most of them evaluate a real darwinConfiguration; the rest
@@ -836,10 +833,17 @@ jobs:
       # point. The macOS-only half of haus.sh is `capture`/`doctor`, which
       # reach `defaults`, `plutil` and `/run/current-system`; the set/get path
       # reaches none of them.
-      - name: haus set/get/reset/unset tests
-        run: bash test/haus-settings.sh
+      - name: every suite whose header says job=acquire
+        run: bash test/ci.sh run acquire
 
   # ── The shell half, and which of its four jobs a new suite joins ─────────
+  #
+  # A suite joins a job by its HEADER, not by a step here: `# suite: job=rooms`
+  # in its first five lines, and each job's one `bash test/ci.sh run <job>`
+  # step runs every suite that names it. `test/ci.sh census`, in `lint`, fails
+  # on a suite that names no job or a job with no runner step, so a suite can
+  # no longer land and never run. Two did: test/workspace-pills.bats (#780) and
+  # test/lane-name-ceiling.bats (#692). test/ci.sh's header has the grammar.
   #
   # It was one job of fifty steps run one after another: 2m28s, which made it
   # the family's slowest gate — the nix half beside it was ~1m40s in one job,
@@ -866,14 +870,13 @@ jobs:
   #   rooms    bats + the image: every other room's scripts, hermetic over
   #            stubs and fixtures.
   #
-  # ⚠️ A suite that SKIPS without the painter belongs in `draw` and nowhere
-  # else. That rule used to be three "MUST stay below" comments asking a
-  # reader to keep one step above others inside one long job; it is a job
-  # boundary now, which is the only form of it that appending a step in the
-  # wrong place cannot break. It still has to be got right when a suite is
-  # ADDED, and it still fails the same way if it isn't: a skipped case reads
-  # as a pass. Everything else goes with its room — and where that is a
-  # toss-up, whichever of `agents` and `rooms` is the shorter that week.
+  # ⚠️ A suite that SKIPS without the painter belongs in `draw` and says
+  # `needs=painter`. That rule used to be three "MUST stay below" comments
+  # asking a reader to keep one step above others inside one long job; then a
+  # job boundary; now the runner also refuses to start a `needs=painter` suite
+  # when HAUS_UI_SH is unreadable, so a suite that names the wrong job fails
+  # instead of skipping. Everything else goes with its room — and where that
+  # is a toss-up, whichever of `agents` and `rooms` is the shorter that week.
   #
   # `bats` is the ONE tool these jobs need that the runner image lacks, and
   # npm is preinstalled, so it comes from npm rather than apt. That is the
@@ -987,103 +990,25 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      # bootstrap.sh is the standalone curl|bash installer — the one shell
-      # script here that isn't a nix template (@PLACEHOLDER@ substitution) or a
-      # zsh sketchybar plugin, so it's the one we can lint as-is. Warning level
-      # catches real bugs (undefined vars, bad quoting) without failing on
-      # info-level style nits. It's what hausfold.co/hacker.sh serves, so a
-      # regression here reaches every new installer.
+      # Every suite in test/ names a job that runs it (test/ci.sh's header has
+      # the grammar and the account). It sits here because this is the job
+      # that needs nothing but the image, and it lints test/ the way the step
+      # below lints the scripts.
+      - name: every suite is run by a job
+        run: bash test/ci.sh census
+      # Every tracked *.sh at --severity=warning, which catches real bugs
+      # (undefined vars, bad quoting) without failing on info-level style nits.
+      # shellcheck is the runner image's (0.9.0), with no install step, and
+      # test/ci.sh prints its version first so an image that drops it fails
+      # loudly here.
+      #
+      # It used to be a hand-written list of 42 files out of 137, and nothing
+      # recorded which omissions were deliberate. Now a file is linted unless
+      # test/ci.sh excludes it: a rule (a zsh shebang, a `# widget:` header) or
+      # a named line with its reason. A named line whose file passes or is gone
+      # fails the step, so that list can only get shorter.
       - name: shellcheck
-        run: |
-          # shellcheck comes from the runner image — no install step. Print the
-          # version so a future image change that drops it fails loudly here
-          # rather than as a confusing "command not found" mid-lint.
-          shellcheck --version
-          # bootstrap.sh reaches every new installer via hausfold.co/hacker.sh;
-          # haus.sh + awake.sh ship onto every machine as end-user CLIs.
-          # haus-activate.sh joins them: it is the privileged half of every
-          # rebuild, runs as root, and its one message is the one a user sees
-          # when an activation fails — the worst line in the set to have a
-          # syntax error in.
-          # statusline-refresh.sh is linted for a different reason: it runs
-          # DETACHED with its output discarded, so a non-zero anywhere in it is
-          # completely invisible — the bar just quietly stops updating.
-          # test/haus-settings.sh is linted here and RUN in the `acquire` job.
-          # ⚠️ It was linted and NEVER run — every day of the six weeks between
-          # #252 and here — on a reason that was never true: "it evaluates a
-          # darwinConfiguration, so this runner can never execute it". #762
-          # disproved it; this change retired it by
-          # taking the lint off and looking: it passes on ubuntu-latest, cold,
-          # unchanged. The step there carries what it cost and why it sits in
-          # that job. The durable lesson is the shape of the mistake: a
-          # plausible reason written down once was read as a measurement by
-          # everyone after, and nobody ran the command that would have taken
-          # ninety seconds to answer it.
-          # test/haus-plan.sh is linted here and RUN in the `rooms` job: its subject
-          # pure parsing over fixture files, so it needs neither Nix nor a Mac.
-          #
-          # These paths are hand-written, so MOVING a script silently drops it
-          # from the lint — except that shellcheck exits 2 on a path it can't
-          # open, which makes the rot loud rather than silent. That is exactly
-          # how the `modules/core/` → `modules/ai/` move in #402 surfaced: the
-          # job had been failing on it, invisibly, behind the apt stall this
-          # commit's parent removed. Move a script, fix the path here.
-          # scruff-cache.sh and lanes.sh join for statusline-refresh.sh's reason.
-          # scruff-cache's whole job is to run DETACHED with its output discarded
-          # (`scruff-cache kick`), so a non-zero in it is invisible and the bar and
-          # the Lanes picker simply go on serving a cache nothing refreshes.
-          # lanes.sh is the palette command a person opens by hand, but its
-          # stderr goes to the pounce daemon and nowhere a user looks, so a
-          # broken row build reads as "the palette closed itself" — which is
-          # exactly the bug #430 was opened for. Both are plain bash with no
-          # @placeholder@ substitution, so they lint as-is.
-          # modules/launcher/commands/lib/menu-commit.sh joins for barlib.sh's
-          # reason: it is the sourced parse under every palette menu and the
-          # bar's haus menu, and everything it gets wrong is a menu that
-          # silently does nothing.
-          # lane-seen.sh joins lane-cwd.sh in the list for the same reason and one
-          # more: AeroSpace runs it detached on EVERY focus change
-          # (`exec-and-forget`), so nothing it prints or returns reaches anyone
-          # — a broken one is a lane fin that simply never comes down.
-          # modules/core/haus-notify.sh and modules/core/trill.sh are the whole
-          # desktop's notification path — every banner haus draws goes through
-          # one of them, from a bar plugin, a launchd job or a pounce command,
-          # and every call site ends in `>/dev/null 2>&1` because a courtesy
-          # must not fail its caller. That redirection is exactly why they earn
-          # the lint: a broken one is invisible by construction. haus-notify is
-          # a @placeholder@ template and lints anyway, for focus.sh's reason —
-          # `TRILL="@trill@"` is an assignment right-hand side, so an
-          # unsubstituted copy still parses.
-          # modules/bar/sketchybar/barlib.sh is the bar widget RUNTIME: every
-          # framework pill sources it, and everything it gets wrong is
-          # invisible by construction — a widget's stderr goes to sketchybar's
-          # log and nowhere a person looks, so a broken runtime is a pill that
-          # simply stops painting. The widgets themselves are deliberately NOT
-          # here: fetch() emits state that render() reads as variables, so
-          # every one of them trips SC2154 by design (ops/todo/bar-framework.md).
-          # modules/focus/focus.sh IS a @placeholder@ template and lints anyway:
-          # every substitution in it sits on the right-hand side of an
-          # assignment, so an unsubstituted copy is still valid shell. It earns
-          # the lint for statusline-refresh.sh's reason, twice over — since
-          # haus.focus.scenes.<name>.when it also runs from launchd on a timer,
-          # where a non-zero is not just invisible but silently stops your Mac
-          # entering the scenes you declared.
-          # modules/ai/fix.sh is `haus fix` — it runs an agent with its
-          # permission gate open, in the user's config flake, usually spawned
-          # from a trill pill with no terminal anywhere near it. Nothing it
-          # prints reaches a person; the only thing that does is the banner it
-          # ends on, so a script that died before drawing one is a "Fix it"
-          # button that visibly does nothing. It is a @placeholder@ template and
-          # lints anyway, for haus-notify.sh's reason: all three substitutions
-          # are assignment right-hand sides, so an unsubstituted copy still
-          # parses (@uiSh@ joined them as `local sh="${HAUS_UI_SH:-@uiSh@}"`).
-          # modules/secrets/haus-secret.sh joins for focus.sh's reason and
-          # awake.sh's together: it is a @placeholder@ template whose four
-          # substitutions are all assignment right-hand sides, so it lints
-          # unsubstituted; and it is an end-user CLI that launchd agents also
-          # exec at boot to read a value, where a non-zero is a room starting
-          # without its secret and nothing on screen to say so.
-          shellcheck --severity=warning modules/secrets/haus-secret.sh bootstrap.sh modules/ai/fix.sh modules/ai/fix-github.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/haus-bar-poke.sh modules/core/lidawake.sh test/lidawake.sh modules/core/nix-gc.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/terminal/lanes/lane-focus.sh modules/terminal/scripts/raise-session.sh modules/windows/scripts/fullscreen-toggle.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/focus-timer.sh test/focus-engine.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh test/brew-fault.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/launcher/commands/lib/menu-commit.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh modules/ai/statusline.sh modules/github/signal.sh modules/terminal/scripts/image-preview.sh modules/terminal/lanes/lane-open.sh modules/bar/sketchybar/barlib.sh modules/bar/sketchybar/plugins/edge.sh
+        run: bash test/ci.sh lint
 
   draw:
     name: shell suites that draw
@@ -1116,81 +1041,17 @@ jobs:
             -o "$RUNNER_TEMP/snug/ui.sh"
           echo "HAUS_UI_SH=$RUNNER_TEMP/snug/ui.sh" >> "$GITHUB_ENV"
       #
-      # ⚠️ Every suite below reads what that step just wrote, and that is the
-      # whole reason they are a job together. Inside the old single job this
+      # ⚠️ Every suite this job runs reads what that step just wrote, and that
+      # is the whole reason they are a job together. Inside the old single job this
       # was a comment asking a reader to keep the fetch above them, and
       # getting it wrong did not merely weaken a suite: statusline.bats's
       # colour-gate cases assert cube escapes and go RED, while its six band
       # cases SKIP, which reads as six passes. A runner has no `snug` on PATH
       # and no /run/current-system, so there is nothing else for them to find.
-
-      # The render path's counterpart suite. Its subject is the Fable/Mythos row
-      # tint, whose correctness is a WIDTH invariant across rows that carry both
-      # SGR and OSC 8 — so it breaks silently whenever a segment is added, and
-      # the breakage reads as a terminal quirk rather than a bug. Same hermetic
-      # shape again; needs only git + jq + bats.
-      - name: statusline render tests
-        run: bats test/statusline.bats
-
-      # The `haus rebuild` phase painter and the colour gate both end-user CLIs
-      # grew with it. Three silent failure modes: a record `snug run` cannot
-      # parse is a line that simply never appears; a repaint that assumes a
-      # width corrupts the screen only on a window narrower than the author's
-      # (52 columns and below for the finished `activate` row, 13 and below for
-      # the running one — measured in real ptys, which is what the last tests
-      # here build); and an ungated escape is invisible to anyone watching
-      # colour. Needs bash + python3 + bats + the file fetched above, no Nix and
-      # no Mac.
-      - name: phase painter and colour gate
-        run: bats test/phase-painter.bats
-
-      # The one PERMANENT exemption from that standard, and the only thing
-      # keeping it honest. bootstrap.sh and haus-activate.sh run before snug is
-      # reachable, so they carry nebelung's numbers inlined instead of naming a
-      # role — a copy of a generated table, which drifts the moment the palette
-      # moves and drifts INVISIBLY: a wrong index is green everywhere and only
-      # ever visible to someone holding the two files side by side. Diffs both
-      # against the ui.sh fetched above, so it must stay below that step too.
-      - name: installer palette, against snug's
-        run: bats test/installer-palette.bats
-
-      # `haus-secret` — the listing a person reads BEFORE they have a working
-      # machine (`haus doctor` sends them here), and the one CLI in this repo a
-      # launchd agent also exec's at boot. Both halves fail quietly: an unfolded
-      # `why` soft-wraps back to column 0 and reads as the next entry, and a
-      # painter that loads where it should not costs every room a thousand lines
-      # of bash for a value it prints on fd 1. The degradation cases are the
-      # point of the build-time substitution, so this suite takes HAUS_UI_SH out
-      # of its own environment — it must still stay below the fetch, because the
-      # painted cases want the real file. Needs bash + python3 + bats.
-      - name: haus-secret's listing and its two streams
-        run: bats test/haus-secret.bats
-
-      # `awake` — the CLI that is also a DATA SOURCE. `status` is its default
-      # verb and prints prose for a person, but the same script answers the
-      # bar's coffee pill on every tick through `status --raw`, and one escape
-      # or one glyph in those three tab-separated fields breaks the pill with no
-      # error anywhere. So this suite guards both directions at once: the
-      # sentence got a mark and roles, and `--raw` and `_run` never so much as
-      # source the painter. It stays BELOW the fetch because the painted cases
-      # want the real file. Needs bash + python3 + bats.
-      - name: awake's sentence, and the raw fields it must not touch
-        run: bats test/awake-ui.bats
-
-      # The "Fix it with AI" CTA on a failed `haus rebuild`: the breadcrumb the
-      # rebuild leaves for `haus fix`, the four gates in front of the offer, and
-      # the detached holder that has to outlive the window the rebuild ran in.
-      # Every part of it fails silently — a renamed crumb key answers "nothing
-      # to fix" for a rebuild that failed in front of you, an inverted gate
-      # offers a fix nothing can honour, and a holder that merely backgrounds
-      # looks identical until someone closes the terminal.
-      #
-      # ⚠️ MUST stay below "snug's painter, at the pinned rev" — three cases
-      # drive `haus-fix` on a pty and `skip` when no ui.sh is found, and a skip
-      # reads as a pass. Needs bash + git + bats + python3 (the pty), and perl
-      # for the one SIGHUP case (skipped without it).
-      - name: rebuild fix CTA
-        run: bats test/rebuild-fix-cta.bats
+      # They say `needs=painter`, and the runner fails a suite whose need is
+      # not met before it starts, so losing this step is red, not six skips.
+      - name: every suite whose header says job=draw
+        run: bash test/ci.sh run draw
 
   agents:
     name: shell suites, the agent surface
@@ -1201,137 +1062,8 @@ jobs:
       # From npm, never apt — the account is above `lint`.
       - name: bats
         run: sudo npm install -g bats
-      # The refresher is `scruff`'s reader, and it fails in the one way nobody sees:
-      # it runs detached under `set -e`, so any non-zero leaves the LAST panel.tsv
-      # in place and the bar keeps showing worktrees that were reaped hours ago —
-      # no error, no empty bar, just a confidently stale one. Same hermetic shape
-      # as scruff's own acceptance suite (throwaway repos, shim gh, redirected cache).
-      - name: statusline refresher tests
-        run: bats test/statusline-refresh.bats
-
-      # The warm `scruff --json` both the agents pill and the Lanes palette read
-      # instead of running scruff on a hot path. Every verb in it is an age, so
-      # a cache file stamped AHEAD of `now` — a clock stepped backward, a VM
-      # resumed from a snapshot — reads FRESH rather than stale and both
-      # consumers serve lane rows nothing is refreshing, silently and forever.
-      # `path`, `age` and `read` only: `kick` prepends the system bin dirs
-      # before it looks for `scruff`, so it can be neither shimmed here nor run
-      # on a runner that has no scruff at all. Needs only bash + bats.
-      - name: scruff cache tests
-        run: bats test/scruff-cache.bats
-
-      # The PreToolUse guard, whose two failure modes are both silent and both
-      # bad: prompting for something the user cannot see (a lane's headless VM
-      # over ssh) trains click-through on the prompts that matter, and missing a
-      # real one lands as a window jumping in front of them mid-sentence.
-      # Neither a build nor a lint can see either. Pure function, no Mac needed.
-      - name: desktop guard tests
-        run: bats test/desktop-guard.bats
-
-      # `haus-vm-shot`'s capture path. Its whole output is consumed by a `$( )`
-      # and published into a pull request, so its failures are ones nobody
-      # reads: a stray line on stdout, a capture without `-x`, the wrong lane's
-      # VM, a PNG left on the guest, a failure that still printed a path.
-      # tart/ssh/scp are stubbed, so no VM and no Mac.
-      - name: vm-shot tests
-        run: bats test/vm-shot.bats
-
-      # The other half of the same adapter: standing a lane's guest up and
-      # getting a shell in it. Every failure it pins looks like a working
-      # machine from the outside — a `runtime up` that never returns because the
-      # guest inherited the caller's stdout, an address reported before sshd
-      # answers on it, a known_hosts entry that refuses the next lane to land on
-      # a reused address. That is what hausfold/haus#663 cost two sessions.
-      - name: vm-runtime tests
-        run: bats test/vm-runtime.bats
-
-      # `haus skill` and `haus get --json` — A3 and A2 of the family
-      # agent-surface standard, and both are surfaces only an agent reads, so
-      # every way they break is silent: printing the UNRENDERED template puts
-      # `@hausVersion@` in front of a user and points an agent at option docs
-      # that were never generated; `skill install` meeting the read-only Nix
-      # symlinks haus itself put there has to refuse in words, because an agent
-      # that reads EPERM reaches for sudo; and a bare-value `--json` cannot tell
-      # "nothing defines this yet" from "defined as null", which is exactly the
-      # pair `haus unset` makes. Hermetic: a fixture skill dir, a fixture HOME,
-      # nix stubbed out. Needs bash + bats + jq, no Nix and no Mac.
-      - name: the agent surface (haus skill, haus get --json)
-        run: bats test/agent-surface.bats
-
-      # The `autoMode` block of ~/.claude/settings.json — the four lists of
-      # prose Claude Code's safety classifier judges every tool call against,
-      # and the one haus surface whose failures are measured in refusals that
-      # stopped happening rather than in anything on screen. It had no test at
-      # all until the section-clearing fix; what it needs one for is that both
-      # directions are silent: a merge that takes too much deletes a `hard_deny`
-      # somebody wrote with `claude auto-mode`, and a merge that takes too
-      # little leaves an `allow` rule lifting refusals for a config that stopped
-      # asking for it (measured on a guest, 2026-09-21). Runs the real
-      # modules/terminal/claude-settings.jq, and the activation's shell half
-      # lifted out of modules/terminal/default.nix rather than retyped. Needs
-      # bash + bats + jq, no Nix and no Mac.
-      - name: Claude Code auto-mode sections
-        run: bats test/claude-auto-mode.bats
-
-      # `haus set`'s ADDRESS — which option path the verb can name, how that
-      # path becomes Nix, and what it says when a write takes more than it was
-      # given. All three failed silently, and two of them failed for real: the
-      # grammar refused the `:` every `haus.launcher.items` key carries, so no
-      # palette item was reachable from the verb and the refusal read as a typo;
-      # `settings_attrpath`'s bare-identifier glob then left such a key UNQUOTED,
-      # making the file haus had just written a Nix syntax error; and a
-      # whole-attrset write is `mkForce`, so naming the enclosing set withdrew
-      # the five items haus defines while the command printed the new value and
-      # stopped. The end-to-end half is test/haus-settings.sh, which runs in
-      # the `acquire` job — it needs a real nix, this suite does not. Needs
-      # bash, bats and jq, no Nix and no Mac.
-      - name: haus set's option address
-        run: bats test/settings-key.bats
-
-      # The github pill's "Fix with AI" rows, BOTH halves — the fetch that
-      # writes `<verdict>:<target>` into the cache (github.sh's own jq, lifted
-      # and run) and the runner that is handed it (modules/ai/fix-github.sh:
-      # the URL→owner/repo parse, the per-verdict brief, the lane name, the
-      # client pick, and resolve_repo over a throwaway filesystem). One suite
-      # because the cache field is a contract between two files and nothing
-      # else joins them: a verdict word spelled one way in the jq and another
-      # in the split is a button that never draws, with no error on either
-      # side. Everything else here fails the same way — LANE SPAWNED ON THE
-      # WRONG BRIEF (an owner/repo from the wrong path segments, a branch
-      # selector read as a PR number, a colon-joined root list walked
-      # line-wise) — and all of it produces a working lane a feel-test cannot
-      # catch. Needs bats, git and jq.
-      - name: github pill fix rows
-        run: bats test/fix-github.bats
-
-      # The GitHub bridge's consumer contract — `haus_gh_covers` and the
-      # statusline gate it feeds. Every failure in this seam is silent AND
-      # expensive in one direction: a coverage answer of "yes" when it should be
-      # "no" turns a 15-second readout into a 30-minute one and the pill just
-      # starts quietly lying about a merge that already happened. There is no
-      # error path to notice it, so the suite IS the guard, and it has to fail
-      # closed on all of: no scopes file, an empty one, a stale one, one repo
-      # out of two, an unparsable mtime.
-      #
-      # It runs statusline.sh, so it used to sit below the painter fetch on
-      # principle — and it is here rather than in `draw` because that fetch was
-      # never load-bearing for it. The difference is worth stating: it asserts
-      # on a BEHAVIOUR (did the render decide to refresh?) and owns no colour
-      # cases, so a painter-less run has nothing in it to skip and go quietly
-      # green. Measured: 29/29 with HAUS_UI_SH unset and with it pointed at a
-      # path that does not exist, which is now simply how it runs.
-      #
-      # Two flags mean something else on this runner than on the Mac these
-      # scripts ship to, which is why signal.sh and the suite both carry the
-      # same try-BSD-then-GNU shape statusline.sh has always had. `date -v` does
-      # not exist here at all. `stat -f` is --file-system and takes NO argument,
-      # so `%m` becomes a second FILE operand: a filesystem block on stdout and
-      # exit 1 (measured, coreutils 9.11 — not the "/ and exit 0" three comments
-      # in this repo used to claim). Honouring that status answers 0 for every
-      # file, which is why every coverage question came back "not covered" here
-      # before this. Needs bash + bats.
-      - name: github bridge signal tests
-        run: bats test/github-signal.bats
+      - name: every suite whose header says job=agents
+        run: bash test/ci.sh run agents
 
   rooms:
     name: shell suites, the rooms
@@ -1342,383 +1074,5 @@ jobs:
       # From npm, never apt — the account is above `lint`.
       - name: bats
         run: sudo npm install -g bats
-      - name: awake lifecycle tests
-        run: bash test/awake.sh
-
-      # lidawake's three failsafes, over a fake pmset and a fake clock. Every
-      # one of them is time-dependent and every one fails invisibly: a Mac that
-      # quietly stopped sleeping on a lid close looks exactly like a Mac you
-      # forgot to close, and the bill arrives as a flat battery in a bag.
-      - name: lidawake failsafe tests
-        run: bash test/lidawake.sh
-
-      # The weekly store cleanup's survival of a store path macOS will not let
-      # go of. One refused chmod on a launched app bundle aborts the WHOLE
-      # collection, so the wrapper pins that path and carries on — and every
-      # way of getting that wrong is invisible from outside: a loop whose exit
-      # condition is "nix stopped complaining" either spins forever, or pins
-      # something that isn't a store path and breaks the store it was saving.
-      # Faked at two seams (the collector, `xattr`), so it needs no nix, no
-      # root and no week.
-      - name: nix-gc pins what macOS won't release
-        run: bats test/nix-gc.bats
-
-      # THANKS.md's credit list against the tree that is supposed to use each
-      # project. A credit list has no consumer — nothing imports it, no build
-      # fails when it is wrong — so it rots in the one direction that
-      # embarrasses us, which is thanking a project we deleted. That is not
-      # hypothetical: the file's first draft credited zellij for holding your
-      # sessions three weeks after modules/moved.nix recorded it gone, in the
-      # same sentence as the zmx that replaced it. The check is deliberately
-      # dumb and says nothing about whether a SENTENCE is still true; it only
-      # refuses a credit with nothing in the tree behind it, and a table row
-      # left standing after the credit went.
-      - name: THANKS.md still credits what haus uses
-        run: bats test/thanks-drift.bats
-
-      # The trigger daemon's decisions — which scene rises, which one it may
-      # enter, which one it is allowed to leave — over stubbed probes and a fake
-      # clock. It is the half of `focus auto` that isn't macOS: the four real
-      # probes (pmset, networksetup, hausdisp/system_profiler) are what
-      # `focus auto --probe` checks on the Mac itself, and this suite says
-      # nothing about them. What it does protect is the rule the whole feature
-      # rests on — the daemon never overrides a state you chose — which fails
-      # in the worst possible way if it regresses: your Mac quietly disagreeing
-      # with you every thirty seconds.
-      - name: focus trigger tests
-        run: bash test/focus-auto.sh
-
-      # `focus 25` — the fuse. Same split and the same stakes one level down:
-      # the decisions are a state dir and a clock, and what they protect is the
-      # rule that a timer ends only the quiet it armed. Get that wrong and a Mac
-      # un-quiets itself in the middle of something, with nothing on screen that
-      # explains why.
-      - name: focus timer tests
-        run: bash test/focus-timer.sh
-
-      # `haus plan`'s parsers, and the only part of plan CI can execute: they
-      # read a BUILT activation script and a home-manager generation, both of
-      # which this suite hand-writes as fixtures, so no Nix and no Mac needed.
-      # Worth running rather than only linting, because the failure mode they
-      # guard against is a preview that says "nothing was changed" about a
-      # rebuild that changes something — silence, which no lint can catch.
-      - name: haus plan parser tests
-        run: bash test/haus-plan.sh
-
-      # What `haus` can see about a cask that did NOT install. Activation now
-      # CATCHES a `brew bundle` failure instead of dying on it, so noticing is
-      # the whole job: `missing_casks` names the absent app and `haus rebuild`
-      # fails on the marker. Pure list arithmetic over a fixture Brewfile and a
-      # stubbed `brew`, so no Mac needed — and worth running rather than only
-      # linting for `haus plan`'s reason: the bug it guards against is silence,
-      # which is exactly what shipped before it.
-      - name: brew fault reporting
-        run: bash test/brew-fault.sh
-
-      # float-term's `recenter` — the pass that centres a spawned popup on the
-      # size it actually is. Pure arithmetic over two rectangles with AX and the
-      # screen probe stubbed, so it runs here rather than needing a Mac and a
-      # second display, which is what it took to FIND the bug.
-      - name: float-term recenter
-        run: bats test/float-term-recenter.bats
-
-      # raise-session's lane→window join — the answer to "which window is this
-      # agent in?", which a trill banner click, ⌘F's ⏎ and the bar's agent rows
-      # all go through. The bug it guards was an awk parse error that only fired
-      # once TWO plain windows carried a label, and the runner's awk tolerates
-      # the input that kills macOS's — so the suite stubs awk to reproduce
-      # one-true-awk's rule, and would pass on the old code without it.
-      - name: raise-session lane join
-        run: bats test/raise-session-lane-join.bats
-
-      # The other half of that click: the fullscreen ON take, which is <mod>f's
-      # body and what a trill fin's raise reaches through --fullscreen. Both
-      # rules it keeps fail SILENTLY — the solo-window guard arms a mode that
-      # hides the next window to open on that page; counting the window's OWN
-      # page rather than the focused one is what keeps a raise that missed from
-      # arming the mode somewhere you are not. Plus raise-session's flag loop,
-      # which every existing caller runs through with both streams redirected
-      # away. Hermetic: aerospace and the bar's notify hook are recorders.
-      # Needs only bash + bats.
-      - name: fullscreen take
-        run: bats test/fullscreen-take.bats
-
-      # The zmx wire-format reader — the one parse of `zmx ls`/`zmx get`
-      # everything reads through (three rooms; ~10 hand parses replaced).
-      # Every trap it owns fired silently in production first: the attached
-      # marker glued to the first key, the 0.7.0 start_dir rename, and `zmx
-      # get`'s tab→space flip that left both label helpers answering empty.
-      # Hermetic: zmx is a fixture behind HAUS_ZMX_BIN, because the subject's
-      # own PATH prelude would beat a PATH stub on a real machine. Needs only
-      # bash + bats + awk.
-      - name: zmx-rows reader
-        run: bats test/zmx-rows.bats
-
-      # The other end of that same fact: raise-session subtracts a mistitled
-      # plain window AFTER it exists, new-window.sh refuses to create one. Both
-      # halves stay — Ghostty's own New Window menu item can still put a window
-      # in a lane's process — but the refusal is what stopped ⌘T, ⌘N and ⌘⇧N
-      # handing out shells named `scruff.<repo>.<lane>`. Silent either way: a
-      # mistitled window opens perfectly and the only symptom is its name.
-      - name: new-window forced-title refusal
-        run: bats test/new-window-title.bats
-
-      # The Ghostty cold-start pre-warm, across the three scripts that carry it
-      # — and the two that deliberately don't. `pgrep -x Ghostty` matches
-      # nothing (the executable in the bundle is lower-case), and it was wrong
-      # in two files at once until #415, costing every ⌘N and every lane spawn
-      # two seconds of polling for a process already up, with nothing anywhere
-      # reporting it. A diff between the copies was green throughout — they were
-      # wrong identically — so this pins the invariant instead: the spelling,
-      # the 40 × 0.05s ceiling, and the guard. Needs only bash + bats + awk.
-      - name: ghostty pre-warm
-        run: bats test/ghostty-prewarm.bats
-
-      # A background lane spawned while the screen is asleep. Ghostty cannot
-      # build a surface when macOS reports zero active displays, and
-      # lanes/lane-open.sh IS the lane's --initial-command — so the window came
-      # up as an error pane, the script never ran, and the lane had no session,
-      # no client and not even a fault banner, while `scruff spawn` exited 0 and
-      # the palette reported it working. Three lanes were lost that way inside
-      # ninety seconds before anyone looked at the windows. Pins the display
-      # gate, the windowless path's create-or-bail, zmx's flag order, and the
-      # probe that now asks whether a CLIENT started rather than whether a
-      # process is alive. Needs only bash + bats.
-      - name: a lane with no display
-        run: bats test/lane-no-display.bats
-
-      # Where a lane's WINDOW PROCESS stands. A lane spawned by an agent running
-      # `HAUS_LANE_BACKGROUND=1 scruff spawn` from its own shell — the spelling
-      # modules/ai/default.nix hands every agent here — left its Ghostty holding
-      # the SPAWNING lane's checkout as its cwd, because a direct exec inherits
-      # one and a GUI process keeps it for the life of the window. scruff reads
-      # occupancy with `lsof -d cwd`, so `scruff reap` then refused to sweep a
-      # landed lane and named a ghostty pid whose only cure was closing the
-      # window of the lane it had spawned. The launch is lifted out of the
-      # subject and RUN against a stub that records its own cwd, with a control
-      # arm that removes the `cd` and watches the assertion fail. Needs only
-      # bash + bats.
-      - name: where a lane's window is born
-        run: bats test/lane-spawn-cwd.bats
-
-      # The launchd wait every GUI agent starts behind — the bar (twice),
-      # AeroSpace and pounce. Its second loop used to be an Apple event to
-      # System Events, which macOS filed under /bin/bash, so a fresh machine's
-      # first impression was a modal naming a shell, with nothing drawn behind
-      # it because all four agents were blocked in that loop. Refusing it cost
-      # more than the prompt: a denied Apple event sits out a two-minute
-      # manager timeout in the `until` CONDITION, which the deadline check in
-      # the body only runs between, so AeroSpace exec'd 125 s into every login
-      # instead of 65. Pins what fixed it — the Apple event gone, the deadline
-      # read once per loop, a probe that waits for a NAME rather than for the
-      # non-empty `[ NULL ]` line the null ASN answers with, the settle moved
-      # into the shared script so pounce gets it too, and the argv[0] the second
-      # bar is named after. Needs only bash + bats + awk.
-      - name: gui-wait
-        run: bats test/gui-wait.bats
-
-      # `haus report` — the door to the one feedback channel anything we ship
-      # has, and every way it breaks leaves a working-looking command behind: a
-      # `body=` prefill opens GitHub's blank editor and files a shapeless report
-      # with no error, a lax encoder turns every `+` in the block into a space,
-      # a redaction that stops firing publishes a username, and past the length
-      # cap the form opens empty. Hermetic: a fixture consumer flake, and every
-      # stub a function (haus.sh puts the system profile on PATH ahead of any
-      # directory a test could add). Needs bash + bats + jq, python3 for one
-      # round-trip case, no Nix and no Mac.
-      - name: the bug-report door
-        run: bats test/report-door.bats
-
-      # `haus version` and what `haus status` says about the pin — the two
-      # answers to "which haus is this?", and both failed while looking like
-      # they worked. There was no version verb at all, so the first thing anyone
-      # types at a CLI they have just met got `unknown command` and thirty other
-      # verbs. And `git ls-remote <url> <tag>` answers an ANNOTATED tag with the
-      # tag OBJECT while the lock pins the commit it peels to, so a tag-pinned
-      # config — `script/build-golden-vm.sh` writes one, and so does any consumer
-      # who wants a stable pin — was told "a newer haus is available upstream" on
-      # every run by a status that `haus update` flatly contradicted. The third
-      # case here is the one nobody would have gone looking for: with no network
-      # the probe's own non-zero ended the whole command mid-draw, under a
-      # comment promising it was offline-safe. Hermetic: a fixture lock, git a
-      # shell function. Needs bash + bats + jq, no Nix and no Mac.
-      - name: the version verb and the pin comparison
-        run: bats test/version-and-pin.bats
-
-      # The background-jobs deck's READERS. `nix flake check`'s `services-deck`
-      # pins the deck's completeness — every launchd job has an entry — and
-      # knows nothing about what the CLI then does with the file, which is where
-      # a wrong answer costs something: a false red line also fires the BTM card
-      # in the permissions deck, and a false green hides a job that has stopped
-      # working. The case it exists for is `last exit code = (never exited)`,
-      # which launchd prints for a job with `runs = 0` — a present field that is
-      # not a number, and so "failed" to any reader testing non-empty-and-not-0.
-      # `launchctl` is faked as a shell FUNCTION rather than a stub on PATH,
-      # because haus.sh prepends its own PATH at load and would shadow a stub.
-      # Needs bash + bats; no painter, so it can sit anywhere.
-      - name: the services deck's probe, verdicts and record encoding
-        run: bats test/services-deck.bats
-
-      # The permissions deck's other half, one card down: whether the palette's
-      # Accessibility card can tell a granted DAEMON from a granted terminal.
-      # `pounce --check-accessibility` cannot — AXIsProcessTrusted() is answered
-      # for the process responsible for the shell that ran the CLI — so the card
-      # drew a green tick on every Mac whose terminal held the grant while
-      # pounce held nothing and every chord was dead. A false green nobody looks
-      # behind, found on a fresh VM and invisible to `nix flake check`, which
-      # type-checks the card and never reads what the snippet means. The stub
-      # answers the CLI flag and the daemon's report separately, so the case
-      # that matters is the one where they disagree. Needs bash + bats + awk
-      # + jq — the snippets under test pipe into it; no painter.
-      - name: the palette's Accessibility card reads the daemon
-        run: bats test/launcher-accessibility.bats
-
-      # `haus-bar-poke` — the both-bars trigger, and the one place that rule
-      # lives now that four producers call it instead of writing the pair out.
-      # SketchyBar keys its lock file and its mach service on
-      # `basename(argv[0])`, so a `--trigger` reaches exactly ONE instance:
-      # poking the top bar alone is valid syntax, exits 0, logs nothing, and
-      # freezes a pill that `haus.bar.bottom.items` moved downward. The other
-      # half is the no-op contract — three rooms call this on their SUCCESS
-      # paths, so a machine with no bar, a missing bottom binary or a bar
-      # mid-reload must never make a focus toggle or an `awake 1h` report
-      # failure. Hermetic: a recorder at each bar path. Needs only bash + bats.
-      - name: the both-bars poke
-        run: bats test/bar-poke.bats
-
-      # Which Trill.app the `trill` on PATH resolves to. A precedence with no
-      # error surface: every candidate is a real, working Trill, so the wrong
-      # one costs nothing at the call site and runs a stale daemon forever —
-      # a dev build in ~/Applications used to outrank the bundle
-      # `haus.notifications.compositor` pins at /Applications, and no rebuild
-      # could displace it. Asserts the order in each of the three files that
-      # spell it out (the wrapper, haus.sh's `trill_bin`, the bar's trill pill),
-      # so one cannot drift from the others silently. Hermetic: fake bundles in
-      # a tmpdir, the subject's absolute paths repointed into it. Needs only
-      # bash + bats.
-      - name: trill bundle precedence
-        run: bats test/trill-precedence.bats
-
-      # The bar widget runtime (ops/todo/bar-framework.md). Every promise barlib
-      # makes fails silently on a live bar: a diff that never settles repaints
-      # a quiet pill forever, one that over-matches freezes a pill on stale
-      # data, and a --hide without updates=on is a pill no event can bring
-      # back — the one-way door the framework exists to close. Hermetic: fake
-      # $HOME, a recorder standing in for sketchybar. Needs only bash + bats.
-      - name: barlib runtime tests
-        run: bats test/barlib.bats
-
-      # The page pill's fraction. It counts PLACES — a workspace with a window
-      # on it — out of one `aerospace` call that treats the two kinds
-      # differently: a page is non-persistent and so listed only while it is
-      # live, while the base (`T`) is persistent and listed whether or not
-      # anything is on it. `--empty no` is the whole of what makes them
-      # comparable, and every way to get this wrong draws a plausible number
-      # nobody can check, or hides the pill in the one state it exists for: an
-      # emptied `T` whose pages nothing else on screen mentions. Hermetic: fake
-      # $HOME, aerospace and sketchybar as recorders, the subject's PATH prelude
-      # rewritten so a real Mac's workspaces cannot answer. Needs only bash +
-      # bats.
-      - name: page pill count
-        run: bats test/page-pill.bats
-
-      # Gravity's eviction tell. A lane's Ghostty quits with its last window,
-      # macOS activates the next app and AeroSpace follows it off the T family
-      # before the bar sees an event, so the close reads as navigation unless
-      # the plugin asks whether the window it last saw focused still exists.
-      # The traps are a throw-and-follow and a walk off a live page, which also
-      # leave you elsewhere and must not hop. Hermetic: aerospace is a stub
-      # answering from files, state in the tmpdir. Needs only bash + bats.
-      - name: gravity eviction
-        run: bats test/empty-workspace.bats
-
-      # The aiUsage pill's weekly SUB-limits. A Max plan caps some model
-      # families inside the weekly window rather than beside it, so a family can
-      # be spent for the week while the weekly gauge it lives in reads 50% — a
-      # number the bar shows WRONG rather than not at all, which no glance
-      # catches. The other half is freshness: the nine-column row beside these
-      # is pushed by every render while these are only pulled, so a sub-limit
-      # riding its neighbour's stamp onto the pill is the first bug back.
-      # Hermetic, same harness as barlib's, and it shims `date -r` because that
-      # spelling is BSD and the runner is not.
-      - name: aiUsage sub-limit tests
-        run: bats test/ai-usage-limits.bats
-
-      # lane-seen's other half of that join, read backwards: the focused
-      # window's session name back to the trill key scruff gave that lane's fin.
-      # The boundary between `<repo>` and `<lane>` cannot be found in the string
-      # — `hausfold.co` is one of ours — so it comes from scruff's registry, and
-      # the failure mode of getting it wrong is silent: `trill resolve` is
-      # idempotent, so a wrong key exits 0 and the fin just stays up.
-      - name: lane-seen key join
-        run: bats test/lane-seen.bats
-
-      # The one parse of a pounce stdin-menu answer, over fixture commit
-      # strings — "<action>\t<raw-row>", the shape every picker's reply wears.
-      # The bug it pins shut is silent by construction: a case on the ANSWER's
-      # first field compares every row against the literal "enter" and the
-      # menu does nothing at all. Also counts the seven consumers, so an
-      # eighth private parse cannot land quietly. Needs only bash + bats.
-      - name: menu commit parse
-        run: bats test/menu-commit.bats
-
-      # Spawn Agent's field reading. `--dial` gives the prompt step a commit
-      # one field wider than every other step's, and BOTH ways of misreading it
-      # produce a lane rather than an error — a task silently shortened by its
-      # first line, or a task briefed with a stray "agent=pi" on the front. A
-      # feel-test cannot see either, because both spawn. Also pins the client
-      # list, which is built from PATH rather than from haus.ai.clients so that
-      # nothing the ⇥ chip offers can fail to start.
-      #
-      # And the lane NAME beside it, which fails the other way round. The slug
-      # goes over as `--derived-name`, which is scruff's word for "the caller
-      # worked this out from the task" — so scruff cuts it to what the lane key
-      # can carry (its `name_max`, SPEC.md §5.7) instead of refusing it the way
-      # it refuses a name someone TYPED, which is what a positional slug is and
-      # what used to cost the whole spawn. So the cases pin the composition that
-      # is still haus's taste, and that the name never goes in positionally
-      # again — with no budget arithmetic on this side to get wrong.
-      - name: spawn-agent field reading and lane naming
-        run: bats test/spawn-agent.bats
-
-      # Which lanes the Lanes picker offers. It drops the ones with no pane of
-      # their own — a `scruff child` checkout resumes into the pane that made
-      # it, so opening one here starts a client where no conversation lives.
-      # Every way of getting that wrong hides something real and shows nothing:
-      # filtering on `parent` rather than scruff's `chat` would hide a lane
-      # opened with ⌘↵ from inside another pane, which is a running agent with
-      # a window; treating an absent `chat` as "no chat" empties the picker
-      # against an older scruff. The picker still opens either way — it is the
-      # missing row nobody notices.
-      - name: lanes picker row filter
-        run: bats test/lanes-picker.bats
-
-      # The mail watcher's five decisions (modules/notifications/mail-announce.py).
-      # Every one of them fails silently, and in both directions — too many
-      # cards or none at all: the flood guard that has to answer "nothing" for
-      # a mailbox this Mac has never watched (goimapnotify runs the hook once
-      # at startup, and launchd starts the agent at every login); the same
-      # guard across a UIDVALIDITY change, and its counterpart that must not
-      # keep the old watermark past one, which is what would put every later
-      # message below the line for good; the RFC 2047 decode that is the
-      # difference between a subject and `=?UTF-8?B?…?=`; and the mailbox-name
-      # slug the watermark file is named for, which is `[Gmail]/All Mail` on
-      # the account this was built for. Hermetic: none of the five opens a
-      # socket, which is why they are the five that were split out. Needs bash
-      # + bats + python3.
-      - name: mail watcher decisions
-        run: bats test/mail-announce.bats
-
-      # The other half of the same subject, and the half nothing else covers:
-      # the announcer driven end to end against test/fake-imap.py — a real
-      # socket, a real TLS handshake and a real imaplib. Everything between
-      # those decisions and the card is a response SHAPE (EXAMINE's
-      # UIDVALIDITY, the untagged SEARCH list, `FETCH *`'s sequence-numbered
-      # UID, a header literal with X-GM-THRID glued to the front), and a wrong
-      # parse there is not an error anywhere — it is a Mac that stopped
-      # mentioning mail. TLS rather than plaintext deliberately: a fake that
-      # skipped it would have needed a plaintext seam in the production code,
-      # whose failure mode is a mailbox password crossing a network in the
-      # clear. Needs bash + bats + python3 + openssl.
-      - name: mail watcher, end to end over TLS
-        run: bats test/mail-imap.bats
+      - name: every suite whose header says job=rooms
+        run: bash test/ci.sh run rooms
