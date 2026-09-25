@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=agents
 # Hermetic tests for `tart-adapter.sh setup` and `enter` — the half of the VM
 # loop that stands a lane's guest up and gets you a shell in it. The companion
 # suite, test/vm-shot.bats, covers `screenshot`.
@@ -17,6 +18,15 @@
 #
 # `tart`, `ssh` and `scp` are stubbed onto PATH, so this runs on the CI's Linux
 # runner with no VM, no network and no macOS anywhere.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The other half of the same adapter: standing a lane's guest up and
+# getting a shell in it. Every failure it pins looks like a working
+# machine from the outside — a `runtime up` that never returns because the
+# guest inherited the caller's stdout, an address reported before sshd
+# answers on it, a known_hosts entry that refuses the next lane to land on
+# a reused address. That is what hausfold/haus#663 cost two sessions.
 
 bats_require_minimum_version 1.5.0
 

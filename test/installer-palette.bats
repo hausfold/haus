@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=draw needs=painter
 # The two installers' inlined nebelung, diffed against snug's generated
 # `share/ui.sh`. The standard is hausfold/snug's README and AGENTS.md; this
 # suite is the enforcement of the ONE permanent exemption from it.
@@ -22,6 +23,16 @@
 #
 # The role→token indirection is read from ui.sh too, so remapping `err` off
 # `red` in snug fails here as loudly as moving `red`'s hex does.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The one PERMANENT exemption from that standard, and the only thing
+# keeping it honest. bootstrap.sh and haus-activate.sh run before snug is
+# reachable, so they carry nebelung's numbers inlined instead of naming a
+# role — a copy of a generated table, which drifts the moment the palette
+# moves and drifts INVISIBLY: a wrong index is green everywhere and only
+# ever visible to someone holding the two files side by side. Diffs both
+# against the ui.sh `draw` fetches, hence needs=painter.
 
 setup() {
   BOOT="$BATS_TEST_DIRNAME/../bootstrap.sh"

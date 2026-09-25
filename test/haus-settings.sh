@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: job=acquire needs=nix
 set -euo pipefail
 
 # ── an interpreter that can actually run haus.sh ─────────────────────────────

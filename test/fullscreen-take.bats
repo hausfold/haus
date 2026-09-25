@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # Hermetic tests for the fullscreen ON take — modules/windows/scripts/
 # fullscreen-toggle.sh, both the <mod>f binding and the `on <window-id>` form a
 # lane's trill fin reaches through terminal/scripts/raise-session.sh
@@ -17,6 +18,18 @@
 # (a PATH stub would lose to the absolute path a GUI-spawned script carries,
 # the same reason test/zmx-rows.bats has HAUS_ZMX_BIN), and the bar's notify
 # hook is a second recorder under a temporary HOME.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The other half of that click: the fullscreen ON take, which is <mod>f's
+# body and what a trill fin's raise reaches through --fullscreen. Both
+# rules it keeps fail SILENTLY — the solo-window guard arms a mode that
+# hides the next window to open on that page; counting the window's OWN
+# page rather than the focused one is what keeps a raise that missed from
+# arming the mode somewhere you are not. Plus raise-session's flag loop,
+# which every existing caller runs through with both streams redirected
+# away. Hermetic: aerospace and the bar's notify hook are recorders.
+# Needs only bash + bats.
 
 bats_require_minimum_version 1.5.0
 

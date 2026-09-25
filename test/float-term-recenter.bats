@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # Hermetic tests for `recenter` in modules/terminal/scripts/float-term.sh — the
 # pass that centres a spawned popup on the size it actually IS.
 #
@@ -24,6 +25,13 @@
 # `^recenter() {` opening line and a closing `}` in column 0. If either moves,
 # the eval yields nothing and every case here fails with "command not found",
 # which is the loud failure and the reason this is acceptable.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# float-term's `recenter` — the pass that centres a spawned popup on the
+# size it actually is. Pure arithmetic over two rectangles with AX and the
+# screen probe stubbed, so it runs here rather than needing a Mac and a
+# second display, which is what it took to FIND the bug.
 
 bats_require_minimum_version 1.5.0
 

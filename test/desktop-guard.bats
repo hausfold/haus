@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=agents
 # Hermetic tests for modules/ai/desktop-guard.sh — the PreToolUse hook that
 # re-opens the permission prompt before a tool call that would move the pointer,
 # take focus or redraw the desktop.
@@ -16,6 +17,14 @@
 # HAUS_DESKTOP_OK is unset per test on purpose: it is the whole-guard escape
 # hatch, and a pane that has it exported would otherwise pass this suite by
 # doing nothing at all.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The PreToolUse guard, whose two failure modes are both silent and both
+# bad: prompting for something the user cannot see (a lane's headless VM
+# over ssh) trains click-through on the prompts that matter, and missing a
+# real one lands as a window jumping in front of them mid-sentence.
+# Neither a build nor a lint can see either. Pure function, no Mac needed.
 
 bats_require_minimum_version 1.5.0
 

@@ -199,12 +199,18 @@ The `example` host is placeholder identity (user `you`); real testing is a
 consumer (`~/.config/nix`, host `mbp`) through `bench try`, which builds
 against this checkout, uncommitted edits included; `bench ship` ripples the
 locks once committed. CI (`.github/workflows/check.yml`) evaluates the example
-host and runs `nix flake check`, shellcheck, `bats test/*.bats` and every
-`bash` suite — `test/haus-settings.sh` was the last hold-out and joined
-`acquire` once someone ran it there. A suite that renders through snug needs
-`HAUS_UI_SH` first — CI's "snug's painter, at the pinned rev" step writes it
-into `$GITHUB_ENV`; below a render suite the role cases SKIP, which reads as
-green. `nixfmt` formats `.nix` files.
+host and runs `nix flake check`, shellcheck and every suite in `test/`, and
+**neither list is written in the workflow**: `test/ci.sh` (its header is the
+spec) finds both. A suite joins CI by its header, `# suite: job=<job>
+[needs=painter,nix]` in its first five lines; a helper `.sh` in `test/` says
+`# not-a-suite: <why>`. `test/ci.sh census` (in `lint`) fails on a file with
+neither, or on a job with no `bash test/ci.sh run <job>` step, and that is
+what caught `workspace-pills.bats` and `lane-name-ceiling.bats`, which had
+never run. `needs=painter` is not decoration: without `HAUS_UI_SH` a render
+suite's role cases SKIP, which reads as green, so the runner fails the suite
+instead. shellcheck walks every tracked `*.sh`; an exclusion is a named line
+in `test/ci.sh` with its reason, and one that goes stale fails the lint. A new
+JOB is still a hand edit to check.yml. `nixfmt` formats `.nix` files.
 
 ## Before you open a PR
 

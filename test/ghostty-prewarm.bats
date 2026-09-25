@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # The Ghostty cold-start pre-warm, pinned across the three scripts that carry it.
 #
 # ── the one statement of the spelling, for all of them ───────────────────────
@@ -45,6 +46,17 @@
 # fix rather than a refactor: its ghostty branch asked a possibly-cold Ghostty
 # for a window with no wait at all, and empty is a `return 1` the bar's agent
 # row reports as nothing happening.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The Ghostty cold-start pre-warm, across the three scripts that carry it
+# — and the two that deliberately don't. `pgrep -x Ghostty` matches
+# nothing (the executable in the bundle is lower-case), and it was wrong
+# in two files at once until #415, costing every ⌘N and every lane spawn
+# two seconds of polling for a process already up, with nothing anywhere
+# reporting it. A diff between the copies was green throughout — they were
+# wrong identically — so this pins the invariant instead: the spelling,
+# the 40 × 0.05s ceiling, and the guard. Needs only bash + bats + awk.
 
 bats_require_minimum_version 1.5.0
 

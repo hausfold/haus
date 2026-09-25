@@ -1,4 +1,5 @@
 #!/bin/bash
+# not-a-suite: generated fixture test/barlib.bats appends to its colors.sh stub
 # GENERATED — tone() and mark() exactly as the generated colors.sh carries
 # them, emitted by modules/bar/colors-fns.nix from modules/bar/tones.nix
 # and modules/bar/marks.nix. Committed so `bats test/barlib.bats` (which

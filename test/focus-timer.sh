@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: job=rooms
 # focus 25 — the fuse, run rather than read.
 #
 # What this suite is about is the one rule the feature rests on: a timer ends
@@ -16,6 +17,14 @@
 #
 # ⚠️ The engine is built by test/focus-engine.sh, which mirrors
 # modules/focus/default.nix's substitutions and fails when the two drift.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# `focus 25` — the fuse. Same split and the same stakes one level down:
+# the decisions are a state dir and a clock, and what they protect is the
+# rule that a timer ends only the quiet it armed. Get that wrong and a Mac
+# un-quiets itself in the middle of something, with nothing on screen that
+# explains why.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)

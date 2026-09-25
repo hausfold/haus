@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=draw needs=painter
 # The "Fix it with AI" recovery CTA on a failed `haus rebuild` — the haus.sh
 # half (modules/core/haus.sh's `rebuild_failed` and the four `fault_*` helpers)
 # and the refusals of the binary it hands off to (modules/ai/fix.sh).
@@ -37,6 +38,21 @@
 # threw away the stream gum draws on, and a stub that draws where gum draws
 # catches it without a terminal at all. "Only testable by hand" was the reason
 # it shipped invisible — see the rows section below.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The "Fix it with AI" CTA on a failed `haus rebuild`: the breadcrumb the
+# rebuild leaves for `haus fix`, the four gates in front of the offer, and
+# the detached holder that has to outlive the window the rebuild ran in.
+# Every part of it fails silently — a renamed crumb key answers "nothing
+# to fix" for a rebuild that failed in front of you, an inverted gate
+# offers a fix nothing can honour, and a holder that merely backgrounds
+# looks identical until someone closes the terminal.
+#
+# ⚠️ needs=painter, and it matters — three cases
+# drive `haus-fix` on a pty and `skip` when no ui.sh is found, and a skip
+# reads as a pass. Needs bash + git + bats + python3 (the pty), and perl
+# for the one SIGHUP case (skipped without it).
 
 bats_require_minimum_version 1.5.0
 

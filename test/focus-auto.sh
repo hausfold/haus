@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: job=rooms
 # focus auto — the trigger daemon's decision logic, run rather than read.
 #
 # What this suite can and cannot see, because the split is the whole reason it
@@ -20,6 +21,18 @@
 # ⚠️ The scene table below is a FIXTURE of what modules/focus/default.nix's
 # `scenesJson` writes. That file is the source of truth for these key names —
 # rename one there and this suite keeps passing while the engine reads nothing.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The trigger daemon's decisions — which scene rises, which one it may
+# enter, which one it is allowed to leave — over stubbed probes and a fake
+# clock. It is the half of `focus auto` that isn't macOS: the four real
+# probes (pmset, networksetup, hausdisp/system_profiler) are what
+# `focus auto --probe` checks on the Mac itself, and this suite says
+# nothing about them. What it does protect is the rule the whole feature
+# rests on — the daemon never overrides a state you chose — which fails
+# in the worst possible way if it regresses: your Mac quietly disagreeing
+# with you every thirty seconds.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)

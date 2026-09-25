@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # Where a lane's WINDOW PROCESS stands, pinned as an invariant of
 # modules/terminal/lanes/lane-open.sh.
 #
@@ -38,6 +39,20 @@
 # removed to prove the assertion can fail.
 #
 # Needs bash + bats. No Nix, no Mac, no display, no Ghostty.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# Where a lane's WINDOW PROCESS stands. A lane spawned by an agent running
+# `HAUS_LANE_BACKGROUND=1 scruff spawn` from its own shell — the spelling
+# modules/ai/default.nix hands every agent here — left its Ghostty holding
+# the SPAWNING lane's checkout as its cwd, because a direct exec inherits
+# one and a GUI process keeps it for the life of the window. scruff reads
+# occupancy with `lsof -d cwd`, so `scruff reap` then refused to sweep a
+# landed lane and named a ghostty pid whose only cure was closing the
+# window of the lane it had spawned. The launch is lifted out of the
+# subject and RUN against a stub that records its own cwd, with a control
+# arm that removes the `cd` and watches the assertion fail. Needs only
+# bash + bats.
 
 bats_require_minimum_version 1.5.0
 

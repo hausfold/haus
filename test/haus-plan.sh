@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# suite: job=rooms
 # What `haus plan` can actually SEE — the regression suite for the day it
 # reported "nothing was changed" about a rebuild that was about to add seven
 # pills to the bar. Two blind spots caused that: plan reads $CONSUMER while the
@@ -12,6 +13,15 @@
 # nix-darwin and home-manager generate — which is the point: the parsers are
 # supposed to read the built artifact rather than a hand-kept table, so the
 # thing worth pinning is that they still read that shape correctly.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# `haus plan`'s parsers, and the only part of plan CI can execute: they
+# read a BUILT activation script and a home-manager generation, both of
+# which this suite hand-writes as fixtures, so no Nix and no Mac needed.
+# Worth running rather than only linting, because the failure mode they
+# guard against is a preview that says "nothing was changed" about a
+# rebuild that changes something — silence, which no lint can catch.
 set -euo pipefail
 
 # ── an interpreter that can actually run haus.sh ─────────────────────────────

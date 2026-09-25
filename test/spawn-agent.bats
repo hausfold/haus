@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # Hermetic tests for two halves of modules/launcher/commands/spawn-agent.sh that
 # fail where nobody is looking: the field reading behind the ⇥ client dial,
 # which can silently eat somebody's task, and the lane-name budget at the
@@ -27,6 +28,25 @@
 # test/menu-commit.bats), which IS sourceable, so setup takes it whole; the
 # cases here keep asserting both halves side by side because a dial commit is
 # read by both in turn.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# Spawn Agent's field reading. `--dial` gives the prompt step a commit
+# one field wider than every other step's, and BOTH ways of misreading it
+# produce a lane rather than an error — a task silently shortened by its
+# first line, or a task briefed with a stray "agent=pi" on the front. A
+# feel-test cannot see either, because both spawn. Also pins the client
+# list, which is built from PATH rather than from haus.ai.clients so that
+# nothing the ⇥ chip offers can fail to start.
+#
+# And the lane NAME beside it, which fails the other way round. The slug
+# goes over as `--derived-name`, which is scruff's word for "the caller
+# worked this out from the task" — so scruff cuts it to what the lane key
+# can carry (its `name_max`, SPEC.md §5.7) instead of refusing it the way
+# it refuses a name someone TYPED, which is what a positional slug is and
+# what used to cost the whole spawn. So the cases pin the composition that
+# is still haus's taste, and that the name never goes in positionally
+# again — with no budget arithmetic on this side to get wrong.
 
 bats_require_minimum_version 1.5.0
 

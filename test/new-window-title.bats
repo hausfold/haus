@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # Hermetic tests for the half of modules/terminal/scripts/new-window.sh that
 # decides whether the Apple Event may be used at all.
 #
@@ -31,6 +32,15 @@
 # the `verdict="$(osascript` opening with its closing `)"` must all keep column
 # 1. If any moves, the eval yields nothing and every case fails on an empty
 # result — the loud failure, and the reason this is acceptable.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The other end of that same fact: raise-session subtracts a mistitled
+# plain window AFTER it exists, new-window.sh refuses to create one. Both
+# halves stay — Ghostty's own New Window menu item can still put a window
+# in a lane's process — but the refusal is what stopped ⌘T, ⌘N and ⌘⇧N
+# handing out shells named `scruff.<repo>.<lane>`. Silent either way: a
+# mistitled window opens perfectly and the only symptom is its name.
 
 bats_require_minimum_version 1.5.0
 

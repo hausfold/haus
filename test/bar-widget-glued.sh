@@ -1,4 +1,5 @@
 #!/bin/bash
+# not-a-suite: the glued-header fixture `bar-widget-header` in flake.nix expects to throw
 # The fixture for the ONE header mistake that used to be silent: a `widget:`
 # declaration glued to the tail of a prose comment line instead of standing on
 # its own. `bar-widget-header` in flake.nix parses this file and expects the

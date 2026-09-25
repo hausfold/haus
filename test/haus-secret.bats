@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=draw needs=painter
 # What `haus-secret` puts on screen — the listing, the two streams, and the
 # degradation underneath both.
 #
@@ -16,6 +17,18 @@
 # Nothing here touches secretspec, a provider or the network: the manifest table
 # is written by hand and `@secretspec@` is a stub, because the thing under test
 # is the drawing, not the fetching.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# `haus-secret` — the listing a person reads BEFORE they have a working
+# machine (`haus doctor` sends them here), and the one CLI in this repo a
+# launchd agent also exec's at boot. Both halves fail quietly: an unfolded
+# `why` soft-wraps back to column 0 and reads as the next entry, and a
+# painter that loads where it should not costs every room a thousand lines
+# of bash for a value it prints on fd 1. The degradation cases are the
+# point of the build-time substitution, so this suite takes HAUS_UI_SH out
+# of its own environment — it still says needs=painter, because the
+# painted cases want the real file. Needs bash + python3 + bats.
 
 bats_require_minimum_version 1.5.0
 

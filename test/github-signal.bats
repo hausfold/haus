@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=agents
 # Hermetic tests for the GitHub bridge's consumer contract
 # (modules/github/signal.sh, and the gate it feeds in modules/ai/statusline.sh).
 #
@@ -17,6 +18,35 @@
 # Nothing here touches the network, a real hook, or the real state directory:
 # HOME is substituted, and `scopes` is written by hand precisely because the
 # thing under test is what the consumers do with it, not how it got there.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The GitHub bridge's consumer contract — `haus_gh_covers` and the
+# statusline gate it feeds. Every failure in this seam is silent AND
+# expensive in one direction: a coverage answer of "yes" when it should be
+# "no" turns a 15-second readout into a 30-minute one and the pill just
+# starts quietly lying about a merge that already happened. There is no
+# error path to notice it, so the suite IS the guard, and it has to fail
+# closed on all of: no scopes file, an empty one, a stale one, one repo
+# out of two, an unparsable mtime.
+#
+# It runs statusline.sh, so it used to sit below the painter fetch on
+# principle — and it is in `agents` rather than `draw` because that fetch was
+# never load-bearing for it. The difference is worth stating: it asserts
+# on a BEHAVIOUR (did the render decide to refresh?) and owns no colour
+# cases, so a painter-less run has nothing in it to skip and go quietly
+# green. Measured: 29/29 with HAUS_UI_SH unset and with it pointed at a
+# path that does not exist, which is now simply how it runs.
+#
+# Two flags mean something else on this runner than on the Mac these
+# scripts ship to, which is why signal.sh and the suite both carry the
+# same try-BSD-then-GNU shape statusline.sh has always had. `date -v` does
+# not exist here at all. `stat -f` is --file-system and takes NO argument,
+# so `%m` becomes a second FILE operand: a filesystem block on stdout and
+# exit 1 (measured, coreutils 9.11 — not the "/ and exit 0" three comments
+# in this repo used to claim). Honouring that status answers 0 for every
+# file, which is why every coverage question came back "not covered" here
+# before this. Needs bash + bats.
 
 bats_require_minimum_version 1.5.0
 

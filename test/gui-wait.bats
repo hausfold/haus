@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # The GUI-agent launch wait — modules/lib/gui-wait.nix — pinned as an invariant.
 #
 # This script is the first thing that runs in every GUI agent's launchd job: the
@@ -42,6 +43,22 @@
 #     Carbon call AeroSpace's hotkeys are — first succeeded in a freshly spawned
 #     process. Five seconds covers that; zero would not, and zero is what
 #     `.script`'s only consumer had while the settle sat in the wrappers.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The launchd wait every GUI agent starts behind — the bar (twice),
+# AeroSpace and pounce. Its second loop used to be an Apple event to
+# System Events, which macOS filed under /bin/bash, so a fresh machine's
+# first impression was a modal naming a shell, with nothing drawn behind
+# it because all four agents were blocked in that loop. Refusing it cost
+# more than the prompt: a denied Apple event sits out a two-minute
+# manager timeout in the `until` CONDITION, which the deadline check in
+# the body only runs between, so AeroSpace exec'd 125 s into every login
+# instead of 65. Pins what fixed it — the Apple event gone, the deadline
+# read once per loop, a probe that waits for a NAME rather than for the
+# non-empty `[ NULL ]` line the null ASN answers with, the settle moved
+# into the shared script so pounce gets it too, and the argv[0] the second
+# bar is named after. Needs only bash + bats + awk.
 
 bats_require_minimum_version 1.5.0
 

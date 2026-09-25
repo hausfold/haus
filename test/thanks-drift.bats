@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # THANKS.md's *Standing on* list, diffed against the tree that is supposed to
 # use each project.
 #
@@ -19,6 +20,19 @@
 #
 # Adding a credit means adding a row. That is the point: the row is the evidence
 # the project is really used, written down at the moment you know it.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# THANKS.md's credit list against the tree that is supposed to use each
+# project. A credit list has no consumer — nothing imports it, no build
+# fails when it is wrong — so it rots in the one direction that
+# embarrasses us, which is thanking a project we deleted. That is not
+# hypothetical: the file's first draft credited zellij for holding your
+# sessions three weeks after modules/moved.nix recorded it gone, in the
+# same sentence as the zmx that replaced it. The check is deliberately
+# dumb and says nothing about whether a SENTENCE is still true; it only
+# refuses a credit with nothing in the tree behind it, and a table row
+# left standing after the credit went.
 
 setup() {
   ROOT="$BATS_TEST_DIRNAME/.."

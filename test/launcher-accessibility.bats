@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # The palette's Accessibility card — the two snippets in
 # modules/launcher/default.nix that decide whether `haus doctor` and `haus
 # permissions` draw it, and green or red.
@@ -27,6 +28,20 @@
 # can disagree the way they do on a real Mac, and every other state — silent
 # daemon, unhealthy report, a CLI too old for `--json`, no pounce — is a case
 # that needs no Mac at all.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The permissions deck's other half, one card down: whether the palette's
+# Accessibility card can tell a granted DAEMON from a granted terminal.
+# `pounce --check-accessibility` cannot — AXIsProcessTrusted() is answered
+# for the process responsible for the shell that ran the CLI — so the card
+# drew a green tick on every Mac whose terminal held the grant while
+# pounce held nothing and every chord was dead. A false green nobody looks
+# behind, found on a fresh VM and invisible to `nix flake check`, which
+# type-checks the card and never reads what the snippet means. The stub
+# answers the CLI flag and the daemon's report separately, so the case
+# that matters is the one where they disagree. Needs bash + bats + awk
+# + jq — the snippets under test pipe into it; no painter.
 
 bats_require_minimum_version 1.5.0
 

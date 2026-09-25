@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=agents
 # Hermetic tests for the pure halves of modules/ai/fix-github.sh — the binary
 # behind the github pill's "Fix with AI" rows.
 #
@@ -15,6 +16,22 @@
 # keeps the assertions pinned to the real source rather than to a copy: rename
 # or reshape one of them and the extraction fails loudly instead of testing
 # text that no longer exists.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The github pill's "Fix with AI" rows, BOTH halves — the fetch that
+# writes `<verdict>:<target>` into the cache (github.sh's own jq, lifted
+# and run) and the runner that is handed it (modules/ai/fix-github.sh:
+# the URL→owner/repo parse, the per-verdict brief, the lane name, the
+# client pick, and resolve_repo over a throwaway filesystem). One suite
+# because the cache field is a contract between two files and nothing
+# else joins them: a verdict word spelled one way in the jq and another
+# in the split is a button that never draws, with no error on either
+# side. Everything else here fails the same way — LANE SPAWNED ON THE
+# WRONG BRIEF (an owner/repo from the wrong path segments, a branch
+# selector read as a PR number, a colon-joined root list walked
+# line-wise) — and all of it produces a working lane a feel-test cannot
+# catch. Needs bats, git and jq.
 
 bats_require_minimum_version 1.5.0
 

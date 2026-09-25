@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# not-a-suite: a by-hand diff of two desktop projections (test/projections/); nothing runs it
 set -euo pipefail
 
 usage() {

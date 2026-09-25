@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=rooms
 # Hermetic tests for gravity's EVICTION tell in
 # modules/bar/sketchybar/plugins/empty_workspace.sh.
 #
@@ -17,6 +18,16 @@
 #
 # Hermetic: `aerospace` is a stub reading its answers from files, state lives
 # in the test's tmpdir, and the one move gravity makes is recorded, not made.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# Gravity's eviction tell. A lane's Ghostty quits with its last window,
+# macOS activates the next app and AeroSpace follows it off the T family
+# before the bar sees an event, so the close reads as navigation unless
+# the plugin asks whether the window it last saw focused still exists.
+# The traps are a throw-and-follow and a walk off a live page, which also
+# leave you elsewhere and must not hop. Hermetic: aerospace is a stub
+# answering from files, state in the tmpdir. Needs only bash + bats.
 
 bats_require_minimum_version 1.5.0
 

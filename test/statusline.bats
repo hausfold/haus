@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=draw needs=painter
 # Hermetic tests for the statusline RENDER path (modules/ai/statusline.sh) —
 # the inline half of the agent-worktree bar, and specifically the Fable/Mythos
 # row tint.
@@ -21,6 +22,14 @@
 # contains a '[', which `[[ x == $pat ]]` reads as a BRACKET EXPRESSION unless
 # the pattern is quoted. `*"$RESET"*` is a literal match; *$'\033[0m'* silently
 # means something else entirely and passes for the wrong reason. Always quote.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# The render path's counterpart suite. Its subject is the Fable/Mythos row
+# tint, whose correctness is a WIDTH invariant across rows that carry both
+# SGR and OSC 8 — so it breaks silently whenever a segment is added, and
+# the breakage reads as a terminal quirk rather than a bug. Same hermetic
+# shape again; needs only git + jq + bats.
 
 bats_require_minimum_version 1.5.0
 

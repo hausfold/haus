@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# suite: job=draw needs=painter
 # What `awake` puts on screen, and what it must go on NOT putting there.
 #
 # Why a suite for four sentences. `awake` was nearly written off as a
@@ -11,6 +12,17 @@
 #
 # Nothing here starts a real assertion: launchctl and caffeinate are stubs and
 # the clock is `AWAKE_NOW`, because the thing under test is the drawing.
+#
+# ── why CI runs it ───────────────────────────────────────────────────────────
+#
+# `awake` — the CLI that is also a DATA SOURCE. `status` is its default
+# verb and prints prose for a person, but the same script answers the
+# bar's coffee pill on every tick through `status --raw`, and one escape
+# or one glyph in those three tab-separated fields breaks the pill with no
+# error anywhere. So this suite guards both directions at once: the
+# sentence got a mark and roles, and `--raw` and `_run` never so much as
+# source the painter. It says needs=painter because the painted cases
+# want the real file. Needs bash + python3 + bats.
 
 bats_require_minimum_version 1.5.0
 
