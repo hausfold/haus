@@ -153,19 +153,6 @@ let
   # written into config.json and the mapping declared below.
   fnRemap = config.haus.launcher.fnKey == "remap";
 
-  # The keys the Ghostty-scoped chords ride on (the appHotkeys block below).
-  # Named once because each is read twice: by that block and by startupState's
-  # hash, so a rebind actually reaches the running daemon instead of landing in
-  # a file the daemon read at boot.
-  shellSpawnKey = "n";
-  laneSpawnKey = "return";
-  # ⌘T's key. Separate from shellSpawnKey because the two chords answer
-  # different questions — ⌘N is "a shell for what I am working on", ⌘T is "a
-  # shell for nothing" — and a host that rebinds one has no reason to move the
-  # other. Free because terminal/ghostty/config unbinds cmd+t: this desktop has
-  # no tabs.
-  plainSpawnKey = "t";
-
   # Every pounce setting the daemon reads ONCE at startup, as one opaque word —
   # the activation marker's whole content, see home.activation.kickstartPounce.
   # A rebuild that moves any of them bounces the daemon, because the alternative
@@ -186,12 +173,13 @@ let
   #             both taps once at startup, so turning lanes on or off has to
   #             bounce the daemon or ⌘N/⌃⇥ keep last boot's meaning until the
   #             next log-in.
-  #   shellSpawnKey / laneSpawnKey / plainSpawnKey  which KEYS the three
-  #             Ghostty-scoped spawn chords ride on. Same tap, armed at the same
-  #             moment: the 2026-08-18 ⌘P → ⌘N and ⌃⌘A → ⌘↵ moves changed only
-  #             these, so without them in the hash the rebuild would land, the
-  #             docs would say ⌘N/⌘↵, and the running daemon would keep answering
-  #             the old chords until the next log-in.
+  #   appHotkeys  the whole Ghostty-scoped key list, as term-bindings.nix
+  #             derives it. Same tap, armed at the same moment: the 2026-08-18
+  #             ⌘P → ⌘N and ⌃⌘A → ⌘↵ moves changed only keys, and ⌘G / ⌘B come
+  #             and go with haus.terminal.ghDash / haus.developer — without the
+  #             list in the hash the rebuild would land, the cheatsheet would
+  #             say the new chord, and the running daemon would keep answering
+  #             the old one (or a dead one) until the next log-in.
   #   mouse     the windows room's pointer chord — a SECOND tap, but armed at
   #             that same one moment, so the same trap: MouseChords captures
   #             the whole chord when it arms, and moving the button (or moving
@@ -207,13 +195,7 @@ let
         autoQuit = config.haus.launcher.autoQuit;
         fnKey = config.haus.launcher.fnKey;
         lanes = lanesEnabled;
-        inherit shellSpawnKey laneSpawnKey plainSpawnKey;
-        # ⌘G and ⌘B are armed in the same one-shot appHotkeys block, so
-        # toggling either feature has to bounce the daemon or the chord keeps
-        # last boot's meaning — dead, or live over a command that is no longer
-        # installed — until the next log-in.
-        ghDash = config.haus.terminal.ghDash.enable;
-        dev = config.haus.developer.enable;
+        inherit (termBindings) appHotkeys;
         mouse = mouseContrib;
       }
     )
@@ -605,16 +587,12 @@ let
         }
       );
 
-  # The Terminal cards, from the SAME table that names the Ghostty-scoped chords
-  # armed below (../terminal/term-bindings.nix). So every terminal chord on this
-  # cheatsheet is one this file really arms — except ⌘⇧R, which Ghostty binds
-  # natively to its own `reset` action and this file only RESERVES (see the
-  # riceChords comment below). That used to be enforced by an
-  # assertion in terminal against zellij's config.kdl; there is no kdl now, and
-  # nothing here can read another room's generated JSON, so what keeps them
-  # honest is that the table and the appHotkeys list sit one screen apart in
-  # this file. (What hand-typing these cost the Tips page is written where that
-  # page is built, below.)
+  # The Terminal cards, the appHotkeys list armed below, the pages walk's chord
+  # and the riceChords reservations are all DERIVED from one row per chord in
+  # ../terminal/term-bindings.nix — the same rows terminal renders Ghostty's
+  # chord-layer block from. Every terminal chord on this cheatsheet is one
+  # this machine really arms (pounce here, or Ghostty itself for ⌘⇧R's
+  # `reset`), because a row that arms nothing is dropped from the card.
   # What the AI room contributes to the launcher, through the extension point
   # this room declares (modules/launcher/options.nix). The Terminal cards read the
   # DEVELOPMENT point instead: they describe the terminal's chords, so they must
@@ -1796,9 +1774,8 @@ lib.mkIf config.haus.launcher.enable {
         # they landed rather than Ghostty for one measured reason:
         # `ghostty +list-actions` on 1.3.1 lists 85 actions and NONE of them
         # runs a command. Ghostty's config
-        # unbinds each of these so the tap is not racing a built-in — see
-        # modules/terminal/ghostty/config's chord-layer block, which is the
-        # other half of this list and has to move with it.
+        # unbinds each of these so the tap is not racing a built-in, from the
+        # same rows (modules/terminal/ghostty/config's chord-layer block).
         #
         # An older pounce that predates the keys ignores both blocks — the same
         # lenient parse as `themeLight`.
@@ -1808,121 +1785,10 @@ lib.mkIf config.haus.launcher.enable {
             scopes = [
               {
                 bundleId = "com.mitchellh.ghostty";
-                keys = [
-                  # ⌘F / ⌘⇧F — full-text search over the focused window's zmx
-                  # scrollback, or over every session at once. The overlay is
-                  # terminal's scripts/find.sh; agent windows are searched
-                  # through their stored transcript, since an alt-screen TUI has
-                  # no scrollback to read.
-                  {
-                    key = "f";
-                    modifiers = [ "cmd" ];
-                    target = "cmd:find";
-                  }
-                  {
-                    key = "f";
-                    modifiers = [
-                      "cmd"
-                      "shift"
-                    ];
-                    target = "cmd:find-all";
-                  }
-                  # ⌘L — every URL this window's scrollback has seen, newest
-                  # first, in a pounce picker.
-                  {
-                    key = "l";
-                    modifiers = [ "cmd" ];
-                    target = "cmd:links";
-                  }
-                  # ⌘Y / ⌘⇧Y — the floating yazi peek, hopping out of an agent
-                  # worktree to the repo's main checkout unless shift says stay.
-                  {
-                    key = "y";
-                    modifiers = [ "cmd" ];
-                    target = "cmd:peek";
-                  }
-                  {
-                    key = "y";
-                    modifiers = [
-                      "cmd"
-                      "shift"
-                    ];
-                    target = "cmd:peek-stay";
-                  }
-                  # ⌘T — a NEUTRAL terminal: home directory, no repo, on the
-                  # base of whatever workspace you are on rather than on the
-                  # lane page you were standing on. The escape hatch from the
-                  # page ownership ⌘N and ⌘↵ now obey — see
-                  # commands/shell-plain.sh. Outside the lanes block because it
-                  # inherits nothing and so needs nothing: with the agent
-                  # clients off it is the only spawn chord left alive.
-                  {
-                    key = plainSpawnKey;
-                    modifiers = [ "cmd" ];
-                    target = "cmd:shell-plain";
-                  }
-                ]
-                ++ lib.optional config.haus.terminal.ghDash.enable {
-                  # ⌘G — gh-dash in a near-fullscreen floating window.
-                  key = "g";
-                  modifiers = [ "cmd" ];
-                  target = "cmd:gh-dash";
-                }
-                ++ lib.optional config.haus.developer.enable {
-                  # ⌘B — build+activate this window's whole scruff lane
-                  # (`bench try lane switch`; "b" for bench, since ⌘L is Links).
-                  key = "b";
-                  modifiers = [ "cmd" ];
-                  target = "cmd:bench-lane";
-                }
-                ++ lib.optionals lanesEnabled [
-                  # There is no resident-agent chord here, and hasn't been since
-                  # 2026-08-19. ⌃⌥⇧A ran the client in the checkout you already
-                  # had — a zellij bind, re-hosted onto this tap when zellij
-                  # went, and never used after the move. What it did is what
-                  # typing `c` in that window's shell does (terminal's alias,
-                  # which follows haus.ai.default the same way the chord did),
-                  # so the chord was a keystroke for a command already one
-                  # keystroke long. ⌘↵'s lane — a worktree of its own — is the
-                  # agent spawn this desktop actually runs on.
-                  # ⌘N / ⌘⇧N — new WINDOW, the chord every Mac app spells that
-                  # way: a shell window in the focused window's directory,
-                  # hopping out of an agent worktree to the repo's main checkout
-                  # unless the shifted key says stay. They were ⌘P/⌘⇧P (the
-                  # zellij NewPane chords' heirs) until 2026-08-18; ⌘P is
-                  # Ghostty's again. Behind `lanesEnabled` because the scripts
-                  # are: with the agent clients off there is no lane-aware cwd
-                  # to spawn beside.
-                  {
-                    key = shellSpawnKey;
-                    modifiers = [ "cmd" ];
-                    target = "cmd:shell-here";
-                  }
-                  {
-                    key = shellSpawnKey;
-                    modifiers = [
-                      "cmd"
-                      "shift"
-                    ];
-                    target = "cmd:shell-here-stay";
-                  }
-                  # ⌘↵ — a new agent lane in the focused window's repo
-                  # (cmd:lane-here → the terminal room's lane-spawn.sh). This
-                  # was ⌃⌘A in AeroSpace until 2026-08-18, which bought "from
-                  # any window at all" — a browser included — at the price of a
-                  # chord nobody could guess. ⌘↵ is the guessable one, and it is
-                  # exactly why it cannot be global: it means *send* in Slack,
-                  # Claude and Linear. Scoped to Ghostty it still covers every
-                  # window the chord is really pressed from, because every
-                  # terminal window is a Ghostty window — and pounce's
-                  # own panel is a different app, so Spawn Agent's ⌘↵ (shoot a
-                  # screenshot, then spawn) never sees this tap.
-                  {
-                    key = laneSpawnKey;
-                    modifiers = [ "cmd" ];
-                    target = "cmd:lane-here";
-                  }
-                ];
+                # One row per chord in ../terminal/term-bindings.nix, which
+                # says what each does; lane chords (⌘N, ⌘↵) drop out with
+                # lanesEnabled, ⌘G and ⌘B with their features.
+                keys = termBindings.appHotkeys;
               }
             ];
           };
@@ -1941,8 +1807,8 @@ lib.mkIf config.haus.launcher.enable {
           # feature the lane rooms turn on.
           pages = {
             enabled = lanesEnabled;
-            key = "tab";
-            modifiers = [ "ctrl" ];
+            inherit (termBindings.pagesTap) key;
+            modifiers = termBindings.pagesTap.mods;
             prefix = "T";
             bundleId = "com.mitchellh.ghostty";
             mruFile = "/Users/${username}/${stateFiles.workspace-mru.dir}/${stateFiles.workspace-mru.name}";

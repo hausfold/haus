@@ -115,48 +115,19 @@ let
 
   # ---- the terminal's hotkeys ------------------------------------------------
   #
-  # ./term-bindings.nix is the one table of terminal chords + captions; pounce
-  # renders the Terminal cards on the cheatsheet from it.
-  #
-  # It used to be cross-checked against zellij's config.kdl in both directions —
-  # every bind taught, every taught chord bound — and that assertion is gone with
-  # the kdl. There is nothing left for it to read: the chords it described are
-  # now pounce appHotkeys entries (modules/launcher) — all but ⌘⇧R, which
-  # ghostty/config binds natively — and a Nix assertion cannot see into another
-  # room's generated JSON. The table and the appHotkeys list are
-  # kept honest by living one screen apart and by the chord glyphs being derived
-  # rather than typed.
+  # ./term-bindings.nix is the one table of Ghostty-scoped chords: pounce's
+  # appHotkeys, the haus.launcher.items reservations and the cheatsheet cards
+  # are derived from it in modules/launcher, and Ghostty's chord-layer block is
+  # derived from it here — its header says why that replaced the assertion that
+  # left with zellij's config.kdl.
   termBindings = import ./term-bindings.nix {
     inherit lib agentDefault;
     agentsEnabled = agentContrib.enable;
     ghDashEnabled = ghDashCfg.enable;
     benchLaneEnabled = devCfg.enable;
   };
-  ghDashGhosttyBind = lib.optionalString ghDashCfg.enable ''
-    # ⌘G — consumed by pounce (cmd:gh-dash): GitHub's review queue as a
-    # near-fullscreen floating window. Ghostty owns this chord as search-next by
-    # default, so it must be released explicitly or the tap is the only thing
-    # standing between the chord and a find-again nobody asked for.
-    keybind = cmd+g=unbind
-  '';
-  benchLaneGhosttyBind = lib.optionalString devCfg.enable ''
-    # ⌘B — consumed by pounce (cmd:bench-lane): build+activate this window's scruff
-    # LANE — this worktree plus every `scruff child` worktree spawned from it — in
-    # one rebuild (`bench try lane switch`; "b" for bench, since ⌘L is Links).
-    # Ghostty has no default binding on this chord; unbound defensively, same
-    # reasoning as cmd+enter above, so a future default can't steal it.
-    keybind = cmd+b=unbind
-  '';
   ghosttyConfigTemplate =
-    builtins.replaceStrings
-      [
-        "@GH_DASH_GHOSTTY_BIND@"
-        "@BENCH_LANE_GHOSTTY_BIND@"
-      ]
-      [
-        ghDashGhosttyBind
-        benchLaneGhosttyBind
-      ]
+    builtins.replaceStrings [ "@CHORD_LAYER@\n" ] [ termBindings.ghosttyBinds ]
       (builtins.readFile ./ghostty/config);
 
   # System Settings deep links, spelled once (modules/lib/settings-panes.nix) —

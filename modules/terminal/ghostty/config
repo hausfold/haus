@@ -104,62 +104,24 @@ window-save-state = never
 confirm-close-surface = false
 
 # ── the chord layer ──────────────────────────────────────────────────────────
-# Every line below used to be an `unbind` whose only job was to let a chord fall
-# THROUGH Ghostty to zellij. There is no multiplexer to fall through to now, so
-# each one is either a real Ghostty action, a deliberate hole, or a chord that
-# pounce's Ghostty-scoped event tap consumes before Ghostty ever sees it
-# (modules/launcher's appHotkeys — the same tap that already owns ⌘N and ⌘↵).
-#
-# `unbind` is passthrough, not `ignore`: the key still reaches the program in
-# the window. That is what an unbind is FOR here — pounce's tap sits above
-# Ghostty, so a chord it consumes never arrives, and a chord it doesn't consume
-# should reach the shell rather than do something Ghostty made up.
+# The block below is rendered from modules/terminal/term-bindings.nix, one row per
+# cheatsheet line: the same rows pounce's Ghostty-scoped appHotkeys and the
+# haus.launcher.items reservations are derived from, so a chord cannot be armed
+# there and left to a Ghostty default here. Every line in it is `unbind` —
+# passthrough, not `ignore`, so a chord pounce's tap doesn't consume reaches the
+# program in the window — except the rows Ghostty arms itself: ⌘⇧R (`reset`)
+# and ⌃⇥ / ⌃⇧⇥, which send the kitty-keyboard encoding a TUI wants.
+@CHORD_LAYER@
+# ── the holes ────────────────────────────────────────────────────────────────
+# Chords nothing arms and nothing teaches, so they have no second spelling to
+# drift from and are written here rather than in the table.
 
-# ⌘T — consumed by pounce (cmd:shell-plain): a NEUTRAL terminal, home directory
-# and no repo, on the base workspace rather than on the lane page you were
-# standing on. It is the escape hatch from the page ownership ⌘N and ⌘↵ obey.
-#
-# The unbind is still what makes that possible, and for the reason it always
-# had: no tabs. A window is a pane in this desktop (windows/AeroSpace tiles
-# them), and a Ghostty tab would nest a second layout model inside one tile — so
-# the chord every Mac terminal spells "new terminal" was free for the thing that
-# actually opens one here.
-keybind = cmd+t=unbind
-# ⌘⇧T likewise: it was "new tab at this pane's cwd", which is what ⌘N means now.
+# ⌘⇧T: it was "new tab at this pane's cwd", which is what ⌘N means now. This
+# desktop has no tabs — a window is a pane, and AeroSpace tiles them.
 keybind = cmd+shift+t=unbind
-
-# ⌘N / ⌘⇧N — consumed by pounce (cmd:shell-here[-stay]): a shell WINDOW in the
-# focused window's directory, hopping out of an agent worktree unless the
-# shifted key says stay. Unbound here so a machine with the agent clients off
-# gets a dead key rather than Ghostty's own new_window, which knows nothing
-# about "here" and would silently disagree with the cheatsheet.
-keybind = cmd+n=unbind
-keybind = cmd+shift+n=unbind
-
-# ⌘F / ⌘⇧F — consumed by pounce (cmd:find[-all]): full-text search over this
-# window's zmx scrollback, or over every session at once. Ghostty binds cmd+f to
-# native-macOS window fullscreen by default, so this unbind is also what stops
-# ⌘F meaning something else entirely on a machine without the tap.
-keybind = cmd+f=unbind
-keybind = cmd+shift+f=unbind
-
-# ⌘Y / ⌘⇧Y — consumed by pounce (cmd:peek[-stay]): the yazi file peek, in a new
-# window rather than the tab it used to open.
-keybind = cmd+y=unbind
-keybind = cmd+shift+y=unbind
-
-# ⌘L — consumed by pounce (cmd:links): every URL this window's scrollback has
-# seen, newest first.
-keybind = cmd+l=unbind
-@GH_DASH_GHOSTTY_BIND@
-# ⌘↵ — the LANE chord, consumed by pounce (cmd:lane-here): a new agent lane in
-# this window's repo. It was ⌃⌘A in AeroSpace until 2026-08-18. Ghostty binds
-# nothing here today; the unbind stays defensive, so a future release can't
-# claim the chord out from under pounce.
-keybind = cmd+enter=unbind
 # ⌘A is NOT unbound and never was — the lane chord is ⌘↵, one layer above.
 # ⌘A stays select_all.
-@BENCH_LANE_GHOSTTY_BIND@
+#
 # ⌘C → ghostty's own copy. Bound explicitly rather than left to the default so
 # the intent sits on the page and no future default change can take it away.
 # Under zellij this was the FALLBACK path — the everyday copy was a mouse
@@ -171,28 +133,9 @@ keybind = cmd+c=copy_to_clipboard
 # ⌘R — released to the program. It used to reach zellij's session-reload chord;
 # nothing catches it now. Kept as an explicit unbind rather than handed back to
 # Ghostty's default: ⌘R reads as "reload" to muscle memory, and a Ghostty-level
-# binding would act on the surface an agent is drawing into.
+# binding would act on the surface an agent is drawing into. ⌘⇧R, one ⇧ away,
+# is Ghostty's `reset` — see its row in term-bindings.nix.
 keybind = cmd+r=unbind
-# ⌘⇧R — Ghostty's own `reset` action, and one of the only chords on this page
-# that is Ghostty's rather than pounce's: `reset` is a native action, so unlike
-# every chord that has to shell out it has somewhere to live here. It is the
-# EMULATOR half of the repair the `reset` shell function does — it fixes the
-# surface (alt screen, charset, mouse reporting, a cursor a dead TUI hid) and
-# leaves the pty's termios alone, which is exactly the half you need when the
-# shell is too wedged to run a command at all. Typing `reset` blind into the
-# readable screen it gives you back finishes the job.
-#
-# It sits on ⇧ + the chord above deliberately: ⌘R stays released to the program
-# because it reads as "reload", and every browser on this Mac spells "reload
-# harder, from scratch" ⌘⇧R — which is what a reset is. The near-miss is worth
-# knowing: reaching for ⌘R and catching ⇧ resets the surface an agent is
-# drawing into. It costs a redraw and nothing else — the scrollback is zmx's,
-# not the surface's — which is why the mnemonic wins over the extra modifier.
-# Free everywhere: Ghostty binds nothing here by default (its only `r` is
-# ⌘0 reset_font_size), nor does pounce's appHotkeys, haus.launcher.items,
-# modules/lib/keys.nix, AeroSpace, or any macOS symbolic hotkey — there is no
-# entry on keycode 15 at all.
-keybind = cmd+shift+r=reset
 # ⌘W → ghostty's close_window, its own default, restored. Under zellij this was
 # unbound so the chord could close the focused PANE instead of silently killing
 # the whole client. A window is the pane now, and closing it DETACHES its zmx
@@ -209,16 +152,6 @@ keybind = cmd+shift+r=reset
 # memory from iTerm), so the keys do nothing rather than something else.
 keybind = cmd+d=unbind
 keybind = cmd+shift+d=unbind
-# ghostty binds ctrl+tab to its own next_tab/previous_tab by default, and even
-# unbound, macOS AppKit swallows ctrl+tab for focus navigation before the
-# terminal core sees it. So bind it to SEND the kitty-keyboard-protocol encoding
-# explicitly (CSI 9;5u / 9;6u = ctrl+Tab / ctrl+shift+Tab), which is what a TUI
-# in the window would want. With lanes on the chord never reaches ghostty at
-# all: pounce's Ghostty-scoped tap consumes it first and walks the T/* lane
-# PAGES by recency instead — the same swallowed-by-AppKit fact is why that walk
-# has to live in pounce's event tap rather than in AeroSpace's bindings.
-keybind = ctrl+tab=text:\x1b[9;5u
-keybind = ctrl+shift+tab=text:\x1b[9;6u
 
 macos-icon-frame = chrome
 macos-icon-ghost-color = 333333

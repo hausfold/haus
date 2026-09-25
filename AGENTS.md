@@ -586,15 +586,18 @@ PR; hardcoded identity. Advisory, never a gate.
   update nebelung`, and `modules/theme/default.nix`'s `appearanceWanted`, which
   maps flavor → macOS Light/Dark for `haus.theme.systemAppearance = "flavor"` —
   an unknown flavor silently gets Dark.
-- **The chord layer is pounce's, not Ghostty's** (`modules/launcher`'s
-  `appHotkeys`, cross-referenced by `modules/terminal/ghostty/config`, taught by
-  `modules/terminal/term-bindings.nix`): every terminal chord that runs a
-  command — ⌘F, ⌘L, ⌘Y, ⌘N, ⌘↵, ⌘G, ⌘B — is an app-scoped tap entry, unbound in
-  Ghostty's config, because none of `ghostty +list-actions`' 85 actions runs a
-  command. The three files move together or the cheatsheet lies. **⌘⇧R is bound
-  by GHOSTTY** (`reset` is an action), still listed in `term-bindings.nix`, and
-  its `chords` entry matters more: `haus.launcher.items` hotkeys are GLOBAL and
-  would beat it.
+- **The chord layer is pounce's, not Ghostty's**, and every Ghostty-scoped
+  chord is ONE row in `modules/terminal/term-bindings.nix`: pounce's
+  `appHotkeys`, the ⌃⇥ `pages` chord, the `haus.launcher.items` reservations,
+  the cheatsheet's Terminal cards and Ghostty's `@CHORD_LAYER@` block are all
+  derived from it — change a chord there and nowhere else. Every chord that
+  runs a command (⌘F, ⌘L, ⌘Y, ⌘N, ⌘T, ⌘↵, ⌘G, ⌘B) is an app-scoped tap entry,
+  unbound in Ghostty, because none of `ghostty +list-actions`' 85 actions runs
+  a command. **⌘⇧R is bound by GHOSTTY** (`ghostty = "reset"` on its row), and
+  its reservation matters more: `haus.launcher.items` hotkeys are GLOBAL and
+  would beat it. A row's `enable = false` drops it from the tap and the card
+  but keeps it reserved and released. Ghostty's hand-written holes (⌘⇧T, ⌘R,
+  ⌘D, ⌘C) stay in `ghostty/config`: nothing arms or teaches them.
 - **Every window is a `zmx` session** (`modules/terminal/scripts/launch.sh`,
   Ghostty's `command`): `zmx history` / `zmx tail` are the read API ⌘F, ⌘L and
   the bar's agent peek need — Ghostty's AppleScript can create a surface but not
