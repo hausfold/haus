@@ -719,9 +719,9 @@ let
   agentRuntimeAdapterFiles = lib.optionalAttrs cfg.enable (
     let
       # System-config scope has no `config.home.homeDirectory` — that's a
-      # home-manager submodule field, and this whole block is a flat
-      # `home-manager.users.${username}.home.file` assignment, not a nested
-      # home-manager function like terminal's. "/Users/${username}" is the
+      # home-manager submodule field, and this block is computed in the
+      # room's own `let`, outside the home-manager function below that merges
+      # it. "/Users/${username}" is the
       # same literal core/windows/bar/launcher already use at this scope.
       script = "/Users/${username}/.config/haus/runtime/tart-adapter.sh";
     in
@@ -1404,7 +1404,7 @@ in
       # so the two can never drift); this copy exists only to give it a stable
       # name on PATH. Claude Code's hooks point at the sketchybar path because the
       # user's own settings.json wires them, but the Codex and Opencode wirings
-      # terminal writes are client config files with no business knowing where a bar
+      # their client records write are client config files with no business knowing where a bar
       # keeps its plugins — they call
       # `agent-state <working|waiting|idle|remove> <client>` instead.
       (writeShellScriptBin "agent-state" (builtins.readFile ../bar/sketchybar/plugins/agents-hook.sh))
@@ -1427,7 +1427,7 @@ in
       # script's header.
       #
       # TWO clients read this one binary. pi reaches it from `tool_call`
-      # (terminal's `haus-desktop-guard.ts`), handing it the same hook-shaped
+      # (its record's `haus-desktop-guard.ts`, ./clients/pi), handing it the same hook-shaped
       # JSON Claude Code's hook does and reading the same verdict back, so the
       # line lives in one file and one bats suite for both. What differs is only
       # where the question is put: Claude re-opens its own prompt in the pane, pi

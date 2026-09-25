@@ -291,7 +291,7 @@
             mkdir -p "''${state%/*}"
             printf "%s" "$sections" > "$state"
           fi
-          # Both, not just the base — the reason the piSettings block below
+          # Both, not just the base — the reason the piSettings merge (../pi)
           # spells out: when jq fails the `&& mv` short-circuits, and a
           # half-written "$tmp" would otherwise sit beside the real
           # settings file forever, looking like something Claude should read.

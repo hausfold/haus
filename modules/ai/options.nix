@@ -39,9 +39,10 @@ in
         (SPEC.md §5.5 — `scruff runtime up|enter|down --backend tart` stands a
         lane up in its own headless macOS, so an agent can feel-test a desktop
         change without touching the screen its user is sitting at; pulling a
-        base image is still a manual, one-time step), and the client
-        config the Terminal room writes (Claude Code's settings.json keys, opencode's
-        agent-state plugin). Which clients get installed is `ai.clients`.
+        base image is still a manual, one-time step), and each client's own
+        config (Claude Code's settings.json keys, opencode's agent-state
+        plugin, codex's hooks, pi's extensions and settings). Which clients get
+        installed is `ai.clients`.
 
         On, this room brings its clients, `scruff` and the lifecycle wiring on its
         own. What it adds to OTHER rooms it adds only when they are present: the

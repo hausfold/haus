@@ -1,5 +1,5 @@
 # The fourteen accent names, by Catppuccin spelling. Imported the same way as
-# agents.nix / keys.nix — a plain value, no module system involved.
+# keys.nix / editors.nix — a plain value, no module system involved.
 #
 #   accentNames = import ../lib/accents.nix;
 #
