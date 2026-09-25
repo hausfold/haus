@@ -16,9 +16,10 @@
 let
   # Every coding-agent client haus knows how to install, spawn and resume —
   # read by ai.clients, ai.default, and bar's aiUsage.provider, so none
-  # of the three can drift apart. modules/lib/agents.nix says why it lives there
-  # rather than here, and names the one copy that can't be folded in.
-  agentClients = import ../lib/agents.nix;
+  # of the three can drift apart. The registry is ./clients, one directory per
+  # client; its default.nix says what a record carries and names the copies
+  # that can't be folded in.
+  agentClients = builtins.attrNames (import ./clients);
 in
 {
   options.haus = {

@@ -16,12 +16,12 @@
 #
 # Two subjects, because the fix has two halves and they fail differently:
 #
-#   modules/terminal/claude-settings.jq    the merge. Run here with the real jq
-#                                          against fixtures — the whole reason
+#   modules/ai/clients/claude/             the merge. Run here with the real jq
+#     claude-settings.jq                   against fixtures — the whole reason
 #                                          the program is a static file rather
 #                                          than a quoted argument.
 #   the `run sh -c` block in               the bookkeeping: the record of which
-#   modules/terminal/default.nix           sections haus wrote, without which
+#   modules/ai/clients/claude/default.nix  sections haus wrote, without which
 #                                          the merge cannot tell an undeclared
 #                                          section from one it never touched.
 #
@@ -40,16 +40,16 @@
 # somebody wrote with `claude auto-mode`, and a merge that takes too
 # little leaves an `allow` rule lifting refusals for a config that stopped
 # asking for it (measured on a guest, 2026-09-21). Runs the real
-# modules/terminal/claude-settings.jq, and the activation's shell half
-# lifted out of modules/terminal/default.nix rather than retyped. Needs
+# modules/ai/clients/claude/claude-settings.jq, and the activation's shell
+# half lifted out of that record's default.nix rather than retyped. Needs
 # bash + bats + jq, no Nix and no Mac.
 
 bats_require_minimum_version 1.5.0
 
 setup() {
   REPO="$BATS_TEST_DIRNAME/.."
-  PROG="$REPO/modules/terminal/claude-settings.jq"
-  MODULE="$REPO/modules/terminal/default.nix"
+  PROG="$REPO/modules/ai/clients/claude/claude-settings.jq"
+  MODULE="$REPO/modules/ai/clients/claude/default.nix"
   TMP="$BATS_TEST_TMPDIR"
   export HOME="$TMP/home"
   mkdir -p "$HOME"
@@ -155,7 +155,7 @@ THEIRS='{"autoMode":{"hard_deny":["Keychain export: never, for any reason."]},"t
 activation() {
   local sections="$1" auto="$2"
   awk '
-    /home\.activation\.claudeCodeSettings/ { want = 1 }
+    /name = "claudeCodeSettings";/      { want = 1 }
     want && /run sh -c/                    { inblk = 1 }
     inblk                                  { print }
     inblk && /autoModeSectionNames/        { exit }
@@ -248,7 +248,7 @@ settings() { jq -c "$1" "$HOME/.claude/settings.json"; }
   # running it catches that, which is what the cases above do; this is what
   # catches it in review.
   awk '
-    /home\.activation\.claudeCodeSettings/ { want = 1 }
+    /name = "claudeCodeSettings";/      { want = 1 }
     want && /run sh -c/                    { inblk = 1 }
     inblk                                  { print }
     inblk && /autoModeSectionNames/        { exit }
