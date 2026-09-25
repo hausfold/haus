@@ -245,7 +245,7 @@ cmd_census() {
 cmd_run() {
     local want=${1:?usage: test/ci.sh run <job>} f need start secs rc
     local failed='' ran=0 rows='' problem
-    while IFS= read -r f; do
+    while IFS= read -r f <&9; do
         # A file the census would refuse is the lint job's to report; this
         # job only runs what it can read.
         parse "$f" || continue
@@ -273,6 +273,9 @@ cmd_run() {
         done
 
         if ci; then printf '::group::%s\n' "$f"; else printf '── %s\n' "$f"; fi
+        # The list is on fd 9, not stdin, and the suite gets neither: on
+        # stdin a suite that reads it would eat every suite after it and the
+        # job would still say all passed.
         start=$SECONDS
         if [ -n "$problem" ]; then
             rc=1
@@ -280,8 +283,8 @@ cmd_run() {
         else
             rc=0
             case $f in
-            *.bats) bats "$f" || rc=$? ;;
-            *) bash "$f" || rc=$? ;;
+            *.bats) bats "$f" </dev/null 9<&- || rc=$? ;;
+            *) bash "$f" </dev/null 9<&- || rc=$? ;;
             esac
         fi
         secs=$((SECONDS - start))
@@ -294,7 +297,7 @@ cmd_run() {
             failed="$failed $f"
             error "$f" "${problem:-exited $rc}"
         fi
-    done < <(candidates)
+    done 9< <(candidates)
 
     if [ "$ran" -eq 0 ]; then
         error "$WORKFLOW" "no suite in test/ names job=$want"
@@ -348,15 +351,22 @@ cmd_lint() {
     [ "$bad" -eq 0 ]
 }
 
-case ${1:-} in
-run)
-    shift
-    cmd_run "$@"
-    ;;
-census) cmd_census ;;
-lint) cmd_lint ;;
-*)
-    echo "usage: test/ci.sh run <job> | census | lint" >&2
-    exit 2
-    ;;
-esac
+# One function, called on the last line, so bash has read the whole file
+# before it runs any of it: editing test/ci.sh mid-run cannot break the tail.
+main() {
+    case ${1:-} in
+    run)
+        shift
+        cmd_run "$@"
+        ;;
+    census) cmd_census ;;
+    lint) cmd_lint ;;
+    *)
+        echo "usage: test/ci.sh run <job> | census | lint" >&2
+        exit 2
+        ;;
+    esac
+}
+
+main "$@"
+exit

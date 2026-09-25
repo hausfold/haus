@@ -1002,7 +1002,7 @@ jobs:
       # test/ci.sh prints its version first so an image that drops it fails
       # loudly here.
       #
-      # It used to be a hand-written list of 42 files out of 123, and nothing
+      # It used to be a hand-written list of 42 files out of 137, and nothing
       # recorded which omissions were deliberate. Now a file is linted unless
       # test/ci.sh excludes it: a rule (a zsh shebang, a `# widget:` header) or
       # a named line with its reason. A named line whose file passes or is gone

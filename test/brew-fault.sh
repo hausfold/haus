@@ -24,8 +24,8 @@
 # the whole job: `missing_casks` names the absent app and `haus rebuild`
 # fails on the marker. Pure list arithmetic over a fixture Brewfile and a
 # stubbed `brew`, so no Mac needed — and worth running rather than only
-# linting for `haus plan`'s reason: the bug it guards against is silence,
-# which is exactly what shipped before it.
+# linting, because the bug it guards against is silence, which is exactly
+# what shipped before it.
 set -euo pipefail
 
 # ── an interpreter that can actually run haus.sh ─────────────────────────────
