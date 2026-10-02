@@ -126,11 +126,10 @@
 #                 verdict travels WITH the target because the fetch is the
 #                 only place that still knows it: the popup would otherwise
 #                 have to guess it back out of the glyph.
-#                 <note> is the verdict as a WORD ("conflicts", "checks red"),
-#                 which used to be glued onto <text> with a middle dot. It is
-#                 its own field because the dropdown draws it as a capsule in
-#                 the row's own tone now, and a word inside the title cannot
-#                 be coloured apart from it.
+#                 <note> is the verdict as a WORD ("conflicts", "checks red").
+#                 It is its own field because the dropdown draws it as a
+#                 capsule in the row's own tone, and a word inside the title
+#                 cannot be coloured apart from it.
 #                 <who> and <when> are the row's CAPTION — the author's login
 #                 and the epoch it was opened at. Two fields rather than one
 #                 rendered "julienmartel · 3d" because the cache is minutes
@@ -223,9 +222,10 @@ DEFAULT_LIMIT=8
 
 # How long a fetch may claim to be running before the next caller assumes it
 # died and takes over. Longer than any of these calls can take (a hung `gh` on a
-# dead connection is the slow case, and it gives up well inside this), shorter
-# than the shortest legal refresh, so a sweep can never race a live fetch or
-# delay a healthy one.
+# dead connection is the slow case, and it gives up well inside this), so a
+# sweep can never race a live fetch. The price is on the other side: a killed
+# fetch holds the lock this long, one default refresh, even for a pill set to
+# the 60s floor.
 STALE_INFLIGHT=300
 # How far ahead of `now` a stamp may sit before it is read as a backward clock
 # step rather than as ordinary raciness. It has to be a grace and not a bare
@@ -475,12 +475,7 @@ fetch_search() { # fetch_search <index> <query> <limit>
   #   `mute`: a row with no verdict, which must not tint the pill.
   #
   #   Note the ceiling: the WORST rung a pull request can reach here is `warn`.
-  #   Conflicts and red checks used to be `bad`, which meant the pill's octocat
-  #   went the same red for "one of my branches is failing CI" as for "main is
-  #   broken" — and since the first is the normal state of a machine that opens
-  #   PRs all day, it made the second unreadable. `bad` is the ci source's now
-  #   (see the ladder in the header), and everything below it is a rung a PR
-  #   can actually climb.
+  #   `bad` is reserved for the ci source — the ladder in the header says why.
   #
   #   Each verdict also carries its NAME, which the dropdown draws as a
   #   capsule in the row's own tone. Colour puts a row in a tier and the glyph
@@ -488,10 +483,6 @@ fetch_search() { # fetch_search <index> <query> <limit>
   #   peach with a similar mark at 11pt — the word is what makes the row
   #   readable without a legend. Only the verdicts worth acting on carry one;
   #   a plain green PR reads as its title and its author alone.
-  #
-  #   The word used to be APPENDED to the row's text with a middle dot, and it
-  #   is its own cache field now for one reason: inside the title it could
-  #   only ever be the title's colour. A capsule is on the ladder.
   rows=$(printf '%s' "$json" | jq -r \
     --arg conflict "$G_CONFLICT" --arg failed "$G_FAILED" --arg running "$G_RUNNING" \
     --arg changes "$G_CHANGES" --arg ready "$G_READY" --arg green "$G_GREEN" \
@@ -655,8 +646,7 @@ classify_failure() { # classify_failure <index> <stderr>
 do_fetch() {
   mkdir -p "$STATE"
   # One fetch at a time. mkdir is the atomic test-and-set every POSIX shell has;
-  # a stale lock from a killed run is swept after five minutes, which is longer
-  # than any of these calls can take and shorter than the shortest refresh.
+  # a stale lock from a killed run is swept after STALE_INFLIGHT.
   if ! mkdir "$LOCK" 2>/dev/null; then
     if [ -d "$LOCK" ]; then
       local age at
@@ -840,7 +830,7 @@ read_cache() {
       auth)
         # LEAD_WORST too, not just the count. Nothing is answering, so an
         # earlier source's rows are not evidence about anything — and since the
-        # logo now paints on `ok`, leaving it behind would draw a green octocat
+        # logo paints on `ok`, leaving it behind would draw a green octocat
         # beside the word `auth`.
         LEAD_STATE=auth; LEAD_COUNT=0; LEAD_WORST=none
         return ;;
@@ -982,7 +972,7 @@ render() {
 # A stamp in the FUTURE reads as "never fetched" for the same reason: a clock
 # that moved backward (an NTP step, a restored cache, a resumed VM) makes
 # `now - last` NEGATIVE, which clears neither `refresh` nor PUSH_FLOOR, so
-# should_fetch stops spawning and the pill sits on the fetch it happens to have
+# fetch() stops spawning and the pill sits on the fetch it happens to have
 # until the clock catches up. `rel_age` below already refuses to print a
 # negative age; this is the half that keeps the pill alive.
 #
@@ -1068,9 +1058,7 @@ popup_rows() {
       local hsev="$msev"
       if [ "$(sev_rank "$mworst")" -gt "$(sev_rank "$msev")" ]; then hsev="$mworst"; fi
       # An empty section is quiet, not absent — `dim`, the same overlay1 every
-      # other popup in the bar draws a section glyph in. It is also what this
-      # heading was before the framework conversion mapped it to the nearest
-      # rung the ladder had; the ladder has the right one now.
+      # other popup in the bar draws a section glyph in.
       local htone=dim
       if [ "${count:-0}" -gt 0 ]; then htone="$(sev_tone "$hsev")"; fi
       # --count is the runtime's: a section that says "open PRs" over eight
@@ -1111,8 +1099,8 @@ popup_rows() {
         else
           sub="$age"
         fi
-        # One array rather than the two-branch `if` this used to be: with
-        # three flags varying (open, caption, badge) the branches multiply,
+        # One array rather than a branch per flag: with three flags varying
+        # (open, caption, badge) the branches multiply,
         # and an --open with an empty URL is `open ""`, which is a Finder
         # window rather than a no-op.
         act=()
@@ -1132,12 +1120,8 @@ popup_rows() {
         # Which rows those are is decided ONCE, by the fetch that wrote the
         # cache (the jq if-chain above names its own verdict), and read back
         # here rather than re-derived: `fix_split` is the whole test. The
-        # earlier draft classified HERE, off the row's glyph and severity, and
-        # both couplings failed silently — a glyph edited in the ladder above
-        # made the button vanish with no error anywhere, and "sev is bad means
-        # ci" held only because search rows are capped at `warn` and a command
-        # source happens to write field 6 empty. A verdict is not a thing to
-        # infer from a font codepoint.
+        # header's "fix rows" section says what re-deriving it off the glyph
+        # cost.
         #
         # Two more conditions, both cheap: the fixer must exist
         # (BAR_GITHUB_FIX is empty when the AI room contributed nothing), and

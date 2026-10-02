@@ -10,27 +10,15 @@
 # without a bar loses the pill and keeps the agents, and turning agents on never
 # switches a bar on.
 #
-# The payload lives here too, as of 2026-08-19. It used to be hosted by the
-# rooms that happened to own the two PROFILES it needs — `scruff`, the statusline
-# pair and `agent-state` by modules/core (a system profile), the instructions
-# preamble, the `haus` skill and its `this-machine.md` renderer by
-# modules/terminal (a home one) — each gated on this room's switch from a
-# distance. That was step 2's deliberate deferral: moving a package between
-# profiles is an install change rather than a refactor, so it waited for
-# `desktop-projection` (step 4) and a derivation comparison to prove it free.
-#
-# The home half was expected to be the hard part, on the theory that terminal
-# owns `home-manager.users.<name>` and two modules writing one user's profile
-# would silently merge. It does not: home-manager merges the two `home.file`
-# attrsets, and a collision on a path is an ERROR rather than a last-wins —
-# which is the property that makes splitting them safe. Measured with a
-# throwaway `home.file` from this module before anything was moved.
-#
-# The client packages and the settings merges into each client's own JSON
-# followed on 2026-09-25: every per-client fact is one record under ./clients
-# now, and this room renders all of them. What terminal keeps is its own
-# business, not a leftover: the dotfiles it themes for clients whether or not
-# this room is on.
+# The payload lives here too, across both PROFILES it needs: `scruff`, the
+# statusline pair and `agent-state` in the system one; the instructions
+# preamble, the `haus` skill and its `this-machine.md` renderer in the home one;
+# and every client's package and settings merge, one record each under
+# ./clients. Writing `home.file` beside terminal is safe because home-manager
+# merges the two attrsets and a collision on a path is an ERROR rather than a
+# last-wins — measured with a throwaway `home.file` before anything moved. What
+# terminal keeps is its own business, not a leftover: the dotfiles it themes for
+# clients whether or not this room is on.
 {
   config,
   lib,
@@ -167,12 +155,10 @@ let
   # installs none, and must not be refused for it.
   clients = config.haus._ai.clients;
 
-  # nixpkgs ships all three for aarch64-darwin only. That is haus's whole
-  # platform since 26.11 dropped x86_64-darwin, so this never fires today
-  # — but it is the difference between a named refusal and an install that
-  # silently does nothing, which is exactly the dead-pane failure `ai.clients`
-  # exists to end. (The `lib.meta.availableOn` guard it replaces did skip
-  # silently.)
+  # aarch64-darwin is haus's whole platform since 26.11 dropped x86_64-darwin,
+  # so this never fires today — but it is the difference between a named
+  # refusal and an install that silently does nothing, which is exactly the
+  # dead-pane failure `ai.clients` exists to end.
   unavailableClients = lib.filter (
     c: !lib.meta.availableOn pkgs.stdenv.hostPlatform (clientPackage c)
   ) clients;
@@ -180,17 +166,17 @@ let
   # Whether this machine actually SPAWNS agents. The room being on is not enough:
   # `ai.clients = [ ]` is a machine haus installs no client on, and a
   # chord that spawns nothing is the dead-pane failure again, one layer up. So
-  # this is what the terminal's chords and the launcher's Spawn Agent follow —
-  # the same gate both used before this room existed.
+  # this is what the terminal's chords and the launcher's Spawn Agent follow.
   spawnable = cfg.enable && clients != [ ];
 
-  # The bar is a different question, and answering it with `spawnable` was
-  # wrong: `ai.clients = [ ]` means haus installs no client, not that no
-  # agent runs here. `agent-state` — the pill's only writer — follows
-  # `ai.enable` alone (modules/core), and terminal writes every client's
-  # instructions and hooks on exactly that machine, by name, for exactly this
-  # case. A Claude Code from npm reports its panes there and the pill works, so
-  # dropping it would be the dead-pill failure with the sign flipped.
+  # The bar is a different question, and `spawnable` is the wrong answer to it:
+  # `ai.clients = [ ]` means haus installs no client, not that no agent runs
+  # here. `agent-state` — the pill's only writer — follows `ai.enable` alone
+  # (the system profile below), and this room writes every client's
+  # instructions and hooks (each record's `files`) on exactly that machine, by
+  # name, for exactly this case. A Claude Code from npm reports its panes there
+  # and the pill works, so dropping it would be the dead-pill failure with the
+  # sign flipped.
   reportable = cfg.enable;
 
   # Every address that asked for the agents pill, on either bar. Both are read
@@ -203,8 +189,6 @@ let
       config.haus.bar.bottom.enable && config.haus.bar.bottom.items.agents != false
     ) "haus.bar.bottom.items.agents";
   # ---- the payload: what lands in a home -------------------------------------
-  # Moved here from modules/terminal on 2026-08-19, with the path table, the
-  # instructions preamble and the whole `this-machine.md` renderer.
   # The one sentence in the generated agent instructions that names the lane
   # chord. These files are what an agent BELIEVES about the machine it is on, so
   # a wrong chord here is worse than none: the agent will confidently tell its
@@ -223,8 +207,7 @@ let
 
   # haus-owned preamble for each client's instructions file. This room puts
   # `scruff` on PATH when it is on (`environment.systemPackages` below, `mkIf
-  # cfg.enable` — the payload core used to host, and stopped: see
-  # modules/core's note beside its own list), and agent worktrees live OUTSIDE
+  # cfg.enable`), and agent worktrees live OUTSIDE
   # the repo tree (`~/.cache/scruff/<repo>/<name>`), so a worktree agent's
   # instructions walk never reaches the project/workshop AGENTS.md — only THIS
   # file + the repo's own checked-out one are guaranteed read. So the general `scruff`
@@ -233,7 +216,7 @@ let
   # `haus.ai.instructions`.
   #
   # A function of the client, because the only thing that differs between the
-  # three copies is which paths they name — and naming the wrong one is worse
+  # copies is which paths they name — and naming the wrong one is worse
   # than naming none: a Codex pane told to edit `~/.claude/CLAUDE.md` would
   # change a file nothing it runs will ever read.
   #
@@ -461,9 +444,8 @@ let
   # EMPTY list doesn't mean "no agent ever runs here", it means haus installs
   # none — either nothing named any client, or the AI room is switched off, which
   # empties the resolved list whatever a desktop wrote (`haus._ai.clients`). A
-  # machine like that can still have Claude Code from npm or Codex from brew, and
-  # before this room existed both files were written unconditionally. So with
-  # nothing named, write for every client we know — they are inert markdown, and
+  # machine like that can still have Claude Code from npm or Codex from brew. So
+  # with nothing named, write for every client we know — they are inert markdown, and
   # a skill nothing reads is much cheaper than an agent inventing option names.
   fileClients = if agentClients == [ ] then lib.attrNames agentHomes else agentClients;
 
@@ -480,10 +462,8 @@ let
 
   # ---- every OTHER hausfold tool's skill ------------------------------------
   #
-  # This is step 3 of the family agent-surface standard, and until haus#473 it
-  # was simply absent — the derivation existed and nothing linked it, so a haus
-  # machine had scruff on PATH and no agent on it knew scruff existed. The whole
-  # claim of the standard is that a haus user does nothing to get these.
+  # This is step 3 of the family agent-surface standard, whose whole claim is
+  # that a haus user does nothing to get these.
   #
   # The list, and the derivation that proves the names in it are real, live in
   # ./tool-skills.nix — split out so `nix flake check` can build the thing this
@@ -560,8 +540,8 @@ let
 
   # One clause per skill directory in the instructions file's "what is
   # generated" sentence, present only while the directory is. The room
-  # switches used to imply trill's, pounce's and perch's; `haus.ai.skillExclude`
-  # can drop any name on top, so each clause reads off the installed set.
+  # switches and `haus.ai.skillExclude` can each drop a name, so each clause
+  # reads off the installed set.
   skillDirClause =
     names: rest:
     let
@@ -701,9 +681,8 @@ let
     exec ${tartAdapterBin}/bin/haus-tart-adapter screenshot "$@"
   '';
 
-  # scruff's tart runtime adapter (SPEC.md §5.5 in hausfold/scruff) — the "real
-  # tart backend" hausfold/scruff#52's own commit message left as a follow-up here.
-  # `scruff runtime up|enter|down --backend tart` is otherwise a dead end: the
+  # scruff's tart runtime adapter (SPEC.md §5.5 in hausfold/scruff). Without it
+  # `scruff runtime up|enter|down --backend tart` is a dead end: the
   # command exists but every machine refuses it with "no runtime adapter
   # tart" because nothing has ever written the TOML it looks for.
   #
@@ -1028,8 +1007,7 @@ in
   };
 
   # ---- what the room asks of itself -----------------------------------------
-  # These were terminal's, because terminal was where the agent options happened to
-  # be read. They are the AI room's invariants: they name only `haus.ai.*`,
+  # The AI room's invariants: they name only `haus.ai.*`,
   # and they must fail the rebuild on a machine that has no terminal room at all.
   assertions = [
     # This room is what puts `scruff` and `factory` on PATH, and their two
@@ -1157,11 +1135,6 @@ in
       + "host or desktop set it on purpose -- drop the line, or turn the room on."
     );
 
-  # ---- the payload: the system profile ---------------------------------------
-  # `with pkgs` because that is the shape modules/core wrote these in and the
-  # comments below name bare `scruff`. Nothing here is conditional on another
-  # room — a machine with no terminal and no bar still gets a working `scruff`
-  # and a working `agent-state`.
   # ---- the payload: the idle-sleep half, as a per-user agent -----------------
   # Runs at BOTH stops, `idle` and `lid`, and that is on purpose rather than an
   # oversight: `lid` is defined as "the idle half plus the lid", so the shallow
@@ -1310,18 +1283,21 @@ in
   # `prev` is already that host's wrapper and `.override` no longer exists.
   nixpkgs.overlays = lib.mkBefore [ (import ../lib/claude-code.nix) ];
 
+  # ---- the payload: the system profile ---------------------------------------
+  # `with pkgs` because the comments below name bare `scruff`. Nothing here is
+  # conditional on another room — a machine with no terminal and no bar still
+  # gets a working `scruff` and a working `agent-state`.
   environment.systemPackages = lib.mkIf cfg.enable (
     with pkgs;
     [
-      # scruff — agent worktrees, its own product now (hausfold/scruff, taken as
+      # scruff — agent worktrees, its own product (hausfold/scruff, taken as
       # a flake input). Every caller haus owns is on it: terminal's
-      # ⌘↵ runs `scruff new --open` (bare `scruff new` only prints the path since
-      # scruff 0.2.94), pounce's Spawn Agent goes through `scruff spawn`, and
+      # ⌘↵ runs `scruff new --open` (bare `scruff new` only prints the path),
+      # pounce's Spawn Agent goes through `scruff spawn`, and
       # the Claude Code WorktreeCreate/WorktreeRemove hooks — which this room
       # DECLARES into ~/.claude/settings.json and re-asserts on every rebuild
       # (the claude record's `settings`, ./clients/claude) — point at
-      # `scruff hook create` / `scruff hook remove`. Its bash predecessor `wt.sh`
-      # has been retired entirely; there is no fallback to roll back to.
+      # `scruff hook create` / `scruff hook remove`.
       scruff
 
       # `factory` — the same capability from the other end. scruff opens the
@@ -1344,14 +1320,14 @@ in
       # `tart` — the VM half of the same tool. A lane that needs to SEE a
       # change work (the palette, the bar, a keybind, an installer run) takes
       # its own headless macOS rather than the screen the user is sitting in
-      # front of, and the instructions this room writes now say so in the
+      # front of, and the instructions this room writes say so in the
       # first bullet of "the screen belongs to the person at it". An
       # instruction whose binary isn't there is worse than no instruction:
       # the agent reads it, tries, fails, and reaches for the pointer
       # anyway. So `tart` arrives WITH `scruff`, not as a manual step beside
       # it — the room already writes the adapter that drives it.
       #
-      # The disk cost this room was once careful about is the IMAGES (tens of
+      # The disk cost is the IMAGES (tens of
       # GB each), not this binary, and no image is pulled until someone runs
       # `scruff runtime up` — see the adapter's own `SCRUFF_TART_BASE` refusal.
       # nixpkgs marks tart unfree (Fair Source); modules/core already sets
@@ -1365,7 +1341,7 @@ in
       hausVmShot
 
       # `claude-statusline` — the agent-worktree HUD for Claude Code's status bar
-      # (terminal's claudeCodeSettings points the `statusLine` key here). Row 1 is
+      # (the claude record's claudeCodeSettings points the `statusLine` key here). Row 1 is
       # THIS session's worktree name + one status token (⏏ purge / N^ commits —
       # blue when unmerged, orange when they landed AFTER the PR merged and no PR
       # covers them / +A -D uncommitted); rows below list sister `scruff` worktrees across
@@ -1376,8 +1352,8 @@ in
       # It doubles as the writer for bar's `aiUsage` pill: Claude Code hands
       # every render the account's 5-hour + weekly rate-limit percentages, so the
       # render path stashes them to ~/.cache/claude-statusline/usage-claude.tsv —
-      # the cheapest source there is, and still the primary one. It is no longer
-      # the ONLY one: a statusline is a TUI feature and the macOS app renders
+      # the cheapest source there is, and the primary one. Not the ONLY one:
+      # a statusline is a TUI feature and the macOS app renders
       # none, so the refresher also polls the account itself, which is the only
       # source that counts what the GUI burned. See its Claude block.
       # `HAUS_UI_SH` injected rather than resolved, and this is the one caller
@@ -1409,8 +1385,8 @@ in
       # `agent-state <working|waiting|idle|remove> <client>` instead.
       (writeShellScriptBin "agent-state" (builtins.readFile ../bar/sketchybar/plugins/agents-hook.sh))
 
-      # `agent-desktop-guard` — the PreToolUse hook terminal wires into
-      # ~/.claude/settings.json (terminal's claudeCodeSettings both declares the
+      # `agent-desktop-guard` — the PreToolUse hook the claude record wires into
+      # ~/.claude/settings.json (its claudeCodeSettings both declares the
       # hook and sets the permission mode this counterweights). That mode is
       # "auto", which is right for files and wrong for the screen: an agent that
       # decides to foreground an app or click something just does it, mid-sentence,
@@ -1441,8 +1417,7 @@ in
       # before it answers, which is seconds even with no lanes registered; the
       # bar's agents popup redraws on a 10s tick and the Lanes palette opens
       # under pounce's 8-SECOND loading skeleton, so neither can run it inline.
-      # Both call this instead. It lives here rather than in bar, where the
-      # block started, because the room that owns the capability owns its
+      # Both call this instead. It lives here rather than in bar because the room that owns the capability owns its
       # payload — and because the launcher's picker needs it on a machine whose
       # bar is off. Its header has the numbers.
       (writeShellScriptBin "scruff-cache" (builtins.readFile ./scruff-cache.sh))
