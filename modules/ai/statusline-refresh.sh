@@ -14,11 +14,10 @@
 #     ahead   = commits on the branch not in its default branch
 #     files/ins/del = uncommitted working-tree delta (live checkouts only)
 #     prstate = "#7 open" | "#7 merged" | "#7 closed" | "#7 merged+3" | "-"
-#               ("-" = none; see below. merged+K = the PR merged and K commits
-#                landed on the branch SINCE — un-shipped work no PR covers.
-#                A PR outside the repo-wide --limit 100 window is recovered by
-#                the per-branch fallback (pr_json_for_branch), so "-" means gh
-#                found no PR for the branch, not "not in the newest 100".)
+#               ("-" = gh found no PR for the branch, even past the repo-wide
+#                --limit 100 window; see pr_json_for_branch. merged+K = the PR
+#                merged and K commits landed on the branch SINCE — un-shipped
+#                work no PR covers.)
 #     parent  = the cwd this worktree was spawned FROM (registry col 5). The
 #               statusline shows a session only the rows whose parent == its cwd.
 #   Only IN-FLIGHT rows are written (ahead>0, or dirty, or has a PR).
@@ -27,14 +26,15 @@
 # behind upstream, on its own much longer TTL. Same reason it lives here — it
 # needs the network, and the network must never be in the render path.
 #
-#   --usage-only   skip the panel + the lock nag; refresh ONLY the Codex and
-#                  Opencode usage feeds at the bottom, then poke bar's pill.
-#                  This is how the aiUsage pill stays alive on a machine driving
-#                  one of those rather than Claude: those feeds are
-#                  PULLED (an API call, a sqlite read, a CLI question) instead of
-#                  pushed by the client, so with no Claude statusline rendering anywhere,
-#                  nothing would ever run them and the pill would grey itself out
-#                  within half an hour. The panel — and the `gh` traffic it costs
+#   --usage-only   skip the panel + the lock nag; refresh ONLY the pulled feeds
+#                  below (Opencode, Codex, Claude's account pull, the token
+#                  counter), then poke bar's pill. This is how the aiUsage pill
+#                  stays alive on a machine with no Claude statusline rendering
+#                  anywhere (a Codex or Opencode machine, or Claude's macOS app):
+#                  those feeds are PULLED (an API call, a sqlite read, a keychain
+#                  question) instead of pushed by the client, so nothing else
+#                  would ever run them and the pill would grey itself out within
+#                  half an hour. The panel — and the `gh` traffic it costs
 #                  — is deliberately excluded: only a statusline reads panel.tsv.
 set -euo pipefail
 usage_only=0
@@ -83,9 +83,7 @@ mtime() { # mtime <file> — modification time in epoch seconds, 0 when unknown
   # `stat -f %m` is BSD/macOS, which is where this runs. On GNU coreutils -f is
   # --file-system and takes NO argument, so `%m` is parsed as a second FILE
   # operand: stdout gets a filesystem block for the real file, stderr an error
-  # about `%m`, and the exit status is 1. Measured on coreutils 9.11 — an
-  # earlier version of this comment said it printed "/" and exited 0, which it
-  # does not. The conclusion is the same and the reason is better: honouring
+  # about `%m`, and the exit status is 1 (measured on coreutils 9.11). Honouring
   # that status would give you 0 (fail-closed, but WRONG, and it never reaches
   # the GNU branch), so swallow it and judge the TEXT. Accept the BSD result
   # only when it is numeric, then try GNU stat; finally insist on digits so the
@@ -520,7 +518,7 @@ if [ -f "$OPENCODE_DB" ] && command -v sqlite3 >/dev/null 2>&1; then
   # collapse to one delimiter, the used epoch lands in the reader's `model`, and
   # `used` silently falls back to the written stamp — which is now always `now`,
   # so Opencode would win `latest` permanently and draw its mark from an epoch.
-  # Exactly the bug this change exists to remove, re-entering by the back door.
+  # Exactly the stale-stamp bug above, re-entering by the back door.
   printf "%s\t%s\t0\t0\t%s\topencode\t%s\t%s\t%s\n" \
     "$oc_today" "$oc_mtd" "$(date +%s)" "${oc_model_id:-opencode}" "${oc_prov_id:-google}" "$oc_sec_stamp" \
     > "$CACHE_DIR/usage-opencode.tsv.tmp"
@@ -1070,8 +1068,8 @@ if [ "$tok_fresh" = 0 ] && [ -d "$PROJECTS_DIR" ]; then
   tok_monthstart=$(( tok_midnight - (10#$tok_dom - 1) * 86400 ))
 
   at_utc() { # at_utc <epoch> <fmt> — BSD -r, else GNU -d. Unlike `stat -f` below,
-    # the wrong flag genuinely FAILS here (GNU's -r wants a filename), so exit
-    # status can pick the winner. The 9999 fallback is deliberate: an unreadable
+    # the wrong flag fails here with NOTHING on stdout (GNU's -r wants a
+    # filename), so exit status can pick the winner. The 9999 fallback is deliberate: an unreadable
     # clock should leave every bucket empty, not file all of history under today.
     date -u -r "$1" "$2" 2>/dev/null || date -u -d "@$1" "$2" 2>/dev/null || printf '9999'
   }
@@ -1089,9 +1087,9 @@ if [ "$tok_fresh" = 0 ] && [ -d "$PROJECTS_DIR" ]; then
   case "$tok_weekday" in 9999) tok_weekday=$tok_day ;; esac
   tok_month=${tok_day%-*}
 
-  # `stat -f` is BSD; on GNU that flag means --file-system and does NOT fail on
-  # an unknown directive (same trap as mtime() above), so only a numeric answer
-  # proves which one we are holding. The separator is a REAL tab, written $'\t':
+  # `stat -f` is BSD; on GNU that flag means --file-system, and it prints a
+  # filesystem block to stdout BEFORE failing on the directive (same trap as
+  # mtime() above), so only a numeric answer proves which one we are holding. The separator is a REAL tab, written $'\t':
   # GNU stat expands escapes in its format and BSD stat does not, so a literal
   # backslash-t reaches awk unsplit on exactly the platform this runs on.
   tok_flag=-f tok_fmt=$'%z\t%N'
