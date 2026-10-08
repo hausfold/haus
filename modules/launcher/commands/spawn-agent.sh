@@ -57,8 +57,7 @@
 #   ↵    spawn — in the BACKGROUND: the lane's window opens on T/<repo>
 #        without ever reaching your screen
 #   ⇧↵   newline — the task is often a list, not a sentence
-#   ⌘↵   capture a screenshot first, then spawn (this used to be a whole second
-#        palette entry, "Spawn Agent with Screenshot")
+#   ⌘↵   capture a screenshot first, then spawn
 #   ⌃↵   spawn and FOLLOW it: the lane window takes the screen, as it used to
 #   ⌥↵   your drafts
 #   ⇥    which client this ONE lane opens in (⇧⇥ backwards)
@@ -156,9 +155,7 @@ DRAFT_KEY="spawn-agent"
 SHOTS="$HOME/.cache/haus-agent-screenshots"
 
 # The one parse of a pounce menu answer — menu_commit / menu_field. Its
-# MENU_ROW keeps a ⇧↵ answer's newlines and tabs intact, which is what this
-# script's private action_of/payload_of pair existed to get right before the
-# parse moved into lib/.
+# MENU_ROW keeps a ⇧↵ answer's newlines and tabs intact.
 . "$(dirname "$0")/lib/menu-commit.sh"
 # A `--dial` step's commit grows one MIDDLE field —
 # "<action>\t<name=value;…>\t<line-or-text>" — so the step that passed the flag
@@ -194,13 +191,10 @@ notice() {
 }
 
 # The lane opener is scruff's own `open` seam, installed by the terminal room.
-# Checked HERE, before anything is created, for the reason the client check
-# below gives: a worktree with nothing to open it is litter.
-# NOTE: $OPENER is a PRECONDITION PROBE here and is never executed by this
-# script any more — `scruff spawn --prompt` drives the same seam itself, reading
-# the path from ~/.config/scruff/config.toml. Checked anyway, and here rather than
-# 250 lines down where it is used, because a lane with nothing to open it is
-# litter and this is before anything is created.
+# $OPENER is a PRECONDITION PROBE and this script never executes it —
+# `scruff spawn --prompt` drives the seam itself, reading the path from
+# ~/.config/scruff/config.toml. Checked here, before anything is created,
+# because a worktree with nothing to open it is litter.
 OPENER="$HOME/.config/haus/lanes/lane-open.sh"
 for tool in scruff zmx; do
   command -v "$tool" >/dev/null 2>&1 && continue
@@ -314,7 +308,8 @@ fi
 # the list is written out — `scruff spawn --agent` refuses anything else, so a
 # fifth client is a scruff change first and a line here second.
 # One function so it is testable: it reads only PATH and `scruff agent default`,
-# and everything it decides lands in the three globals named above.
+# and everything it decides lands in four globals — the two above, plus
+# $agent_missing and $agent_dial, explained where they are set.
 resolve_agents() {
   agent="$(scruff agent default 2>/dev/null)"
   [ -n "$agent" ] || agent="claude"
@@ -340,7 +335,7 @@ resolve_agents() {
   # `rules.json` can silence it by source like anything else haus draws.
   #
   # The function only RECORDS it, in $agent_missing; the banner is the caller's,
-  # two reasons deep. resolve_agents reads PATH and one command and writes three
+  # two reasons deep. resolve_agents reads PATH and one command and writes four
   # globals — keeping it that way is what lets a test run it for real instead of
   # against a copy, and a function that draws on the screen is a function no test
   # can call twice. (haus-notify resolves at an absolute path this script's own
@@ -394,9 +389,6 @@ fi
 # The mechanism and its fix are pounce's (State.swift's chainRowActions,
 # Window.swift's fade token) — don't restate the timings here, they move there.
 #
-# NEEDS a pounce that reads `--chain-rows` (hausfold/pounce, 2026-09-03). An
-# older daemon parses both flags and ignores the row half, which is exactly
-# today's behaviour: inert, not wrong, until the lock moves.
 # (A dismissal is not a commit and chains nothing, so Esc still closes cleanly.)
 repo_sel="$(printf '%s\n' "$list" |
   pounce --grid --chain enter,cmd,opt,ctrl --chain-rows enter \
@@ -776,10 +768,10 @@ name="$(basename "$dir")"
 # sooner still — or, with the display asleep and no window to make, a
 # `zmx run … -d` that returns as soon as the session is up. Either way nothing
 # after that — the launcher script, `zmx attach`, the client itself — can reach
-# this exit status. Those failures are caught where they happen instead: lane-open.sh's hold keeps a non-zero client exit on screen (or,
-# for a background lane, in the session's scrollback) rather than letting it
-# flash shut, which is the evidence you would otherwise want this branch to
-# preserve.
+# this exit status. Those failures are caught where they happen instead:
+# lane-open.sh's hold keeps a non-zero client exit on screen (or, for a
+# background lane, in the session's scrollback) rather than letting it flash
+# shut, which is the evidence you would otherwise want this branch to preserve.
 if [ "$rc" -ne 0 ]; then
   # `scruff drop`, not `git worktree remove`: the raw remove takes the checkout
   # and the branch but leaves scruff's REGISTRY ROW, so the lane goes on being

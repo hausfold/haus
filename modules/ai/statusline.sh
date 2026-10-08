@@ -8,11 +8,11 @@
 #          session spawned in ANOTHER repo — there so they survive the row-2+
 #          list being capped or clipped in a short pane) ·
 #          haus-nag (⇡N — commits your pinned haus is behind, `haus update`)
-#          · ctx% (green <100k tokens, yellow <200k, red beyond — banded on
+#          · ctx% (ok <100k tokens, warn <200k, err beyond — banded on
 #          absolute tokens, not the percentage) · cost · permission-mode icon
 #          (blank auto, ⏵ default, ⏵⏵ accept,
 #          ⏵⏵⏵ bypass, ⏸ plan, ⊘ dontAsk) · model tier chip (O5 / S5 / H45 / F5).
-# Tint   : on Fable/Mythos only, every row gets a dark magenta background painted
+# Tint   : on Fable/Mythos only, every row gets a dark amber background painted
 #          edge-to-edge, so the special model is legible from across a wall of
 #          panes without reading anything. Per-pane, hence safe — see TINT_FABLE.
 # Row 2+ : the worktrees THIS session spawned in OTHER repos (`scruff child`) —
@@ -35,10 +35,10 @@
 #                   branch at merge). `scruff reship` opens the follow-up.
 #     N^ (subject)  N commits on the branch, not yet merged
 #     +A -D         uncommitted line changes (ok/err), when no commits yet
+#     (empty)       nothing differs from main → show nothing (no "clean")
 #
 # Those are snug ROLE names, not colours — the hexes resolve against whichever
 # nebelung flavour this machine wears. See the palette block below.
-#     (empty)       nothing differs from main → show nothing (no "clean")
 #
 # Cheap local git runs inline every render; the cross-repo + gh enumeration is
 # done DETACHED by statusline-refresh.sh and cached (stale-while-revalidate).
@@ -81,8 +81,8 @@ fi
 HAUS_GH_BACKSTOP="${HAUS_GH_BACKSTOP:-0}"
 
 # ---- snug's bash painter ----------------------------------------------------
-# This block used to be eleven hand-picked 256-colour indices. They are now
-# aliases onto snug's GENERATED roles, so every hex comes from one place —
+# Every slot below is an alias onto one of snug's GENERATED roles, so every
+# hex comes from one place —
 # `script/gen-palette.sh` in hausfold/snug, resolved against nebelung — and a
 # flavour change reaches the HUD without anyone editing this file.
 #
@@ -174,9 +174,9 @@ ui_load
 UI_TTY=1
 [ -n "$UI_READY" ] && { ui__detect_profile; ui__resolve_palette; }
 
-# The eleven slots, each an alias onto one of the nine roles. Three collisions.
-# Two lose nothing; the third is a real change and is listed so nobody has to
-# rediscover it from the screen:
+# The twelve slots, each an alias onto one of the nine roles, so several share
+# one. Three of those collisions are worth a line; the first two change what is
+# on screen, listed so nobody has to rediscover them from there:
 #
 #   * DOT (was 108, a green-grey) and DIM (244, grey) both land on `muted`, so
 #     the clean ● now renders in the SAME colour as the cost and the model chip
@@ -224,9 +224,10 @@ R="$R0"         # in-row reset; re-armed to keep the tint when one is set (below
 # every row, so the whole block reads as "this pane is on the special model" at
 # a glance across a wall of panes. #382713 is the terminal background (nebelung
 # ghostty: 202020) warmed toward amber — dark enough that the dimmest foreground
-# in the bar — the 244 gray of cost, and of ctx% on a Claude Code too old to
-# send token counts — keeps a 3.6:1 contrast ratio, which is what it has against the bare
-# background anyway; a brighter amber costs real
+# in the bar — the `muted` grey of cost, and of ctx% on a Claude Code too old
+# to send token counts — keeps a 3.6:1 contrast ratio (measured against the 244
+# that role replaced), which is what it has against the bare background
+# anyway; a brighter amber costs real
 # legibility fast, because yellows carry far more luminance per unit of colour
 # than the plum this started as. Truecolor rather than a 256 index because the
 # cube has nothing simultaneously this dark and this saturated; every terminal
@@ -258,7 +259,7 @@ render_status() {
   # that pane: those K commits have no PR, no remote branch (GitHub deleted it at
   # merge), and `scruff` correctly refuses to reap them. The bar said done while the
   # work sat there, which is how un-shipped commits went unnoticed. Show the count
-  # instead, in the same orange: it is the same "this branch needs you" hue.
+  # instead, in the same `warn` role: it is the same "this branch needs you" hue.
   case "$state" in merged+*) relanded="${state#merged+}" ;; esac
   # purge outranks it: purge=1 means the tip really IS an ancestor of the default
   # branch — those K commits landed too, by some later merge, so ⏏ is the truth.
@@ -282,19 +283,18 @@ render_status() {
 # SGR color survives inside the link. The hyperlink adds ZERO visible width;
 # callers must size the segment from the plain "#N" text, not from this output
 # (plain() strips SGR, not OSC 8). A "#N" is clickable ONLY when its caller
-# passes a url — every caller here does (row 1's own pill, the row-1 sister
-# cluster, and the row-2 children). CC forwards OSC 8 to the terminal, so in a
+# passes a url — both callers here do (row 1's own pill and the row-2
+# children; the row-1 child-PR cluster prints its own links). CC forwards OSC 8
+# to the terminal, so in a
 # hyperlink-aware terminal ⌘-click opens the PR — no shift, even though this
 # pill is drawn inside an agent TUI that is tracking the mouse. Ghostty consumes
 # a cmd-click as a link click before it forwards any mouse report, so the
-# tracking never gets a say. (This comment claimed ⌘⇧ until 2026-08-20, arguing
-# from the SGR mouse report's missing super bit — real, but it describes what
-# the PROGRAM could see, not whether the terminal acts first. ⇧ is for ghostty's
-# SELECTION over a mouse grab, which is what `mouse-shift-capture = never` in
-# its config buys, and it was never part of the link gesture.) Terminals that
-# swallow OSC 8 (some tmux
-# builds — anthropics/claude-code#21586, #27047) just show the colored "#N" with
-# no link, which is a harmless graceful downgrade.
+# tracking never gets a say — the SGR mouse report's missing super bit
+# describes what the PROGRAM could see, not whether the terminal acts first. ⇧
+# is for ghostty's SELECTION over a mouse grab (`mouse-shift-capture = never`
+# in its config), never part of the link gesture. Terminals that swallow OSC 8
+# (some tmux builds — anthropics/claude-code#21586, #27047) just show the
+# colored "#N" with no link, which is a harmless graceful downgrade.
 render_pr() {
   local pr="$1" url="${2:-}" state="${1##* }" col="$DIM" num="${1%% *}"
   [ -n "$pr" ] || return 0
@@ -320,9 +320,8 @@ mtime() { # mtime <file> — modification time in epoch seconds, 0 when unknown
   # is BSD/macOS, which is where this runs — but the test suite runs on a GNU
   # box in CI, where -f is --file-system and takes NO argument, so `%m` becomes
   # a second FILE operand: stdout is a filesystem block for the real file and
-  # the exit status is 1. (Measured on coreutils 9.11. This comment used to say
-  # it printed "/" and exited 0; it does not.) Honouring that status would give
-  # you 0 — fail-closed, but wrong, and it never reaches the GNU branch — so
+  # the exit status is 1 (measured on coreutils 9.11). Honouring that status
+  # would give you 0 — fail-closed, but wrong, and it never reaches the GNU branch — so
   # swallow it and judge the TEXT. Accept the BSD result only when it is
   # numeric, then try GNU stat, then insist on digits so the caller's
   # arithmetic can't blow up.
@@ -476,10 +475,9 @@ mode=${mode%\"}
 # is switching to a model that has none, and a blank chip couldn't tell you a
 # switch had happened. The mode icon says WHAT changed; this says WHY.
 #
-# Letter carries the meaning, never colour alone — dim for the everyday tiers,
-# magenta for Fable/Mythos so the special model still announces itself. Magenta
-# is ANSI slot 5, not a fixed 256 index, so it renders through the terminal theme
-# (nebelung maps it to pink #f2c4e5).
+# Letter carries the meaning, never colour alone — `muted` for the everyday
+# tiers, the `accent` role (MODEL_HI) for Fable/Mythos so the special model
+# still announces itself.
 #
 # The version is the digit run right after the family, plus one more `-N` group
 # if present: opus-5 → O5, haiku-4-5-20251001 → H45 (the date suffix is not a
@@ -632,14 +630,11 @@ fi
 # colored by state. A lane that has done nothing yet has NO token — see the
 # never-diverged arm of purge above, which is what stopped a five-second-old
 # worktree opening with ⏏ — so fall back to a muted ● (clean / at-main). The
-# model glyph used to sit here — it moved to the tail (per-pane, next to
-# ctx%/cost/mode). The PR "#N" pill follows the lead, left of the name, same as
-# the children.
+# PR "#N" pill follows the lead, left of the name, same as the children.
 st=$(render_status "$ahead" "$files" "$ins" "$del" "$own_pr" "$purge")
 lead="$st"; [ -z "$lead" ] && lead="${DOT}●${R}"
-# Hyperlink the own pill to its PR (OSC 8), same as the sister/child rows — this
-# is what makes a worktree pane's OWN "#N" ⌘-clickable; before, only the sister
-# cluster and row-2 children got urls, so an in-worktree pane's own pill was dead.
+# Hyperlink the own pill to its PR (OSC 8), same as the cluster and child rows —
+# this is what makes a worktree pane's OWN "#N" ⌘-clickable.
 # Take Claude Code's url when it's talking about the same PR (real url, any host);
 # otherwise rebuild it from the slug + number already in hand (no extra gh call),
 # which is also the only option once the PR merges and stdin stops reporting it.
@@ -736,7 +731,7 @@ esac
 # GitHub compare call, 30-min TTL); the render path just reads a 1-line file, so
 # this costs no network and no nix. Nothing renders when you're up to date.
 #
-# Yellow at first (haus's own `warn` colour), red once the PIN itself is older
+# `warn` at first, `err` once the PIN itself is older
 # than NAG_ALERT_DAYS — being a few commits behind for an afternoon is normal;
 # running a pin nobody has rebuilt in a fortnight is the thing worth seeing.
 # ⌘-click opens the GitHub compare of exactly the commits you haven't taken.
@@ -787,7 +782,7 @@ emit() {
   [ "$pad" -lt 0 ] && pad=0
   printf '%s%s%*s%s\n' "$BG" "$1" "$pad" '' "$R0"
 }
-# ctx% colour: green under 100k tokens, yellow to 200k, red past it — banded on
+# ctx% colour: `ok` under 100k tokens, `warn` to 200k, `err` past it — banded on
 # the ABSOLUTE token count, never on the percentage. The percentage is relative
 # to `context_window_size`, which is 200k on most models and 1M on the extended
 # ones, so the same 40% is 80k tokens in one pane and 400k in the next; a colour
@@ -800,15 +795,15 @@ emit() {
 #
 # The number stays the number, so colour is a second channel over a value that
 # already reads on its own (the same rule the model chip follows) — a terminal
-# that drops the SGR loses nothing. Missing token counts fall back to the old dim
-# gray rather than guessing a band from the percentage — that path is for a
+# that drops the SGR loses nothing. Missing token counts fall back to `muted`
+# rather than guessing a band from the percentage — that path is for a
 # Claude Code too old to send the two fields, and ONLY that: a fresh pane sends
 # a real 0/0 (the payload builder defaults them, it never omits them), so it
-# renders a green 0%, which is what it should.
+# renders an `ok` 0%, which is what it should.
 #
-# The bands share their colours with the chips either side — the ⇡ haus-nag is
-# yellow at the same 179 and red at the same 167, and the child-PR cluster's open
-# PRs are green at the same 71 — so at ≥200k a stale-haus pane shows two red
+# The bands share their roles with the chips either side — the ⇡ haus-nag is
+# the same `warn` and `err`, and the child-PR cluster's open PRs the same
+# `ok` — so at ≥200k a stale-haus pane shows two red
 # numbers side by side meaning unrelated things. Accepted: each chip carries its
 # own glyph (⇡, %, $) and the tail-group order is fixed, so the position tells
 # you which is which before the colour does. Same trade the tint paragraph makes
@@ -894,11 +889,10 @@ while IFS=$'\t' read -r pslug pname pahead pfiles pins pdel ppr pparent; do
   bullet="$pst"; [ -z "$bullet" ] && bullet="${DOT}●${R}"
   bulletplain=$(plain "$bullet"); bulletlen=${#bulletplain}
   # An orphan has no recorded parent — a raw `git worktree add` that skipped
-  # `scruff child`, so nothing in the registry knows who owns it. It rides in
-  # front of the repo name because the bullet slot is the STATUS token now
-  # (haus#…, "Prioritize active Claude statusline rows"), which is what took
-  # the old leading ◇ away and left orphans rendering identically to real
-  # children — invisible, in the one pane that surfaces them at all.
+  # `scruff child`, so nothing in the registry knows who owns it. Its ◇ rides
+  # in front of the repo name because the bullet slot is the STATUS token;
+  # without the mark an orphan renders identically to a real child —
+  # invisible, in the one pane that surfaces them at all.
   mark=""; [ "$orphan" = 1 ] && mark="${PURGE}◇${R}"
   marklen=0; [ -n "$mark" ] && marklen=1
   prlen=${#prnum}; [ "$prlen" -gt 0 ] && prlen=$((prlen+1))   # +1 for trailing space
