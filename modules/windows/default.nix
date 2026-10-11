@@ -78,8 +78,8 @@ let
   # leader key. `launchers` is the keyboard half, and the only one allowed to
   # render a binding: a null key in [mode.launch.binding] would be the literal
   # string. `workspaces` is ../workspaces' resolved haus.workspaces list —
-  # the workspace throw below is keyed off IT now, not off an app's own key,
-  # so several apps can share one workspace and one throw.
+  # the workspace throw below is keyed off IT, not off an app's own key, so
+  # several apps can share one workspace and one throw.
   apps = config.haus._roster;
   launchers = config.haus._launchers;
   workspaces = config.haus._workspaces;
@@ -94,8 +94,7 @@ let
   cfg = config.haus.windows;
 
   # Which workspace (if any) an app's window herds to, resolved by
-  # ../workspaces from haus.workspaces.*.apps — the app itself no longer
-  # carries a `workspace` field.
+  # ../workspaces from haus.workspaces.*.apps.
   appWorkspaceId = a: config.haus._appWorkspace.${a.id} or null;
 
   # The resolved keymap: chords + the glyphs that document them, from one table.
@@ -108,14 +107,9 @@ let
   # cheatsheet (see ./wm-bindings.nix — one table, rendered both ways so they
   # can't drift). Render each item's `binds` into aerospace.toml lines; a chord
   # maps to a single command ('cmd') or a list of commands (['a', 'b']).
-  # A function of the keymap now, and it returns NO window sections when
+  # A function of the keymap, and it returns NO window sections when
   # keys.windowNav = "none" — so the toml and the cheatsheet both go quiet
   # together instead of one advertising what the other didn't bind.
-  #
-  # The agent-spawn chord used to be the exception here — a section outside the
-  # windowNav gate, because ⌃⌘A was no navigation key. It left this room on
-  # 2026-08-18 for pounce's Ghostty-scoped tap (⌘↵, `cmd:lane-here`), so the
-  # table is once again nothing but window keys.
   wmBindings = import ./wm-bindings.nix {
     inherit lib k;
     inherit mouseFullscreen;
@@ -230,8 +224,8 @@ let
     + launchBind "alt-shift-${key}" [ "move-node-to-workspace ${id}" ];
 
   # The numbered workspaces' own rows. Generated rather than hand-written in
-  # aerospace.toml (where 1-4 lived until haus.windows.numberedWorkspaces existed)
-  # — the count is an option now, so the toml can't spell the digits out.
+  # aerospace.toml: the count is haus.windows.numberedWorkspaces, so the toml
+  # can't spell the digits out.
   launchDigits = lib.optionalString (k.leader != null) (
     lib.concatMapStrings (
       n:
@@ -432,15 +426,13 @@ let
     lib.optionalString (isRealAssign a) "[[on-window-detected]]\nif.app-id = '${a.appId}'\nrun = 'move-node-to-workspace ${appWorkspaceId a}'\n\n"
   ) apps;
 
-  # `float` entries — the generalised shape the three FaceTime/Trill/Ghostty
-  # rules used to be hardcoded as. Ghostty stays hand-written in aerospace.toml
-  # (its rule is startup-vs-runtime, not a plain always-float — see the
-  # comment there), so it never sets `float` itself. `titleRegex` scopes the
-  # float to matching windows only; AeroSpace has no primitive for centering a
-  # floating window's geometry or for a window pinned across every workspace
-  # ("sticky") — verified against upstream's own docs, which call sticky
-  # windows "not yet supported" — so neither is offered here; see the §5.4
-  # status entry for the citation.
+  # `float` entries. Ghostty stays hand-written in aerospace.toml (its rule is
+  # startup-vs-runtime, not a plain always-float — see the comment there), so
+  # it never sets `float` itself. `titleRegex` scopes the float to matching
+  # windows only; AeroSpace has no primitive for centering a floating window's
+  # geometry or for a window pinned across every workspace ("sticky") —
+  # upstream's own docs call sticky windows "not yet supported" — so neither
+  # is offered here.
   floatRules = lib.concatMapStrings (
     a:
     lib.optionalString (a.appId != null && a.float) (
@@ -708,9 +700,10 @@ lib.mkMerge [
   # desktop settings, not AeroSpace's, so a machine that turns the TILER off has
   # every reason to still want them — gating them behind the room switch would
   # make the two mutually exclusive in exactly the case where you want the other
-  # one. They live in this room rather than in core (where the rest of §5.6's
-  # settings groups live) because they are the one group that INTERLOCKS with
-  # what the room does; see the warning below, which core could not have written.
+  # one. They live in this room rather than in core (where the rest of the
+  # macOS settings groups live) because they are the one group that INTERLOCKS
+  # with what the room does; see the warning below, which core could not have
+  # written.
   #
   # The write itself is an ordinary pass-through: null stays null, upstream's
   # `nullOr bool` already means "leave it alone", and nothing here is TCC-gated.
@@ -875,10 +868,8 @@ lib.mkMerge [
         cask = lib.mkDefault "zen";
       };
 
-      # Always-float utility windows — the generalised shape of what used to
-      # be two hand-written aerospace.toml rules (§5.4's "window rules beyond
-      # assignment" box). Neither installs anything: FaceTime is stock macOS
-      # and Trill arrives with the Notifications room
+      # Always-float utility windows. Neither installs anything: FaceTime is
+      # stock macOS and Trill arrives with the Notifications room
       # (`haus.notifications.compositor`, off by default), never from here. So
       # both are metadata-only entries whose only job is naming a bundle id
       # and setting `float`, which costs nothing on a machine that doesn't
@@ -1088,8 +1079,8 @@ lib.mkMerge [
     # stays a raw homebrew.taps line: a tap isn't an app, and the roster models
     # what a machine HAS, not where Homebrew looks for it.
     #
-    # `trusted` is the whole reason this is an attrset rather than the bare
-    # string it used to be. Homebrew 6 refuses to load anything from a
+    # `trusted` is the whole reason this is an attrset rather than a bare
+    # string. Homebrew 6 refuses to load anything from a
     # third-party tap that nothing has trusted, and `brew bundle` reads that
     # trust out of the Brewfile — but only from the line that can be resolved to
     # a tap. nix-darwin defaults a CASK to `trusted: true` and a TAP to `false`,
