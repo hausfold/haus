@@ -15,9 +15,42 @@ on:
 permissions:
   contents: write
 
+# One run per tag. GitHub can deliver a single tag push as two `push` events;
+# both runs would evaluate, and the second would die on `gh release create`
+# against the release the first just published. The queue holds the twin until
+# the first run ends, and `gate` then finds the release there and skips every
+# job after it, so the twin finishes green having done nothing. Finish a red
+# release with `gh run rerun --failed`, which keeps gate's first answer, unless
+# a twin of it ran: a twin queued behind a red run finds no release and
+# publishes it, so look at the tag's other run before re-running this one.
+concurrency:
+  group: release-${ github.ref }
+  cancel-in-progress: false
+
 jobs:
+  gate:
+    name: tag not yet released
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      fresh: ${ steps.check.outputs.fresh }
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${ github.token }
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::notice::$GITHUB_REF_NAME is already released; this is a duplicate run, nothing to do"
+            echo "fresh=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "fresh=true" >> "$GITHUB_OUTPUT"
+          fi
+
   release:
     name: publish release
+    needs: gate
+    if: needs.gate.outputs.fresh == 'true'
     runs-on: ubuntu-latest
     # Same ceiling as check.yml's jobs, for the same reason: this one evaluates
     # the example host too, so it inherits every way that step can hang — and a
