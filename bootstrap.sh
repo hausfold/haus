@@ -752,7 +752,7 @@ fi
 
 # macOS settings to KEEP as your own instead of letting haus restyle them —
 # a comma list of dock,keyboard,finder. Empty (the default) means haus sets
-# all of them, exactly as before. Each kept category has its current values read
+# all of them. Each kept category has its current values read
 # and pinned into your host config (see settings_overrides above).
 KEEP="${HAUS_KEEP:-}"
 case ",$KEEP," in *,dock,*)     KEEP_DOCK=1   ;; *) KEEP_DOCK=   ;; esac
@@ -810,7 +810,7 @@ if [ -n "$INTERACTIVE" ]; then
     esac
 
     # macOS settings: keep your own, or let haus restyle them. Nothing
-    # selected (the default) = haus sets its tidy defaults, as before.
+    # selected (the default) = haus sets its tidy defaults.
     # Selected = your current values are read now and pinned into your config,
     # overriding haus — so your feel carries over to a fresh install.
     # The ’ below is a deliberate curly apostrophe: a plain ' would close the
@@ -1115,7 +1115,7 @@ for c in $ADOPT_CASKS; do cask_lines+="    \"$c\""$'\n'; done
 
 # Kept macOS settings — your current values, read now (read-only) and pinned so
 # they win over haus's lib.mkDefault opinions. Empty unless you chose to keep
-# a category, so a default install writes no system.defaults and behaves as before.
+# a category, so a default install's host file gets no system.defaults block.
 settings_lines="$(settings_overrides)"
 settings_block=""
 [ -n "$settings_lines" ] && settings_block=$'\n'"  # ---- macOS settings kept as yours (read at install) ----"$'\n'"$settings_lines"
@@ -1128,8 +1128,8 @@ settings_block=""
 # Rendered from haus's own module system (`nix build .#host-template`), so
 # it lists the options that exist at the revision you're about to pin, not
 # upstream's latest. That's a real flake fetch, so it's best-effort: a machine
-# that's offline, or pinning a haus older than the output, gets a config that
-# works exactly as before and a pointer to `haus options`.
+# that's offline, or pinning a haus older than the output, gets a working config
+# without the catalogue and a pointer to `haus options`.
 say "Rendering the option catalogue (every haus.* option, annotated)"
 IMPORTS_LINE=""
 if tmpl="$(nix build --no-link --print-out-paths \
@@ -1245,8 +1245,8 @@ fi
 
 # ---- optional: raise it right now ------------------------------------------
 # One more consent gate turns the two-command install into one. Asked only when
-# there's a terminal to ask on — scripted/--defaults runs keep the old contract
-# (scaffold, print the command, stop), and declining changes nothing: the command
+# there's a terminal to ask on — scripted/--defaults runs keep the two-step
+# contract (scaffold, print the command, stop), and declining changes nothing: the command
 # is already on screen above. Build first; a failed build activates nothing.
 RAISE=
 if [ -n "$INTERACTIVE" ] && [ -z "$DRY_RUN" ] && [ -n "${GUM:-}" ] \

@@ -94,22 +94,16 @@ ui_load() {
 # a machine that fails the probe.
 UI_WANT="ui_col ui_trow ui_table_data ui_table_clear"
 
-# The trigger probes, each overridable the way modules/core/awake.sh does it —
-# the suite (test/focus-auto.sh) stubs every one of them, which is how the
-# decision logic below is tested on a machine that is not a Mac. Nothing else
-# sets these.
+# Every FOCUS_*_BIN below exists for the suites, the way modules/core/awake.sh
+# does it, and nothing else sets one. test/focus-auto.sh stubs the trigger
+# probes, which is how the decision logic is tested on a machine that is not a
+# Mac; test/focus-timer.sh drives a whole arm-and-expire through LAUNCHCTL,
+# OSASCRIPT and SLEEP — twenty-five minutes on a fake clock, wake by wake, in a
+# few milliseconds — the only way the timer's claim rule gets RUN, not read.
 DATE="${FOCUS_DATE_BIN:-/bin/date}"
 PMSET="${FOCUS_PMSET_BIN:-/usr/bin/pmset}"
-# Not probes: the two macOS binaries the timer and the DND leg act THROUGH.
-# Overridable for the same reason the probes are — test/focus-timer.sh drives a
-# whole arm-and-expire on a machine with neither, which is the only way the
-# claim rule can be run rather than read. Nothing else sets them.
 LAUNCHCTL="${FOCUS_LAUNCHCTL_BIN:-/bin/launchctl}"
 OSASCRIPT="${FOCUS_OSASCRIPT_BIN:-/usr/bin/osascript}"
-# The timer's wait. Overridable so the suite can move a fake clock instead of
-# waiting on a real one — a whole twenty-five minutes, wake by wake, in a few
-# milliseconds, which is the only way the run loop's claim check is something
-# that gets RUN.
 SLEEP="${FOCUS_SLEEP_BIN:-/bin/sleep}"
 NETWORKSETUP="${FOCUS_NETWORKSETUP_BIN:-/usr/sbin/networksetup}"
 SYSTEM_PROFILER="${FOCUS_SYSTEM_PROFILER_BIN:-/usr/sbin/system_profiler}"
@@ -161,16 +155,10 @@ pounce_focus_available() {
 }
 
 note() { printf 'focus: %s\n' "$*" >&2; }
-# Everything this desktop puts on screen goes through `haus-notify`: trill
-# draws it when its daemon answers, macOS's own banner when it doesn't, and
-# `~/.config/trill/rules.json` is where you route or silence it — matching on
-# the `--source` below. It exits 0 whatever happens, so a missed banner can
-# never be why this script failed.
-#
-# Addressed absolutely because this runs under launchd (the pounce daemon), whose
-# PATH names nothing of ours. That path is
-# `environment.systemPackages` — stable across rebuilds, the same reason
-# `haus-activate` is reachable there.
+# Through `haus-notify`, whose `--source` is what `~/.config/trill/rules.json`
+# matches on; it exits 0 whatever happens, so a missed banner can never be why
+# this script failed. Addressed absolutely because the pounce daemon runs this
+# under launchd, whose PATH names nothing of ours.
 notify() { /run/current-system/sw/bin/haus-notify --source haus.focus --title focus --body "$1" >/dev/null 2>&1 || true; }
 poke_bar() {
     [ -x "$BAR_POKE" ] && "$BAR_POKE" focus_change >/dev/null 2>&1 || true
@@ -208,7 +196,7 @@ quiet_entry_id() {
     case "$n" in "" | *[!0-9]*) echo 0 ;; *) echo "$n" ;; esac
 }
 
-# Through a temp file, like the Slack stash above and the timer below, and for
+# Through a temp file, like the Slack stash and the timer below, and for
 # the same reason: a redirect truncates the moment the pipeline is set up, and
 # `timer_claim` reads BOTH of these on the bar's every tick and treats anything
 # it cannot parse as a void fuse — which it then deletes. A read that landed in
@@ -219,9 +207,9 @@ quiet_entry_bump() {
     printf '%s\n' "$(($(quiet_entry_id) + 1))" >"$next" && /bin/mv -f "$next" "$QUIET_ENTRY"
 }
 
-# Press the DND chord. Preferred: `pounce focus toggle` — since pounce 0.4.3
-# the CLI forwards the press to the resident daemon whenever the calling
-# context lacks the grant (TCC checks the RESPONSIBLE process — sketchybar
+# Press the DND chord. Preferred: `pounce focus toggle`, whose CLI forwards
+# the press to the resident daemon whenever the calling context lacks the
+# grant (TCC checks the RESPONSIBLE process — sketchybar
 # for the pill, your terminal for the CLI — never the pounce binary itself),
 # so the one Accessibility checkbox on the launcher's Pounce.app covers every
 # surface. Fallback: System Events — only without a focus-capable pounce;
