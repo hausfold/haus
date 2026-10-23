@@ -11,8 +11,8 @@
 # (scripts/launch.sh). This overlay is the reason that design decision was made,
 # not a consumer that happened to find it useful.
 #
-# It also has to exist for the windows you most want to search: terminal seeds
-# Claude Code with `tui = "fullscreen"` (modules/terminal/default.nix), so an
+# It also has to exist for the windows you most want to search: the AI room
+# seeds Claude Code with `tui = "fullscreen"` (modules/ai/clients/claude), so an
 # agent renders in the ALT-SCREEN, which by definition has no scrollback. For
 # those the session TRANSCRIPT is the only real corpus — and it is a better one
 # anyway: complete, and it still holds what was inside collapsed tool output.
@@ -27,11 +27,10 @@
 #     inside the opencode server process, so it inherits $ZMX_SESSION the same
 #     way), falling back to a match on the session's recorded directory. See
 #     opencode_session / render_opencode.
-#   any other       → `zmx history <session>`, the whole scrollback. That is
-#     MORE than the old zellij path gave: `dump-screen --full` was capped at
-#     scroll_buffer_size. It includes CODEX windows: Codex reports state through
-#     agent-state like the others, but passes no conversation id and this repo
-#     knows no on-disk history path for it, so there is nothing to join to.
+#   any other       → `zmx history <session>`, the whole scrollback. That
+#     includes CODEX windows: Codex reports state through agent-state like the
+#     others, but passes no conversation id and this repo knows no on-disk
+#     history path for it, so there is nothing to join to.
 #
 # WHICH WINDOW DID THE USER MEAN
 #
@@ -42,12 +41,8 @@
 # lanes/lane-open.sh stamps for a lane and the `window=` one scripts/launch.sh
 # stamps for everything else, and only then by a lane's forced title.
 #
-# This is a two-stage script and it stays two-stage, though the reason changed.
-# Under zellij, stage 1 ran inside a throwaway 1% pane and could not detach
-# anything (a `close_on_exit` pane's command exiting tears down its whole
-# process group, so a `nohup`ed helper was killed before its first line). Now
-# stage 1 runs in the pounce daemon, and the split is simply that the overlay is
-# a different process in a different window:
+# This is a two-stage script: stage 1 runs in the pounce daemon, and the overlay
+# is a different process in a different window:
 #
 #   `launch`  resolve the focused session, then spawn the overlay window.
 #   `ui`      runs inside the overlay: build the corpus, then fzf, driven by rg
@@ -168,9 +163,8 @@ cmd_launch() {
     # ^s flips scope mid-search, so the rule can't live on this path alone:
     # `replant` below re-sizes the open window on every toggle, both ways.
     #
-    # Under zellij both were a 100%/100% borderless floating PANE; --pin lands it
-    # on the current workspace and force-floats it, since windows/aerospace.toml
-    # floats every runtime-spawned Ghostty window anyway.
+    # --pin lands it on the current workspace and force-floats it, since
+    # windows/aerospace.toml floats every runtime-spawned Ghostty window anyway.
     #
     # The overlay's own window has no zmx session (float-term runs the command
     # directly, not through scripts/launch.sh), which is also why it never shows
@@ -222,9 +216,7 @@ build_corpus() {
     # `term.<n>` as-is: it is already short, and the number is the only thing
     # distinguishing one shell from another.
     #
-    # No de-duplication pass here, unlike the zellij version, which had to
-    # number `workshop.1`, `workshop.2` because several panes could share one
-    # tab name. A zmx session name is unique by construction.
+    # No de-duplication pass: a zmx session name is unique by construction.
     # This column was live-broken for a release: the `sub` was flipped to
     # `scruff\.` during the rename while lane-open.sh was still writing the old
     # prefix, so every lane row carried its full prefix in the one column whose
@@ -416,11 +408,10 @@ cmd_ui() {
     # closes it when the command exits, so an unheld message would flash past).
     # A plain string, not an array: the shebang is /bin/bash, which on macOS is
     # still 3.2, where `${#arr[@]}` on an EMPTY array trips `set -u`.
-    # bat is deliberately NOT in this list any more — cmd_preview renders the
-    # context window with awk now. This list is the tools whose ABSENCE would be
-    # invisible rather than loud, which is why it isn't every binary the script
-    # touches: awk, jq, zmx and sqlite3 also resolve off the PATH above, but awk
-    # is in every base system and the other three fail where you can see it.
+    # This list is the tools whose ABSENCE would be invisible rather than loud,
+    # which is why it isn't every binary the script touches: awk, jq, zmx and
+    # sqlite3 also resolve off the PATH above, but awk is in every base system
+    # and the other three fail where you can see it.
     local missing="" tool
     for tool in rg fzf; do
         command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
@@ -464,10 +455,8 @@ cmd_ui() {
     # ONE border, ours, drawn by fzf — the window has none of its own
     # (macos-titlebar-style = hidden). Everything the eye doesn't need is off:
     #
-    #   - The only title is the border's top-LEFT label, `find · this window`.
-    #     It used to be centred while zellij's floating-pane frame said "find" in
-    #     its own corner, so the word appeared twice; now the scope rides along
-    #     with it in the one place a title belongs.
+    #   - The only title is the border's top-LEFT label, `find · this window`:
+    #     the scope rides along in the one place a title belongs.
     #   - No --header. It sat above the list, so it was clipped to the list's
     #     width and the last hints were simply never readable. The same keys
     #     live in --footer, which is drawn against the bottom of the overlay and
@@ -556,7 +545,7 @@ cmd_ui() {
         # the whole tiled desktop. Growing is computed fresh; shrinking replays
         # the frame cmd_launch stashed, since the summoner is no longer
         # frontmost. Best-effort — a failed re-plant leaves a correct search in
-        # a wrongly-sized window, which is the pre-2026-08-20 behaviour.
+        # a wrongly-sized window.
         replant "$dir" "$scope"
     done
 
@@ -680,14 +669,11 @@ cmd_rg() {
 # So: SGR 2 (dim) on the context, nothing at all on the hit line. Dim is a
 # relative attribute, not a colour, so it fades whatever the terminal's
 # foreground already is and follows a nebelung flavour change for free — the
-# same reason the pane column in cmd_rg uses it. Cheaper than bat, too, and it
-# drops the last user of it from this script.
+# same reason the pane column in cmd_rg uses it.
 #
 # No wrapping, deliberately: every corpus line is exactly one row, so the hit
 # always lands mid-window at a predictable spot instead of being pushed off the
-# bottom by a long paragraph above it. (bat didn't wrap here either — fzf hands
-# the preview command a pipe, so bat's `--wrap=auto` resolved to no width and
-# truncated. This keeps that, on purpose rather than by accident.)
+# bottom by a long paragraph above it.
 cmd_preview() {
     local dir="$1" id="${2:-}" lineno="${3:-}"
     local file="$dir/src/$id.txt"
