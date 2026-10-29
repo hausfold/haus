@@ -30,27 +30,15 @@
 #   scroll            seek ±10s
 #   hover             sweep a long title once, start to finish (see below)
 #
-# Left-click is the dropdown, the same as weather, agents, ai_usage and the
-# calendar — every pill on this bar that HAS a dropdown opens it on a left
-# click, and this one used to be the exception. (The elgato pill's left click
-# still toggles the light: it has no dropdown to be inconsistent about.) The
-# argument for the exception was that the pill is a CONTROL rather than a
-# readout, so its most-pressed action should be its cheapest; what that missed
-# is that "click the pill, get the thing" is the rule you learn ONCE and then
-# apply to a bar full of pills, and being made to remember which single pill
-# inverts it costs more than the button swap saves. Play/pause moves to the
-# right button, where it is still one click and still on the pill.
+# Left-click is the dropdown, as on every pill on this bar that HAS one (the
+# elgato pill's left click toggles the light: it has no dropdown). The pill is a
+# control, which argues for play/pause on the cheapest click; but "click the
+# pill, get the thing" is a rule you learn ONCE for a bar full of pills, and
+# remembering which single pill inverts it costs more than the button swap
+# saves. Play/pause is the right button: still one click, still on the pill.
 #
-# ── what the conversion gave up, deliberately ────────────────────────────────
-# Four of the seven hues this pill spent on WHAT IS PLAYING were the tone
-# ladder's: Spotify was `ok`, VLC was `warn`, a video in a browser tab was
-# `bad`, and music in one was `action`. They are marks now (media_lib.sh's
-# `media_mark`), which is the invariant marks exist for — identity and status
-# never share a hue — and it is the one thing about this pill that looks
-# different afterwards. The transport rows lost their per-row greys to the row
-# kinds, and the popup's title lost a couple of points of height to
-# `popup_heading`; both are the framework owning typography, which is what
-# stops the next pill inventing a fifth grey.
+# What is playing is said with MARKS (media_lib.sh's `media_mark`), never the
+# tone ladder: identity and status never share a hue.
 
 export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/usr/bin:/bin:$PATH"
 
@@ -107,8 +95,7 @@ watchdog() {
 # Everything the pill SAYS, as state barlib diffs. The tick, the stream's
 # repaint, the hover and the unhover all arrive here, so a payload that changed
 # nothing — media-control republishes on every seek and every rate change —
-# costs no sketchybar traffic at all, which the old in-process render could not
-# manage.
+# costs no sketchybar traffic at all.
 #
 # ⚠️ The long-form countdown is why `elapsed` is folded into `label` rather than
 # emitted beside it: the label is what the diff is ABOUT. A countdown that moved
@@ -125,9 +112,8 @@ fetch() {
     # be right about a stream that has died.
     [ "${BAR_MEDIA_PAINTING:-0}" = 1 ] || watchdog
 
-    # No session at all: gone, not an empty box — the way the pill has always
-    # behaved. The dropdown goes with it, or it would be left describing a
-    # track that stopped existing.
+    # No session at all: gone, not an empty box. The dropdown goes with it, or
+    # it would be left describing a track that stopped existing.
     if ! media_read_now; then
         emit hidden=1
         return 0
@@ -153,9 +139,8 @@ fetch() {
     # Collapsed: the glyph alone until the pointer arrives. Worth having because
     # the bar's centre span is under the notch on a MacBook and every character
     # of title is rent — see haus.bar.media.collapse. An EMPTY label is what
-    # `pill` reads as "absent", and it re-centres the icon on the way — which
-    # the hand-written version never did, so a collapsed pill used to sit
-    # visibly left of centre in its own background.
+    # `pill` reads as "absent", and it re-centres the icon in its own
+    # background on the way.
     if [ "${BAR_MEDIA_COLLAPSE:-0}" = "1" ] && ! media_hovered; then
         label=""
     fi
@@ -173,10 +158,8 @@ fetch() {
     # ⚠️ Only while PLAYING, and that is not an optimisation. Paused is said by
     # dimming the glyph, and a tint painted over the top of it takes that away
     # — on a collapsed pill, where the glyph is the entire pill, it would take
-    # away the only thing left saying which state you are in. The hand-written
-    # render got this by overwriting `color` in its paused branch, AFTER the
-    # tint; the tint is emitted as state here, so the state is where it has to
-    # be decided.
+    # away the only thing left saying which state you are in. The tint is
+    # emitted as state, so the state is where it has to be decided.
     if [ "$MEDIA_PLAYING" = "true" ] &&
         [ "${BAR_MEDIA_ARTWORK_TINT:-0}" = "1" ] && [ -r "$BAR_MEDIA_TINT" ]; then
         tint="$(cat "$BAR_MEDIA_TINT" 2>/dev/null)"
@@ -273,14 +256,10 @@ popup_rows() {
 
     # ── the cover ────────────────────────────────────────────────────────────
     # Only when the source actually published one — no Firefox-family browser
-    # ever does. There is deliberately no app-icon stand-in here any more: a
-    # 56pt icon in an 84pt cover well read as an ill-fitting hero image (a lot
-    # of dead space around something too small to be one). Nothing else at the
-    # top has to fill that gap — the title row below carries the kind glyph,
-    # and the source app gets named in the "Show in <App>" row down in the
-    # transport, plus a small icon badge in the bottom-right corner. RUNNING is
-    # checked separately, right where that badge is built, well below — a cover
-    # well only ever holds a real cover now.
+    # ever does. Deliberately no app-icon stand-in: a 56pt icon in an 84pt
+    # cover well reads as an ill-fitting hero image. Nothing has to fill the
+    # gap — the title row carries the kind glyph, and the source app is named
+    # in the "Show in <App>" row and the corner badge, both below.
     art="$(ls -1 "$BAR_MEDIA_ART".* 2>/dev/null | head -1)"
     if [ -n "$art" ] && [ -s "$art" ]; then
         scale="$(cat "$BAR_MEDIA_ART_SCALE" 2>/dev/null)"
@@ -332,9 +311,7 @@ popup_rows() {
     #
     # Play/pause is the one `popup_action` — the verb you opened this for, and
     # `action` is the rung for a thing you press. The rest are `popup_row`s:
-    # things you can act on, in the two greys the row kind already owns. That
-    # is one grey fewer than the hand-written version had, which is the
-    # framework taking a decision back rather than a shade being lost.
+    # things you can act on, in the two greys the row kind already owns.
     if [ "$MEDIA_PLAYING" = "true" ]; then
         popup_action --icon "󰏤" --label "Pause" --run "$SELF do toggle"
     else
@@ -350,10 +327,8 @@ popup_rows() {
 
     # A small app-icon badge FLOATING in the bottom-right corner, below the
     # last row — the source's identity, sized and placed as the aside it is.
-    # It spent a while as a row of its own directly above "Show in …" and that
-    # read wrong: a full-width row of nothing but an icon looks like a menu
-    # entry you're meant to click, wedged between two you are. The corner is
-    # where a "this came from over there" mark belongs.
+    # Never a row of its own: a full-width row of nothing but an icon looks
+    # like a menu entry you're meant to click.
     #
     # Only when there's no real cover (next to actual artwork it is pure
     # clutter — and the cover already answers the same question) and only while
@@ -431,8 +406,7 @@ do_action() {
 # ── clicks ───────────────────────────────────────────────────────────────────
 # The gesture table at the top of this file, as handlers. barlib routes the
 # button and the modifier (the button outranks the modifier, and a chord nobody
-# handles falls back to on_click), so the nested case statement this used to be
-# is gone.
+# handles falls back to on_click).
 on_click() {
     popup_toggle
     # The badge can only be placed from a measurement of the DRAWN popup, so it
@@ -447,15 +421,11 @@ on_click() {
 }
 
 # Every gesture on the PILL that is not "open the dropdown" also dismisses one
-# that is already up — which is what the hand-written version got for free from
-# the `close_popup` that ended `do_action`. That one close served two callers:
-# the pill's gestures, and every popup ROW whose click_script ran an action
-# (rows with nothing to do carried a bare close instead). It cannot live there
-# any more, because barlib now appends a close to every row's click_script and
-# one inside `do_action` would be the second — so the half the rows no longer
-# need has to be spelled out on the half that still does. Scroll is the
-# deliberate exception, the same as before: seeking ±10s is something you do
-# repeatedly, and the pill is where you do it whether the dropdown is up or not.
+# that is already up. The close cannot live in `do_action`: barlib appends one
+# to every popup row's click_script, so there it would be the second. The
+# pill's gestures spell theirs out instead. Scroll is the deliberate exception:
+# seeking ±10s is something you do repeatedly, and the pill is where you do it
+# whether the dropdown is up or not.
 on_right_click() {
     do_action toggle
     popup_close
