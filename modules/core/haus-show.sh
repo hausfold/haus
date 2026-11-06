@@ -11,9 +11,9 @@
 # activates nothing — a remote source is fetched into the store and read there,
 # and your config is never part of the evaluation.
 #
-# The what-your-machine-becomes diff comes later, and the place it slots into
-# this frame is marked below so a later step extends it rather than reinventing
-# it.
+# With a haus config on this machine, a passing desktop is also compared
+# against it leaf by leaf (act three, below), and that comparison never
+# evaluates the stranger's file.
 #
 # It lives beside its evaluator in share/haus/ rather than inside haus.sh, so
 # the machine's `haus show` and `nix run github:hausfold/haus#show` are the same
@@ -541,7 +541,7 @@ if [ "$class" = unreadable ]; then
 fi
 
 # ---- act three: ask the machine. The stranger is not in this evaluation ------
-# Steps A and B answered "what is this file?". This answers "what would it do
+# Acts one and two answered "what is this file?". This answers "what would it do
 # HERE", and it is the first thing `show` does that looks at the reader's own
 # config. The rule that keeps it honest is that the candidate is not part of the
 # evaluation: what crosses over from the source is a list of option NAMES — never
@@ -744,10 +744,8 @@ fi
 
 if [ -n "$json" ]; then
   # Data on stdout, diagnostics on stderr — the rule in the workshop's
-# `docs/agent-surface.md`. This
-  # is haus's first --json verb, so the envelope is the one the rest of the
-  # sweep copies: a schemaVersion, and `checked` said out loud rather than left
-  # to be inferred from an empty failure list.
+  # `docs/agent-surface.md`. The envelope carries a schemaVersion, and `checked`
+  # said out loud rather than left to be inferred from an empty failure list.
   #
   # `ok` is NULL when nothing was checked, never `true`. A room and an
   # unreadable file are both "not a failed desktop", and a consumer reading
@@ -756,11 +754,10 @@ if [ -n "$json" ]; then
   # no reading, because throwing that away leaves the caller with an exit code
   # and no sentence.
   #
-  # `origin` is new in step B and the version did NOT move with it. A bump is
-  # owed when an existing input's answer changes; this is a key that is `null`
-  # for every input schemaVersion 1 could accept, and non-null only for sources
-  # that used to be an error. Nobody's reader breaks, so nobody is made to
-  # update one.
+  # `origin` and `machine` arrived without a version bump. A bump is owed when
+  # an existing input's answer changes; `origin` is `null` for every input
+  # schemaVersion 1 could accept, and non-null only for sources that used to be
+  # an error. Nobody's reader breaks, so nobody is made to update one.
   jq -n --arg class "$class" --arg file "$abs" --arg reason "$reason" \
      --argjson origin "$origin" \
      --argjson machine "$becomes" \
@@ -847,8 +844,8 @@ render_room() {
   fi
 }
 
-# What this machine would become — step C. The frame the section slots into is
-# the one above: origin, class, verdict, sets, silent, and then this.
+# What this machine would become — act three's answer, drawn last: origin,
+# class, verdict, sets, silent, and then this.
 #
 # The order is by consequence, not by option name. A reader is deciding whether
 # to trust a file, and the two lines that decide it are "these do not move,

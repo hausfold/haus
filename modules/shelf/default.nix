@@ -278,9 +278,9 @@ lib.mkIf config.haus.shelf.enable {
   #
   # So the shelf only works if this is off. Not an opinion and therefore not
   # mkDefault — it is a function of running perch. It is NOT on the same footing
-  # as _HIHideMenuBar tracking bar.enable in core, which this comment used to
-  # claim: core writes that key in both polarities, so it follows the option
-  # back; this write sits inside the room's own mkIf, so disabling the room
+  # as _HIHideMenuBar tracking bar.enable in core: core writes that key in both
+  # polarities, so it follows the option back; this write sits inside the
+  # room's own mkIf, so disabling the room
   # stops WRITING the key and macOS keeps the false it last saw. Turning the
   # trigger back on after dropping the shelf is a manual step (the same toggle
   # in System Settings, or a host-level CustomUserPreferences write).
@@ -306,12 +306,8 @@ lib.mkIf config.haus.shelf.enable {
   # `screenshotsFolder` key in the config drop), and a capture behaviour that
   # changes machine-wide should be readable as a named option in `haus get`
   # and the reference rather than inferred from an unrelated room being on.
-  # (That sentence used to say `haus show`, which is the wrong surface for the
-  # argument it is making — but not for the reason the first correction gave.
-  # `haus show` DOES read this machine's resolved values: its machine block
-  # ranks every leaf it reports and marks the ones a host overrides. What it
-  # reports is the leaves a FILE names, and no file names this one, because
-  # the write happens in a room. The boundary is the leaf set, not the layer.)
+  # (Not `haus show`: it reports the leaves a FILE names, and no file names
+  # this one, because the write happens in a room.)
   # The option's DEFAULT does track the room since it began saying `true` on
   # machines with no shelf to reach; what stays named and settable, and the
   # whole point here, is the write itself. And
@@ -322,14 +318,11 @@ lib.mkIf config.haus.shelf.enable {
   # `haus.screenshots.thumbnail = true;` and wins with no mkForce.
   #
   # Through the option rather than the plist key direct, so the generated option
-  # reference and `haus get` describe what the machine actually does. (This said
-  # `haus show` too — the same claim as the one corrected above, twelve lines
-  # apart in one comment, and the correction reached only the first of them.)
-  # That is the whole gain and it is worth being exact about: `haus plan` reads
-  # the built activate script and the restart map already carries
-  # com.apple.screencapture,
-  # so a CustomUserPreferences write would have been just as visible to those
-  # two. (`haus.screenshots` is declared in ../core/options.nix but belongs to
+  # reference and `haus get` describe what the machine actually does. That is
+  # the whole gain and it is worth being exact about: `haus plan` reads the
+  # built activate script and the restart map already carries
+  # com.apple.screencapture, so a CustomUserPreferences write would have been
+  # just as visible to those two. (`haus.screenshots` is declared in ../core/options.nix but belongs to
   # the APPEARANCE room in the registry — ../options-groups.nix — which is the
   # room page a reader should be sent to.)
   #
