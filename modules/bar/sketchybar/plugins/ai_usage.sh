@@ -135,9 +135,9 @@ PREFERRED="${BAR_AI_USAGE_PROVIDER:-latest}"
 # pills climb (`vitals_tone`), on the same thresholds — said in TONE NAMES,
 # because a framework widget names a tone and never a hex.
 #
-# The stderr redirects are the same guard the old `pct_color` carried: a TSV
-# field that isn't a number would otherwise print "integer expression expected"
-# into sketchybar's log once per row, per open.
+# The stderr redirects are there because a TSV field that isn't a number would
+# otherwise print "integer expression expected" into sketchybar's log once per
+# row, per open.
 pct_tone() { # pct_tone <pct>
   if   [ "${1:-0}" -ge 90 ] 2>/dev/null; then printf '%s' bad
   elif [ "${1:-0}" -ge 75 ] 2>/dev/null; then printf '%s' warn
@@ -181,8 +181,7 @@ tokens_label() { # tokens_label <d> <w> <m> <all> — the token score, TWO perio
   #
   # The LEADING blanks that right-alignment produces are barlib's problem now,
   # not this file's: `popup_row --value` turns them back into padding, since a
-  # label is sized trimmed and drawn untrimmed. That used to be `unpad`/`LEAD`
-  # here, and it was the same arithmetic the value column already does.
+  # label is sized trimmed and drawn untrimmed.
   #
   # Numbers are three significant figures with the trailing zeros filed off, so a
   # cell stays the same handful of characters whether it reads 950K or 7.65B and
@@ -297,11 +296,9 @@ read_row() { # read_row <now> <file>
   # Neither stamp can legitimately be in the future — see SKEW_AGE. The written
   # one greys the row; the used one is what `latest` ORDERS on, so a skewed one
   # left alone would also pin the pill to a dead feed by out-ranking every
-  # honest row on the machine.
-  # ROW_STAMP is only DEFAULTED above, never checked — the comment on ROW_USED
-  # says so — and it is about to meet `-gt` twice. Validate it here rather than
-  # letting a garbled row print `integer expression expected` into the bar's log
-  # once per tick, per open, forever. Same guard elgato.sh's sweep carries.
+  # honest row on the machine. ROW_STAMP gets the numeric guard first, for the
+  # reason ROW_USED's second check above exists; same guard elgato.sh's sweep
+  # carries.
   case "${ROW_STAMP:-}" in '' | *[!0-9]*) ROW_STAMP=0 ;; esac
   [ "$ROW_STAMP" -gt $((now + CLOCK_GRACE)) ] && ROW_STAMP=$((now - SKEW_AGE))
   [ "$ROW_USED" -gt $((now + CLOCK_GRACE)) ] && ROW_USED=$((now - SKEW_AGE))

@@ -5,10 +5,10 @@
 # pounce: submenu = true
 
 # The lane picker: every agent worktree scruff knows about, fuzzy-filtered by
-# pounce, Enter focuses the lane's window. Three sources joined by the session
+# pounce, Enter focuses the lane's window. Two sources joined by the session
 # name (scruff.<repo>.<lane>, the same join every zmx surface uses):
 #
-#   scruff-cache    a warm copy of `scruff --json` — repo, branch, live/parked,
+#   scruff-cache  a warm copy of `scruff --json` — repo, branch, live/parked,
 #                 last commit. NEVER `scruff --json` on the open path; see below
 #   zmx ls        the live sessions — and the agent's own state (working /
 #                 waiting / done), which agents-hook.sh keeps as labels
@@ -52,11 +52,9 @@
 # — the term grepped across every live session's `zmx history`, matches back as
 # rows, Enter focusing the session it came from. `--actions` labels that Return
 # so the action bar says "Search transcripts" the moment the query stops
-# matching any lane; it used to be an undocumented `/` prefix with nothing to
-# suggest it existed, and a typo'd lane name fell through to `scruff <typo>/<typo>`,
-# which does not search anything — it SPAWNS A LANE. A leading `/` is still
-# accepted and stripped, because that is the spelling the old header taught.
-# It is NOT a guaranteed escape hatch, and don't document it as one: pounce
+# matching any lane. Free text must never reach `scruff <typo>/<typo>`, which
+# does not search anything — it SPAWNS A LANE. A leading `/` is accepted and
+# stripped, but it is NOT a guaranteed escape hatch, and don't document it as one: pounce
 # scores the subtitle as well as the title, and a subtitle here is a branch
 # name or a directory, both full of slashes — so `/foo` can still match a row,
 # and a row that matches is a row that commits. A term that collides with a
@@ -119,12 +117,10 @@ zmx_states() {
 }
 
 focus_session() {
-  # terminal/scripts/raise-session.sh owns the joins, and owning them in one
-  # place is the point: this was the THIRD copy of "find that session's window
-  # and raise it" (the bar's agents popup and ⌘F's ⏎ were the other two), all
-  # three matching a forced window title through AeroSpace — which answers
-  # nothing on a machine with no tiler, so every row here fell through to a
-  # scruff reopen and opened a SECOND window onto a session that already had one.
+  # terminal/scripts/raise-session.sh owns the joins (the bar's agents popup
+  # and ⌘F's ⏎ use it too), including the no-tiler case — a forced-title match
+  # through AeroSpace alone answers nothing there, and every row would fall
+  # through to a scruff reopen: a SECOND window onto a session that has one.
   #
   # A dead lane still has no window, still returns non-zero, and still falls
   # through to the caller's scruff reopen. No --or-open: that is the caller's
@@ -134,8 +130,8 @@ focus_session() {
 
 # Wake a parked lane, and SAY SO when it can't be woken.
 #
-# This was `exec scruff <repo>/<lane>` — which is right up to the moment the row
-# was built from a cache that has since gone stale. A lane reaped in that
+# A bare `exec scruff <repo>/<lane>` is right up to the moment the row was
+# built from a cache that has since gone stale. A lane reaped in that
 # window is gone from scruff's registry, `matchLane` answers "no lane named …"
 # (scruff's drop.go) and exits non-zero, and that message goes to the pounce
 # daemon's stderr, which nobody reads. A row commit is `.linger`, so the window
@@ -324,8 +320,8 @@ rows="$(
 )"
 
 if [ -z "$rows" ]; then
-  # No lanes anywhere — the case that used to be a silent `exit 0`. Offer the
-  # thing you actually wanted, rather than a dead row.
+  # No lanes anywhere. Offer the thing you actually wanted, rather than a dead
+  # row (and never a silent `exit 0`: the 8-second cliff).
   spawn="$(dirname "$0")/spawn-agent.sh"
   if [ -x "$spawn" ]; then
     # Read the PICK, not the exit status: Esc and a commit differ in what comes
@@ -362,11 +358,9 @@ fi
 # rather than being booleans. `--chain-rows cmd`: ⌘↵ over a row re-execs this
 # picker, so hold the window for it; ↵ over a row OPENS A LANE and presents no
 # further step, so holding it would park a skeleton over your screen until
-# pounce's 8-second fallback. Unchained, that ⌘↵ refresh presented into the fade
-# the linger had just armed — the same race that cost Spawn Agent its prompt box
-# one time in five, only rarer here because a refresh is rarer than a spawn. The
-# same fact is why `open_lane` reports a failure as a fresh row rather than into
-# the old window.
+# pounce's 8-second fallback. Unchained, that ⌘↵ refresh would present into the
+# fade the linger had just armed. The same fact is why `open_lane` reports a
+# failure as a fresh row rather than into the old window.
 selected="$(printf '%s\n' "$rows" |
   pounce -p "$PROMPT" -i "$ICON" --chain enter,cmd \
     --chain-rows cmd --actions "Search transcripts|cmd:Refresh")" || exit 0
@@ -409,10 +403,8 @@ tmp="$(mktemp -d "${TMPDIR:-/tmp}/haus-lane-search.XXXXXX")" ||
   bail "Couldn't open a scratch directory" "the transcript search has nowhere to collect hits"
 trap 'rm -rf "$tmp"' EXIT
 
-# Fan out: one grep per session, each bounded on its own, all at once. Serial
-# was fine at the two sessions it was written against and walks off the
-# skeleton's eight-second cliff at a dozen.
-# 20 is a cap, not a target: this machine runs ~10 sessions, and a pathological
+# Fan out: one grep per session, each bounded on its own, all at once (the
+# header says why). 20 is a cap, not a target: this machine runs ~10 sessions, and a pathological
 # registry should degrade to "the first 20" rather than to a fan-out nobody
 # bounded. `n` is what the no-match row reports, so it counts what was SEARCHED
 # — tested before the increment, or a run that stopped at the cap claims 21.

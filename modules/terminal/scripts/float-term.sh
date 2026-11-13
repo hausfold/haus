@@ -1,8 +1,8 @@
 #!/bin/bash
 # float-term.sh — the ONE way the hacker desktop throws up a floating, centered
-# Ghostty window. Consolidates logic that used to be copy-pasted (and to drift)
-# across the Rebuild System pounce command, the Super-y yazi peek panel, and
-# the agent-peek popup.
+# Ghostty window. Every popup caller (pounce commands, ⌘Y, ⌘F, ⌘G, the agents
+# pill's peek) comes through here, because per-caller copies of this logic
+# drifted apart.
 #
 # Five subcommands:
 #
@@ -31,11 +31,10 @@
 #       ../lib/gaps.nix (GAP_* below) — the SAME arithmetic modules/windows
 #       writes into aerospace.toml's [gaps] block, per monitor class, so the
 #       popup cannot drift from the layout it is covering.
-#       Every caller reaches this through spawn/place rather than directly;
-#       the subcommand stays public because it is the one way to ASK what a
-#       geometry resolves to without opening anything (the peek panel used to
-#       consume it that way, back when it teleported a parked window instead of
-#       spawning a fresh one per summon).
+#       Most callers reach this through spawn/place; asking it directly is the
+#       one way to learn what a geometry resolves to without opening anything,
+#       which find.sh does to stash the summoner's frame before its popup
+#       exists.
 #
 # ── every popup's title starts `quick-terminal-` ─────────────────────────────
 # A forced --title is how anything outside a window finds it, and for these
@@ -50,7 +49,8 @@
 # again. So: whatever you call it, prefix it. A --tiled popup covers the whole
 # tiled desktop and is the one that would be most visibly wrong as a tile.
 #
-#   spawn --title T [--tiled | --pct N | --w PX --h PX | --match-focused]
+#   spawn --title T [--tiled | --pct N | --w PX --h PX | --match-focused
+#                    | --frame "X Y W H"]
 #         [--cols N --rows N] [--pin]
 #         --command CMD [-- EXTRA ghostty args…]
 #       Spawn a fresh Ghostty INSTANCE running CMD, centered at that geometry,
@@ -710,11 +710,9 @@ spawn() {
   : "${title:?--title required}" "${command:?--command required}"
 
   # --frame is a geometry the caller ALREADY resolved, the same rectangle place
-  # takes: it skips geom entirely. find.sh is why it exists — ⌘F has to stash
-  # the summoner's frame for the ^s toggle anyway, and asking twice cost a
-  # second AX round trip AND let the two answers disagree if focus moved in
-  # between, which would size the overlay to one window and shrink it back onto
-  # another. Resolve once, use it for both.
+  # takes: it skips geom entirely. find.sh is why it exists, and its spawn has
+  # the reason (one resolve for both spawn and the ^s shrink-back, so the two
+  # can't disagree).
   #
   # ${arr[@]+"${arr[@]}"}: expand safely even when empty — macOS /bin/bash is
   # 3.2, where a bare "${arr[@]}" on an empty array trips `set -u`.

@@ -7,8 +7,8 @@
 # agents.sh — the reader half of the `agents` bar item (opt-in via
 # haus.bar.items.agents). Surfaces the state of your agent windows in the menu
 # bar so you never have to hunt the workspaces for the one that's blocked on
-# you. Client-agnostic: Claude Code, Codex and Opencode all land here, and each
-# popup row is marked with the client sitting in it.
+# you. Client-agnostic: every client agents-hook.sh reports for lands here, and
+# each popup row is marked with the client sitting in it.
 #
 # State is written by agents-hook.sh from each client's own lifecycle hooks
 # (authoritative — no screen-scraping) into one of TWO stores, depending on
@@ -23,11 +23,8 @@
 #     /tmp/haus-agents/*.desk: <state>\t<session>\t<key>\t<label>\t<epoch>\t<client>,
 #     with a `.desk.cwd` sibling for the same join.
 #
-# A THIRD store used to sit in front of both: `.state` files keyed by (zellij
-# session, pane id), with a `prune_dead_panes` reaper asking zellij which panes
-# still existed and a 12h backstop behind it. Both went with the multiplexer,
-# and the reason is worth keeping: a file outlives what it describes, so it
-# needs a reaper; a label cannot, so it doesn't.
+# Why zmx rows need no reaper and `.desk` rows do: a file outlives what it
+# describes; a label cannot.
 #
 # Four entry paths:
 #   • agent_update / system_woke / periodic  → recount, repaint icon+label
@@ -58,10 +55,10 @@
 # items: `agents` (the bot) plus agents.ready / .working / .done, with a
 # `bracket` — `agents.pill` — drawing the one pill background behind whichever
 # are visible AND carrying the dropdown. The framework emits all five off the
-# `segments =` header; none of these ids is spelled in this file. That is why the segments carry no background of their own and no
-# background padding — the bracket owns both, and a segment that kept its own
-# would draw a second pill inside the first and space the marks like separate
-# items. They ARE clickable: each one's click_script is this script, so the
+# `segments =` header; none of these ids is spelled in this file. The segments
+# carry no background of their own and no background padding — the bracket owns
+# both, and a segment that kept its own would draw a second pill inside the
+# first and space the marks like separate items. They ARE clickable: each one's click_script is this script, so the
 # popup opens from anywhere on the pill.
 #
 # ── the popup ────────────────────────────────────────────────────────────────
@@ -154,9 +151,8 @@ MARK_WORKING=$(printf '\xEE\xB1\xB7')  # nf-cod-session_in_progress (U+EC77)
 MARK_IDLE=$(printf '\xEF\x80\x8C')     # nf-fa-check (U+F00C)
 # The warm `scruff --json` copy, and its whole protocol — the TTL, the one-winner
 # lock and the "only a complete result replaces the cache" rule — belong to
-# `scruff-cache` (modules/ai/scruff-cache.sh), which the AI room puts on PATH. This
-# block was where all of it was written; the Lanes palette then needed exactly
-# the same cache under a much harder deadline, and a second copy of a lock
+# `scruff-cache` (modules/ai/scruff-cache.sh), which the AI room puts on PATH and
+# the Lanes palette shares. Never grow a second copy here: a duplicated lock
 # protocol is a drift bug waiting to be found the hard way.
 SCRUFF_TTL=20                     # scruff itself keeps forge answers cached for 120s
 SCRUFF_MAX_AGE=900                # persistent failure eventually drops stale PR rows
@@ -190,9 +186,8 @@ state_style() {
 #
 # `kind` is `zmx` or `desktop`, and `target` is what that kind's row-click
 # handler needs to find the agent again: the session name for zmx, the
-# conversation key for desktop. It stays the LAST positional in the `row`
-# sub-command, which is a shape inherited from when one kind's target was two
-# words (a zellij session plus a pane id) and is kept because it costs nothing.
+# conversation key for desktop. It is the LAST positional in the `row`
+# sub-command.
 #
 # zmx_records — every terminal agent. Their state lives as labels on the
 # session (agents-hook.sh), which zmx holds in memory for the session's
@@ -233,7 +228,7 @@ zmx_records() {
 # downstream is unchanged. See agents-hook.sh's desktop branch for the reasoning.
 desktop_records() {
   local f st sess key label epoch client pr cwd cf
-  # ── the liveness answer prune_dead_panes can't give ────────────────────────
+  # ── the liveness answer ────────────────────────────────────────────────────
   # A desktop row's only reaper is the client's own SessionEnd, which never
   # fires on a force-quit, a crash, a logout or an app update — and the pill's
   # LABEL is the most urgent state it can find, so one stuck row makes the bar
@@ -258,10 +253,15 @@ desktop_records() {
   fi
   # A `.cwd` orphaned by the 12h sweep (which only deletes the row itself)
   # would otherwise never go: a `.desk` key is a fresh uuid per conversation,
-  # so unlike the pane keys these never get reused and the directory would
-  # accrete one file per conversation until reboot. Keyed on its own row being
-  # gone rather than on age — a live session's `.cwd` is written once and can
-  # be arbitrarily older than the state beside it.
+  # never reused, so the directory would accrete one file per conversation
+  # until reboot. Keyed on its own row being gone rather than on age — a live
+  # session's `.cwd` is written once and can be arbitrarily older than the
+  # state beside it.
+  #
+  # Both loops iterate the glob with a -e guard rather than an array: macOS
+  # bash 3.2 under `set -u` throws on "${arr[@]}" when the array is empty, and
+  # "no agents" is the common case. The literal-pattern-when-no-match is caught
+  # by [ -e ].
   for cf in "$DIR"/*.desk.cwd; do
     [ -e "$cf" ] || continue
     [ -e "${cf%.cwd}" ] || rm -f "$cf"
@@ -279,8 +279,7 @@ desktop_records() {
 }
 
 # ── popup-row click: go to the agent (left) or peek it (⌥/right) ──────────────
-# `agents.sh row <kind> <target…>` — see the record contract above for why the
-# target is last.
+# `agents.sh row <kind> <target…>` — the target is the record's (see above).
 if [ "${1:-}" = "row" ] && [ "${2:-}" = "desktop" ]; then
   # Raise the desktop client, and that is the whole action — there is no
   # per-conversation window to focus (every session is a tab of one window) and
@@ -307,11 +306,9 @@ fi
 if [ "${1:-}" = "row" ] && [ "${2:-}" = "zmx" ]; then
   zsess="$3"
   if [ "${BUTTON:-left}" = "right" ] || [ "${MODIFIER:-none}" != "none" ]; then
-    # peek: `zmx tail` FOLLOWS the session's output, so this is a LIVE view
-    # rather than the one-shot dump the zellij path used to take, and it needs
-    # no attach — it can never steal the session's keyboard or count as a client
-    # on it. (agents-peek.sh, which wrapped `zellij … subscribe --pane-id`, is
-    # deleted: one `zmx tail` replaces the whole script.)
+    # peek: `zmx tail` FOLLOWS the session's output, so this is a LIVE view,
+    # and it needs no attach — it can never steal the session's keyboard or
+    # count as a client on it.
     # `quick-terminal-agent-peek`, not `peek`: the prefix is what tells windows'
     # re-sort to leave a float-term popup where it was put (float-term.sh's
     # header states the rule), and the suffix keeps it apart from ⌘Y's yazi
@@ -325,8 +322,7 @@ if [ "${1:-}" = "row" ] && [ "${2:-}" = "zmx" ]; then
     # — an exact window-title match for a lane, the window-id label
     # scripts/launch.sh stamps for a plain `term.<n>` window that happens to
     # hold an agent, and whether either is spelled AeroSpace or Ghostty on this
-    # machine. ⌘F's ⏎ calls the same script; this pair used to be two copies of
-    # it, both AeroSpace-only.
+    # machine. ⌘F's ⏎ calls the same script; never copy it here.
     #
     # A session with no window is detached and still running — the whole point
     # of zmx — so a row always opens one rather than pretending nothing is
@@ -348,8 +344,8 @@ if [ "${1:-}" = "row" ] && [ "${2:-}" = "zmx" ]; then
     if ! "$HOME/.config/haus/term/raise-session.sh" "$zsess" >/dev/null 2>&1; then
       pair=""
       # Same probe ladder as lanes/lane-seen.sh and scruff's own baseDir(): the
-      # scruff-named base while it holds the registry, the legacy path while it
-      # does (docs/rename.md §8.2).
+      # scruff-named base when it holds the registry, the legacy
+      # ~/.cache/claude-worktrees base otherwise.
       if [ -f "$HOME/.cache/scruff/registry.tsv" ]; then
         reg="$HOME/.cache/scruff/registry.tsv"
       else
@@ -378,10 +374,6 @@ if [ "${1:-}" = "row" ] && [ "${2:-}" = "zmx" ]; then
   fi
   exit 0
 fi
-
-# Iterate the glob with a -e guard rather than an array: macOS bash 3.2 under
-# `set -u` throws on "${arr[@]}" when the array is empty, and "no agents" is the
-# common case. The literal-pattern-when-no-match is caught by [ -e ].
 
 ago() { # ago <seconds> — "4m" / "1h 12m" / "2d", how long an agent has sat in
   # its current state. Identical to ai_usage.sh's helper of the same name —
@@ -494,13 +486,12 @@ pr_style() {
 # describing different moments.
 #
 # ── the two-row block ─────────────────────────────────────────────────────────
-# An agent is a NAME line and a DETAIL line, and nothing else. It used to be
-# four rows (five when dirty), each repeating a `repo` or `PR` descriptor down
-# the left margin — which put eleven agents well off the top of a screen and
-# made it genuinely hard to see which detail belonged to which name. Now the
-# descriptors are gone (a lane name and a state word don't need labelling), the
-# PR verdict is the detail row's `--value` instead of owning a row, and a lane
-# with nothing landed says NOTHING rather than "no PR yet".
+# An agent is a NAME line and a DETAIL line, and nothing else: a row per
+# descriptor put eleven agents well off the top of a screen and made it hard to
+# see which detail belonged to which name. No descriptors (a lane name and a
+# state word don't need labelling), the PR verdict is the detail row's `--value`
+# rather than a row of its own, and a lane with nothing landed says NOTHING
+# rather than "no PR yet".
 #
 # Both rows carry the same `--run`, which is what makes an agent's block one
 # click target rather than two adjacent ones.
@@ -623,8 +614,8 @@ popup_rows() {
     # One list item per agent: the client's glyph in its mark, the name in
     # the text colour, and under it the state in the state's tone with the
     # PR's verdict flush right in the PR's — three hues on two lines, one hit
-    # area. It was a heading over a row: 60 points that read as a section
-    # with one entry, with a hairline between every pair.
+    # area. Not a heading over a row: that reads as a section with one entry,
+    # with a hairline between every pair.
     popup_item --icon "$P_ICON" --icon-font "$P_FONT" --mark "$P_MARK" \
       --title "$label" --subtitle "$left" --subtitle-tone "$TONE" \
       --value "$PR_TEXT" --value-tone "$PR_TONE" --run "$click"
@@ -637,8 +628,7 @@ popup_rows() {
 
 # One click anywhere on the pill lands here — the bot arrives through its
 # mouse.clicked subscription and each segment through the click_script the
-# emitter gives it, which sets SENDER to the same thing. The rebuild-then-
-# toggle flash this pill used to have is `popup_toggle`'s guard now.
+# emitter gives it, which sets SENDER to the same thing.
 on_click() { popup_toggle; }
 
 # ── the tick: count states, paint the pill by the most urgent one present ─────
@@ -686,10 +676,8 @@ fetch() {
   return 0
 }
 
-# seg_draw <segment> <state> <count> — one segment of the pill, hidden at zero.
-# Positions are FIXED: a state with a count of 0 draws nothing, but the ones
-# that remain never reorder, so "is the red one there" is answerable by shape
-# and position without reading a number.
+# seg_draw <segment> <state> <count> — one segment of the pill, hidden at zero
+# (positions stay fixed; the header says why).
 seg_draw() {
   if [ "$3" -gt 0 ]; then
     state_style "$2"
@@ -714,8 +702,7 @@ render() {
     return 0
   fi
 
-  # The bot takes the most urgent state's tone — the same ranking the label
-  # used to encode on its own, kept because it is the one thing that reads
+  # The bot takes the most urgent state's tone — the one thing that reads
   # without focusing on the pill at all.
   if [ "$waiting" -gt 0 ]; then
     state_style waiting

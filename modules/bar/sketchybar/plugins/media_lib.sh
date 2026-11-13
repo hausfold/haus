@@ -10,14 +10,12 @@
 # table that ends up being two, which is the same reason colors.sh and sizes.sh
 # are generated once.
 #
-# What is NOT here any more is the rendering. media.sh is a framework widget
+# The rendering is not here. media.sh is a framework widget
 # (hausfold.co/docs/haus/rooms/bar-widgets), so the pill's paint is its
 # `render()` and barlib owns the batching, the state diff and every colour;
 # `media_paint` at the bottom of this file is how the two processes that are
-# not the widget ask for one. Four more things went the same way: the popup's
-# row geometry and fonts are barlib's row kinds, its scrubber is
-# `popup_slider`, its cover and badge are `popup_image`, and `media_color`'s
-# palette keys are `media_mark`'s marks.
+# not the widget ask for one. The popup's row geometry and fonts are barlib's
+# row kinds, its scrubber is `popup_slider`, its cover and badge `popup_image`.
 #
 # THE THING THIS FILE CANNOT DO, so nobody re-discovers it the hard way: name the
 # SITE a browser is playing. media-control's payload is
@@ -69,15 +67,15 @@ BAR_MEDIA_TINT="$BAR_MEDIA_STATE_DIR/tint"
 # target size the image is scaled to. The gap between the two is deliberate
 # margin, so a square cover doesn't sit flush against the well's edges (and,
 # by extension, the dropdown's own rounded corner). Only ever holds a real
-# cover — see media.sh for why there's no app-icon stand-in here any more.
+# cover — see media.sh's popup_rows for why there's no app-icon stand-in.
 BAR_MEDIA_ART_BOX=84
 BAR_MEDIA_ART_TARGET=68
 
 # The small app-icon badge for when there's no cover to name the source instead.
-# It does NOT sit in the stack as a row of its own any more: a 56pt icon
-# occupying a full-width menu row read as a list ENTRY — something you were meant
-# to click, wedged between two things you actually click — rather than as the
-# aside it is. It now floats in the dropdown's bottom-right corner instead,
+# It does NOT sit in the stack as a row of its own: an icon occupying a
+# full-width menu row reads as a list ENTRY — something you are meant to click,
+# wedged between two things you actually click — rather than as the aside it
+# is. It floats in the dropdown's bottom-right corner instead,
 # below the last transport row and pushed right by media_badge_pad, which is
 # what the two numbers below are for: the row's height, and the scale the icon is
 # drawn at inside it. `background.image.scale` is a factor on the image's own
@@ -186,13 +184,11 @@ media_icon_override() {
 # the bar is one palette (nebelung), and a Spotify green sampled from Spotify's
 # own brand sheet is the one pill on the strip that doesn't belong to haus.
 #
-# ⚠️ FOUR OF THESE MOVED when the pill converted, and the reason is the one
-# thing marks exist to enforce: identity and status never share a hue. This
-# table named `GREEN`, `PEACH`, `RED` and `SAPPHIRE` — which are the ladder's
-# `ok`, `warn`, `bad` and `action` — so a Spotify pill was painted with the
-# all-clear, VLC with a warning and a YouTube tab with the alarm, for as long
-# as each was playing perfectly. `mauve` and `lavender` were already off the
-# ladder and kept their colour exactly (`plum`, `violet`), as did `pink`.
+# ⚠️ Identity and status never share a hue — the one thing marks exist to
+# enforce. Naming `GREEN`, `PEACH`, `RED` or `SAPPHIRE` here (the ladder's
+# `ok`, `warn`, `bad` and `action`) paints a Spotify pill with the all-clear,
+# VLC with a warning and a YouTube tab with the alarm, for as long as each is
+# playing perfectly. Every row below is off the ladder on purpose.
 #
 # The kinds are still coarse on purpose — see this file's header for why the
 # payload cannot support more — so the marks are too. A desktop that wants
@@ -652,8 +648,8 @@ media_hovered() { [ -f "$BAR_MEDIA_STATE_DIR/hover" ]; }
 # Not backgrounded: the stream wants its payloads painted IN ORDER, and this is
 # one fork against a 200 ms debounce.
 #
-# It is DIFFED on the other side, which the old in-process render was not — so a
-# payload that changes nothing about what the pill says now costs zero
+# It is DIFFED on the other side, so a
+# payload that changes nothing about what the pill says costs zero
 # sketchybar traffic instead of a full repaint. media-control re-publishes on
 # every seek and every rate change; most of those said nothing new.
 media_paint() {

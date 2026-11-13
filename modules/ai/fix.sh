@@ -117,12 +117,10 @@ note() { printf '%s\n' "$*" >&2; }
 die2() { note "haus fix: $*"; banner fault "haus fix" "$*"; exit 2; }
 
 # ---- the wait, said in the pane ---------------------------------------------
-# Pressing "Fix it with AI" in a pane used to print NOTHING for the length of a
-# headless turn. That is not a slow client: `claude -p` holds its whole answer
-# to the end (measured), which is what print mode is for, so `tee`ing it live
-# showed an empty screen for a minute and then everything at once.
-# Indistinguishable from a hang, and the one thing feel-testing #592/#626 on a
-# live machine turned up once the rows themselves drew: you press the row, your
+# A headless turn says nothing until it is over. That is not a slow client:
+# `claude -p` holds its whole answer to the end (measured), which is what print
+# mode is for, so a live `tee` shows an empty screen for a minute and then
+# everything at once. Indistinguishable from a hang: you press the row, your
 # terminal goes quiet, and the only sign anything is happening is a trill card
 # on the other side of the screen.
 #
@@ -130,14 +128,14 @@ die2() { note "haus fix: $*"; banner fault "haus fix" "$*"; exit 2; }
 # on, the same limit modules/ai/clients/codex states for `codex`. A client
 # that DOES narrate as it works (`codex exec` and `opencode run` both look like
 # they do) trades a live log for a spinner and one dump at the end. Nothing is
-# lost — the transcript is $FIXLOG either way, and it is still the right side
-# of the silence this replaced — but if a client turns out to stream something
-# worth watching, the branch to add is a streaming one, not a redirect.
+# lost — the transcript is $FIXLOG either way — but if a client turns out to
+# stream something worth watching, the branch to add is a streaming one, not a
+# redirect.
 #
 # So the two long silences get a spinner row each — the agent turn, and the
 # `nix eval` that checks its work. The banner path pays for none of it: both
-# streams are /dev/null there, `ui_load` is never called, and the verdict was
-# always the banner.
+# streams are /dev/null there, `ui_load` is never called, and the verdict is
+# the banner.
 #
 # Substituted rather than inherited, the way `focus` and `haus-secret` take it:
 # `haus-fix` is its own binary and inherits nobody's environment — the trill
@@ -192,8 +190,8 @@ UI_WANT="ui_row ui_paint ui_live_close"
 #
 # Backgrounding the turn is what makes this necessary, and the reason is not
 # obvious: bash's `wait` builtin RETURNS on a trapped signal, where a
-# FOREGROUND command defers the trap until it finishes. So the ^C that used to
-# reach the client first now reaches the handler first — and a handler that
+# FOREGROUND command defers the trap until it finishes. So a ^C reaches the
+# handler before the client is done with it — and a handler that
 # only dropped the lock and exited would leave an agent that caught the signal
 # itself still editing $CONSUMER, gate open, with the one-at-a-time lock
 # released so the next `haus fix` may start beside it. That is the exact thing
@@ -210,7 +208,7 @@ FIX_JOB=""
 # back instead is the byte offset trick haus.sh already uses on its own log —
 # read $FIXLOG from where the run started and print that, once, underneath.
 #
-# Degrades to the `note` line it replaces wherever the painter is absent: no
+# Degrades to a plain `note` line wherever the painter is absent: no
 # terminal (the banner path, where fd 2 is /dev/null), bash 3.2, or a snug too
 # old to have the live region.
 spin_wait() { # spin_wait <pid> <name> <detail>
@@ -487,17 +485,15 @@ if [ -t 2 ]; then ui_load; fi
 # somebody else.
 turn_off="$(wc -c <"$FIXLOG" 2>/dev/null | tr -d ' ')"
 case "$turn_off" in '' | *[!0-9]*) turn_off=0 ;; esac
-# ONE path, where there used to be a `tee` for a terminal and a redirect for
-# everything else. The redirect is now both: `spin_wait` degrades to the plain
-# line wherever it cannot paint, and the `tee` had nothing to stream anyway —
-# print mode holds its whole answer to the end, so it drew an empty screen for
-# a minute and then the lot, while fighting the spinner for the cursor.
+# ONE path, terminal or not: a redirect, because `spin_wait` degrades to the
+# plain line wherever it cannot paint, and a `tee` would have nothing to stream
+# (print mode holds its answer to the end; see "the wait" above) while fighting
+# the spinner for the cursor.
 "${AGENT[@]}" "$prompt" </dev/null >>"$FIXLOG" 2>&1 &
 rc=0; spin_wait "$!" "$CLIENT" "fixing the $class failure" || rc=$?
 # The answer, once, under the row it was drawn beneath — and only where
-# somebody is looking, which is what the old `tee` branch meant by `-t 1`. On
-# the banner path this is /dev/null and the transcript is $FIXLOG, as it always
-# was.
+# somebody is looking. On the banner path this is /dev/null and the transcript
+# is $FIXLOG.
 if [ -t 1 ]; then
   tail -c "+$((turn_off + 1))" "$FIXLOG" 2>/dev/null
 fi
@@ -508,7 +504,7 @@ fi
 # onto a config that no longer evaluates is the one failure mode that would
 # make this feature worse than no feature.
 # The second silence, and on a cold eval it is not a short one. `spin_wait`
-# prints the line this used to print wherever there is no painter.
+# prints a plain line wherever there is no painter.
 nix eval --raw "$consumer#darwinConfigurations.$host.system.drvPath" >>"$FIXLOG" 2>&1 &
 evalrc=0; spin_wait "$!" "nix eval" "checking the config evaluates" || evalrc=$?
 if [ "$evalrc" = 0 ]; then
