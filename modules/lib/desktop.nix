@@ -200,10 +200,9 @@ let
 
   # An id a person picked for an app, a workspace or a focus scene. Not a fact
   # about the machine, so any ordinary name is fine — the rule exists to keep a
-  # key that is really a path or a shell fragment out of a generated file. It
-  # covered palette rows too until 2026-08-23, which is the bug `launcher-items`
-  # below now explains: a container inherits this predicate because its keys ARE
-  # plain names, never because the three beside it have plain names. A
+  # key that is really a path or a shell fragment out of a generated file. A
+  # container inherits this predicate because its keys ARE plain names, never
+  # because its neighbours' are (`launcher-items` below is what that cost). A
   # LEADING DIGIT is ordinary here and the first version of this refused it:
   # `workspaces."1"` is AeroSpace's most common naming, and `1password` is a
   # real app id.
@@ -297,7 +296,7 @@ let
     # (`mode:filesearch`, `cmd:emoji`, `app:/Applications/Ghostty.app`), so no
     # desktop could set an item at all — and the diagnostic told its author
     # their key "is not a plain item id", a rule the option's own examples all
-    # break. Three containers next to each other legitimately want plain ids;
+    # break. Four containers next to it legitimately want plain ids;
     # this one never did, and inheriting their predicate is how it got one.
     #
     # What the seam decides is which KINDS of address a shared file may name.
@@ -319,7 +318,7 @@ let
     #
     # The shape rule does not replace `shellSafe`, it sits beside it. Every
     # sibling container here keeps a syntax character out of its key —
-    # `plainId` does it for the three that take plain names, and free-form
+    # `plainId` does it for the ones that take plain names, and free-form
     # values go through `shellSafe` — and a desktop is precisely the untrusted
     # file that rule exists for. A prefix test alone would admit
     # `mode:"; $(…); "`, which pounce's own JSON survives and the sentence a
@@ -556,8 +555,7 @@ in
   # drop an entry", and it is the same rule as every other option here: the host
   # says something, the host's value is what you get. So a host that names
   # `keys.leaderExtras` at all REPLACES the desktop's, rather than appending to
-  # it — worth knowing before step 4 moves real lists into a desktop, and
-  # pinned by a row in `desktop-seam`.
+  # it — pinned by a row in `desktop-seam`.
   prioritize =
     priority: body:
     let
