@@ -711,9 +711,9 @@ let
   # right teaches a reader to stop reading the line, so the reasons live here,
   # per option, where the classification they explain is decided.
   #
-  # Names rather than sentences at the option, so that eleven rationales are
-  # written once instead of forty-three times and the rows that share one
-  # provably share it. A name used exactly once is fine and normal.
+  # Names rather than sentences at the option, so that each rationale is
+  # written once instead of once per row and the rows that share one provably
+  # share it. A name used exactly once is fine and normal.
   hostOnlyReasons = {
     agent-context.why = "Your own always-on instructions to coding agents: the private working context you write for your own machine, not something a stranger's file should arrive holding.";
     agent-trust.why = "It tells the safety classifier what this machine is and what is ordinary on it, so it decides which tool calls run without asking. A desktop that set it would be granting that trust on a machine it has never seen, about repos, hosts and secrets that are not its author's.";
@@ -759,8 +759,8 @@ let
   # different file, in a different repo, that nothing checks against this one.
   # So the sentence lives here, beside the name it explains, and renders
   # wherever that name is: one generated statement rather than two that can
-  # drift apart. A companion PR on hausfold.co is the other half: it renders
-  # this table on the options reference and stops the guide restating it.
+  # drift apart. hausfold.co's `gen-options.mjs` is the other half: it renders
+  # this table on the options reference.
   #
   # These are DESCRIPTIONS of the rule, not the diagnostics — `desktop.nix`'s
   # `keySaid` messages say what a bad key did wrong and are phrased to complete

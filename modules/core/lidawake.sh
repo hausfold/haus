@@ -27,8 +27,8 @@
 # loop at a shallower depth, not a second feature.
 #
 # THE SIGNAL. modules/bar/sketchybar/plugins/agents-hook.sh is already the one
-# writer of agent state, for every client (Claude Code, Codex, OpenCode) and
-# both shapes (a zmx lane, a desktop-app conversation). It now also drops one
+# writer of agent state, for every client (Claude Code, Codex, OpenCode, pi)
+# and both shapes (a zmx lane, a desktop-app conversation). It also drops one
 # empty file per agent that is `working` into $LIDAWAKE_HOLD_DIR, and removes it
 # on every other state. So this loop never discovers, polls or screen-scrapes
 # anything: that directory being non-empty IS "work is happening right now".
@@ -40,7 +40,7 @@
 # user's home and is written by the user's own hook; this daemon is root and
 # never writes into it. Privilege flows one way only, and a stray hold file
 # costs you one $LIDAWAKE_MAX_HOLD window (below) — one PER FILE, since the cap
-# now lifts for a hold that appears after it. Whoever can write that directory
+# lifts for a hold that appears after it. Whoever can write that directory
 # can therefore hold the lid indefinitely by using a fresh name each window.
 # That is the user themselves, holding their own machine awake, which is the
 # whole feature; it is stated here so nobody reads failsafe 2 as a bound on the
@@ -294,7 +294,7 @@ holds_present() { holds_newer_than "$STAMP"; }
 held=0        # what we last successfully applied
 held_since=0  # when this continuous hold began
 last_hold=0   # last tick at which the raw signal said work is happening
-capped=0      # MAX_HOLD tripped; refuse to re-arm until the signal clears
+capped=0      # MAX_HOLD tripped; refuse to re-arm until the latch lifts (failsafe 2)
 capstamp_ok=0 # this cap's stamp landed, so "newer than the cap" is answerable
 hold_pending=0 # a `sleep` hold taken but not yet announced (see below)
 tick=0
@@ -353,9 +353,10 @@ while :; do
         want=1
     fi
 
-    # Failsafe 2. Cap one continuous hold, and LATCH until the signal clears —
-    # without the latch a stuck hold file would re-arm on the very next tick and
-    # the cap would mean nothing.
+    # Failsafe 2. Cap one continuous hold, and LATCH until the signal clears or
+    # a hold newer than the cap appears (the header has why both) — without the
+    # latch a stuck hold file would re-arm on the very next tick and the cap
+    # would mean nothing.
     if [ "$capped" = 1 ]; then
         if [ "$want" = 0 ]; then
             capped=0

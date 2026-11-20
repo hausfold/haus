@@ -16,9 +16,8 @@
 # ("in 3h20m"); above it they are noise on a number you're reading as "not yet"
 # ("in 14h", and "in 2d" once `horizon` reaches that far — at the default 24 the
 # day form is out of range by construction). While an event is running the pill
-# says "now · <title>" rather than going blank, which is what it used to do — a
-# pill with nothing to say during the only half hour it matters is a pill you
-# learn to ignore.
+# says "now · <title>" rather than going blank: a pill with nothing to say during
+# the only half hour it matters is a pill you learn to ignore.
 #
 # For `haus.bar.calendar.imminent` minutes either side of the start the pill
 # FILLS: the accent moves from the glyph to the whole background and the type
@@ -26,11 +25,9 @@
 # it is a shape change, not a colour change, so it survives being glanced at.
 #
 # ── the sweep ─────────────────────────────────────────────────────────────────
-# HOVER ONLY. The title used to also sweep for eight seconds whenever the next
-# event changed, on the theory that that's when you'd want to read it; in
-# practice the bar just moved on its own several times a day, which is the one
-# thing a status bar must never do. Nothing here starts a marquee unless the
-# pointer is on the pill.
+# HOVER ONLY. A sweep on "the next event changed" moves the bar on its own
+# several times a day, which is the one thing a status bar must never do.
+# Nothing here starts a marquee unless the pointer is on the pill.
 #
 # How wide the settled form is comes from `haus.bar.calendar.width`, applied as
 # the item's label.max_chars in the Nix style — SketchyBar owns the clip, so
@@ -40,11 +37,8 @@
 # A barlib widget (hausfold.co/docs/haus/rooms/bar-widgets). The header below is
 # the pill's whole wiring; the runtime owns the $SB routing, the diffed repaint,
 # the click dispatch, and the whole popup dance — the per-row items, the one
-# batched --add, the close-on-click and the barpop arm this file used to spell
-# out by hand. The dropdown's rows are the runtime's six kinds now: a heading
-# per band, a two-column row per event (the when column on the left, the title
-# on the value column), and a second two-column row hanging the duration and
-# the who under it with the Join affordance trailing in the value slot.
+# batched --add, the close-on-click and the barpop arm. The dropdown is drawn
+# in the runtime's row kinds; "the dropdown" below says which.
 # widget: popup      = true
 # widget: mark = plum
 # widget: subscribes = mouse.entered, mouse.exited, mouse.exited.global
@@ -72,7 +66,7 @@ JOIN_EXTRA=${BAR_CALENDAR_JOIN_HOSTS:-}   # comma-joined: extra conferencing hos
 
 # Homebrew's path FIRST, not `command -v`'s answer: a CLI's Calendar grant in
 # TCC is keyed by PATH, so the copy the user already approved is the copy that
-# can read anything (see also the note about brew upgrades orphaning that grant).
+# can read anything (haus_menu.sh has the note on `brew upgrade` orphaning a grant).
 ICALBUDDY=/opt/homebrew/bin/icalBuddy
 [ -x "$ICALBUDDY" ] || ICALBUDDY="$(command -v icalBuddy 2>/dev/null || echo "$ICALBUDDY")"
 
@@ -90,7 +84,7 @@ mkdir -p "$STATE_DIR" 2>/dev/null
 
 # ── who is "me" ───────────────────────────────────────────────────────────────
 # An attendee list that includes you is a list that tells you nothing: every
-# meeting is "with julien@…". icalBuddy has no is-current-user flag, but a
+# meeting is "with you@…". icalBuddy has no is-current-user flag, but a
 # CalDAV account's calendar is NAMED for the address it syncs, so the set of
 # calendar names that look like email addresses is a good enough answer with no
 # configuration at all — which is the point, since the one machine that could
@@ -212,7 +206,7 @@ function titlecase(s,   n, i, w, out) {
 }
 # An address is a machine detail; a name is what you would say out loud. So an
 # email becomes its local part, title-cased with the dots opened out
-# (chalo@monogram.io -> Chalo, first.last@x -> First Last), and anything that
+# (sam@example.com -> Sam, first.last@x -> First Last), and anything that
 # already IS a display name is left exactly as the organiser typed it.
 function person(s,   local) {
   s = trim(s)
@@ -454,20 +448,8 @@ render() {
 
 # ── the dropdown ──────────────────────────────────────────────────────────────
 # A timeline, top to bottom: what's DONE (the last `past` hours), what's on NOW,
-# and what's NEXT. Two rows per event, and the split is the point:
-#
-#   spine  the when in the NAME column ("Today 12:45" — five-char day label +
-#          clock, so the times stack; the column is monospace), the title on
-#          the value column. The band picks the tones: a done row is mute/dim,
-#          the now band warns from its when column, everything later is dim.
-#   meta   duration + who in the name column, dim, with the join affordance
-#          trailing it on the value slot in the action sapphire. Clicking
-#          either row opens the link.
-#
-# Exactly ONE row gets a filled box: the event the PILL is about. Highlighting
-# by background rather than by colour alone is what makes it findable at a
-# glance; popup_set on the row the runtime just added is how the box lands on
-# exactly one.
+# and what's NEXT, each band under its own heading. event_rows says how one
+# event is drawn.
 
 # `Today`, `Tmrw`, `Ystdy` or a weekday, padded to a common width so the clock
 # column underneath it stacks. Five characters is the longest of them, and the
@@ -562,10 +544,10 @@ popup_rows() {
   read_calendar
   pick_focus
 
-  # The focus event's identity, so the loop below can box exactly one row.
+  # The focus event's identity, so the loop below marks exactly one row.
   # Start minute plus title, and `boxed` makes it exactly one even then: two
   # calendars invited to the same meeting is one event listed twice with the
-  # same key, and two boxes is no highlight at all.
+  # same key, and two Join buttons say nothing about which is next.
   local focus_key="" drawn_done=0 drawn_now=0 drawn_next=0 next_count=0 boxed=0
   local rows=0 past_min focus
   [ -n "$FOCUS" ] && focus_key="$F_SMIN|$F_TITLE"

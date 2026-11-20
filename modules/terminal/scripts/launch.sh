@@ -2,20 +2,14 @@
 # Ghostty → zmx launcher. Configured as ghostty's `command`.
 # Debug log: /tmp/haus-term-launch.log
 #
-# This is the heir of the zellij launcher, and it does two of the three jobs
-# that one did. The third — "attach to the ONE `main` session" — is gone with
-# the multiplexer: a window is a pane now, so there is no single session for
-# every window to share. Each window gets its own.
-#
 # ── why a zmx session at all, when a window could just be a shell ────────────
 # Persistence is the small half. The load-bearing half is that Ghostty's
 # AppleScript API can CREATE a surface but cannot READ one — no dump-screen, no
 # scrollback, no text property. Three shipped features read a window: ⌘F find
 # (scripts/find.sh), ⌘L links (launcher/commands/links.sh) and the bar's agent
-# peek (bar/…/agents.sh). Under zellij they all called
-# `zellij action dump-screen`; the replacement is `zmx history` / `zmx tail`,
-# and that only exists if the window's shell is INSIDE a session. So the session
-# is the read API, exactly as it is for a lane.
+# peek (bar/…/agents.sh). They read through `zmx history` / `zmx tail`, which
+# only exists if the window's shell is INSIDE a session. So the session is the
+# read API, exactly as it is for a lane.
 #
 # ── the name ─────────────────────────────────────────────────────────────────
 # `term.<n>`, lowest n that no session holds. A NEW window is always a new
@@ -143,15 +137,9 @@ command -v zmx >/dev/null 2>&1 || {
 #                            scripts/restore-windows.sh, which is the ONLY thing
 #                            that reattaches a session to a new window.
 #   unset                    a name NOBODY holds: the lowest `term.<n>` that
-#                            does not exist at all.
-#
-# That second rule used to read "the lowest n that is not ATTACHED", which
-# silently made every new window a lottery: a `term.<n>` left behind by a closed
-# window is a live shell sitting in some other directory, so ⌘N — whose entire
-# promise is "a shell HERE" — would drop you into an old one somewhere else,
-# with its scrollback and its cwd, roughly as often as you had parked a window.
-# A new window is now always a new shell. Getting an old one back is the restore
-# path's job, and the bar's, and the Lanes picker's — never a spawn chord's.
+#                            does not exist at all — not merely the lowest one
+#                            not ATTACHED, which would hand ⌘N a parked shell
+#                            in some other directory (the header has why).
 if [ -n "${HAUS_ZMX_ATTACH:-}" ]; then
     SESSION="$HAUS_ZMX_ATTACH"
     log "explicit attach: $SESSION"
@@ -462,13 +450,11 @@ log "zmx exited with code $rc"
 # the honest answer to that is to end this process too — and then to close the
 # window, which ghostty turns out not to do for us (next block).
 #
-# This fell through to `run_shell` unconditionally until 2026-08-19, and that
-# is what put TWO shells in every window: ^D ended the session and landed you
-# in a sessionless login zsh that needed a SECOND ^D to close the window. The
-# fallback is still here for the case it was actually written for — a non-zero
-# rc is zmx failing rather than a session ending, and a window that vanishes
-# takes the error with it — but only a failure reaches it now. Even then the
-# screen is not the only copy: zmx's stderr is tee'd to $LOG above.
+# Falling through to `run_shell` on a 0 puts TWO shells in every window: ^D ends
+# the session and lands you in a sessionless login zsh that needs a SECOND ^D.
+# The fallback is for a non-zero rc only — zmx failing rather than a session
+# ending, where a window that vanished would take the error with it. Even then
+# the screen is not the only copy: zmx's stderr is tee'd to $LOG above.
 #
 # A lane window has answered this way since it existed (lanes/lane-open.sh
 # execs `zmx attach` and holds only on a non-zero rc). Same rule, same reason.

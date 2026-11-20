@@ -4,13 +4,8 @@
 # blocks a from-source Nix build — see the trill repo), so `pkgs.trill` is that
 # exact bundle in the store.
 #
-# NAMED FOR THE SUBJECT, NOT THE APP, like every other room since the 2026-08-16
-# sweep that took `pounce` to `launcher` and `perch` to `shelf` (../moved.nix
-# records it, and why those spellings got no alias). This room shipped nine days
-# after that sweep wearing the old shape — `haus.trill.enable` — and moved to
-# `haus.notifications.compositor` for the same reason the others did.
-#
-# The switch is `compositor` rather than `enable` on purpose:
+# NAMED FOR THE SUBJECT, NOT THE APP, like `launcher` and `shelf` (../moved.nix
+# has the old spellings and why none of them got an alias). The switch is `compositor` rather than `enable` on purpose:
 # `haus.notifications.enable = false` would read as "this Mac draws no haus
 # notifications", and that is false on every machine. ../core/haus-notify.sh is
 # unconditional and falls back to Apple's banner when nothing answers. The room
@@ -84,7 +79,7 @@
 }:
 
 let
-  # Same path ../apps holds for its duti pins, and held for the same reason:
+  # Same path ../terminal holds for its duti pins, and held for the same reason:
   # LaunchServices keeps its record of an app BY PATH, so a bundle replaced at
   # a fixed path has to be re-registered or `open` answers from the record of
   # the one that was deleted.
@@ -376,10 +371,9 @@ lib.mkIf config.haus.notifications.compositor {
         # root's session is not the one with a menu bar in it (the same reason
         # ../core's activateSettings call goes through asuser). `-g` so a rebuild
         # never steals focus, `timeout` on everything that talks to LaunchServices
-        # or to trill's socket because neither has a clock of its own, and
-        # `open` rather than
-        # exec'ing the binary because the TCC identity has to be the app's — which
-        # is the entire point of this room.
+        # or to trill's socket because neither has a clock of its own, and `open`
+        # rather than exec'ing the binary because the TCC identity has to be the
+        # app's — which is the entire point of this room.
         #
         # The success line is printed from what actually happened rather than from
         # having tried. Unlike the shelf, the probe here is honest about more than
@@ -392,7 +386,7 @@ lib.mkIf config.haus.notifications.compositor {
           # app by PATH, and the bundle at this one just changed inode, version
           # and code signature under it — so `open` can answer from the record of
           # the bundle we deleted, accept the launch, return 0 and start nothing.
-          # Same ordering ../apps uses before its duti pins, and the same reason.
+          # Same ordering ../terminal uses before its duti pins, and the same reason.
           ${lsregister} -f "$trillDest" 2>/dev/null || true
 
           # Three tries, not one. `open` returning 0 means LaunchServices took
@@ -404,8 +398,8 @@ lib.mkIf config.haus.notifications.compositor {
           # fired on a trill that was seconds from answering.
           trillUp=""
           for _ in 1 2 3; do
-            # `open` returning 0 never proves a process exists — but non-zero
-            # proves one doesn't, so don't spend a probe on it. That is the whole
+            # A non-zero `open` proves no process exists, so don't spend a
+            # probe on it. That is the whole
             # cost of a rebuild with no Aqua session to open into (ssh, CI, a
             # lane's own VM), where `launchctl asuser` fails at once: three quick
             # failures instead of 45 s of probing a socket nobody is behind.
@@ -437,14 +431,10 @@ lib.mkIf config.haus.notifications.compositor {
               # that accepts the connection and then wedges — the first-launch
               # state this retry loop exists for — would block activation for
               # ever, as root, holding $trillLock.
-              # `-H` here for the same reason as the launch above. Not a
-              # bundle-resolution question — `$trillExec` is the absolute
-              # binary inside `$trillDest`, so this probe answers about
-              # /Applications either way, which is the bundle activation just
-              # installed and exactly what we want to hear about. It is that
-              # this execs trill's own CLI AS you, and a probe run in a
-              # different environment than the launch it is checking on is a
-              # probe that can disagree with reality.
+              # `-H` here too: this execs trill's own CLI AS you, and a probe
+              # run in a different environment than the launch it checks can
+              # disagree with reality. (`$trillExec` is absolute, so it answers
+              # about the /Applications bundle either way.)
               if ${pkgs.coreutils}/bin/timeout 5 launchctl asuser "$trillUid" \
                    sudo -H --user=${username} -- \
                    "$trillExec" ping >/dev/null 2>&1; then trillUp=1; break; fi

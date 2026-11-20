@@ -11,8 +11,8 @@ let
 
   # §5.12's designation table — the same "read the fact, don't retype it" shape
   # the restart map already has. This file uses it for two things: the list of
-  # keys `haus.accessibility` is allowed to expose (the `effective` class, and
-  # nothing else), and the REACHABILITY paragraph every one of those options
+  # keys `haus.accessibility` is allowed to expose (the two measured classes
+  # below, and nothing else), and the REACHABILITY paragraph every one of those options
   # carries, which is generated from the domain's entry rather than pasted.
   # An option can therefore not describe a reachability it doesn't have.
   reachability = import ../lib/reachability.nix;
@@ -291,9 +291,10 @@ in
     # right now) is read back out of `config.launchd` at render time instead of
     # being copied here, so an entry cannot drift from the plist it describes
     # and a job behind a sub-room condition follows its own `lib.mkIf` for free
-    # — five of them do (`bar-bottom`, `focus-auto`, `focus-watcher`,
-    # `haus-agent-awake`, `haus-lidawake`), and a hand-copied entry would have
-    # had to repeat every one of those gates or report a job that isn't there.
+    # — six of them do (`bar-bottom`, `focus-auto`, `focus-watcher`,
+    # `haus-agent-awake`, `haus-factory`, `haus-lidawake`), and a hand-copied
+    # entry would have had to repeat every one of those gates or report a job
+    # that isn't there.
     #
     # Which makes this deck the exact opposite of the permissions one in what it
     # carries: cards there are almost entirely prose because macOS exposes no
@@ -383,13 +384,8 @@ in
     # the two cannot disagree, in either direction: a key promoted with no
     # description here fails at eval saying so, and a description for a key the
     # table doesn't back is refused the same way. The one thing left by hand is
-    # the prose, which is the one thing a table can't hold.
-    #
-    # "Measured" is TWO classes since 2026-08-14, and the split is about the
-    # oracle rather than about confidence: `effective` was confirmed by
-    # NSWorkspace and can be re-confirmed on your Mac, `by-eye` was confirmed by
-    # a person on real hardware and can't be re-confirmed anywhere, because no
-    # API reports it. Both back options; each option says which it has.
+    # the prose, which is the one thing a table can't hold. "Measured" is the
+    # two classes `a11yOptionClasses`, at the top of this file, splits.
     #
     # It grew two → four → seven on purpose, and the reason is a safety one
     # rather than a completeness one. `reduceMotion` and `reduceTransparency`
@@ -682,10 +678,8 @@ in
     # alone: the bar's sizes come from ui.scale against the menu-bar band's
     # ceiling, because its pill geometry is built around them (../lib/bar.nix).
     #
-    # `sans` below is the proportional half, and it is no longer one label's
-    # fallback: it reaches the clock pill AND pounce, perch and trill, each
-    # through the config file its own room already generates. The asymmetry
-    # that remains is what each family is FOR — `mono` is what this machine is
+    # `sans` below is the proportional half; its own comment says what it
+    # reaches. The asymmetry that remains is what each family is FOR — `mono` is what this machine is
     # drawn in, `sans` is what it is written in — and the package arms differ
     # for the reason ../lib/sans-font.nix's header gives: the default family is
     # macOS's own, so the third answer there is null rather than a package.
